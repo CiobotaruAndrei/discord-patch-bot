@@ -161,6 +161,17 @@ parametri de apel, identici in ambele implementari, verificati prin teste de par
 Ce **nu** s-a mutat, deliberat: descarcarea si HTTP-ul, apelul catre motorul extern de reputatie, deciziile
 de moderare si persistenta — sunt I/O si politica, nu calcul (vezi sectiunea 4).
 
+**PDF si OOXML** sunt parcurse structural, nu doar prin fereastra de scanare. Pentru PDF, motorul
+localizeaza obiectele `stream`/`endstream`, decomprima fluxurile `/FlateDecode` (bounded de aceleasi
+limite de bytes decomprimati si timp) si scaneaza continutul DECODAT — asa se prinde un `/JavaScript`
+sau un `/EmbeddedFile` ascuns intr-un flux comprimat, complet invizibil pentru scanarea latin1 a
+bytes-ului brut. Pentru OOXML, fisierele `.rels` sunt parsate ca **graf de relatii** (`Type`, `Target`,
+`TargetMode`), nu doar cautate dupa siruri: relatiile `attachedTemplate`/`frame` cu `TargetMode="External"`
+(vectorul clasic de sablon Word incarcat de la distanta) primesc indicator dedicat, iar `oleObject`,
+`package` si `vbaProject` sunt clasificate dupa tipul relatiei, nu dupa numele intrarii. Parsarea
+grafului elimina si un fals pozitiv real: pana acum ORICE `.rels` era marcat „referinta externa" fiindca
+`xmlns="http://schemas.openxmlformats.org/..."` contine `http://`.
+
 **RAR si 7z** sunt acum parcurse structural **la nivel de header**, in acelasi task Rust: RAR4 (blocuri
 `FILE_HEAD`) si RAR5 (headere cu `vint`) sunt enumerate ca nume de intrari, iar 7z isi expune tipul
 headerului urmator (`kHeader` simplu vs `kEncodedHeader` codificat/criptat). Numele obtinute trec prin

@@ -1,4 +1,4 @@
-use flate2::read::{DeflateDecoder, GzDecoder};
+use flate2::read::{DeflateDecoder, GzDecoder, ZlibDecoder};
 use std::io::Read;
 use std::time::Instant;
 
@@ -157,15 +157,6 @@ fn has_dde_field(haystack: &[u8]) -> bool {
     }
   }
   false
-}
-
-fn ci_contains(haystack: &[u8], lowercase_needle: &[u8]) -> bool {
-  if lowercase_needle.is_empty() || haystack.len() < lowercase_needle.len() {
-    return false;
-  }
-  haystack.windows(lowercase_needle.len()).any(|window| {
-    window.iter().zip(lowercase_needle.iter()).all(|(a, b)| a.to_ascii_lowercase() == *b)
-  })
 }
 
 fn has_external_target_mode(haystack: &[u8]) -> bool {
@@ -390,6 +381,164 @@ fn pdf_action_indicators(text: &[u8]) -> bool {
     || has_obfuscated_pdf_action_name(text)
 }
 
+const PDF_MAX_STREAMS: usize = 64;
+const PDF_DICT_LOOKBEHIND: usize = 4096;
+
+fn is_pdf(bytes: &[u8]) -> bool {
+  bytes.len() >= 5 && &bytes[..5] == b"%PDF-"
+}
+
+fn inflate_zlib(data: &[u8], max_output: u64) -> Option<Vec<u8>> {
+  let mut out = Vec::new();
+  let mut decoder = ZlibDecoder::new(data).take(max_output + 1);
+  decoder.read_to_end(&mut out).ok()?;
+  if out.len() as u64 > max_output {
+    return None;
+  }
+  Some(out)
+}
+
+fn pdf_stream_payload(bytes: &[u8], keyword_end: usize) -> Option<(&[u8], usize)> {
+  let mut start = keyword_end;
+  if start < bytes.len() && bytes[start] == b'\r' {
+    start += 1;
+  }
+  if start < bytes.len() && bytes[start] == b'\n' {
+    start += 1;
+  }
+  let relative = find(&bytes[start..], b"endstream")?;
+  Some((&bytes[start..start + relative], start + relative + 9))
+}
+
+fn pdf_structural_indicators(bytes: &[u8], budget: &mut Budget) -> Vec<String> {
+  if !is_pdf(bytes) {
+    return Vec::new();
+  }
+  let mut indicators: Vec<String> = Vec::new();
+  let mut streams = 0usize;
+  let mut offset = 0usize;
+  while streams < PDF_MAX_STREAMS {
+    let Some(relative) = find(&bytes[offset..], b"stream") else { break };
+    let keyword_start = offset + relative;
+    let keyword_end = keyword_start + 6;
+    if keyword_start >= 3 && &bytes[keyword_start - 3..keyword_start] == b"end" {
+      offset = keyword_end;
+      continue;
+    }
+    let Some((payload, next_offset)) = pdf_stream_payload(bytes, keyword_end) else { break };
+    let dictionary_start = keyword_start.saturating_sub(PDF_DICT_LOOKBEHIND);
+    let dictionary = &bytes[dictionary_start..keyword_start];
+    if contains(dictionary, b"/FlateDecode") || contains(dictionary, b"/Fl") {
+      streams += 1;
+      if let Some(decoded) = inflate_zlib(payload, budget.limits.max_expanded_bytes) {
+        budget.expanded_bytes += decoded.len() as u64;
+        if budget.expanded_bytes > budget.limits.max_expanded_bytes {
+          break;
+        }
+        if pdf_action_indicators(&decoded) {
+          indicators.push("actiune automata sau script PDF in flux comprimat (parser structural PDF)".to_string());
+        }
+        if contains(&decoded, b"/Launch") || contains(&decoded, b"/EmbeddedFile") || contains(&decoded, b"/RichMedia") || contains(&decoded, b"/GoToR") {
+          indicators.push("indicator de lansare de proces sau continut incorporat".to_string());
+        }
+        if contains(&decoded, b"DDEAUTO") || has_dde_field(&decoded) {
+          indicators.push("indicator de camp DDE (executie externa)".to_string());
+        }
+        if contains(&decoded, b"/XFA") {
+          indicators.push("formular XFA cu potential de script".to_string());
+        }
+      }
+      if budget.started.elapsed().as_millis() as u64 > budget.limits.timeout_ms {
+        break;
+      }
+    }
+    offset = next_offset;
+  }
+  dedupe(indicators)
+}
+
+fn xml_attribute<'a>(element: &'a [u8], name: &[u8]) -> Option<&'a [u8]> {
+  let mut offset = 0usize;
+  while offset + name.len() <= element.len() {
+    let window = &element[offset..];
+    let position = window
+      .windows(name.len())
+      .position(|candidate| candidate.iter().zip(name.iter()).all(|(a, b)| a.to_ascii_lowercase() == *b))?;
+    let start = offset + position;
+    let leading_ok = start == 0 || !is_word_byte(element[start - 1]);
+    let mut cursor = start + name.len();
+    while cursor < element.len() && element[cursor].is_ascii_whitespace() {
+      cursor += 1;
+    }
+    if leading_ok && cursor < element.len() && element[cursor] == b'=' {
+      cursor += 1;
+      while cursor < element.len() && element[cursor].is_ascii_whitespace() {
+        cursor += 1;
+      }
+      if cursor < element.len() && (element[cursor] == b'"' || element[cursor] == b'\'') {
+        let quote = element[cursor];
+        cursor += 1;
+        let end = element[cursor..].iter().position(|byte| *byte == quote)? + cursor;
+        return Some(&element[cursor..end]);
+      }
+    }
+    offset = start + 1;
+  }
+  None
+}
+
+fn ends_with_ci(haystack: &[u8], suffix: &[u8]) -> bool {
+  haystack.len() >= suffix.len()
+    && haystack[haystack.len() - suffix.len()..]
+      .iter()
+      .zip(suffix.iter())
+      .all(|(a, b)| a.to_ascii_lowercase() == *b)
+}
+
+fn starts_with_ci(haystack: &[u8], prefix: &[u8]) -> bool {
+  haystack.len() >= prefix.len()
+    && haystack[..prefix.len()].iter().zip(prefix.iter()).all(|(a, b)| a.to_ascii_lowercase() == *b)
+}
+
+fn is_remote_target(target: &[u8]) -> bool {
+  starts_with_ci(target, b"http://")
+    || starts_with_ci(target, b"https://")
+    || starts_with_ci(target, b"ftp://")
+    || starts_with_ci(target, b"file://")
+    || starts_with_ci(target, b"\\\\")
+}
+
+fn ooxml_relationship_indicators(bytes: &[u8]) -> Vec<String> {
+  let mut indicators: Vec<String> = Vec::new();
+  let mut offset = 0usize;
+  let mut parsed = 0usize;
+  while parsed < 512 {
+    let Some(relative) = find(&bytes[offset..], b"<Relationship") else { break };
+    let start = offset + relative;
+    let Some(length) = find(&bytes[start..], b">") else { break };
+    let element = &bytes[start..start + length];
+    parsed += 1;
+    offset = start + length + 1;
+    let relation_type = xml_attribute(element, b"type").unwrap_or(b"");
+    let target = xml_attribute(element, b"target").unwrap_or(b"");
+    let target_mode = xml_attribute(element, b"targetmode").unwrap_or(b"");
+    let external = target_mode.eq_ignore_ascii_case(b"external");
+    if ends_with_ci(relation_type, b"/vbaproject") {
+      indicators.push("macro sau script Office intern".to_string());
+    }
+    if ends_with_ci(relation_type, b"/oleobject") || ends_with_ci(relation_type, b"/package") {
+      indicators.push("obiect OLE incorporat in document Office".to_string());
+    }
+    if external && (ends_with_ci(relation_type, b"/attachedtemplate") || ends_with_ci(relation_type, b"/frame")) {
+      indicators.push("sablon sau cadru Office incarcat dintr-o sursa externa (relatie OOXML)".to_string());
+    }
+    if external || is_remote_target(target) {
+      indicators.push("referinta externa in document Office".to_string());
+    }
+  }
+  dedupe(indicators)
+}
+
 fn name_indicators(name: &str) -> Vec<String> {
   let normalized = name.replace('\\', "/").to_lowercase();
   let mut indicators: Vec<String> = Vec::new();
@@ -405,7 +554,7 @@ fn name_indicators(name: &str) -> Vec<String> {
   indicators
 }
 
-fn content_indicators(name: &str, bytes: &[u8]) -> Vec<String> {
+fn content_indicators(name: &str, bytes: &[u8], budget: &mut Budget) -> Vec<String> {
   let normalized = name.replace('\\', "/").to_lowercase();
   let mut indicators: Vec<String> = name_indicators(name);
   if bytes.len() >= 2 && bytes[0] == 0x4d && bytes[1] == 0x5a {
@@ -421,12 +570,14 @@ fn content_indicators(name: &str, bytes: &[u8]) -> Vec<String> {
   if contains(text, b"DDEAUTO") || has_dde_field(text) {
     indicators.push("camp DDE intern (executie externa)".to_string());
   }
-  if normalized.ends_with(".rels")
-    && (has_external_target_mode(text) || ci_contains(text, b"http://") || ci_contains(text, b"https://"))
-  {
-    indicators.push("referinta externa in document Office".to_string());
+  if normalized.ends_with(".rels") {
+    indicators.extend(ooxml_relationship_indicators(bytes));
+    if has_external_target_mode(text) {
+      indicators.push("referinta externa in document Office".to_string());
+    }
   }
   indicators.extend(inspect_compound_file_binary(bytes));
+  indicators.extend(pdf_structural_indicators(bytes, budget));
   indicators
 }
 
@@ -553,7 +704,7 @@ fn inspect_zip(bytes: &[u8], depth: u32, budget: &mut Budget) -> Finding {
       if uncompressed_size != 0 && entry.len() as u64 != uncompressed_size {
         return uncertain("dimensiunea decomprimata ZIP nu corespunde headerului".to_string(), indicators);
       }
-      indicators.extend(content_indicators(&name, &entry));
+      indicators.extend(content_indicators(&name, &entry, budget));
       let nested = inspect_nested(&name, &entry, depth + 1, budget);
       indicators.extend(nested.indicators);
       if nested.uncertain {
@@ -601,7 +752,7 @@ fn inspect_tar(bytes: &[u8], depth: u32, budget: &mut Budget) -> Finding {
       return uncertain(limit_failure, indicators);
     }
     let entry = &bytes[data_offset..end_offset];
-    indicators.extend(content_indicators(&name, entry));
+    indicators.extend(content_indicators(&name, entry, budget));
     let nested = inspect_nested(&name, entry, depth + 1, budget);
     indicators.extend(nested.indicators);
     if nested.uncertain {
@@ -632,7 +783,7 @@ fn inspect_gzip(bytes: &[u8], depth: u32, budget: &mut Budget) -> Finding {
   if !tar.uncertain {
     return tar;
   }
-  let mut indicators = content_indicators("payload", &expanded);
+  let mut indicators = content_indicators("payload", &expanded, budget);
   let nested = inspect_nested("payload", &expanded, depth + 1, budget);
   let nested_uncertain = nested.uncertain;
   indicators.extend(nested.indicators);
@@ -1012,8 +1163,10 @@ fn looks_like_archive(bytes: &[u8], filename: &str, mime: &str) -> bool {
   ["zip", "tar", "gzip", "x-rar", "7z", "compressed"].iter().any(|token| lower_mime.contains(token))
 }
 
-fn document_finding(bytes: &[u8]) -> Finding {
-  let indicators = document_indicators(bytes);
+fn document_finding(bytes: &[u8], budget: &mut Budget) -> Finding {
+  let mut indicators = document_indicators(bytes);
+  indicators.extend(pdf_structural_indicators(bytes, budget));
+  let indicators = dedupe(indicators);
   let reason = if indicators.is_empty() {
     "document inspectat structural fara indicatori".to_string()
   } else {
@@ -1032,7 +1185,7 @@ pub fn inspect_untrusted_content(
   let started = Instant::now();
   let mut budget = Budget { entries: 0, expanded_bytes: 0, started, limits };
   let finding = if mode == "document" {
-    document_finding(bytes)
+    document_finding(bytes, &mut budget)
   } else if is_zip(bytes) {
     inspect_zip(bytes, 0, &mut budget)
   } else if is_gzip(bytes) {
@@ -1046,7 +1199,7 @@ pub fn inspect_untrusted_content(
   } else if mode == "archive" || looks_like_archive(bytes, filename, mime) {
     uncertain("formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat".to_string(), Vec::new())
   } else {
-    document_finding(bytes)
+    document_finding(bytes, &mut budget)
   };
   InspectionReport {
     status: if finding.uncertain { "uncertain".to_string() } else { "inspected".to_string() },
@@ -1061,7 +1214,7 @@ pub fn inspect_untrusted_content(
 #[cfg(test)]
 mod tests {
   use super::*;
-  use flate2::write::{DeflateEncoder, GzEncoder};
+  use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
   use flate2::Compression;
   use std::io::Write;
 
@@ -1482,4 +1635,92 @@ mod tests {
     assert_eq!(result.reason, "document inspectat structural fara indicatori");
     assert_eq!(result.entries_inspected, 0);
   }
+
+  fn zlib_deflate(data: &[u8]) -> Vec<u8> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
+    encoder.write_all(data).unwrap();
+    encoder.finish().unwrap()
+  }
+
+  fn pdf_with_compressed_stream(payload: &[u8]) -> Vec<u8> {
+    let mut body = payload.to_vec();
+    body.extend_from_slice(b" ");
+    body.extend(b"0 0 0 0 0 0 0 0 0 0 ".repeat(64));
+    let compressed = zlib_deflate(&body);
+    let mut out = Vec::new();
+    out.extend_from_slice(b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n2 0 obj\n<< /Length ");
+    out.extend_from_slice(compressed.len().to_string().as_bytes());
+    out.extend_from_slice(b" /Filter /FlateDecode >>\nstream\n");
+    out.extend_from_slice(&compressed);
+    out.extend_from_slice(b"\nendstream\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n");
+    out
+  }
+
+  #[test]
+  fn pdf_actions_hidden_in_a_flate_stream_are_found_by_the_structural_parser() {
+    let pdf = pdf_with_compressed_stream(b"<< /Type /Action /S /JavaScript /JS (app.alert(1)) >>");
+    assert_eq!(
+      document_indicators(&pdf),
+      Vec::<String>::new(),
+      "scanarea de fereastra pe bytes-ul brut nu vede continutul comprimat, deci testul chiar exercita parserul structural"
+    );
+    let result = report(&pdf, "raport.pdf", "application/pdf", "document");
+    assert_eq!(result.status, "inspected");
+    assert!(result.indicators.contains(&"actiune automata sau script PDF in flux comprimat (parser structural PDF)".to_string()));
+    assert!(result.expanded_bytes > 0, "bytes-ii decomprimati din fluxuri intra in bugetul raportat");
+  }
+
+  #[test]
+  fn pdf_streams_with_benign_content_do_not_produce_indicators() {
+    let pdf = pdf_with_compressed_stream(b"BT /F1 12 Tf (raport trimestrial) Tj ET");
+    let result = report(&pdf, "raport.pdf", "application/pdf", "document");
+    assert_eq!(result.status, "inspected");
+    assert!(result.indicators.is_empty());
+  }
+
+  #[test]
+  fn pdf_embedded_file_inside_a_flate_stream_is_reported() {
+    let pdf = pdf_with_compressed_stream(b"<< /Type /Filespec /EmbeddedFile 12 0 R >>");
+    let result = report(&pdf, "raport.pdf", "application/pdf", "document");
+    assert!(result.indicators.contains(&"indicator de lansare de proces sau continut incorporat".to_string()));
+  }
+
+  #[test]
+  fn pdf_stream_budget_stops_at_the_expanded_bytes_limit() {
+    let pdf = pdf_with_compressed_stream(&vec![b'A'; 4096]);
+    let limits = InspectionLimits { max_expanded_bytes: 16, ..InspectionLimits::default() };
+    let result = inspect_untrusted_content(&pdf, "raport.pdf", "application/pdf", "document", limits);
+    assert_eq!(result.status, "inspected", "un buget depasit pe fluxuri nu transforma documentul in verdict de arhiva");
+    assert!(result.indicators.is_empty());
+  }
+
+  #[test]
+  fn ooxml_relationship_types_are_classified_from_the_graph_not_from_the_entry_name() {
+    let external_template = br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="http://evil.test/p.dotm" TargetMode="External"/></Relationships>"#;
+    let indicators = ooxml_relationship_indicators(external_template);
+    assert!(indicators.contains(&"sablon sau cadru Office incarcat dintr-o sursa externa (relatie OOXML)".to_string()));
+    assert!(indicators.contains(&"referinta externa in document Office".to_string()));
+
+    let ole = br#"<Relationships><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/oleObject1.bin"/></Relationships>"#;
+    assert!(ooxml_relationship_indicators(ole).contains(&"obiect OLE incorporat in document Office".to_string()));
+
+    let vba = br#"<Relationships><Relationship Id="rId3" Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" Target="vbaProject.bin"/></Relationships>"#;
+    assert!(ooxml_relationship_indicators(vba).contains(&"macro sau script Office intern".to_string()));
+  }
+
+  #[test]
+  fn ooxml_internal_only_relationships_are_not_flagged_because_of_the_http_namespace() {
+    let internal = br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>"#;
+    assert!(
+      ooxml_relationship_indicators(internal).is_empty(),
+      "namespace-ul http din xmlns nu este o tinta externa"
+    );
+  }
+
+  #[test]
+  fn ooxml_remote_targets_without_target_mode_are_still_external() {
+    let remote = br#"<Relationships><Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.evil.test/logo.png"/></Relationships>"#;
+    assert!(ooxml_relationship_indicators(remote).contains(&"referinta externa in document Office".to_string()));
+  }
+
 }
