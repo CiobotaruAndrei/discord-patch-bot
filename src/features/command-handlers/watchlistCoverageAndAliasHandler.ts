@@ -6,7 +6,7 @@ import { matchesCommand } from "../command-registry/commandMatch.js";
 import { MAX_ALIASES_PER_GAME, MAX_TOTAL_GAME_ALIASES, aliasOwner, countTotalGameAliases, gameAliasRecord, normalizeGameAlias } from "../guild-config/gameAliasService.js";
 import { validateUserText } from "../command-security/userTextPolicy.js";
 import { errorDetail } from "../../shared/errors.js";
-import { applyGuildConfigUpdate, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
+import { addGameAlias, removeGameAlias, type GameAliasGuildModelLike } from "../guild-config/gameAliasRepository.js";
 import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 
 interface DiscordInteraction {
@@ -30,7 +30,7 @@ interface CoverageAliasDeps {
   safeEdit(interaction: DiscordInteraction, payload: unknown): Promise<InteractionMessage | null>;
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   findGameAndSuggestion(query: string, games: GameConfig[]): { game: GameConfig | null; suggestion: GameConfig | null };
-  GuildModel: GuildConfigWriteModelLike;
+  GuildModel: GameAliasGuildModelLike;
   handlePagination<TItem, TEmbed>(message: InteractionMessage, userId: string, prefix: string, items: TItem[], pageSize: number, render: (page: number, totalPages: number) => TEmbed[]): Promise<void>;
   MessageFlags: { Ephemeral: number };
 }
@@ -97,16 +97,14 @@ function createCoverageAliasHandler(deps: CoverageAliasDeps) {
       if (countTotalGameAliases(dynamic) >= MAX_TOTAL_GAME_ALIASES) {
         return deps.safeEdit(interaction, `Eroare: serverul a atins limita totala de ${MAX_TOTAL_GAME_ALIASES} aliasuri de joc. Sterge cateva inainte de a adauga altele.`);
       }
-      const next = [...currentForGame, alias];
-      await applyGuildConfigUpdate(deps.GuildModel, String(interaction.guild?.id), { [`gameAliases.${game.key}`]: next });
-      return deps.safeEdit(interaction, `OK: aliasul \`${alias}\` a fost adaugat pentru **${game.name}** (${next.length}/${MAX_ALIASES_PER_GAME}).`);
+      const { saved } = await addGameAlias(deps.GuildModel, String(interaction.guild?.id), game.key, alias);
+      if (!saved) {
+        return deps.safeEdit(interaction, `Eroare: nu am putut adauga aliasul (o comanda concurenta a ocupat ultimul loc din limita de ${MAX_ALIASES_PER_GAME}/joc sau ${MAX_TOTAL_GAME_ALIASES}/server). Reincearca.`);
+      }
+      return deps.safeEdit(interaction, `OK: aliasul \`${alias}\` a fost adaugat pentru **${game.name}** (${currentForGame.length + 1}/${MAX_ALIASES_PER_GAME}).`);
     }
-    const current = dynamic[game.key] || [];
-    const next = current.filter(value => value !== alias);
-    if (next.length === current.length) return deps.safeEdit(interaction, `Aliasul \`${alias}\` nu exista pentru **${game.name}**.`);
-    if (next.length) dynamic[game.key] = next;
-    else delete dynamic[game.key];
-    await applyGuildConfigUpdate(deps.GuildModel, String(interaction.guild?.id), { gameAliases: dynamic });
+    const { removed } = await removeGameAlias(deps.GuildModel, String(interaction.guild?.id), game.key, alias);
+    if (!removed) return deps.safeEdit(interaction, `Aliasul \`${alias}\` nu exista pentru **${game.name}**.`);
     return deps.safeEdit(interaction, `OK: aliasul \`${alias}\` a fost sters pentru **${game.name}**.`);
   }
 
