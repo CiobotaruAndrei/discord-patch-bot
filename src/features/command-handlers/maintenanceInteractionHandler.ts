@@ -7,6 +7,7 @@ import { matchesCommand } from "../command-registry/commandMatch.js";
 import { findNewestConfigBackup, type ConfigBackupModelLike } from "../admin-records/configBackupRepository.js";
 import { countYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
 import { countDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
+import { countUnresolvedNewAccountSends, type NewAccountAlertDeliveryModelLike } from "../command-security/newAccountAlertDedup.js";
 
 import { errorDetail } from "../../shared/errors.js";
 
@@ -39,6 +40,7 @@ interface MaintenanceDeps {
   GuildConfigBackupModel: Pick<ConfigBackupModelLike, "find">;
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "countDocuments">;
   GuildDeadLetterModel: Pick<DeadLetterModelLike, "countDocuments">;
+  NewAccountAlertDeliveryModel?: Pick<NewAccountAlertDeliveryModelLike, "countDocuments">;
   MessageFlags: { Ephemeral: number };
 }
 
@@ -91,13 +93,14 @@ function readLastErrorMessage(value: unknown): string {
 }
 
 async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): Promise<string> {
-  const [settings, queued, paused, newestBackup, youtubeErrors, deadLetters] = await Promise.all([
+  const [settings, queued, paused, newestBackup, youtubeErrors, deadLetters, unresolvedAlertSends] = await Promise.all([
     deps.getGuildSettings(guildId),
     deps.NotificationOutboxModel.countDocuments({ guildId }).catch(() => -1),
     deps.getOutboxPaused().catch(() => null),
     findNewestConfigBackup(deps.GuildConfigBackupModel, guildId).catch(() => null),
     countYoutubeErrors(deps.GuildYoutubeErrorModel, guildId),
-    countDeadLetters(deps.GuildDeadLetterModel, guildId)
+    countDeadLetters(deps.GuildDeadLetterModel, guildId),
+    deps.NewAccountAlertDeliveryModel ? countUnresolvedNewAccountSends(deps.NewAccountAlertDeliveryModel, guildId) : Promise.resolve(0)
   ]);
   const now = Date.now();
   const backupsOld = isOldBackup(newestBackup, now);
@@ -120,6 +123,15 @@ async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): P
     ...moduleErrorLines,
     issueLine(queued === 0, "outbox", queued < 0 ? "nu am putut citi coada" : `${queued} joburi in coada`),
     issueLine(deadLetters === 0, "dead-letter", deadLetters === 0 ? "gol" : `${deadLetters} livrari esuate definitiv`),
+    issueLine(
+      unresolvedAlertSends === 0,
+      "alerte cont nou nefinalizate",
+      unresolvedAlertSends < 0
+        ? "nu am putut citi starea"
+        : unresolvedAlertSends === 0
+          ? "fara trimiteri cu stare nedeterminata"
+          : `${unresolvedAlertSends} trimise cu stare nedeterminata (nu se retrimit; se inchid automat la urmatoarea pornire)`
+    ),
     issueLine(paused !== true, "drenare outbox", paused === null ? "stare necunoscuta" : paused ? "pe pauza" : "activa"),
     issueLine(!backupsOld, "backup configuratie", backupsOld ? "lipseste sau e mai vechi de 30 zile" : "recent"),
     issueLine(missingChannels.length === 0, "canale notificari", channelsDetail),

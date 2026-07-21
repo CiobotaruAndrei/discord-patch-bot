@@ -13,7 +13,7 @@ import {
   startBotObservation,
   type BotObservationModelLike
 } from "./botObservationRepository.js";
-import type { NewAccountAlertClaim } from "./newAccountAlertDedup.js";
+import { deliverNewAccountAlert, type NewAccountAlertClaim } from "./newAccountAlertDedup.js";
 
 type SecurityChannel = { id?: string; send?(payload: unknown): Promise<unknown> };
 type SendableSecurityChannel = SecurityChannel & { send(payload: unknown): Promise<unknown> };
@@ -64,6 +64,7 @@ export type SecurityRuntimeDeps = {
   httpReq?: Parameters<typeof createThreatInspectionService>[0]["httpReq"];
   reputationScan?: Parameters<typeof createThreatInspectionService>[0]["reputationScan"];
   claimNewAccountAlert?: (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
+  logger?: (level: string, context: string, message: string, meta?: unknown) => void;
   metrics?: RuntimeMetrics;
   now?: () => number;
   wait?: (ms: number) => Promise<void>;
@@ -275,10 +276,10 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
     if (!settings.newAccountAlertsEnabled || !settings.newAccountAlertChannelId || !isRecentAccount(user.createdTimestamp, new Date(now()))) return;
     const claim = deps.claimNewAccountAlert ? await deps.claimNewAccountAlert(guildId, user.id) : null;
     if (deps.claimNewAccountAlert && !claim) return;
-    try {
-      const channel = await alertChannel(deps, settings.newAccountAlertChannelId);
-      const createdText = typeof user.createdTimestamp === "number" ? new Date(user.createdTimestamp).toISOString() : "necunoscuta";
-      const joinedText = typeof member.joinedTimestamp === "number" ? new Date(member.joinedTimestamp).toISOString() : "necunoscuta";
+    const channel = await alertChannel(deps, settings.newAccountAlertChannelId);
+    const createdText = typeof user.createdTimestamp === "number" ? new Date(user.createdTimestamp).toISOString() : "necunoscuta";
+    const joinedText = typeof member.joinedTimestamp === "number" ? new Date(member.joinedTimestamp).toISOString() : "necunoscuta";
+    const outcome = await deliverNewAccountAlert(claim, async () => {
       await channel.send({
         content: [
           `:shield: Cont nou detectat: <@${user.id}> (${user.tag ?? user.id}).`,
@@ -288,10 +289,9 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
         ].join("\n"),
         allowedMentions: { parse: [] }
       });
-      if (claim && !(await claim.markDelivered())) throw new Error("Claim-ul alertei nu a putut fi finalizat");
-    } catch (error) {
-      await claim?.release().catch(() => undefined);
-      throw error;
+    });
+    if (outcome === "undetermined") {
+      deps.logger?.("ERROR", "NEW_ACCOUNT_ALERT", "Alerta cont nou trimisa, dar starea nu a putut fi persistata deloc (nedeterminata); claim-ul ramane blocat pana la reconciliere si NU se retrimite", { guildId, userId: user.id });
     }
   }
 
