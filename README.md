@@ -297,6 +297,16 @@ care nu e nici in lista de gate-uri, nici marcat explicit ca verificare de runti
 `check-mongo`, `check-redis`) face testele sa pice — ca un validator nou sa nu poata deveni tacit
 decorativ.
 
+`npm run profile:tests` cronometreaza fiecare fisier de test separat si raporteaza doua lucruri diferite:
+cat a durat rularea si **cat a stat procesul agatat dupa ce testele s-au terminat**. A doua coloana e
+cea utila: un fisier care isi termina testele in 400 ms dar iese abia dupa 7 secunde tine un timer viu —
+fie o asteptare reala nefalsificata, fie o santinela `setTimeout` dintr-un `Promise.race` care nu se
+anuleaza dupa ce cursa s-a incheiat. Remediul e injectarea ceasului (dependinta `wait`) sau `unref()` pe
+santinela; ambele pastreaza aserttiile neatinse.
+
+Merita rulat cand suita incepe sa para lenta: costul nu e distribuit uniform. La ultima masuratoare,
+mediana pe fisier era 110 ms, iar 17 fisiere din 301 consumau o treime din tot timpul.
+
 `npm run check` ruleaza si `check:comments` (`scripts/check-no-comments.ts`), care esueaza daca exista comentarii (`//` sau `/* */`) in fisierele sursa `.ts`/`.js`/`.rs`, conform regulii „fara comentarii in cod". Allowlist-ul de exceptii este gol (zero exceptii); rationale-ul subtil de concurenta din `cron.ts` a fost mutat in `docs/architecture/CONTEXT_REPO_CLEAN.md`.
 
 Regula „fara comentarii" se aplica **doar codului sursa runtime/test** (`.ts`/`.js`/`.rs`). Fisierele care **nu** sunt cod — workflow-urile GitHub Actions (`.yml`), `Dockerfile`, `Markdown`, `JSON` de config — sunt in afara scope-ului si pot purta comentarii explicative (ex. comentariile care explica gate-urile din `release.yml`). Scanner-ul nici nu le citeste (`checkedExtensions` = `.ts`/`.js`/`.rs`).
