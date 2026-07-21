@@ -392,6 +392,42 @@ extern — aceeasi politica ca la YARA.
 **Cost de build: zero pachete de sistem, zero cod C++, zero descarcari.** Prima etapa din program care
 nu adauga nimic la lantul de dependinte.
 
+### ICU4C + libpsl: identitatea domeniului (etapa 6b din PDF-ul de librarii)
+
+PDF-ul cere ICU4C `USpoofChecker` pentru homograph si scripturi mixte, si libpsl pentru eTLD+1. Aceeasi
+verificare ca la LIEF: exista echivalente Rust mature pentru fiecare capabilitate?
+
+| Capabilitate ceruta | Ce s-a folosit | De ce |
+| --- | --- | --- |
+| Punycode si forma Unicode | `idna` (~168M descarcari/luna) | implementarea UTS#46 pe care o foloseste si crate-ul `url` |
+| Confusables, scripturi mixte, skeleton | `unicode-security` | implementeaza chiar UTS#39, standardul pe care il implementeaza si `USpoofChecker` |
+| Public suffix, eTLD+1 | `publicsuffix` | **lista se incarca la rulare**, nu e compilata in binar |
+
+Ultimul rand e motivul principal, si vine chiar din PDF: *„Cache key-ul include versiunea ICU, versiunea
+Public Suffix List si politica de branduri."* O lista care se poate versiona presupune ca se poate
+**inlocui fara recompilare**. Legarea libpsl ar fi inghetat un instantaneu in binar; aici lista se
+incarca dintr-o sursa externa si primeste un identificator derivat din continut, exact ca ruleset-ul
+YARA din etapa 2. Raportul poarta si `unicode_version`, deci ambele componente ale cheii de cache sunt
+disponibile apelantului.
+
+Ce se raporteaza, conform cerintelor: host-ul in **ambele** forme (Unicode si Punycode, pastrate
+simultan, nu una in locul celeilalte), domeniul inregistrat si sufixul public, skeleton-ul UTS#39,
+setul de alfabete si nivelul de restrictie Unicode.
+
+Indicatorii acopera cele doua atacuri distincte pe care PDF-ul le cere separate:
+
+- **homograf** — `disсord.com` scris cu un „с" chirilic are acelasi skeleton ca `discord`, dar nu e
+  `discord`; se semnaleaza si amestecul de alfabete, si forma Punycode;
+- **subdomeniu inselator** — `login.discord.example.com` are domeniul inregistrat `example.com`, nu
+  `discord.com`. Un test verifica explicit ca `cdn.discord.com` NU produce niciun indicator, ca sa nu
+  transformam politica intr-o sursa de fals pozitive pe propriile domenii ale brandurilor.
+
+**Nu confirma phishing niciodata.** Un semnal local ridica verdictul cel mult la `uncertain` si trimite
+URL-ul mai departe catre motorul extern, la fel ca YARA si ca analiza de executabile.
+
+**Cost de build: zero pachete de sistem, zero C/C++.** ICU4C ar fi adus zeci de MB de date si un build
+lung pentru capabilitati pe care standardul le defineste public si crate-urile le implementeaza.
+
 ### native-inspector + libseccomp: sandbox de syscall (etapa 5 din PDF-ul de librarii)
 
 Etapele 1-4 au adaugat capabilitati **in procesul existent**: libmagic-like, libyara, libarchive si qpdf

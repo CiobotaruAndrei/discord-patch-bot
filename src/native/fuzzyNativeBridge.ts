@@ -59,8 +59,32 @@ export interface NativeFuzzyModule {
   scanYara?(bytes: Buffer, timeoutMs: number, maxMatches: number): Promise<NativeYaraScanReport>;
   loadYaraRules?(source: string): NativeYaraRulesetInfo;
   yaraRulesetInfo?(): NativeYaraRulesetInfo;
+  loadPublicSuffixList?(source: string): NativeSuffixListInfo;
+  publicSuffixInfo?(): NativeSuffixListInfo;
+  analyzeUrlHost?(host: string, brands: string[]): NativeUrlIdentityReport;
   inspectUntrustedContent?(input: NativeInspectionInput): Promise<NativeInspectionReport>;
   inspect_untrusted_content?(input: NativeInspectionInput): Promise<NativeInspectionReport>;
+}
+
+export interface NativeSuffixListInfo {
+  listId: string;
+  ruleCount: number;
+  loaded: boolean;
+  available: boolean;
+}
+
+export interface NativeUrlIdentityReport {
+  hostUnicode: string;
+  hostPunycode: string;
+  registrableDomain: string;
+  publicSuffix: string;
+  skeleton: string;
+  scripts: string;
+  restrictionLevel: string;
+  brandMatch: string;
+  indicators: string[];
+  suffixListId: string;
+  unicodeVersion: string;
 }
 
 export interface NativeMagicReport {
