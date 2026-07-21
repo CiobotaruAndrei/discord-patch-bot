@@ -28,7 +28,9 @@ import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.
 import type { HttpRequestOptions } from "../types.js";
 import type { GuildAuditLogModelLike } from "../features/admin-records/auditLogRepository.js";
 import type { ModerationGuildModel } from "../features/moderation/moderationRepository.js";
+import type { GuildConfigWriteModelLike } from "../features/guild-config/guildConfigRepository.js";
 import type { NewAccountAlertDeliveryModelLike } from "../features/command-security/newAccountAlertDedup.js";
+import type { ChannelLockRecoveryModelLike } from "../features/command-security/channelLockRecoveryRepository.js";
 
 export interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
@@ -81,9 +83,10 @@ export interface MongoContextLike {
   getGuildCacheSize: () => number;
   adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<void>;
   getGuildSettings?: (guildId: string) => Promise<GuildSettings | null>;
-  GuildModel?: ModerationGuildModel;
+  GuildModel?: ModerationGuildModel & GuildConfigWriteModelLike;
   GuildAuditLogModel?: GuildAuditLogModelLike;
   NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
+  ChannelLockRecoveryModel?: ChannelLockRecoveryModelLike;
   setAdminAlertDiscordClient(client: DiscordClientLike | null): void;
   getOutboxPaused: () => Promise<boolean>;
   runMigrations: (logger: MongoContextLike["logger"]) => Promise<{ applied: number[] }>;

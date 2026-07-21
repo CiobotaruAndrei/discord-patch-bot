@@ -183,6 +183,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     reviewTrendSnapshotSchema,
     dealPriceSnapshotSchema,
     newAccountAlertDeliverySchema,
+    channelLockRecoverySchema,
     playerCountRecordSchema,
     bugReportSchema,
     userComplaintSchema,
@@ -199,6 +200,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const ReviewTrendSnapshotModel = mongoose.model("ReviewTrendSnapshot", reviewTrendSnapshotSchema, "reviewTrendSnapshots");
   const DealPriceSnapshotModel = mongoose.model("DealPriceSnapshot", dealPriceSnapshotSchema, "dealPriceSnapshots");
   const NewAccountAlertDeliveryModel = mongoose.model("NewAccountAlertDelivery", newAccountAlertDeliverySchema, "newAccountAlertDeliveries");
+  const ChannelLockRecoveryModel = mongoose.model("ChannelLockRecovery", channelLockRecoverySchema, "channelLockRecoveries");
   const PlayerCountRecordModel = mongoose.model("PlayerCountRecord", playerCountRecordSchema, "playerCountRecords");
   const BugReportModel = mongoose.model("BugReport", bugReportSchema, "bugReports");
   const UserComplaintModel = mongoose.model("UserComplaint", userComplaintSchema, "userComplaints");
@@ -259,6 +261,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     ReviewTrendSnapshotModel,
     DealPriceSnapshotModel,
     NewAccountAlertDeliveryModel,
+    ChannelLockRecoveryModel,
     PlayerCountRecordModel,
     BugReportModel,
     OperationJournalModel,

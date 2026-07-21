@@ -8,6 +8,7 @@ import { findNewestConfigBackup, type ConfigBackupModelLike } from "../admin-rec
 import { countYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
 import { countDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
 import { countUnresolvedNewAccountSends, type NewAccountAlertDeliveryModelLike } from "../command-security/newAccountAlertDedup.js";
+import { countChannelLockRecoveries, type ChannelLockRecoveryModelLike } from "../command-security/channelLockRecoveryRepository.js";
 
 import { errorDetail } from "../../shared/errors.js";
 
@@ -41,6 +42,7 @@ interface MaintenanceDeps {
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "countDocuments">;
   GuildDeadLetterModel: Pick<DeadLetterModelLike, "countDocuments">;
   NewAccountAlertDeliveryModel?: Pick<NewAccountAlertDeliveryModelLike, "countDocuments">;
+  ChannelLockRecoveryModel?: Pick<ChannelLockRecoveryModelLike, "countDocuments">;
   MessageFlags: { Ephemeral: number };
 }
 
@@ -93,14 +95,15 @@ function readLastErrorMessage(value: unknown): string {
 }
 
 async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): Promise<string> {
-  const [settings, queued, paused, newestBackup, youtubeErrors, deadLetters, unresolvedAlertSends] = await Promise.all([
+  const [settings, queued, paused, newestBackup, youtubeErrors, deadLetters, unresolvedAlertSends, lockRecoveries] = await Promise.all([
     deps.getGuildSettings(guildId),
     deps.NotificationOutboxModel.countDocuments({ guildId }).catch(() => -1),
     deps.getOutboxPaused().catch(() => null),
     findNewestConfigBackup(deps.GuildConfigBackupModel, guildId).catch(() => null),
     countYoutubeErrors(deps.GuildYoutubeErrorModel, guildId),
     countDeadLetters(deps.GuildDeadLetterModel, guildId),
-    deps.NewAccountAlertDeliveryModel ? countUnresolvedNewAccountSends(deps.NewAccountAlertDeliveryModel, guildId) : Promise.resolve(0)
+    deps.NewAccountAlertDeliveryModel ? countUnresolvedNewAccountSends(deps.NewAccountAlertDeliveryModel, guildId) : Promise.resolve(0),
+    deps.ChannelLockRecoveryModel ? countChannelLockRecoveries(deps.ChannelLockRecoveryModel, guildId) : Promise.resolve(0)
   ]);
   const now = Date.now();
   const backupsOld = isOldBackup(newestBackup, now);
@@ -131,6 +134,15 @@ async function buildMaintenanceReport(deps: MaintenanceDeps, guildId: string): P
         : unresolvedAlertSends === 0
           ? "fara trimiteri cu stare nedeterminata"
           : `${unresolvedAlertSends} trimise cu stare nedeterminata (nu se retrimit; se inchid automat la urmatoarea pornire)`
+    ),
+    issueLine(
+      lockRecoveries === 0,
+      "recovery lock/unlock",
+      lockRecoveries < 0
+        ? "nu am putut citi inregistrarile"
+        : lockRecoveries === 0
+          ? "fara divergente in asteptare"
+          : `${lockRecoveries} canale cu divergenta Discord/persistenta, reincercate automat pana la convergenta`
     ),
     issueLine(paused !== true, "drenare outbox", paused === null ? "stare necunoscuta" : paused ? "pe pauza" : "activa"),
     issueLine(!backupsOld, "backup configuratie", backupsOld ? "lipseste sau e mai vechi de 30 zile" : "recent"),

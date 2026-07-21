@@ -22,6 +22,7 @@ export type MongoRepositoriesBundle = Pick<
   | "ReviewTrendSnapshotModel"
   | "DealPriceSnapshotModel"
   | "NewAccountAlertDeliveryModel"
+  | "ChannelLockRecoveryModel"
   | "PlayerCountRecordModel"
   | "BugReportModel"
   | "UserComplaintModel"
@@ -77,6 +78,7 @@ export function selectMongoRepositories(context: MongoRepositoriesBundle): Mongo
     ReviewTrendSnapshotModel: context.ReviewTrendSnapshotModel,
     DealPriceSnapshotModel: context.DealPriceSnapshotModel,
     NewAccountAlertDeliveryModel: context.NewAccountAlertDeliveryModel,
+    ChannelLockRecoveryModel: context.ChannelLockRecoveryModel,
     PlayerCountRecordModel: context.PlayerCountRecordModel,
     BugReportModel: context.BugReportModel,
     UserComplaintModel: context.UserComplaintModel,

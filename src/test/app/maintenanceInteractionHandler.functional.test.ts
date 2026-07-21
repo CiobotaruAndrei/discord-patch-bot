@@ -26,7 +26,7 @@ function makeBackupModel(docs: GuildConfigBackupRecord[]) {
   };
 }
 
-function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: boolean, backups: GuildConfigBackupRecord[] = [], youtubeErrorCount = 0, deadLetterCount = 0, unresolvedAlertSends = 0) {
+function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: boolean, backups: GuildConfigBackupRecord[] = [], youtubeErrorCount = 0, deadLetterCount = 0, unresolvedAlertSends = 0, lockRecoveries = 0) {
   return {
     logger: () => undefined,
     enforceCooldown: async () => true,
@@ -42,6 +42,7 @@ function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: b
     GuildYoutubeErrorModel: { countDocuments: async () => youtubeErrorCount },
     GuildDeadLetterModel: { countDocuments: async () => deadLetterCount },
     NewAccountAlertDeliveryModel: { countDocuments: async () => unresolvedAlertSends },
+    ChannelLockRecoveryModel: { countDocuments: async () => lockRecoveries },
     MessageFlags: { Ephemeral: 64 }
   };
 }
@@ -179,4 +180,15 @@ test("buildMaintenanceReport expune alertele de cont nou ramase cu stare nedeter
   const stuck = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 0, false, [], 0, 0, 2), "guild-1");
   assert.match(stuck, /ATENTIE: alerte cont nou nefinalizate - 2 trimise cu stare nedeterminata/);
   assert.match(stuck, /nu se retrimit/, "raportul spune explicit ca nu exista risc de duplicat");
+});
+
+test("buildMaintenanceReport expune divergentele lock/unlock ramase in asteptare (audit 154c #3)", async () => {
+  const settings = { _id: "guild-1", subscribed: true, notificationChannelId: "chan-1" } as GuildSettings;
+
+  const clean = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 0, false, [], 0, 0, 0, 0), "guild-1");
+  assert.match(clean, /OK: recovery lock\/unlock - fara divergente in asteptare/);
+
+  const pending = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 0, false, [], 0, 0, 0, 3), "guild-1");
+  assert.match(pending, /ATENTIE: recovery lock\/unlock - 3 canale cu divergenta/);
+  assert.match(pending, /reincercate automat pana la convergenta/, "raportul spune ca recuperarea e automata, nu manuala");
 });

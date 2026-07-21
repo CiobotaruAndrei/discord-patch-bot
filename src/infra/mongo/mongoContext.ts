@@ -40,6 +40,7 @@ type MongoRuntimeContext = {
   ReviewTrendSnapshotModel: ReturnType<typeof attachModelsModule.buildFrom>["ReviewTrendSnapshotModel"];
   DealPriceSnapshotModel: ReturnType<typeof attachModelsModule.buildFrom>["DealPriceSnapshotModel"];
   NewAccountAlertDeliveryModel: ReturnType<typeof attachModelsModule.buildFrom>["NewAccountAlertDeliveryModel"];
+  ChannelLockRecoveryModel: ReturnType<typeof attachModelsModule.buildFrom>["ChannelLockRecoveryModel"];
   PlayerCountRecordModel: ReturnType<typeof attachModelsModule.buildFrom>["PlayerCountRecordModel"];
   BugReportModel: ReturnType<typeof attachModelsModule.buildFrom>["BugReportModel"];
   UserComplaintModel: ReturnType<typeof attachModelsModule.buildFrom>["UserComplaintModel"];
@@ -130,6 +131,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     ReviewTrendSnapshotModel: context.ReviewTrendSnapshotModel,
     DealPriceSnapshotModel: context.DealPriceSnapshotModel,
     NewAccountAlertDeliveryModel: context.NewAccountAlertDeliveryModel,
+    ChannelLockRecoveryModel: context.ChannelLockRecoveryModel,
     PlayerCountRecordModel: context.PlayerCountRecordModel,
     BugReportModel: context.BugReportModel,
     UserComplaintModel: context.UserComplaintModel,

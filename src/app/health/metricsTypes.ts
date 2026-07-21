@@ -42,6 +42,9 @@ export interface BotMetrics {
   securityBotAddsBlocked?: number;
   permissionDelegationsReverted?: number;
   moderationCleanupRuns?: number;
+  channelLockRecoveryRuns?: number;
+  channelLockRecoveryFailures?: number;
+  channelLockRecoveriesConverged?: number;
   moderationCleanupFailures?: number;
   threatReputationEngineConfigured?: number;
   commandRuns: Record<string, number>;
