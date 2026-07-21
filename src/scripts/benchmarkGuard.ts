@@ -3,6 +3,7 @@ import { pathToFileURL as __pathToFileURL } from "node:url";
 
 import { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches } from "./cpuBenchmark.js";
 import type { AreaBenchmarkResult } from "./cpuBenchmark.js";
+import { runInspectionBenchmark } from "./inspectionBenchmark.js";
 import { strictEnvFloat, strictEnvInt } from "./benchmarkEnv.js";
 
 export interface GuardSample {
@@ -10,6 +11,7 @@ export interface GuardSample {
   rustAvailable: boolean;
   speedup: number | null;
   parityOk: boolean;
+  metric?: string;
 }
 
 export interface GuardConfig {
@@ -24,7 +26,7 @@ export interface GuardOutcome {
   skipped: string[];
 }
 
-export const HOT_PATH_AREAS = ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates", "extractAndRankListingCandidates", "chooseBestSteamMatch"] as const;
+export const HOT_PATH_AREAS = ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates", "extractAndRankListingCandidates", "chooseBestSteamMatch", "inspectUntrustedContent"] as const;
 
 export function defaultGuardConfig(): GuardConfig {
   return {
@@ -35,7 +37,8 @@ export function defaultGuardConfig(): GuardConfig {
       stableUpdateId: strictEnvFloat("BENCH_STABLEUPDATE_WARN_RATIO", 1.2),
       rankListingCandidates: strictEnvFloat("BENCH_RANKLISTING_WARN_RATIO", 1.1),
       extractAndRankListingCandidates: strictEnvFloat("BENCH_LISTINGBATCH_WARN_RATIO", 1.1),
-      chooseBestSteamMatch: strictEnvFloat("BENCH_STEAMMATCH_WARN_RATIO", 1.3)
+      chooseBestSteamMatch: strictEnvFloat("BENCH_STEAMMATCH_WARN_RATIO", 1.3),
+      inspectUntrustedContent: strictEnvFloat("BENCH_INSPECTION_WARN_RATIO", 4)
     },
     requireNative: process.env.BENCH_GUARD_REQUIRE_NATIVE !== "false"
   };
@@ -83,14 +86,15 @@ export interface GuardBenchmarkDeps {
   runCpuBenchmark: typeof runCpuBenchmark;
   runAreaBenchmarks: typeof runAreaBenchmarks;
   levenshteinParityMismatches: typeof levenshteinParityMismatches;
+  runInspectionBenchmark: typeof runInspectionBenchmark;
 }
 
-const defaultBenchmarkDeps: GuardBenchmarkDeps = { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches };
+const defaultBenchmarkDeps: GuardBenchmarkDeps = { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches, runInspectionBenchmark };
 
-export function collectGuardSamples(
+export async function collectGuardSamples(
   runs = strictEnvInt("BENCH_GUARD_RUNS", 3),
   deps: GuardBenchmarkDeps = defaultBenchmarkDeps
-): GuardSample[] {
+): Promise<GuardSample[]> {
   const totalRuns = Math.max(1, runs);
 
   const levenshteinValues: Array<number | null> = [];
@@ -133,6 +137,16 @@ export function collectGuardSamples(
     steamMatchValues.push(steamMatch ? steamMatch.speedup : null);
   }
 
+  const inspectionValues: Array<number | null> = [];
+  let inspectionRustAvailable = false;
+  let inspectionParityOk = true;
+  for (let i = 0; i < totalRuns; i++) {
+    const inspection = await deps.runInspectionBenchmark();
+    if (i === 0) inspectionRustAvailable = inspection.rustAvailable;
+    if (inspection.parityMismatches.length > 0) inspectionParityOk = false;
+    inspectionValues.push(inspection.blockingReduction);
+  }
+
   return [
     {
       area: "levenshtein",
@@ -169,19 +183,27 @@ export function collectGuardSamples(
       rustAvailable: steamMatchArea ? steamMatchArea.rustAvailable : levenshteinRustAvailable,
       speedup: bestOf(steamMatchValues),
       parityOk: steamMatchArea ? steamMatchArea.parityOk : true
+    },
+    {
+      area: "inspectUntrustedContent",
+      rustAvailable: inspectionRustAvailable,
+      speedup: bestOf(inspectionValues),
+      parityOk: inspectionParityOk,
+      metric: "reducerea blocarii event loop-ului (TS sincron / Rust AsyncTask)"
     }
   ];
 }
 
 if (process.argv[1] !== undefined && __pathToFileURL(process.argv[1]).href === import.meta.url) {
   const config = defaultGuardConfig();
-  const samples = collectGuardSamples();
+  const samples = await collectGuardSamples();
   const outcome = evaluateBenchmarkGuard(samples, config);
 
   console.log("Benchmark hot-path guard (BENCHMARKS.md):");
   for (const sample of samples) {
     const speed = sample.speedup === null ? "n/a" : `${sample.speedup.toFixed(2)}x`;
-    console.log(`- ${sample.area}: Rust vs TS ${speed}, paritate ${sample.parityOk ? "OK" : "DIFERENTE"}, rust ${sample.rustAvailable ? "disponibil" : "indisponibil"}`);
+    const metric = sample.metric ? ` [${sample.metric}]` : "";
+    console.log(`- ${sample.area}: Rust vs TS ${speed}${metric}, paritate ${sample.parityOk ? "OK" : "DIFERENTE"}, rust ${sample.rustAvailable ? "disponibil" : "indisponibil"}`);
   }
   for (const skip of outcome.skipped) console.log(`[skip] ${skip}`);
   for (const warn of outcome.warnings) console.log(`::warning::[benchmark-guard] ${warn}`);

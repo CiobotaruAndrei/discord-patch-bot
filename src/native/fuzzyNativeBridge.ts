@@ -54,6 +54,29 @@ export interface NativeFuzzyModule {
   choose_best_steam_match?(items: Array<{ name: string; itemType: string }>, query: string, forceGameOnly: boolean): number | null;
   dedupeAndRankDeals?(candidates: Array<{ title: string; popularityScore: number; fallbackId: string }>, maxDeals: number): number[];
   dedupe_and_rank_deals?(candidates: Array<{ title: string; popularityScore: number; fallbackId: string }>, maxDeals: number): number[];
+  inspectUntrustedContent?(input: NativeInspectionInput): Promise<NativeInspectionReport>;
+  inspect_untrusted_content?(input: NativeInspectionInput): Promise<NativeInspectionReport>;
+}
+
+export interface NativeInspectionInput {
+  bytes: Buffer;
+  filename: string;
+  mime: string;
+  mode: string;
+  maxDepth: number;
+  maxEntries: number;
+  maxExpandedBytes: number;
+  maxCompressionRatio: number;
+  timeoutMs: number;
+}
+
+export interface NativeInspectionReport {
+  status: string;
+  indicators: string[];
+  reason: string;
+  entriesInspected: number;
+  expandedBytes: number;
+  elapsedMs: number;
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;

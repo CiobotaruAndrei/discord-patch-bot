@@ -2,6 +2,7 @@ mod autocomplete;
 mod deals;
 mod fuzzy;
 mod hashing;
+mod inspection;
 mod listing_rank;
 mod steam;
 mod text;
@@ -15,6 +16,10 @@ pub use hashing::{deal_hash, normalize_deal_state, stable_update_id};
 pub use listing_rank::{
   extract_and_rank_listing_candidates, rank_listing_candidates, score_listing_candidate,
   ListingAnchorData, RankedListingCandidate,
+};
+pub use inspection::{
+  document_indicators, has_obfuscated_pdf_action_name, inspect_compound_file_binary,
+  inspect_untrusted_content, InspectionLimits, InspectionReport,
 };
 pub use steam::{
   choose_best_steam_match, select_latest_steam_patch_note, SteamMatchItemData, SteamNewsItemData,

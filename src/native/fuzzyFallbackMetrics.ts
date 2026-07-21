@@ -9,7 +9,8 @@ export const NATIVE_FALLBACK_FUNCTIONS = [
   "extractAndRankListingCandidates",
   "chooseBestSteamMatch",
   "isGoodSteamArticleUrl",
-  "extractDateScore"
+  "extractDateScore",
+  "inspectUntrustedContent"
 ];
 
 export function recordNativeFallback(fnName: string, err: unknown): void {
