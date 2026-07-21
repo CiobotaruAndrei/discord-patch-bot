@@ -156,6 +156,27 @@ function permissionValue(state: LockedChannelPermissionState): boolean | null {
   return state === "allow" ? true : state === "deny" ? false : null;
 }
 
+type OverwriteEditor = (target: object, permissions: Record<string, boolean | null>) => Promise<unknown>;
+
+const OVERWRITE_REVERT_ATTEMPTS = 2;
+
+async function revertOverwriteWithRetry(
+  edit: OverwriteEditor,
+  everyone: object,
+  value: boolean | null,
+  attempts: number = OVERWRITE_REVERT_ATTEMPTS
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await edit(everyone, { SendMessages: value });
+      return true;
+    } catch {
+      if (attempt === attempts) return false;
+    }
+  }
+  return false;
+}
+
 async function sendExistingAccountAlerts(
   interaction: SecurityInteraction,
   channel: SecurityChannel,
@@ -287,6 +308,8 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       const channel = interaction.options.getChannel("canal", false) ?? interaction.options.getChannel("channel", true);
       const everyone = guild?.roles?.everyone;
       if (!channel?.id || !channel.permissionOverwrites?.edit || !everyone) return respond(interaction, "Eroare: canalul selectat nu permite modificarea permisiunilor.");
+      const overwrites = channel.permissionOverwrites;
+      const editOverwrite: OverwriteEditor = (roleTarget, permissions) => overwrites.edit(roleTarget, permissions);
       const lockPerms = botChannelPermissions(channel, guild);
       if (!lockPerms) return respond(interaction, "Eroare: permisiunile efective ale botului nu pot fi verificate pentru canalul selectat.");
       const requiredPermissions = [
@@ -318,7 +341,7 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
       if (!previous) return respond(interaction, "Eroare: starea anterioara a permisiunii nu este disponibila.");
       const nextValue = command === "lock-channel" ? false : permissionValue(previous);
       try {
-        await channel.permissionOverwrites.edit(everyone, { SendMessages: nextValue });
+        await editOverwrite(everyone, { SendMessages: nextValue });
         try {
           await setLockedChannelPermissionState(
             target.GuildModel,
@@ -328,10 +351,12 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
             command === "lock-channel"
           );
         } catch (err) {
-          await channel.permissionOverwrites.edit(everyone, {
-            SendMessages: command === "lock-channel" ? permissionValue(previous) : false
-          });
-          throw err;
+          const restoreValue = command === "lock-channel" ? permissionValue(previous) : false;
+          const discordReverted = await revertOverwriteWithRetry(editOverwrite, everyone, restoreValue);
+          if (discordReverted) throw err;
+          target.logger?.("ERROR", "LOCK_CHANNEL", "Stare divergenta: persistarea a esuat si rollback-ul permisiunii Discord a esuat si el", { guildId, channelId: channel.id, command, previous, detail: errorDetail(err) });
+          const discordStateLabel = command === "lock-channel" ? "blocat (SendMessages=deny)" : "deblocat";
+          return respond(interaction, `Atentie: ${command === "lock-channel" ? "blocarea" : "deblocarea"} canalului <#${channel.id}> a modificat permisiunea in Discord, dar persistenta a esuat, iar revenirea permisiunii a esuat si dupa reincercare. Stare divergenta: Discord = ${discordStateLabel}, persistenta = NESALVATA. Restaureaza manual SendMessages la \`${previous}\` pentru acel canal.`);
         }
         const result = command === "lock-channel" ? `OK: canalul a fost blocat${reason ? ` (motiv: ${reason})` : ""}.` : "OK: canalul a fost deblocat.";
         if (command === "lock-channel") {
@@ -344,7 +369,7 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
             });
           } catch (error) {
             const mongoReverted = await setLockedChannelPermissionState(target.GuildModel, guildId, channel.id, previous, false).then(() => true).catch(() => false);
-            const discordReverted = await channel.permissionOverwrites.edit(everyone, { SendMessages: permissionValue(previous) }).then(() => true).catch(() => false);
+            const discordReverted = await revertOverwriteWithRetry(editOverwrite, everyone, permissionValue(previous));
             if (mongoReverted && discordReverted) throw error;
             return respond(interaction, `Atentie: blocarea a esuat la trimiterea mesajului si compensarea a fost partiala (persistenta: ${mongoReverted ? "revenita" : "ESUATA"}, permisiune Discord: ${discordReverted ? "revenita" : "ESUATA"}). Canalul necesita verificare manuala.`);
           }

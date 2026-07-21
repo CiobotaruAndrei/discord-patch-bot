@@ -204,6 +204,111 @@ test("lock-channel restaureaza permisiunea Discord daca persistenta esueaza", as
   assert.match(JSON.stringify(responses[0]), /Eroare la modificarea permisiunilor/);
 });
 
+function lockRollbackScenario(options: {
+  command: "lock-channel" | "unlock-channel";
+  failEditFrom: number;
+  failEditUntil: number;
+  settings: { lockedChannelIds: string[]; lockedChannelPermissions: Array<{ channelId: string; sendMessages: "allow" | "deny" | "inherit" }> };
+}) {
+  const edits: Array<boolean | null> = [];
+  const responses: unknown[] = [];
+  let editCalls = 0;
+  const channel = {
+    id: "channel-1",
+    permissionOverwrites: {
+      cache: {
+        get: () => ({
+          allow: { has: (permission: string) => permission === "SendMessages" },
+          deny: { has: () => false }
+        })
+      },
+      edit: async (_target: object, permissions: Record<string, boolean | null>) => {
+        editCalls++;
+        edits.push(permissions.SendMessages);
+        if (editCalls >= options.failEditFrom && editCalls <= options.failEditUntil) throw new Error("discord rollback failed");
+      }
+    },
+    send: async () => undefined,
+    permissionsFor: () => ({ has: () => true })
+  };
+  const handler = securityInteractionHandler.buildCommandHandler({
+    GuildModel: { updateOne: async () => { throw new Error("mongo unavailable"); } },
+    getGuildSettings: async () => options.settings,
+    safeDefer: async () => undefined,
+    safeEdit: async (_interaction, payload) => { responses.push(payload); return payload; },
+    checkChannelPermissions: async () => null,
+    formatUserError: (_err, fallback) => fallback
+  });
+  const interaction = {
+    commandName: options.command,
+    guild: {
+      id: "guild-1",
+      roles: { everyone: { id: "everyone" } },
+      members: { me: {}, fetch: async () => ({ values: () => [][Symbol.iterator]() }) }
+    },
+    user: { id: "admin-1" },
+    options: {
+      getSubcommand: () => "",
+      getInteger: () => null,
+      getString: () => "mentenanta",
+      getChannel: () => channel,
+      getAttachment: () => null
+    },
+    isChatInputCommand: () => true
+  };
+  return { handler, interaction, responses, edits, calls: () => editCalls };
+}
+
+test("/lock-channel: persistenta esueaza SI rollback-ul Discord esueaza -> stare divergenta explicita, nu eroare generica (audit 154b #4)", async () => {
+  const scenario = lockRollbackScenario({
+    command: "lock-channel",
+    failEditFrom: 2,
+    failEditUntil: 99,
+    settings: { lockedChannelIds: [], lockedChannelPermissions: [] }
+  });
+
+  await scenario.handler.handle(scenario.interaction, []);
+
+  const body = JSON.stringify(scenario.responses[0]);
+  assert.match(body, /Stare divergenta/, "divergenta Discord/Mongo e vizibila");
+  assert.match(body, /persistenta = NESALVATA/);
+  assert.match(body, /SendMessages la .allow./, "mesajul spune exact starea de restaurat (allow/deny/inherit)");
+  assert.doesNotMatch(body, /Eroare la modificarea permisiunilor/, "nu mai raporteaza doar eroarea generica");
+  assert.equal(scenario.calls(), 3, "revenirea a fost reincercata (1 aplicare + 2 incercari de rollback)");
+});
+
+test("/unlock-channel: persistenta esueaza SI rollback-ul Discord esueaza -> stare divergenta explicita (audit 154b #4)", async () => {
+  const scenario = lockRollbackScenario({
+    command: "unlock-channel",
+    failEditFrom: 2,
+    failEditUntil: 99,
+    settings: { lockedChannelIds: ["channel-1"], lockedChannelPermissions: [{ channelId: "channel-1", sendMessages: "deny" }] }
+  });
+
+  await scenario.handler.handle(scenario.interaction, []);
+
+  const body = JSON.stringify(scenario.responses[0]);
+  assert.match(body, /deblocarea/, "cazul unlock e raportat separat");
+  assert.match(body, /Stare divergenta/);
+  assert.match(body, /SendMessages la .deny./, "restaurarea exacta pentru unlock");
+});
+
+test("/lock-channel: rollback-ul Discord reuseste dupa reincercare -> stare consistenta, eroare generica (audit 154b #4)", async () => {
+  const scenario = lockRollbackScenario({
+    command: "lock-channel",
+    failEditFrom: 2,
+    failEditUntil: 2,
+    settings: { lockedChannelIds: [], lockedChannelPermissions: [] }
+  });
+
+  await scenario.handler.handle(scenario.interaction, []);
+
+  const body = JSON.stringify(scenario.responses[0]);
+  assert.match(body, /Eroare la modificarea permisiunilor/, "rollback reusit la retry -> stare consistenta -> eroare generica e corecta");
+  assert.doesNotMatch(body, /Stare divergenta/);
+  assert.equal(scenario.calls(), 3, "prima incercare de rollback a esuat, a doua a reusit");
+});
+
 test("/lock-channel trimite anuntul de blocare cu send legat de canal, nu detasat (audit #4)", async () => {
   const responses: unknown[] = [];
   const channel = {
