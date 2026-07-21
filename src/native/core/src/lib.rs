@@ -32,7 +32,7 @@ pub use native_archive::{
   decode_native_archive, native_archive_available, NativeArchiveEntry, NativeArchiveOutcome,
 };
 pub use inspection::{
-  document_indicators, has_obfuscated_pdf_action_name, inspect_compound_file_binary,
+  decode_msi_stream_name, document_indicators, has_obfuscated_pdf_action_name, inspect_compound_file_binary,
   inspect_untrusted_content, InspectionLimits, InspectionReport,
 };
 pub use pdf_structure::{

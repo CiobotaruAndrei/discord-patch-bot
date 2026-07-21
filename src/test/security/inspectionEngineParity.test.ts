@@ -436,3 +436,23 @@ test("un executabil obisnuit nu primeste indicatorii de packer", async () => {
   assert.ok(!report.indicators.some(entry => /packer/.test(entry)), JSON.stringify(report.indicators));
   assert.ok(!report.indicators.some(entry => /entropie mare/.test(entry)));
 });
+
+test("un instalator MSI produce indicatori de tabele, nu doar recunoasterea containerului OLE", async () => {
+  const fixture = buildInspectionFixtures().find(entry => entry.name === "document-ole-macro");
+  assert.ok(fixture, "corpusul contine un document OLE");
+
+  const report = await inspectUntrustedContent(fixture.bytes, fixture.filename, fixture.mime, fixture.mode);
+  const fallback = inspectUntrustedContentFallback(fixture.bytes, fixture.filename, fixture.mime, fixture.mode);
+
+  for (const indicator of fallback.indicators) {
+    assert.ok(engineHas(report.indicators, indicator), `motorul nativ nu pierde indicatorul rapid: ${indicator}`);
+  }
+  assert.ok(
+    !report.indicators.some(entry => /instalator MSI/.test(entry)),
+    `un document OLE obisnuit nu e raportat ca instalator: ${JSON.stringify(report.indicators)}`
+  );
+});
+
+function engineHas(indicators: string[], value: string): boolean {
+  return indicators.includes(value);
+}
