@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runCpuBenchmark, levenshteinParityMismatches, runAreaBenchmarks } from "../../scripts/cpuBenchmark.js";
+import { runCpuBenchmark, levenshteinParityMismatches, runAreaBenchmarks, calibrateIterations } from "../../scripts/cpuBenchmark.js";
 import { runOutboxLoad, OutboxLoadModels } from "../../scripts/outboxLoadBenchmark.js";
 import type { OutboxJob } from "../../features/notifications/notificationOutbox.js";
 
@@ -85,4 +85,36 @@ test("outboxLoadBenchmark: drenarea proceseaza tot lotul (livrare exact-o-data l
   assert.equal(result.delivered, 2000, "toate cele 2000 de joburi sunt livrate o data");
   assert.equal(models.jobs.filter(j => !["delivered", "dead-lettered", "dropped"].includes(String(j.status ?? ""))).length, 0, "coada activa e goala dupa drenare (docurile finalizate raman pana la TTL)");
   assert.ok(result.msPerJob >= 0 && result.jobsPerSec > 0, "metrici de throughput valide");
+});
+
+test("calibrateIterations alege mai multe iteratii pentru o functie ieftina decat pentru una scumpa", () => {
+  let sink = 0;
+  const cheap = () => { sink += 1; };
+  const expensive = () => { for (let i = 0; i < 20_000; i++) sink += i % 7; };
+
+  const cheapIterations = calibrateIterations(cheap, 20, 1);
+  const expensiveIterations = calibrateIterations(expensive, 20, 1);
+
+  assert.ok(sink >= 0);
+  assert.ok(
+    cheapIterations > expensiveIterations,
+    `bugetul de timp se traduce in mai multe iteratii cand apelul e mai ieftin (${cheapIterations} vs ${expensiveIterations})`
+  );
+});
+
+test("calibrateIterations respecta plafonul minim, ca o functie foarte scumpa sa fie totusi masurata", () => {
+  let sink = 0;
+  const veryExpensive = () => { for (let i = 0; i < 200_000; i++) sink += i % 13; };
+  const iterations = calibrateIterations(veryExpensive, 1, 1);
+  assert.ok(sink >= 0);
+  assert.ok(iterations >= 1_000, `nu coboara sub pragul minim de iteratii (a intors ${iterations})`);
+});
+
+test("runAreaBenchmarks masoara exact ariile cerute, nu pe toate", () => {
+  const requested = ["dealHash", "chooseBestSteamMatch"] as const;
+  const results = runAreaBenchmarks(50, requested);
+  assert.deepEqual(results.map(entry => entry.key).sort(), [...requested].sort());
+
+  const all = runAreaBenchmarks(50);
+  assert.ok(all.length > requested.length, "fara filtru raportul complet acopera in continuare toate ariile");
 });

@@ -1,7 +1,7 @@
 import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
-import { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches } from "./cpuBenchmark.js";
+import { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches, type BenchmarkAreaKey } from "./cpuBenchmark.js";
 import type { AreaBenchmarkResult } from "./cpuBenchmark.js";
 import { runInspectionBenchmark } from "./inspectionBenchmark.js";
 import { strictEnvFloat, strictEnvInt } from "./benchmarkEnv.js";
@@ -89,6 +89,14 @@ export interface GuardBenchmarkDeps {
   runInspectionBenchmark: typeof runInspectionBenchmark;
 }
 
+const GUARDED_AREA_KEYS = [
+  "dealHash",
+  "stableUpdateId",
+  "rankListingCandidates",
+  "extractAndRankListingCandidates",
+  "chooseBestSteamMatch"
+] as const satisfies readonly BenchmarkAreaKey[];
+
 const defaultBenchmarkDeps: GuardBenchmarkDeps = { runCpuBenchmark, runAreaBenchmarks, levenshteinParityMismatches, runInspectionBenchmark };
 
 export async function collectGuardSamples(
@@ -117,7 +125,7 @@ export async function collectGuardSamples(
   let listingBatchArea: AreaBenchmarkResult | undefined;
   let steamMatchArea: AreaBenchmarkResult | undefined;
   for (let i = 0; i < totalRuns; i++) {
-    const areas = deps.runAreaBenchmarks();
+    const areas = deps.runAreaBenchmarks(undefined, GUARDED_AREA_KEYS);
     const dealHash = areas.find(a => a.key === "dealHash");
     const stableUpdateId = areas.find(a => a.key === "stableUpdateId");
     const listingRank = areas.find(a => a.key === "rankListingCandidates");
