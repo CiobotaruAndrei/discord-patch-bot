@@ -450,7 +450,7 @@ mod tests {
     out.extend_from_slice(&0x0000_0001_4000_0000u64.to_le_bytes());
     out.extend_from_slice(&0x1000u32.to_le_bytes());
     out.extend_from_slice(&0x200u32.to_le_bytes());
-    out.extend_from_slice(&[6, 0, 0, 0, 0, 0, 6, 0, 0, 0]);
+    out.extend_from_slice(&[6, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0]);
     out.extend_from_slice(&0u32.to_le_bytes());
     out.extend_from_slice(&0x4000u32.to_le_bytes());
     out.extend_from_slice(&0x400u32.to_le_bytes());

@@ -1294,6 +1294,7 @@ fn executable_indicators(bytes: &[u8]) -> Vec<String> {
 
 fn document_finding(bytes: &[u8], budget: &mut Budget) -> Finding {
   let mut indicators = document_indicators(bytes);
+  indicators.extend(executable_indicators(bytes));
   indicators.extend(pdf_structural_indicators(bytes, budget));
   let deep = pdf_deep_indicators(bytes, budget);
   let (uncertain, deep_reason) = match deep {
@@ -1333,6 +1334,14 @@ pub fn inspect_untrusted_content(
     inspect_native_container(bytes, 0, &mut budget, "RAR").unwrap_or_else(|| inspect_rar(bytes, &mut budget))
   } else if is_seven_zip(bytes) {
     inspect_native_container(bytes, 0, &mut budget, "7z").unwrap_or_else(|| inspect_seven_zip(bytes, &mut budget))
+  } else if looks_like_executable(bytes) {
+    let indicators = dedupe(executable_indicators(bytes));
+    let reason = if indicators.is_empty() {
+      "executabil analizat structural fara indicatori".to_string()
+    } else {
+      "executabil analizat structural cu indicatori".to_string()
+    };
+    Finding { uncertain: false, indicators, reason }
   } else if mode == "archive" || looks_like_archive(bytes, filename, mime) {
     uncertain("formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat".to_string(), Vec::new())
   } else {
