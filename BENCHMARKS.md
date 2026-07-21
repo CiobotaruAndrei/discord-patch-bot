@@ -484,6 +484,49 @@ deja `uncertain` si merge la motorul extern. Extragerea randurilor ramane un pas
 libmspack (CHM/HLP/KWAJ/SZDD) nu a fost adaugat: sunt formate rare in fluxul unui bot de Discord, iar
 PDF-ul insusi il pune la „fallback specializat", dupa libarchive. Se poate adauga cand apare un caz real.
 
+### Etapa 9 (multimodal) si etapa 10 (conditionata): ce s-a facut si ce NU
+
+PDF-ul grupeaza in ultimele doua trepte sapte componente: PDFium, libvips, ZXing, Tesseract, FFmpeg,
+apoi UnRAR, 7-Zip SDK si TLSH. Le-am tratat diferit, pentru ca PDF-ul insusi le trateaza diferit.
+
+**Ce s-a livrat: citirea codurilor QR din imagini.**
+
+E amenintarea concreta pe care PDF-ul o numeste („QR de phishing"), si singura din treapta multimodala
+care se plateste imediat pentru un bot de Discord: o imagine cu un QR care duce spre o pagina falsa de
+login e un atac obisnuit, iar restul continutului vizual (pagini randate, cadre video) nu e. Decodarea
+foloseste `image` + `rqrr`, ambele pure Rust.
+
+Plafoane inainte de orice decodare: dimensiunea pe latura si numarul total de pixeli se verifica din
+**antet**, nu dupa ce imaginea a ajuns in memorie — o „decompression bomb" de imagine e respinsa fara sa
+fie desfacuta. Numarul de coduri citite si lungimea payload-ului sunt si ele plafonate; un payload care
+arata a link primeste indicator distinct fata de unul cu text.
+
+**Ce NU s-a facut din etapa 9, si de ce:**
+
+| Componenta | Motiv |
+| --- | --- |
+| PDFium | Crate-ul Rust cere un binar PDFium precompilat, descarcat separat — aceeasi problema de lant de aprovizionare ca la LIEF. Un build din surse cere depot_tools si ~10 GB. |
+| Tesseract (OCR) | Cere date de antrenare per limba (zeci de MB) care trebuie versionate si actualizate; valoarea pentru un bot de patch-uri e mult sub cost. |
+| FFmpeg | Extragerea de cadre video pentru un bot care primeste rar video; build enorm. |
+| libvips | Necesar doar impreuna cu OCR/randare, care nu s-au facut. |
+
+Toate trei sunt **randare sau transcodare**, adica exact clasa de operatii pentru care etapa 5 a trebuit
+sa construiasca un sandbox de syscall. Adaugarea lor inseamna si build-uri de ordinul zecilor de minute,
+si suprafata de atac in C/C++ pe continut ostil. Se pot adauga cand apare o cerinta reala; nu preventiv.
+
+**Etapa 10 nu se implementeaza acum, si asta e conform PDF-ului, nu impotriva lui.**
+
+PDF-ul spune explicit: *„Fallback conditionat — se activeaza numai dupa corpus si benchmark"*, iar despre
+TLSH: *„merita numai daca proiectul mentine un corpus local de mostre si un index de similaritate. Fara
+baza de referinta, SHA-256 si motorul extern sunt suficiente."*
+
+Proiectul **nu** are un corpus local de mostre. Un hash de similaritate fara nimic cu ce sa fie comparat
+produce un numar pe care nimeni nu il foloseste. UnRAR si 7-Zip SDK sunt pozitionate ca fallback dupa
+libarchive, care decodeaza deja RAR si 7z din etapa 3 — conditia de activare (esec sistematic al
+libarchive pe corpus real) nu s-a produs.
+
+Implementarea lor acum ar fi incalcat instructiunea PDF-ului, nu ar fi urmat-o.
+
 ### native-inspector + libseccomp: sandbox de syscall (etapa 5 din PDF-ul de librarii)
 
 Etapele 1-4 au adaugat capabilitati **in procesul existent**: libmagic-like, libyara, libarchive si qpdf

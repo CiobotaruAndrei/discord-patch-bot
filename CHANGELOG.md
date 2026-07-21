@@ -18,6 +18,8 @@
 
 - **Instalatoarele MSI sunt interpretate, nu doar recunoscute ca fisiere OLE (etapa 8 din programul de librarii native).** Numele stream-urilor sunt decodate din codificarea proprie MSI, iar tabelele care conteaza operational — CustomAction, Binary, ServiceInstall, Registry, LaunchCondition — produc indicatori distincti, alaturi de referintele la PowerShell, cmd, wscript sau rundll32. Un document OLE obisnuit nu e raportat ca instalator.
 
+- **Codurile QR din imagini sunt citite si semnalate (etapa 9 din programul de librarii native).** Un QR care contine un link primeste indicator distinct fata de unul cu text simplu. Dimensiunea imaginii se verifica din antet, inainte de decodare, deci o bomba de decompresie e respinsa fara sa fie desfacuta. Randarea PDF, OCR-ul si extragerea de cadre video raman neimplementate, cu motivele scrise in BENCHMARKS.md.
+
 Toate schimbarile importante ale proiectului sunt documentate aici.
 
 Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), iar versiunile folosesc [Semantic Versioning](https://semver.org/).

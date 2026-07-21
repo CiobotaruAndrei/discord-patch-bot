@@ -4,12 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["yara", "archive", "qpdf", "executable", "url-identity"]
+default = ["yara", "archive", "qpdf", "executable", "url-identity", "visual"]
 yara = ["dep:yara"]
 archive = ["dep:libarchive2-sys"]
 qpdf = ["dep:qpdf"]
 executable = ["dep:goblin"]
 url-identity = ["dep:idna", "dep:unicode-security", "dep:publicsuffix"]
+visual = ["dep:rqrr", "dep:image"]
 
 [dependencies]
 sha2 = "0.11"
@@ -21,3 +22,5 @@ goblin = { version = "0.10.7", default-features = false, features = ["pe32", "pe
 idna = { version = "1.1.0", optional = true }
 unicode-security = { version = "0.1.2", optional = true }
 publicsuffix = { version = "2.3.0", optional = true }
+rqrr = { version = "0.10.1", optional = true }
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"], optional = true }
