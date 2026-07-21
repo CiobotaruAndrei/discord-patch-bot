@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import {
   inspectUntrustedContent,
   inspectUntrustedContentFallback,
-  DEFAULT_INSPECTION_LIMITS
+  DEFAULT_INSPECTION_LIMITS,
+  type InspectionReport
 } from "../../features/command-security/passiveArchiveInspection.js";
 import { buildInspectionFixtures, buildHeavyFixture, inspectionParityMismatches } from "../../scripts/inspectionBenchmark.js";
 import { isRustFuzzyAvailable } from "../../native/fuzzy.js";
@@ -26,8 +27,15 @@ test("corpusul de paritate acopera ZIP/TAR/GZIP/CFB/PDF/RAR/7z plus cazurile de 
     "tar-office",
     "gzip-tar",
     "gzip-trunchiat",
-    "rar-fara-decodor",
-    "sevenzip-fara-decodor",
+    "rar4-headere-cu-executabil",
+    "rar4-criptat",
+    "rar4-director-fals-executabil",
+    "rar5-headere-cu-macro",
+    "rar5-header-criptat",
+    "rar-trunchiat",
+    "sevenzip-header-codificat",
+    "sevenzip-header-simplu",
+    "format-fara-decodor",
     "document-pdf-javascript",
     "document-pdf-ofuscat",
     "document-ole-macro",
@@ -92,11 +100,71 @@ test("modul de inspectie ramane decis de TypeScript: acelasi .docx da rezultate 
 });
 
 test("continutul care nu are decodor pasiv local ramane neconfirmat, nu curat", async () => {
-  for (const name of ["rar-fara-decodor", "sevenzip-fara-decodor"]) {
-    const fixture = buildInspectionFixtures().find(entry => entry.name === name);
-    assert.ok(fixture, `fixture-ul ${name} exista`);
-    const report = await inspectUntrustedContent(fixture.bytes, fixture.filename, fixture.mime, fixture.mode);
-    assert.equal(report.status, "uncertain", `${name}: fara decodor local verdictul nu poate fi "inspectat"`);
-    assert.equal(report.reason, "formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat");
-  }
+  const fixture = buildInspectionFixtures().find(entry => entry.name === "format-fara-decodor");
+  assert.ok(fixture, "fixture-ul fara decodor exista");
+  const report = await inspectUntrustedContent(fixture.bytes, fixture.filename, fixture.mime, fixture.mode);
+  assert.equal(report.status, "uncertain", "fara decodor local verdictul nu poate fi \"inspectat\"");
+  assert.equal(report.reason, "formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat");
+});
+
+async function fixtureReport(name: string): Promise<InspectionReport> {
+  const fixture = buildInspectionFixtures().find(entry => entry.name === name);
+  assert.ok(fixture, `fixture-ul ${name} exista`);
+  return inspectUntrustedContent(fixture.bytes, fixture.filename, fixture.mime, fixture.mode);
+}
+
+test("RAR: headerele expun numele intrarilor, deci un executabil intern e semnalat fara a decomprima nimic", async () => {
+  const report = await fixtureReport("rar4-headere-cu-executabil");
+  assert.equal(report.status, "uncertain", "continutul comprimat nu are decodor local, deci verdictul ramane neconfirmat");
+  assert.ok(report.indicators.includes("fisier executabil sau script intern"));
+  assert.equal(report.entriesInspected, 2, "ambele intrari sunt contorizate in buget");
+  assert.match(report.reason, /RAR inspectata structural doar la nivel de header/);
+});
+
+test("RAR5: numele UTF-8 din headere produc aceiasi indicatori ca RAR4", async () => {
+  const report = await fixtureReport("rar5-headere-cu-macro");
+  assert.equal(report.status, "uncertain");
+  assert.ok(report.indicators.includes("macro sau script Office intern"));
+  assert.equal(report.entriesInspected, 2);
+});
+
+test("RAR: arhiva criptata si headerul criptat sunt distinse in motiv, fara indicatori inventati", async () => {
+  const encryptedEntries = await fixtureReport("rar4-criptat");
+  assert.equal(encryptedEntries.status, "uncertain");
+  assert.equal(encryptedEntries.reason, "arhiva criptata RAR");
+
+  const encryptedHeaders = await fixtureReport("rar5-header-criptat");
+  assert.equal(encryptedHeaders.status, "uncertain");
+  assert.match(encryptedHeaders.reason, /headerul criptat/);
+  assert.deepEqual(encryptedHeaders.indicators, [], "cu headerul criptat numele nu pot fi citite, deci nu se raporteaza indicatori");
+});
+
+test("RAR: un director al carui nume se termina in .exe nu e raportat ca fisier executabil", async () => {
+  const report = await fixtureReport("rar4-director-fals-executabil");
+  assert.deepEqual(report.indicators, []);
+});
+
+test("RAR trunchiat este raportat ca trunchiat, nu ca arhiva fara intrari", async () => {
+  const report = await fixtureReport("rar-trunchiat");
+  assert.equal(report.status, "uncertain");
+  assert.match(report.reason, /trunchiat/);
+});
+
+test("7z: headerul codificat/criptat si cel simplu au motive distincte, ambele neconfirmate", async () => {
+  const encoded = await fixtureReport("sevenzip-header-codificat");
+  assert.equal(encoded.status, "uncertain");
+  assert.match(encoded.reason, /7z/);
+  assert.match(encoded.reason, /headerul criptat/);
+
+  const plain = await fixtureReport("sevenzip-header-simplu");
+  assert.equal(plain.status, "uncertain");
+  assert.match(plain.reason, /nu expune nume de intrari inspectabile pasiv/);
+});
+
+test("bugetul de intrari se aplica si scanarii de headere RAR (fara decompresie)", async () => {
+  const fixture = buildInspectionFixtures().find(entry => entry.name === "rar4-headere-cu-executabil");
+  assert.ok(fixture);
+  const limited = await inspectUntrustedContent(fixture.bytes, fixture.filename, fixture.mime, fixture.mode, { maxEntries: 1 });
+  assert.equal(limited.status, "uncertain");
+  assert.equal(limited.reason, "arhiva depaseste limita de 1 intrari");
 });

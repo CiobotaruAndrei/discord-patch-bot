@@ -159,9 +159,17 @@ comportamentul actual. Limitele (adancime, intrari, bytes decomprimati, raport d
 parametri de apel, identici in ambele implementari, verificati prin teste de paritate.
 
 Ce **nu** s-a mutat, deliberat: descarcarea si HTTP-ul, apelul catre motorul extern de reputatie, deciziile
-de moderare si persistenta — sunt I/O si politica, nu calcul (vezi sectiunea 4). Formatele fara decodor
-pasiv local (RAR, 7z) raman `uncertain` si in Rust: verdictul e escaladat catre motorul extern, nu declarat
-curat.
+de moderare si persistenta — sunt I/O si politica, nu calcul (vezi sectiunea 4).
+
+**RAR si 7z** sunt acum parcurse structural **la nivel de header**, in acelasi task Rust: RAR4 (blocuri
+`FILE_HEAD`) si RAR5 (headere cu `vint`) sunt enumerate ca nume de intrari, iar 7z isi expune tipul
+headerului urmator (`kHeader` simplu vs `kEncodedHeader` codificat/criptat). Numele obtinute trec prin
+aceeasi clasificare ca intrarile ZIP/TAR, deci un `installer.exe` sau un `macros/auto.vbs` dintr-un RAR
+produce indicator **fara sa fie decomprimat nimic**. Continutul comprimat tot nu are decodor pasiv local,
+deci verdictul ramane `uncertain` (escaladat la motorul extern, nu declarat curat) — dar motivul e acum
+precis: arhiva criptata, header criptat, structura trunchiata sau „inspectata doar la nivel de header (N
+intrari)". Bugetul de intrari se aplica si scanarii de headere, iar intrarile de tip director nu produc
+indicatori de fisier.
 
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
