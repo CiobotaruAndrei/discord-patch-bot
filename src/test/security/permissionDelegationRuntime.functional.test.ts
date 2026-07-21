@@ -107,6 +107,7 @@ test("restaurarea la roleUpdate elimina DOAR permisiunile protejate adaugate; sc
   };
   const metrics = { permissionDelegationsReverted: 0 };
   const runtime = createPermissionDelegationRuntime({
+    wait: async () => undefined,
     GuildAuditLogModel: auditModel(audits),
     adminAlert: async (_kind, _title, body) => { alerts.push(body); },
     metrics,
@@ -144,6 +145,7 @@ test("ownerul poate acorda permisiuni sensibile fara rollback", async () => {
     })
   };
   const runtime = createPermissionDelegationRuntime({
+    wait: async () => undefined,
     GuildAuditLogModel: auditModel([]),
     adminAlert: async () => undefined,
     now: () => now
@@ -183,6 +185,7 @@ test("rolul sensibil atribuit de un non-owner este eliminat de pe membru", async
     guild
   };
   const runtime = createPermissionDelegationRuntime({
+    wait: async () => undefined,
     GuildAuditLogModel: auditModel([]),
     adminAlert: async () => undefined,
     now: () => now
@@ -230,6 +233,7 @@ test("un rol NOU creat cu permisiuni sensibile de un non-owner pierde DOAR cele 
   };
   const metrics = { permissionDelegationsReverted: 0 };
   const runtime = createPermissionDelegationRuntime({
+    wait: async () => undefined,
     GuildAuditLogModel: auditModel(audits),
     adminAlert: async (_kind, _title, body) => { alerts.push(body); },
     metrics,
@@ -275,6 +279,7 @@ test("roleCreate: ownerul poate crea roluri sensibile; rolurile gestionate de in
     })
   });
   const runtime = createPermissionDelegationRuntime({
+    wait: async () => undefined,
     GuildAuditLogModel: auditModel(audits),
     adminAlert: async (_kind, _title, body) => { alerts.push(body); },
     now: () => now
@@ -326,6 +331,7 @@ test("channelUpdate: un overwrite care acorda Manage Webhooks e restaurat la sta
   };
   const metrics = { permissionDelegationsReverted: 0 };
   const runtime = createPermissionDelegationRuntime({
+    wait: async () => undefined,
     GuildAuditLogModel: auditModel(audits),
     adminAlert: async (_kind, _title, body) => { alerts.push(body); },
     metrics,
@@ -389,6 +395,7 @@ test("channelUpdate: overwrite-urile schimbate de owner raman; fara permisiuni s
     }
   };
   const runtime = createPermissionDelegationRuntime({
+    wait: async () => undefined,
     GuildAuditLogModel: auditModel([]),
     adminAlert: async () => undefined,
     now: () => now
@@ -515,6 +522,7 @@ test("detectia foloseste bitii expliciti, nu has(): un rol cu Administrator NU e
     })
   };
   const runtime = createPermissionDelegationRuntime({
+    wait: async () => undefined,
     GuildAuditLogModel: auditModel(audits),
     adminAlert: async () => undefined,
     now: () => now
@@ -577,6 +585,7 @@ test("dedup Audit Log: aceeasi intrare nu e atribuita de doua ori la doua evenim
     fetchAuditLogs: async () => ({ entries: new Map([["shared-1", sharedEntry]]) })
   };
   const runtime = createPermissionDelegationRuntime({
+    wait: async () => undefined,
     GuildAuditLogModel: auditModel(audits),
     adminAlert: async () => undefined,
     now: () => now

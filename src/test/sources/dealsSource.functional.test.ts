@@ -202,7 +202,7 @@ test("createDeals: coalescing-ul inflight e per instanta, nu partajat intre inst
   const apiA = attachDeals.createDeals(depsA);
   const apiB = attachDeals.createDeals(depsB);
   void apiA.fetchDeals({ currency: "USD" });
-  const timeout = new Promise<"timeout">(resolve => setTimeout(() => resolve("timeout"), 500));
+  const timeout = new Promise<"timeout">(resolve => { setTimeout(() => resolve("timeout"), 500).unref(); });
   const raced = await Promise.race([apiB.fetchDeals({ currency: "USD" }), timeout]);
   assert.notEqual(raced, "timeout", "instanta B nu trebuie sa astepte promisiunea inflight (blocata) a instantei A");
   const deals = raced as Array<{ id: string }>;
@@ -218,7 +218,7 @@ test("createDeals.fetchDeals: Steam si Epic se fetch-uiesc in PARALEL, nu secven
       if (String(url).includes("featuredcategories")) {
         await Promise.race([
           epicStarted,
-          new Promise((_resolve, reject) => setTimeout(() => reject(new Error("Epic nu a pornit cat timp Steam era in zbor — fetch-ul a redevenit secvential")), 2000))
+          new Promise((_resolve, reject) => { setTimeout(() => reject(new Error("Epic nu a pornit cat timp Steam era in zbor — fetch-ul a redevenit secvential")), 2000).unref(); })
         ]);
         return { data: { specials: { items: [{ id: 100, name: "Steam Deal", original_price: 2000, final_price: 1000, discount_percent: 50, header_image: null }] } } };
       }
