@@ -28,7 +28,7 @@ test("check e un orchestrator: construieste O DATA si deleaga la variantele preb
   assert.equal(scriptValue("check"), "npm run build:ts && npm run build:rust && npm run check:prebuilt", "check = build complet + verificari prebuilt, fara gate-uri duplicate inline");
   const prebuilt = scriptValue("check:prebuilt");
   assert.equal(prebuilt.includes("build:"), false, "check:prebuilt nu construieste nimic - ruleaza pe artefactele existente");
-  assert.equal(prebuilt.startsWith("node dist/scripts/check-syntax.js && "), true, "gate-urile ruleaza direct pe dist");
+  assert.equal(prebuilt.startsWith("node dist/scripts/run-gates.js && "), true, "gate-urile ruleaza direct pe dist, in paralel, printr-un singur orchestrator");
   assert.ok(prebuilt.includes("node --test"), "check:prebuilt include si testele");
   assert.equal(scriptValue("check:ts-prebuilt"), "npm run build:ts && npm run check:prebuilt", "check:ts-prebuilt reconstruieste doar TypeScript si refoloseste addon-ul nativ deja construit");
 });
