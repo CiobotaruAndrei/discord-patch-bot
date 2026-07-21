@@ -99,6 +99,8 @@ function renderPrometheusMetrics(input: MetricsSnapshotInput): string {
   pushMetric(lines, seenMetricNames, "bot_threat_reputation_engine_configured", "gauge", "Threat reputation/AV engine configured (1) or not (0)", metrics.threatReputationEngineConfigured ?? 0);
   pushMetric(lines, seenMetricNames, "bot_moderation_cleanup_runs", "counter", "Periodic moderation cleanup completed runs", metrics.moderationCleanupRuns ?? 0);
   pushMetric(lines, seenMetricNames, "bot_moderation_cleanup_failures", "counter", "Periodic moderation cleanup failed runs", metrics.moderationCleanupFailures ?? 0);
+  pushMetric(lines, seenMetricNames, "bot_yara_rules_loaded", "gauge", "YARA rules currently compiled into the running ruleset", metrics.yaraRulesLoaded ?? 0);
+  pushMetric(lines, seenMetricNames, "bot_yara_engine_available", "gauge", "YARA engine compiled into the native addon", metrics.yaraEngineAvailable ?? 0);
   pushMetric(lines, seenMetricNames, "bot_channel_lock_recovery_runs", "counter", "Channel lock/unlock divergence recovery completed runs", metrics.channelLockRecoveryRuns ?? 0);
   pushMetric(lines, seenMetricNames, "bot_channel_lock_recovery_failures", "counter", "Channel lock/unlock divergence recovery failed runs", metrics.channelLockRecoveryFailures ?? 0);
   pushMetric(lines, seenMetricNames, "bot_channel_lock_recoveries_converged", "counter", "Channel lock/unlock divergences restored and closed", metrics.channelLockRecoveriesConverged ?? 0);

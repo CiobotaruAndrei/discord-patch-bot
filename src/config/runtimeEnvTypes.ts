@@ -9,6 +9,7 @@ export interface RuntimeIdentityEnv {
   NODE_ENV: string;
   LOG_LEVEL: string;
   THREAT_REPUTATION_URL?: string;
+  YARA_RULES_PATH?: string;
   THREAT_REPUTATION_TOKEN?: string;
   isProd: boolean;
 }

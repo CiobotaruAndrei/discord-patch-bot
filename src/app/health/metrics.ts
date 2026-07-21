@@ -45,6 +45,8 @@ function createMetrics(): BotMetrics {
     securityBotAddsBlocked: 0,
     permissionDelegationsReverted: 0,
     moderationCleanupRuns: 0,
+    yaraRulesLoaded: 0,
+    yaraEngineAvailable: 0,
     channelLockRecoveryRuns: 0,
     channelLockRecoveryFailures: 0,
     channelLockRecoveriesConverged: 0,

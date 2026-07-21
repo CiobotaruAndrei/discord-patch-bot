@@ -214,6 +214,40 @@ Pentru etapele urmatoare din PDF (YARA, decodare RAR/7z, PDF structural complet,
 aceeasi intrebare se pune separat de fiecare data: exista o implementare Rust matura care ofera aceeasi
 capabilitate fara costul de build si de suprafata de atac al unei librarii C? Cand raspunsul e nu,
 librarie C — dar dupa acelasi benchmark si aceleasi gate-uri.
+### libyara: prima librarie C legata efectiv (etapa 2 din PDF-ul de librarii)
+
+Etapa 2 din PDF-ul „Librarii C/C++" cere un motor de reguli actualizabil fara recompilarea
+botului. Aici raspunsul la intrebarea „exista un echivalent Rust suficient?" este **nu**:
+valoarea YARA nu e algoritmul, ci **ecosistemul de reguli** — regulile scrise de comunitate
+si de furnizorii de threat intel tintesc dialectul libyara. Deci libyara se leaga efectiv.
+
+**Cum se leaga, fara sa strice build-ul nimanui**: crate-ul `yara` cu feature-urile
+`vendored` + `bundled-4_5_5`. Sursa C a libyara este compilata din surse de `cc` si legata
+**static**; bindings-urile sunt pre-generate, deci nu e nevoie de `libclang`. Rezultatul
+practic, verificat pe aceasta masina (Windows + MSVC):
+
+- **zero** `apt-get` in CI si in Dockerfile;
+- **zero** vcpkg pe masina de dezvoltare;
+- **zero** `.so` de instalat in stage-ul de runtime (linkare statica);
+- acelasi build pe Linux, Windows si in container, fara pasi de platforma.
+
+Costul real e timpul de compilare: libyara se compileaza o data per `target/` curat
+(~15 s pe aceasta masina, cache-uit dupa aceea). Asta e pretul acceptat pentru a NU adauga
+patru fronturi de instalare per librarie.
+
+Feature-ul cargo `yara` este **activ implicit**; cand e dezactivat, modulul se compileaza cu
+o implementare inlocuitoare care raporteaza onest `unavailable`, iar botul functioneaza
+identic, fara scanare pe reguli.
+
+**Politica de verdict, exact ca in PDF (sectiunea 6):** o potrivire YARA **nu** produce
+niciodata `confirmed`. Regulile locale semnaleaza; confirmarea ramane exclusiv a motorului
+extern care a scanat obiectul complet si a raspuns pentru acelasi hash. Un match ridica
+verdictul cel mult la `uncertain` si adauga indicatori descriptivi in raport.
+
+Ruleset-ul se incarca la pornire din `YARA_RULES_PATH` (fisier sau director cu `.yar`/`.yara`,
+plafonat la 8 MiB), primeste un `rulesetId` derivat din continut — folosit in audit si in
+cache key, cum cere PDF-ul — iar un set invalid **nu** inlocuieste setul valid deja incarcat.
+Seriile `bot_yara_rules_loaded` si `bot_yara_engine_available` expun starea operational.
 
 ### Guard automat in CI (deciziile de mai sus, impuse)
 

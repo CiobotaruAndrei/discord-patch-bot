@@ -9,6 +9,7 @@ mod steam;
 mod text;
 mod types;
 mod updates;
+mod yara_rules;
 
 pub use autocomplete::build_autocomplete_choices;
 pub use deals::{deal_passes_filters, dedupe_and_rank_deals, DealCandidateData};
@@ -29,6 +30,9 @@ pub use steam::{
 pub use text::{clean_text, levenshtein, normalize_title_for_dedupe};
 pub use types::{AutocompleteChoiceData, FuzzyMatch, GameCandidateData, ListingCandidateData};
 pub use updates::{classify_patch_note, extract_date_score, is_good_steam_article_url};
+pub use yara_rules::{
+  load_yara_rules, scan_yara, yara_available, yara_ruleset_info, YaraMatch, YaraRulesetInfo, YaraScanReport,
+};
 
 #[cfg(test)]
 mod tests {
