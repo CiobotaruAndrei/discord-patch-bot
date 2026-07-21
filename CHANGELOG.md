@@ -12,6 +12,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+- Tipul real al atasamentelor e detectat structural (MIME, encoding, familie de container si nepotriviri extensie/MIME declarat), inlocuind cele cateva semnaturi hardcodate; un executabil prezentat ca imagine e semnalat explicit, fara a fi declarat malware.
 - Alertele de cont nou folosesc un claim fail-closed: starea protectoare se persista inainte de trimitere, iar un outage Mongo total dupa un send reusit nu mai produce duplicat dupa expirarea lease-ului; starea ambigua se inchide automat la pornire, fara retransmitere.
 - Divergentele lock/unlock ramase dupa esecul persistentei si al ambelor rollback-uri sunt inregistrate persistent si recuperate automat de un worker idempotent, care nu suprascrie schimbarile legitime facute intre timp.
 - Inspectia pasiva a continutului neincredibil ruleaza ca un singur task Rust asincron, in afara event loop-ului, cu fallback TypeScript identic verificat prin paritate.

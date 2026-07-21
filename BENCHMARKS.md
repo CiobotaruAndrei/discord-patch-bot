@@ -182,6 +182,39 @@ precis: arhiva criptata, header criptat, structura trunchiata sau „inspectata 
 intrari)". Bugetul de intrari se aplica si scanarii de headere, iar intrarile de tip director nu produc
 indicatori de fisier.
 
+### Detectia tipului real (`inspectMagic`) si de ce NU s-a linkat libmagic
+
+PDF-ul „Librarii C/C++ pentru discord-patch-bot" propune un program de 15 etape care incepe cu
+`libmagic` pentru identificarea tipului real. Capabilitatea e livrata (etapa 1), dar **fara a lega o
+librarie C** — decizia se ia pe aceleasi criterii ca restul documentului, aplicate onest:
+
+- **Cost de build real.** CI ruleaza pe `ubuntu-latest` fara pachete dev, iar Dockerfile-ul are doar
+  `build-essential pkg-config python3`. Fiecare librarie C din lista cere apt in CI, apt in stage-ul de
+  build **si** in cel de runtime (pentru `.so`-uri), plus vcpkg pe masina de dezvoltare Windows. Un
+  singur artefact lipsa opreste `npm run check` si declanseaza fail-fast-ul „addon nativ obligatoriu in
+  productie".
+- **Ce aduce efectiv libmagic** e baza de semnaturi, nu algoritmul. Pentru suprafata reala a botului —
+  atasamente Discord — un tabel de semnaturi fixat in Rust acopera formatele care conteaza si e testabil
+  determinist, fara dependinta externa versionata separat.
+- **Regula documentului insusi**: „C++ nu devine al treilea limbaj de business. Rust ramane
+  coordonatorul nativ." Aici nu exista nimic „greu de reimplementat corect" — clasificarea dupa magic
+  bytes e exact genul de cod pentru care Rust e potrivit.
+
+Ce inlocuieste `magicKind` (8 semnaturi hardcodate, fara MIME): `inspect_magic` intoarce MIME real,
+descriere, encoding, `kind` pentru rutarea parserului si un camp de **flag-uri de nepotrivire** —
+extensie falsa, MIME declarat contradictoriu, poliglot, executabil deghizat, continut trunchiat.
+Containerele sunt tratate pe **familii** (DOCX/XLSX/PPTX/APK/JAR/ODF sunt toate ZIP; MSI/DOC/XLS/PPT
+sunt toate OLE), deci un `.docx` numit `.zip` nu mai produce o nepotrivire falsa.
+
+Politica ceruta de PDF e respectata: **detectia clasifica tipul, nu intentia**. O nepotrivire produce
+cel mult `uncertain` si o ruta de inspectie mai stricta; niciodata `confirmed`. Paritatea native == TS
+e verificata pe un corpus de 39 de tipuri in `contentTypeDetection.test.ts`.
+
+Pentru etapele urmatoare din PDF (YARA, decodare RAR/7z, PDF structural complet, PE/ELF/Mach-O, IDN),
+aceeasi intrebare se pune separat de fiecare data: exista o implementare Rust matura care ofera aceeasi
+capabilitate fara costul de build si de suprafata de atac al unei librarii C? Cand raspunsul e nu,
+librarie C — dar dupa acelasi benchmark si aceleasi gate-uri.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
