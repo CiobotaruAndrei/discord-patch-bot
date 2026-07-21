@@ -26,7 +26,7 @@ function makeBackupModel(docs: GuildConfigBackupRecord[]) {
   };
 }
 
-function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: boolean, backups: GuildConfigBackupRecord[] = [], youtubeErrorCount = 0, deadLetterCount = 0) {
+function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: boolean, backups: GuildConfigBackupRecord[] = [], youtubeErrorCount = 0, deadLetterCount = 0, unresolvedAlertSends = 0) {
   return {
     logger: () => undefined,
     enforceCooldown: async () => true,
@@ -41,6 +41,7 @@ function makeDeps(settings: GuildSettings | null, outboxCount: number, paused: b
     GuildConfigBackupModel: makeBackupModel(backups),
     GuildYoutubeErrorModel: { countDocuments: async () => youtubeErrorCount },
     GuildDeadLetterModel: { countDocuments: async () => deadLetterCount },
+    NewAccountAlertDeliveryModel: { countDocuments: async () => unresolvedAlertSends },
     MessageFlags: { Ephemeral: 64 }
   };
 }
@@ -167,4 +168,15 @@ test("/maintenance ruleaza cooldown, log si returneaza raport ephemeral", async 
 
   assert.deepEqual(statuses, ["ok"]);
   assert.match(String(replies[0]), /Maintenance check/);
+});
+
+test("buildMaintenanceReport expune alertele de cont nou ramase cu stare nedeterminata (audit 154c #2)", async () => {
+  const settings = { _id: "guild-1", subscribed: true, notificationChannelId: "chan-1" } as GuildSettings;
+
+  const clean = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 0, false, [], 0, 0, 0), "guild-1");
+  assert.match(clean, /OK: alerte cont nou nefinalizate - fara trimiteri cu stare nedeterminata/);
+
+  const stuck = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 0, false, [], 0, 0, 2), "guild-1");
+  assert.match(stuck, /ATENTIE: alerte cont nou nefinalizate - 2 trimise cu stare nedeterminata/);
+  assert.match(stuck, /nu se retrimit/, "raportul spune explicit ca nu exista risc de duplicat");
 });

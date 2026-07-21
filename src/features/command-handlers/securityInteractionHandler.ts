@@ -12,7 +12,7 @@ import {
 import { accountAgeLabel, isRecentAccount } from "../command-security/recentAccountPolicy.js";
 import { validateModerationText, type DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import { countActiveBotAddPermissions, stopBotAddProtectionAtomically } from "../moderation/botAddRepository.js";
-import { createNewAccountAlertDelivery, type NewAccountAlertClaim, type NewAccountAlertDeliveryModelLike } from "../command-security/newAccountAlertDedup.js";
+import { createNewAccountAlertDelivery, deliverNewAccountAlert, type NewAccountAlertClaim, type NewAccountAlertDeliveryModelLike } from "../command-security/newAccountAlertDedup.js";
 import { randomUUID } from "node:crypto";
 
 type AccountAlertClaimFn = (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
@@ -183,37 +183,35 @@ async function sendExistingAccountAlerts(
   guildId: string,
   claim?: AccountAlertClaimFn,
   logger?: SecurityDeps["logger"]
-): Promise<{ delivered: number; sentUnconfirmed: number }> {
+): Promise<{ delivered: number; sentUnconfirmed: number; undetermined: number }> {
   const members = await interaction.guild?.members?.fetch();
-  if (!members || !channel.send) return { delivered: 0, sentUnconfirmed: 0 };
+  const send = channel.send;
+  if (!members || !send) return { delivered: 0, sentUnconfirmed: 0, undetermined: 0 };
   const now = new Date();
   let delivered = 0;
   let sentUnconfirmed = 0;
+  let undetermined = 0;
   for (const member of members.values()) {
     const user = member.user;
     if (!user?.id || user.bot || !isRecentAccount(user.createdTimestamp, now)) continue;
     const ticket = claim ? await claim(guildId, user.id) : null;
     if (claim && !ticket) continue;
-    try {
-      await channel.send({
+    const outcome = await deliverNewAccountAlert(ticket, async () => {
+      await send({
         content: `:shield: Cont existent mai nou de 3 luni: <@${user.id}> (${user.tag ?? user.id}), creat acum ${accountAgeLabel(user.createdTimestamp, now.getTime())}.`,
         allowedMentions: { parse: [] }
       });
-    } catch (error) {
-      if (ticket) await ticket.release().catch(() => undefined);
-      throw error;
-    }
-    if (!ticket) { delivered++; continue; }
-    const confirmed = await ticket.markDelivered().catch(() => false);
-    if (confirmed) {
-      delivered++;
-    } else {
-      await ticket.markSentUnconfirmed().catch(() => undefined);
+    });
+    if (outcome === "delivered") delivered++;
+    else if (outcome === "sent-unconfirmed") {
       sentUnconfirmed++;
       logger?.("WARN", "NEW_ACCOUNT_ALERT", "Alerta cont nou trimisa dar nefinalizata in Mongo (sent-unconfirmed); nu se retrimite, necesita reconciliere", { guildId, userId: user.id });
+    } else if (outcome === "undetermined") {
+      undetermined++;
+      logger?.("ERROR", "NEW_ACCOUNT_ALERT", "Alerta cont nou trimisa, dar starea nu a putut fi persistata deloc (nedeterminata); claim-ul ramane blocat pana la reconciliere si NU se retrimite", { guildId, userId: user.id });
     }
   }
-  return { delivered, sentUnconfirmed };
+  return { delivered, sentUnconfirmed, undetermined };
 }
 
 function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<SecurityInteraction> {
@@ -292,11 +290,14 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
           const fetched = channelId && interaction.guild?.channels?.fetch
             ? await interaction.guild.channels.fetch(channelId)
             : null;
-          const result = fetched ? await sendExistingAccountAlerts(interaction, fetched, guildId, accountAlertClaim, target.logger) : { delivered: 0, sentUnconfirmed: 0 };
+          const result = fetched ? await sendExistingAccountAlerts(interaction, fetched, guildId, accountAlertClaim, target.logger) : { delivered: 0, sentUnconfirmed: 0, undetermined: 0 };
           const unconfirmedNote = result.sentUnconfirmed > 0
-            ? ` ${result.sentUnconfirmed} au fost trimise dar neconfirmate in baza de date (vor fi reconciliate, nu retrimise).`
+            ? ` ${result.sentUnconfirmed} au fost trimise si marcate neconfirmate in baza de date (starea protectoare e persistata, deci nu se retrimit).`
             : "";
-          return respond(interaction, `OK: protectia **${sub}** a fost pornita. Au fost verificate conturile existente si trimise ${result.delivered} alerte confirmate.${unconfirmedNote}`);
+          const undeterminedNote = result.undetermined > 0
+            ? ` ${result.undetermined} au fost trimise, dar starea NU a putut fi persistata deloc (nedeterminata): claim-ul ramane blocat, nu se retrimit, si sunt reconciliate automat la urmatoarea pornire.`
+            : "";
+          return respond(interaction, `OK: protectia **${sub}** a fost pornita. Au fost verificate conturile existente si trimise ${result.delivered} alerte confirmate.${unconfirmedNote}${undeterminedNote}`);
         } catch (err) {
           await applyGuildConfigUpdate(target.GuildModel, guildId, { [enabledField]: false });
           throw err;

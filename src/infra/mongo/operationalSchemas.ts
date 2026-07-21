@@ -86,13 +86,16 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     _id: { type: String, required: true },
     guildId: { type: String, required: true },
     userId: { type: String, required: true },
-    status: { type: String, enum: ["claimed", "delivered"], required: true },
+    status: { type: String, enum: ["claimed", "sending", "delivered", "sent-unconfirmed", "released"], required: true },
     claimToken: { type: String, default: null },
     leaseUntil: { type: Date, default: null },
+    sendingAt: { type: Date, default: null },
     deliveredAt: { type: Date, default: null },
+    reconciledAt: { type: Date, default: null },
     expiresAt: { type: Date, required: true, expires: 0 }
   }, { minimize: false });
   newAccountAlertDeliverySchema.index({ guildId: 1, userId: 1 }, { unique: true, background: true });
+  newAccountAlertDeliverySchema.index({ status: 1, sendingAt: 1 }, { background: true });
 
   const playerCountRecordSchema = new mongoose.Schema({
     _id: String,

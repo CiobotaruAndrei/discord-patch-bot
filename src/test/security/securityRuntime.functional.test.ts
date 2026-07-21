@@ -367,7 +367,7 @@ test("alerta de cont nou include toate campurile si e deduplicata persistent per
     claimNewAccountAlert: async (_guildId: string, userId: string) => {
       if (alerted.has(userId)) return null;
       alerted.add(userId);
-      return { token: userId, markDelivered: async () => true, markSentUnconfirmed: async () => true, release: async () => { alerted.delete(userId); } };
+      return { token: userId, beginSend: async () => true, markDelivered: async () => true, markSentUnconfirmed: async () => true, release: async () => { alerted.delete(userId); return true; } };
     },
     now: () => now
   });

@@ -59,7 +59,7 @@ import { createServerEventLogRuntime } from "../features/command-security/server
 import { observeConfirmedBotAction } from "../features/command-security/botObservationRepository.js";
 import { createModerationCleanupTask } from "./scheduler/moderationCleanupTask.js";
 import { roleRunsSchedulers } from "../shared/botRole.js";
-import { createNewAccountAlertDelivery } from "../features/command-security/newAccountAlertDedup.js";
+import { createNewAccountAlertDelivery, reconcileStuckNewAccountSends } from "../features/command-security/newAccountAlertDedup.js";
 
 function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, schedulers: Schedulers | null): AppRuntime {
   const { createHttpServer, registerDiscordEvents, registerMongoEvents, createShutdownController, errorMessage, errorDetail, mongoose, crypto, mongo } = deps;
@@ -70,6 +70,14 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   const newAccountDelivery = mongo.NewAccountAlertDeliveryModel
     ? createNewAccountAlertDelivery(mongo.NewAccountAlertDeliveryModel, () => crypto.randomBytes(16).toString("hex"))
     : null;
+  const newAccountAlertModel = mongo.NewAccountAlertDeliveryModel;
+  if (newAccountAlertModel) {
+    void reconcileStuckNewAccountSends(newAccountAlertModel).then(closed => {
+      if (closed > 0) {
+        logger("WARN", "NEW_ACCOUNT_ALERT", "Alerte de cont nou ramase in starea de trimitere au fost inchise la pornire ca sent-unconfirmed; NU au fost retrimise", { closed });
+      }
+    });
+  }
   metrics.threatReputationEngineConfigured = reputationScan ? 1 : 0;
   const securityRuntime = mongo.GuildModel && mongo.GuildAuditLogModel
     ? createSecurityRuntime({
@@ -80,6 +88,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
       httpReq: deps.scrapers.httpReq,
       reputationScan,
       claimNewAccountAlert: newAccountDelivery?.claim,
+      logger,
       metrics
     })
     : undefined;
