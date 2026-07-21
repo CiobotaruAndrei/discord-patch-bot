@@ -4,10 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["yara", "archive", "qpdf"]
+default = ["yara", "archive", "qpdf", "executable"]
 yara = ["dep:yara"]
 archive = ["dep:libarchive2-sys"]
 qpdf = ["dep:qpdf"]
+executable = ["dep:goblin"]
 
 [dependencies]
 sha2 = "0.11"
@@ -15,3 +16,4 @@ yara = { version = "0.32", optional = true, default-features = false, features =
 libarchive2-sys = { version = "0.2", optional = true }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 qpdf = { version = "0.3.5", default-features = false, features = ["vendored"], optional = true }
+goblin = { version = "0.10.7", default-features = false, features = ["pe32", "pe64", "elf32", "elf64", "mach32", "mach64", "endian_fd", "std", "alloc"], optional = true }

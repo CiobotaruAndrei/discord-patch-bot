@@ -1,3 +1,4 @@
+use crate::executable::{analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
 use crate::pdf_structure::{
   inspect_pdf_structure, needs_structural_escalation, PdfStructureLimits, PdfStructureOutcome,
 };
@@ -570,6 +571,7 @@ fn content_indicators(name: &str, bytes: &[u8], budget: &mut Budget) -> Vec<Stri
   if bytes.len() >= 4 && bytes[0] == 0x7f && &bytes[1..4] == b"ELF" {
     indicators.push("executabil ELF intern".to_string());
   }
+  indicators.extend(executable_indicators(bytes));
   let text = scan_window(bytes);
   if pdf_action_indicators(text) {
     indicators.push("actiune automata sau script PDF intern".to_string());
@@ -1271,6 +1273,22 @@ fn pdf_deep_indicators(bytes: &[u8], budget: &mut Budget) -> Option<(Vec<String>
       Some((indicators, uncertain, reason))
     }
     PdfStructureOutcome::Failed(_) | PdfStructureOutcome::Unavailable(_) => None,
+  }
+}
+
+fn executable_indicators(bytes: &[u8]) -> Vec<String> {
+  if !looks_like_executable(bytes) {
+    return Vec::new();
+  }
+  match analyze_executable(bytes, &ExecutableLimits::default()) {
+    ExecutableOutcome::Analyzed(report) => {
+      let mut indicators = report.indicators;
+      if report.is_library {
+        indicators.push(format!("biblioteca {} interna, nu executabil de sine statator", report.format));
+      }
+      indicators
+    }
+    ExecutableOutcome::Failed(_) | ExecutableOutcome::Unavailable(_) | ExecutableOutcome::NotExecutable => Vec::new(),
   }
 }
 
