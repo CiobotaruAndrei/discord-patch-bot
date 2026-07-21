@@ -240,9 +240,11 @@ Pentru operare locala, `npm run doctor:local` verifica intr-un singur flux `.env
 
 ### Dependinte native pentru build-ul addon-ului Rust
 
-Addon-ul leaga doua librarii C: **libyara** (motorul de reguli, etapa 2) si **libarchive** (decodarea
-continutului arhivelor, etapa 3). Ambele sunt compilate din surse si legate static, dar libarchive are
-nevoie de un lant de librarii de compresie prezente la build.
+Addon-ul leaga trei librarii C/C++: **libyara** (motorul de reguli, etapa 2), **libarchive** (decodarea
+continutului arhivelor, etapa 3) si **qpdf** (analiza structurala a PDF-urilor, etapa 4). Toate trei sunt
+compilate din surse si legate static. libyara si qpdf nu cer niciun pachet de sistem in plus (qpdf are
+nevoie doar de un compilator C++17, adus de `build-essential`); libarchive cere un lant de librarii de
+compresie prezente la build.
 
 Pe **Linux** (CI si Docker) e suficient apt:
 

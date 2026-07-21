@@ -4,12 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["yara", "archive"]
+default = ["yara", "archive", "qpdf"]
 yara = ["dep:yara"]
 archive = ["dep:libarchive2-sys"]
+qpdf = ["dep:qpdf"]
 
 [dependencies]
 sha2 = "0.11"
 yara = { version = "0.32", optional = true, default-features = false, features = ["vendored", "bundled-4_5_5"] }
 libarchive2-sys = { version = "0.2", optional = true }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+qpdf = { version = "0.3.5", default-features = false, features = ["vendored"], optional = true }
