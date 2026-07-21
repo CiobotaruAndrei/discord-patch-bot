@@ -84,7 +84,7 @@ mod engine {
   use libseccomp::{ScmpAction, ScmpFilterContext, ScmpSyscall};
 
   pub fn engage() -> SandboxOutcome {
-    let mut filter = match ScmpFilterContext::new_filter(ScmpAction::KillProcess) {
+    let mut filter = match ScmpFilterContext::new(ScmpAction::KillProcess) {
       Ok(filter) => filter,
       Err(error) => return SandboxOutcome::Failed(format!("filtrul seccomp nu a putut fi creat: {error}")),
     };
