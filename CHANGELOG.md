@@ -12,6 +12,8 @@
 
 - **Executabilele primite sunt analizate structural (etapa 6 din programul de librarii native).** Sectiuni cu entropie reala, permisiuni, importuri cu risc, semnatura Authenticode si overlay-ul de dupa ultima sectiune produc indicatori; numele packerelor cunoscute sunt recunoscute explicit. Analiza foloseste un parser pur Rust in locul LIEF, pentru ca build-ul acestuia descarca binare de pe retea, iar parsarea continutului ostil in cod sigur pe memorie elimina o clasa intreaga de riscuri. Un executabil impachetat ramane `uncertain`, niciodata confirmat local.
 
+- **Domeniile din URL-uri sunt verificate dupa standardele Unicode (etapa 6b din programul de librarii native).** Homografele scrise cu litere din alte alfabete si subdomeniile care imita branduri sunt semnalate separat, cu host-ul pastrat in ambele forme (Unicode si Punycode). Lista de sufixe publice se incarca la rulare si isi raporteaza identitatea, ca versiunea ei sa poata intra in cheia de cache. Un semnal local nu confirma niciodata phishing.
+
 Toate schimbarile importante ale proiectului sunt documentate aici.
 
 Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), iar versiunile folosesc [Semantic Versioning](https://semver.org/).

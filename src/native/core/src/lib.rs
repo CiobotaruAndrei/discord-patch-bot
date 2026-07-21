@@ -12,6 +12,7 @@ mod steam;
 mod text;
 mod types;
 mod updates;
+mod url_identity;
 mod yara_rules;
 
 pub use autocomplete::build_autocomplete_choices;
@@ -44,6 +45,10 @@ pub use steam::{
 pub use text::{clean_text, levenshtein, normalize_title_for_dedupe};
 pub use types::{AutocompleteChoiceData, FuzzyMatch, GameCandidateData, ListingCandidateData};
 pub use updates::{classify_patch_note, extract_date_score, is_good_steam_article_url};
+pub use url_identity::{
+  analyze_url_host, load_public_suffix_list, public_suffix_info, url_identity_available, SuffixListInfo,
+  UrlIdentityReport,
+};
 pub use yara_rules::{
   load_yara_rules, scan_yara, yara_available, yara_ruleset_info, YaraMatch, YaraRulesetInfo, YaraScanReport,
 };
