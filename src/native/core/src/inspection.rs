@@ -268,6 +268,13 @@ fn read_u32_le(bytes: &[u8], offset: usize) -> Option<u32> {
   Some(u32::from_le_bytes([bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]]))
 }
 
+fn read_u64_le(bytes: &[u8], offset: usize) -> Option<u64> {
+  if offset + 8 > bytes.len() { return None; }
+  let mut buffer = [0u8; 8];
+  buffer.copy_from_slice(&bytes[offset..offset + 8]);
+  Some(u64::from_le_bytes(buffer))
+}
+
 fn is_compound_file_binary(bytes: &[u8]) -> bool {
   bytes.len() >= 512 && bytes[0..8] == [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]
 }
@@ -383,7 +390,7 @@ fn pdf_action_indicators(text: &[u8]) -> bool {
     || has_obfuscated_pdf_action_name(text)
 }
 
-fn content_indicators(name: &str, bytes: &[u8]) -> Vec<String> {
+fn name_indicators(name: &str) -> Vec<String> {
   let normalized = name.replace('\\', "/").to_lowercase();
   let mut indicators: Vec<String> = Vec::new();
   if normalized.ends_with("vbaproject.bin") || normalized.contains("/macros/") || normalized.ends_with(".vbs") {
@@ -395,6 +402,12 @@ fn content_indicators(name: &str, bytes: &[u8]) -> Vec<String> {
   if has_executable_extension(&normalized) {
     indicators.push("fisier executabil sau script intern".to_string());
   }
+  indicators
+}
+
+fn content_indicators(name: &str, bytes: &[u8]) -> Vec<String> {
+  let normalized = name.replace('\\', "/").to_lowercase();
+  let mut indicators: Vec<String> = name_indicators(name);
   if bytes.len() >= 2 && bytes[0] == 0x4d && bytes[1] == 0x5a {
     indicators.push("executabil PE intern".to_string());
   }
@@ -643,6 +656,343 @@ fn inspect_nested(name: &str, bytes: &[u8], depth: u32, budget: &mut Budget) -> 
   inspected(Vec::new())
 }
 
+struct HeaderEntry {
+  name: String,
+  encrypted: bool,
+  directory: bool,
+}
+
+struct HeaderScan {
+  entries: Vec<HeaderEntry>,
+  encrypted_headers: bool,
+  truncated: Option<String>,
+}
+
+fn is_rar4(bytes: &[u8]) -> bool {
+  bytes.len() >= 7 && bytes[0..7] == [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00]
+}
+
+fn is_rar5(bytes: &[u8]) -> bool {
+  bytes.len() >= 8 && bytes[0..8] == [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00]
+}
+
+fn is_seven_zip(bytes: &[u8]) -> bool {
+  bytes.len() >= 32 && bytes[0..6] == [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]
+}
+
+fn decode_oem_name(raw: &[u8]) -> String {
+  raw.iter().take_while(|byte| **byte != 0).map(|byte| *byte as char).collect()
+}
+
+fn read_vint(bytes: &[u8], offset: usize) -> Option<(u64, usize)> {
+  let mut value = 0u64;
+  let mut shift = 0u32;
+  let mut cursor = offset;
+  while cursor < bytes.len() && shift < 64 {
+    let byte = bytes[cursor];
+    value |= ((byte & 0x7f) as u64) << shift;
+    cursor += 1;
+    if byte & 0x80 == 0 {
+      return Some((value, cursor - offset));
+    }
+    shift += 7;
+  }
+  None
+}
+
+fn scan_rar4_headers(bytes: &[u8], budget: &mut Budget) -> HeaderScan {
+  let mut scan = HeaderScan { entries: Vec::new(), encrypted_headers: false, truncated: None };
+  let mut offset = 7usize;
+  while offset + 7 <= bytes.len() {
+    let head_flags = match read_u16_le(bytes, offset + 3) {
+      Some(value) => value,
+      None => {
+        scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+        return scan;
+      }
+    };
+    let head_size = match read_u16_le(bytes, offset + 5) {
+      Some(value) => value as usize,
+      None => {
+        scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+        return scan;
+      }
+    };
+    if head_size < 7 {
+      scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+      return scan;
+    }
+    let head_type = bytes[offset + 2];
+    if head_type == 0x7b {
+      return scan;
+    }
+    let mut data_size = 0u64;
+    if head_flags & 0x8000 != 0 {
+      data_size = read_u32_le(bytes, offset + 7).unwrap_or(0) as u64;
+    }
+    if head_type == 0x74 {
+      if offset + 32 > bytes.len() {
+        scan.truncated = Some("header RAR trunchiat".to_string());
+        return scan;
+      }
+      let name_size = read_u16_le(bytes, offset + 26).unwrap_or(0) as usize;
+      let mut name_offset = offset + 32;
+      if head_flags & 0x0100 != 0 {
+        name_offset += 8;
+      }
+      if name_offset + name_size > bytes.len() {
+        scan.truncated = Some("nume de intrare RAR trunchiat".to_string());
+        return scan;
+      }
+      if let Some(failure) = enforce_budget(budget, 0, 0) {
+        scan.truncated = Some(failure);
+        return scan;
+      }
+      scan.entries.push(HeaderEntry {
+        name: decode_oem_name(&bytes[name_offset..name_offset + name_size]),
+        encrypted: head_flags & 0x0004 != 0,
+        directory: head_flags & 0x00e0 == 0x00e0,
+      });
+    }
+    let advance = head_size as u64 + data_size;
+    if advance == 0 {
+      scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+      return scan;
+    }
+    match offset.checked_add(advance as usize) {
+      Some(next) if next > offset => offset = next,
+      _ => {
+        scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+        return scan;
+      }
+    }
+  }
+  if offset < bytes.len() {
+    scan.truncated = Some("header RAR trunchiat".to_string());
+  }
+  scan
+}
+
+fn scan_rar5_headers(bytes: &[u8], budget: &mut Budget) -> HeaderScan {
+  let mut scan = HeaderScan { entries: Vec::new(), encrypted_headers: false, truncated: None };
+  let mut offset = 8usize;
+  while offset + 5 <= bytes.len() {
+    let mut cursor = offset + 4;
+    let (header_size, used) = match read_vint(bytes, cursor) {
+      Some(value) => value,
+      None => {
+        scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+        return scan;
+      }
+    };
+    cursor += used;
+    let header_start = cursor;
+    let (header_type, used) = match read_vint(bytes, cursor) {
+      Some(value) => value,
+      None => {
+        scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+        return scan;
+      }
+    };
+    cursor += used;
+    let (header_flags, used) = match read_vint(bytes, cursor) {
+      Some(value) => value,
+      None => {
+        scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+        return scan;
+      }
+    };
+    cursor += used;
+    if header_flags & 0x0001 != 0 {
+      match read_vint(bytes, cursor) {
+        Some((_, used)) => cursor += used,
+        None => {
+          scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+          return scan;
+        }
+      }
+    }
+    let mut data_size = 0u64;
+    if header_flags & 0x0002 != 0 {
+      match read_vint(bytes, cursor) {
+        Some((value, used)) => {
+          data_size = value;
+          cursor += used;
+        }
+        None => {
+          scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+          return scan;
+        }
+      }
+    }
+    if header_type == 4 {
+      scan.encrypted_headers = true;
+      return scan;
+    }
+    if header_type == 5 {
+      return scan;
+    }
+    if header_type == 2 || header_type == 3 {
+      match read_rar5_file_name(bytes, cursor) {
+        Some((name, file_flags)) => {
+          if header_type == 2 {
+            if let Some(failure) = enforce_budget(budget, 0, 0) {
+              scan.truncated = Some(failure);
+              return scan;
+            }
+            scan.entries.push(HeaderEntry {
+              name,
+              encrypted: false,
+              directory: file_flags & 0x0001 != 0,
+            });
+          }
+        }
+        None => {
+          scan.truncated = Some("nume de intrare RAR trunchiat".to_string());
+          return scan;
+        }
+      }
+    }
+    let advance = (header_start - offset) as u64 + header_size + data_size;
+    if advance == 0 {
+      scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+      return scan;
+    }
+    match offset.checked_add(advance as usize) {
+      Some(next) if next > offset => offset = next,
+      _ => {
+        scan.truncated = Some("structura RAR trunchiata sau necunoscuta".to_string());
+        return scan;
+      }
+    }
+  }
+  if offset < bytes.len() {
+    scan.truncated = Some("header RAR trunchiat".to_string());
+  }
+  scan
+}
+
+fn read_rar5_file_name(bytes: &[u8], offset: usize) -> Option<(String, u64)> {
+  let mut cursor = offset;
+  let (file_flags, used) = read_vint(bytes, cursor)?;
+  cursor += used;
+  let (_unpacked_size, used) = read_vint(bytes, cursor)?;
+  cursor += used;
+  let (_attributes, used) = read_vint(bytes, cursor)?;
+  cursor += used;
+  if file_flags & 0x0002 != 0 {
+    cursor += 4;
+  }
+  if file_flags & 0x0004 != 0 {
+    cursor += 4;
+  }
+  let (_compression, used) = read_vint(bytes, cursor)?;
+  cursor += used;
+  let (_host_os, used) = read_vint(bytes, cursor)?;
+  cursor += used;
+  let (name_length, used) = read_vint(bytes, cursor)?;
+  cursor += used;
+  let end = cursor.checked_add(name_length as usize)?;
+  if end > bytes.len() {
+    return None;
+  }
+  Some((String::from_utf8_lossy(&bytes[cursor..end]).into_owned(), file_flags))
+}
+
+fn scan_seven_zip_headers(bytes: &[u8]) -> HeaderScan {
+  let mut scan = HeaderScan { entries: Vec::new(), encrypted_headers: false, truncated: None };
+  let next_offset = match read_u64_le(bytes, 12) {
+    Some(value) => value,
+    None => {
+      scan.truncated = Some("structura 7z trunchiata sau necunoscuta".to_string());
+      return scan;
+    }
+  };
+  let next_size = match read_u64_le(bytes, 20) {
+    Some(value) => value,
+    None => {
+      scan.truncated = Some("structura 7z trunchiata sau necunoscuta".to_string());
+      return scan;
+    }
+  };
+  let start = match (next_offset as usize).checked_add(32) {
+    Some(value) => value,
+    None => {
+      scan.truncated = Some("structura 7z trunchiata sau necunoscuta".to_string());
+      return scan;
+    }
+  };
+  let end = match start.checked_add(next_size as usize) {
+    Some(value) => value,
+    None => {
+      scan.truncated = Some("structura 7z trunchiata sau necunoscuta".to_string());
+      return scan;
+    }
+  };
+  if next_size == 0 || end > bytes.len() {
+    scan.truncated = Some("structura 7z trunchiata sau necunoscuta".to_string());
+    return scan;
+  }
+  if bytes[start] == 0x17 {
+    scan.encrypted_headers = true;
+    return scan;
+  }
+  if bytes[start] != 0x01 {
+    scan.truncated = Some("structura 7z trunchiata sau necunoscuta".to_string());
+  }
+  scan
+}
+
+fn header_scan_finding(scan: HeaderScan, format: &str, budget: &mut Budget) -> Finding {
+  let mut indicators: Vec<String> = Vec::new();
+  let mut encrypted_entries = false;
+  for entry in &scan.entries {
+    if entry.encrypted {
+      encrypted_entries = true;
+    }
+    if !entry.directory {
+      indicators.extend(name_indicators(&entry.name));
+    }
+  }
+  if scan.encrypted_headers {
+    return uncertain(
+      format!("arhiva {} are headerul criptat; numele intrarilor nu pot fi citite fara parola", format),
+      dedupe(indicators),
+    );
+  }
+  if encrypted_entries {
+    return uncertain(format!("arhiva criptata {}", format), dedupe(indicators));
+  }
+  if let Some(failure) = scan.truncated {
+    let _ = budget;
+    return uncertain(failure, dedupe(indicators));
+  }
+  if scan.entries.is_empty() {
+    return uncertain(
+      format!("arhiva {} nu expune nume de intrari inspectabile pasiv; continutul nu are decodor local", format),
+      dedupe(indicators),
+    );
+  }
+  uncertain(
+    format!(
+      "arhiva {} inspectata structural doar la nivel de header ({} intrari); continutul comprimat nu are decodor pasiv local",
+      format,
+      scan.entries.len()
+    ),
+    dedupe(indicators),
+  )
+}
+
+fn inspect_rar(bytes: &[u8], budget: &mut Budget) -> Finding {
+  let scan = if is_rar5(bytes) { scan_rar5_headers(bytes, budget) } else { scan_rar4_headers(bytes, budget) };
+  header_scan_finding(scan, "RAR", budget)
+}
+
+fn inspect_seven_zip(bytes: &[u8], budget: &mut Budget) -> Finding {
+  let scan = scan_seven_zip_headers(bytes);
+  header_scan_finding(scan, "7z", budget)
+}
+
 fn looks_like_archive(bytes: &[u8], filename: &str, mime: &str) -> bool {
   if is_zip(bytes) || is_gzip(bytes) || is_tar(bytes) {
     return true;
@@ -689,6 +1039,10 @@ pub fn inspect_untrusted_content(
     inspect_gzip(bytes, 0, &mut budget)
   } else if is_tar(bytes) {
     inspect_tar(bytes, 0, &mut budget)
+  } else if is_rar4(bytes) || is_rar5(bytes) {
+    inspect_rar(bytes, &mut budget)
+  } else if is_seven_zip(bytes) {
+    inspect_seven_zip(bytes, &mut budget)
   } else if mode == "archive" || looks_like_archive(bytes, filename, mime) {
     uncertain("formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat".to_string(), Vec::new())
   } else {
@@ -898,11 +1252,190 @@ mod tests {
     assert_eq!(result.reason, "arhiva GZIP este trunchiata, invalida sau depaseste limita decomprimata");
   }
 
+  fn rar4_file_block(name: &str, flags: u16, packed: &[u8]) -> Vec<u8> {
+    let name_bytes = name.as_bytes();
+    let head_size = 32 + name_bytes.len();
+    let mut block = vec![0u8; head_size];
+    block[2] = 0x74;
+    block[3..5].copy_from_slice(&(flags | 0x8000).to_le_bytes());
+    block[5..7].copy_from_slice(&(head_size as u16).to_le_bytes());
+    block[7..11].copy_from_slice(&(packed.len() as u32).to_le_bytes());
+    block[11..15].copy_from_slice(&(packed.len() as u32).to_le_bytes());
+    block[26..28].copy_from_slice(&(name_bytes.len() as u16).to_le_bytes());
+    block[32..32 + name_bytes.len()].copy_from_slice(name_bytes);
+    block.extend_from_slice(packed);
+    block
+  }
+
+  fn rar4_archive(blocks: Vec<Vec<u8>>) -> Vec<u8> {
+    let mut out = vec![0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00];
+    let mut main = vec![0u8; 13];
+    main[2] = 0x73;
+    main[5..7].copy_from_slice(&13u16.to_le_bytes());
+    out.extend_from_slice(&main);
+    for block in blocks {
+      out.extend_from_slice(&block);
+    }
+    let mut end = vec![0u8; 7];
+    end[2] = 0x7b;
+    end[5..7].copy_from_slice(&7u16.to_le_bytes());
+    out.extend_from_slice(&end);
+    out
+  }
+
+  fn vint(value: u64) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut remaining = value;
+    loop {
+      let byte = (remaining & 0x7f) as u8;
+      remaining >>= 7;
+      if remaining == 0 {
+        out.push(byte);
+        return out;
+      }
+      out.push(byte | 0x80);
+    }
+  }
+
+  fn rar5_block(header_type: u64, header_flags: u64, body: Vec<u8>, data: &[u8]) -> Vec<u8> {
+    let mut header = Vec::new();
+    header.extend_from_slice(&vint(header_type));
+    header.extend_from_slice(&vint(header_flags));
+    if header_flags & 0x0002 != 0 {
+      header.extend_from_slice(&vint(data.len() as u64));
+    }
+    header.extend_from_slice(&body);
+    let mut out = vec![0u8; 4];
+    out.extend_from_slice(&vint(header.len() as u64));
+    out.extend_from_slice(&header);
+    out.extend_from_slice(data);
+    out
+  }
+
+  fn rar5_file_block(name: &str, file_flags: u64, data: &[u8]) -> Vec<u8> {
+    let mut body = Vec::new();
+    body.extend_from_slice(&vint(file_flags));
+    body.extend_from_slice(&vint(data.len() as u64));
+    body.extend_from_slice(&vint(0));
+    body.extend_from_slice(&vint(0));
+    body.extend_from_slice(&vint(0));
+    body.extend_from_slice(&vint(name.len() as u64));
+    body.extend_from_slice(name.as_bytes());
+    rar5_block(2, 0x0002, body, data)
+  }
+
+  fn rar5_archive(blocks: Vec<Vec<u8>>) -> Vec<u8> {
+    let mut out = vec![0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00];
+    out.extend_from_slice(&rar5_block(1, 0, vint(0), &[]));
+    for block in blocks {
+      out.extend_from_slice(&block);
+    }
+    out.extend_from_slice(&rar5_block(5, 0, vint(0), &[]));
+    out
+  }
+
+  fn seven_zip_archive(next_header: &[u8]) -> Vec<u8> {
+    let mut out = vec![0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0x00, 0x04];
+    out.extend_from_slice(&[0u8; 4]);
+    out.extend_from_slice(&0u64.to_le_bytes());
+    out.extend_from_slice(&(next_header.len() as u64).to_le_bytes());
+    out.extend_from_slice(&[0u8; 4]);
+    out.extend_from_slice(next_header);
+    out
+  }
+
   #[test]
-  fn formats_without_a_local_decoder_stay_uncertain() {
-    let mut rar = b"Rar!\x1a\x07\x01\x00".to_vec();
-    rar.extend(std::iter::repeat_n(9u8, 64));
-    let result = report(&rar, "arhiva.rar", "application/x-rar-compressed", "archive");
+  fn rar4_headers_expose_entry_names_without_decompressing() {
+    let archive = rar4_archive(vec![
+      rar4_file_block("docs/readme.txt", 0, b"date"),
+      rar4_file_block("setup/installer.exe", 0, b"date"),
+    ]);
+    let result = report(&archive, "arhiva.rar", "application/x-rar-compressed", "archive");
+    assert_eq!(result.status, "uncertain", "continutul comprimat nu are decodor local, deci verdictul nu poate fi inspectat");
+    assert!(result.indicators.contains(&"fisier executabil sau script intern".to_string()));
+    assert_eq!(result.entries_inspected, 2);
+    assert!(result.reason.contains("RAR inspectata structural doar la nivel de header"));
+  }
+
+  #[test]
+  fn rar4_encrypted_entries_are_reported_as_encrypted() {
+    let archive = rar4_archive(vec![rar4_file_block("secret.exe", 0x0004, b"date")]);
+    let result = report(&archive, "secret.rar", "application/x-rar-compressed", "archive");
+    assert_eq!(result.status, "uncertain");
+    assert_eq!(result.reason, "arhiva criptata RAR");
+  }
+
+  #[test]
+  fn rar4_directory_entries_do_not_produce_content_indicators() {
+    let archive = rar4_archive(vec![rar4_file_block("scripts.exe", 0x00e0, b"")]);
+    let result = report(&archive, "arhiva.rar", "application/x-rar-compressed", "archive");
+    assert!(result.indicators.is_empty(), "un director nu e un fisier executabil, chiar daca numele se termina in .exe");
+  }
+
+  #[test]
+  fn rar5_headers_expose_entry_names() {
+    let archive = rar5_archive(vec![
+      rar5_file_block("docs/readme.txt", 0, b"date"),
+      rar5_file_block("macros/auto.vbs", 0, b"date"),
+    ]);
+    let result = report(&archive, "arhiva.rar", "application/x-rar-compressed", "archive");
+    assert_eq!(result.status, "uncertain");
+    assert!(result.indicators.contains(&"macro sau script Office intern".to_string()));
+    assert_eq!(result.entries_inspected, 2);
+  }
+
+  #[test]
+  fn rar5_encrypted_archive_header_stops_enumeration() {
+    let mut archive = vec![0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00];
+    archive.extend_from_slice(&rar5_block(4, 0, vint(0), &[]));
+    archive.extend_from_slice(&rar5_file_block("secret.exe", 0, b"date"));
+    let result = report(&archive, "secret.rar", "application/x-rar-compressed", "archive");
+    assert_eq!(result.status, "uncertain");
+    assert!(result.reason.contains("headerul criptat"));
+    assert!(result.indicators.is_empty(), "cu headerul criptat nu se pot citi nume, deci nu se inventeaza indicatori");
+  }
+
+  #[test]
+  fn rar_entry_budget_is_enforced_on_header_scan() {
+    let archive = rar4_archive(vec![
+      rar4_file_block("a.txt", 0, b"x"),
+      rar4_file_block("b.txt", 0, b"x"),
+      rar4_file_block("c.txt", 0, b"x"),
+    ]);
+    let limits = InspectionLimits { max_entries: 2, ..InspectionLimits::default() };
+    let result = inspect_untrusted_content(&archive, "arhiva.rar", "application/x-rar-compressed", "archive", limits);
+    assert_eq!(result.status, "uncertain");
+    assert_eq!(result.reason, "arhiva depaseste limita de 2 intrari");
+  }
+
+  #[test]
+  fn truncated_rar_is_reported_as_truncated_not_clean() {
+    let archive = rar4_archive(vec![rar4_file_block("setup.exe", 0, b"date")]);
+    let result = report(&archive[..26], "arhiva.rar", "application/x-rar-compressed", "archive");
+    assert_eq!(result.status, "uncertain");
+    assert!(result.reason.contains("trunchiat"));
+  }
+
+  #[test]
+  fn seven_zip_encoded_header_is_named_precisely() {
+    let result = report(&seven_zip_archive(&[0x17, 0x06, 0x00]), "arhiva.7z", "application/x-7z-compressed", "archive");
+    assert_eq!(result.status, "uncertain");
+    assert!(result.reason.contains("7z"));
+    assert!(result.reason.contains("headerul criptat"));
+  }
+
+  #[test]
+  fn seven_zip_plain_header_without_names_stays_uncertain() {
+    let result = report(&seven_zip_archive(&[0x01, 0x00]), "arhiva.7z", "application/x-7z-compressed", "archive");
+    assert_eq!(result.status, "uncertain");
+    assert!(result.reason.contains("nu expune nume de intrari inspectabile pasiv"));
+  }
+
+  #[test]
+  fn unknown_archive_formats_keep_the_generic_uncertain_reason() {
+    let mut bz2 = b"BZh9".to_vec();
+    bz2.extend(std::iter::repeat_n(9u8, 64));
+    let result = report(&bz2, "arhiva.bz2", "application/x-bzip2", "archive");
     assert_eq!(result.status, "uncertain");
     assert_eq!(result.reason, "formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat");
   }

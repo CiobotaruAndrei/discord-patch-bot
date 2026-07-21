@@ -86,6 +86,83 @@ function compoundFile(entries: Array<{ name: string; type: number }>): Buffer {
   return buffer;
 }
 
+function rar4FileBlock(name: string, flags: number, packed: Buffer): Buffer {
+  const encodedName = Buffer.from(name, "latin1");
+  const headSize = 32 + encodedName.length;
+  const header = Buffer.alloc(headSize, 0);
+  header[2] = 0x74;
+  header.writeUInt16LE(flags | 0x8000, 3);
+  header.writeUInt16LE(headSize, 5);
+  header.writeUInt32LE(packed.length, 7);
+  header.writeUInt32LE(packed.length, 11);
+  header.writeUInt16LE(encodedName.length, 26);
+  encodedName.copy(header, 32);
+  return Buffer.concat([header, packed]);
+}
+
+function rar4Archive(blocks: Buffer[]): Buffer {
+  const main = Buffer.alloc(13, 0);
+  main[2] = 0x73;
+  main.writeUInt16LE(13, 5);
+  const end = Buffer.alloc(7, 0);
+  end[2] = 0x7b;
+  end.writeUInt16LE(7, 5);
+  return Buffer.concat([Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00]), main, ...blocks, end]);
+}
+
+function encodeVint(value: number): Buffer {
+  const bytes: number[] = [];
+  let remaining = value;
+  for (;;) {
+    const byte = remaining % 128;
+    remaining = Math.floor(remaining / 128);
+    if (remaining === 0) {
+      bytes.push(byte);
+      return Buffer.from(bytes);
+    }
+    bytes.push(byte | 0x80);
+  }
+}
+
+function rar5Block(headerType: number, headerFlags: number, body: Buffer, data: Buffer): Buffer {
+  const parts = [encodeVint(headerType), encodeVint(headerFlags)];
+  if ((headerFlags & 0x0002) !== 0) parts.push(encodeVint(data.length));
+  parts.push(body);
+  const header = Buffer.concat(parts);
+  return Buffer.concat([Buffer.alloc(4, 0), encodeVint(header.length), header, data]);
+}
+
+function rar5FileBlock(name: string, fileFlags: number, data: Buffer): Buffer {
+  const encodedName = Buffer.from(name, "utf8");
+  const body = Buffer.concat([
+    encodeVint(fileFlags),
+    encodeVint(data.length),
+    encodeVint(0),
+    encodeVint(0),
+    encodeVint(0),
+    encodeVint(encodedName.length),
+    encodedName
+  ]);
+  return rar5Block(2, 0x0002, body, data);
+}
+
+function rar5Archive(blocks: Buffer[]): Buffer {
+  return Buffer.concat([
+    Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00]),
+    rar5Block(1, 0, encodeVint(0), Buffer.alloc(0)),
+    ...blocks,
+    rar5Block(5, 0, encodeVint(0), Buffer.alloc(0))
+  ]);
+}
+
+function sevenZipArchive(nextHeader: Buffer): Buffer {
+  const start = Buffer.alloc(32, 0);
+  Buffer.from([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0x00, 0x04]).copy(start, 0);
+  start.writeBigUInt64LE(0n, 12);
+  start.writeBigUInt64LE(BigInt(nextHeader.length), 20);
+  return Buffer.concat([start, nextHeader]);
+}
+
 const PE_STUB = Buffer.concat([Buffer.from([0x4d, 0x5a, 0x90, 0x00]), Buffer.alloc(2048, 0x41)]);
 const ELF_STUB = Buffer.concat([Buffer.from([0x7f]), Buffer.from("ELF", "ascii"), Buffer.alloc(2048, 0x42)]);
 const OOXML_RELS = Buffer.from('<?xml version="1.0"?><Relationships><Relationship TargetMode="External" Target="http://evil.test/x"/></Relationships>', "utf8");
@@ -167,17 +244,76 @@ export function buildInspectionFixtures(): InspectionFixture[] {
       mode: "archive"
     },
     {
-      name: "rar-fara-decodor",
-      bytes: Buffer.concat([Buffer.from("Rar!", "latin1"), Buffer.from([0x1a, 0x07, 0x01, 0x00]), Buffer.alloc(4096, 9)]),
+      name: "rar4-headere-cu-executabil",
+      bytes: rar4Archive([
+        rar4FileBlock("docs/readme.txt", 0, Buffer.alloc(64, 1)),
+        rar4FileBlock("setup/installer.exe", 0, Buffer.alloc(64, 2))
+      ]),
       filename: "arhiva.rar",
       mime: "application/x-rar-compressed",
       mode: "archive"
     },
     {
-      name: "sevenzip-fara-decodor",
-      bytes: Buffer.concat([Buffer.from([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]), Buffer.alloc(4096, 9)]),
+      name: "rar4-criptat",
+      bytes: rar4Archive([rar4FileBlock("secret.exe", 0x0004, Buffer.alloc(64, 3))]),
+      filename: "secret.rar",
+      mime: "application/x-rar-compressed",
+      mode: "archive"
+    },
+    {
+      name: "rar4-director-fals-executabil",
+      bytes: rar4Archive([rar4FileBlock("scripts.exe", 0x00e0, Buffer.alloc(0))]),
+      filename: "director.rar",
+      mime: "application/x-rar-compressed",
+      mode: "archive"
+    },
+    {
+      name: "rar5-headere-cu-macro",
+      bytes: rar5Archive([
+        rar5FileBlock("docs/readme.txt", 0, Buffer.alloc(64, 1)),
+        rar5FileBlock("macros/auto.vbs", 0, Buffer.alloc(64, 2))
+      ]),
+      filename: "arhiva.rar",
+      mime: "application/x-rar-compressed",
+      mode: "archive"
+    },
+    {
+      name: "rar5-header-criptat",
+      bytes: Buffer.concat([
+        Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00]),
+        rar5Block(4, 0, encodeVint(0), Buffer.alloc(0)),
+        rar5FileBlock("secret.exe", 0, Buffer.alloc(64, 4))
+      ]),
+      filename: "criptat.rar",
+      mime: "application/x-rar-compressed",
+      mode: "archive"
+    },
+    {
+      name: "rar-trunchiat",
+      bytes: rar4Archive([rar4FileBlock("setup.exe", 0, Buffer.alloc(64, 5))]).subarray(0, 26),
+      filename: "trunchiat.rar",
+      mime: "application/x-rar-compressed",
+      mode: "archive"
+    },
+    {
+      name: "sevenzip-header-codificat",
+      bytes: sevenZipArchive(Buffer.from([0x17, 0x06, 0x00])),
       filename: "arhiva.7z",
       mime: "application/x-7z-compressed",
+      mode: "archive"
+    },
+    {
+      name: "sevenzip-header-simplu",
+      bytes: sevenZipArchive(Buffer.from([0x01, 0x00])),
+      filename: "simplu.7z",
+      mime: "application/x-7z-compressed",
+      mode: "archive"
+    },
+    {
+      name: "format-fara-decodor",
+      bytes: Buffer.concat([Buffer.from("BZh9", "latin1"), Buffer.alloc(4096, 9)]),
+      filename: "arhiva.bz2",
+      mime: "application/x-bzip2",
       mode: "archive"
     },
     {
