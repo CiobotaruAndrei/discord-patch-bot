@@ -284,6 +284,19 @@ Trei capcane verificate pe teren:
 
 `npm run check` e un orchestrator: compileaza mai intai TypeScript o singura data, construieste addon-ul Rust, apoi deleaga la `npm run check:prebuilt` — varianta care ruleaza toate gate-urile si testele direct pe artefactele existente, fara niciun build. `npm run check:ts-prebuilt` reconstruieste doar TypeScript si refoloseste addon-ul nativ deja construit (iteratie locala rapida pe cod TS). Scriptul `typecheck` ramane disponibil separat pentru verificarea fara emit.
 
+Gate-urile statice (sintaxa, comentarii, octeti NUL, tipare slabita, config, dependinte, importuri intre
+straturi, sincronizarea regulilor, indecsii Mongo, referinta de comenzi) ruleaza **in paralel**, printr-un
+singur orchestrator (`scripts/run-gates.ts`). Sunt validatoare independente, read-only, deci nu au de ce
+sa se astepte unul pe altul: ~2,6s secvential devin ~1,1s. Diferenta mai importanta e insa la raportare:
+lantul `&&` de dinainte se oprea la primul gate picat, deci vedeai o problema pe rulare. Acum ruleaza
+toate si le vezi pe toate deodata, cu iesirea grupata pe gate; procesul iese in continuare cu cod diferit
+de zero daca oricare a picat.
+
+Un gate nou trebuie inregistrat in `PROJECT_GATES`. Un test verifica asta: orice `scripts/check-*.ts`
+care nu e nici in lista de gate-uri, nici marcat explicit ca verificare de runtime (`check-env`,
+`check-mongo`, `check-redis`) face testele sa pice — ca un validator nou sa nu poata deveni tacit
+decorativ.
+
 `npm run check` ruleaza si `check:comments` (`scripts/check-no-comments.ts`), care esueaza daca exista comentarii (`//` sau `/* */`) in fisierele sursa `.ts`/`.js`/`.rs`, conform regulii „fara comentarii in cod". Allowlist-ul de exceptii este gol (zero exceptii); rationale-ul subtil de concurenta din `cron.ts` a fost mutat in `docs/architecture/CONTEXT_REPO_CLEAN.md`.
 
 Regula „fara comentarii" se aplica **doar codului sursa runtime/test** (`.ts`/`.js`/`.rs`). Fisierele care **nu** sunt cod — workflow-urile GitHub Actions (`.yml`), `Dockerfile`, `Markdown`, `JSON` de config — sunt in afara scope-ului si pot purta comentarii explicative (ex. comentariile care explica gate-urile din `release.yml`). Scanner-ul nici nu le citeste (`checkedExtensions` = `.ts`/`.js`/`.rs`).
