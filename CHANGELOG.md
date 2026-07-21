@@ -12,6 +12,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+- Continutul arhivelor RAR si 7z este decodat efectiv prin libarchive legata static, cu fiecare intrare trecuta prin aceleasi verificari si bugete ca intrarile ZIP; cand decodarea nu e posibila, motorul cade inapoi pe scanarea de headere.
 - Tipul real al atasamentelor e detectat structural (MIME, encoding, familie de container si nepotriviri extensie/MIME declarat), inlocuind cele cateva semnaturi hardcodate; un executabil prezentat ca imagine e semnalat explicit, fara a fi declarat malware.
 - Motorul de reguli YARA (libyara legata static, compilata din surse) scaneaza continutul descarcat pe un ruleset actualizabil fara recompilarea botului; o potrivire semnaleaza, dar nu confirma niciodata malware.
 - Alertele de cont nou folosesc un claim fail-closed: starea protectoare se persista inainte de trimitere, iar un outage Mongo total dupa un send reusit nu mai produce duplicat dupa expirarea lease-ului; starea ambigua se inchide automat la pornire, fara retransmitere.

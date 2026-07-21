@@ -1138,6 +1138,75 @@ fn header_scan_finding(scan: HeaderScan, format: &str, budget: &mut Budget) -> F
   )
 }
 
+fn inspect_native_container(bytes: &[u8], depth: u32, budget: &mut Budget, format_label: &str) -> Option<Finding> {
+  if !crate::native_archive_available() {
+    return None;
+  }
+  if depth > budget.limits.max_depth {
+    return Some(uncertain(format!("arhiva depaseste adancimea maxima {}", budget.limits.max_depth), Vec::new()));
+  }
+  let mut indicators: Vec<String> = Vec::new();
+  let mut encrypted_entries = false;
+  let mut stop_reason: Option<String> = None;
+  let max_entry_bytes = budget.limits.max_expanded_bytes;
+
+  let outcome = crate::decode_native_archive(bytes, max_entry_bytes, |entry, payload| {
+    if entry.encrypted {
+      encrypted_entries = true;
+      return false;
+    }
+    if entry.unsafe_path {
+      indicators.push("cale de intrare nesigura in arhiva (absoluta sau iesind din radacina)".to_string());
+    }
+    if entry.link {
+      indicators.push("link simbolic sau hard link in arhiva (nu este materializat)".to_string());
+    }
+    if entry.directory {
+      return true;
+    }
+    if let Some(failure) = enforce_budget(budget, 0, payload.len() as u64) {
+      stop_reason = Some(failure);
+      return false;
+    }
+    indicators.extend(content_indicators(&entry.name, payload, budget));
+    let nested = inspect_nested(&entry.name, payload, depth + 1, budget);
+    indicators.extend(nested.indicators);
+    if nested.uncertain {
+      stop_reason = Some(nested.reason);
+      return false;
+    }
+    true
+  });
+
+  match outcome {
+    crate::NativeArchiveOutcome::Unavailable(_) => None,
+    crate::NativeArchiveOutcome::Failed(_) => {
+      if encrypted_entries {
+        return Some(uncertain(format!("arhiva criptata {}", format_label), dedupe(indicators)));
+      }
+      None
+    }
+    crate::NativeArchiveOutcome::Decoded { entries, format } => {
+      if encrypted_entries {
+        return Some(uncertain(format!("arhiva criptata {}", format_label), dedupe(indicators)));
+      }
+      if let Some(reason) = stop_reason {
+        return Some(uncertain(reason, dedupe(indicators)));
+      }
+      if entries == 0 {
+        return None;
+      }
+      let deduped = dedupe(indicators);
+      let reason = if deduped.is_empty() {
+        format!("arhiva {} decodata complet ({} intrari), fara indicatori interni", format, entries)
+      } else {
+        format!("arhiva {} decodata complet ({} intrari), cu indicatori interni", format, entries)
+      };
+      Some(Finding { uncertain: false, indicators: deduped, reason })
+    }
+  }
+}
+
 fn inspect_rar(bytes: &[u8], budget: &mut Budget) -> Finding {
   let scan = if is_rar5(bytes) { scan_rar5_headers(bytes, budget) } else { scan_rar4_headers(bytes, budget) };
   header_scan_finding(scan, "RAR", budget)
@@ -1197,9 +1266,9 @@ pub fn inspect_untrusted_content(
   } else if is_tar(bytes) {
     inspect_tar(bytes, 0, &mut budget)
   } else if is_rar4(bytes) || is_rar5(bytes) {
-    inspect_rar(bytes, &mut budget)
+    inspect_native_container(bytes, 0, &mut budget, "RAR").unwrap_or_else(|| inspect_rar(bytes, &mut budget))
   } else if is_seven_zip(bytes) {
-    inspect_seven_zip(bytes, &mut budget)
+    inspect_native_container(bytes, 0, &mut budget, "7z").unwrap_or_else(|| inspect_seven_zip(bytes, &mut budget))
   } else if mode == "archive" || looks_like_archive(bytes, filename, mime) {
     uncertain("formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat".to_string(), Vec::new())
   } else {
