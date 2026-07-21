@@ -247,7 +247,7 @@ nevoie de un lant de librarii de compresie prezente la build.
 Pe **Linux** (CI si Docker) e suficient apt:
 
 ```bash
-sudo apt-get install -y --no-install-recommends   cmake libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev
+sudo apt-get install -y --no-install-recommends   cmake clang libclang-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev
 ```
 
 Pe **Windows** (dezvoltare) sunt necesare CMake, LLVM (pentru `libclang`, folosit de bindgen) si vcpkg:
@@ -255,22 +255,30 @@ Pe **Windows** (dezvoltare) sunt necesare CMake, LLVM (pentru `libclang`, folosi
 ```powershell
 winget install Kitware.CMake
 winget install LLVM.LLVM
-git clone --depth 1 https://github.com/microsoft/vcpkg C:cpkg
-C:cpkgootstrap-vcpkg.bat
-C:cpkgcpkg.exe install zlib bzip2 liblzma zstd lz4 openssl --triplet x64-windows
-Copy-Item C:cpkg\installedd-windows\lib\z.lib C:cpkg\installedd-windows\lib\zlib.lib
+git clone --depth 1 https://github.com/microsoft/vcpkg C:\vcpkg
+C:\vcpkg\bootstrap-vcpkg.bat
+C:\vcpkg\vcpkg.exe install zlib bzip2 liblzma zstd lz4 openssl --triplet x64-windows
+Copy-Item C:\vcpkg\installed\x64-windows\lib\z.lib C:\vcpkg\installed\x64-windows\lib\zlib.lib
 ```
 
-Apoi variabilele de mediu (utilizator): `VCPKG_INSTALLATION_ROOT=C:cpkg`,
-`CMAKE_TOOLCHAIN_FILE=C:cpkg\scriptsuildsystemscpkg.cmake`,
-`LIBCLANG_PATH=C:\Program Files\LLVMin`, iar `BINDGEN_EXTRA_CLANG_ARGS` trebuie sa contina
+Apoi variabilele de mediu (utilizator): `VCPKG_INSTALLATION_ROOT=C:\vcpkg`,
+`CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake`,
+`LIBCLANG_PATH=C:\Program Files\LLVM\bin`, iar `BINDGEN_EXTRA_CLANG_ARGS` trebuie sa contina
 `--target=x86_64-pc-windows-msvc -fms-compatibility -fms-extensions` plus cate un `-I` pentru fiecare
-director din `%INCLUDE%` al `vcvars64.bat`. `PATH` primeste `C:\Program Files\CMakein`,
-`C:\Program Files\LLVMin` si `C:cpkg\installedd-windowsin`.
+director din `%INCLUDE%` al `vcvars64.bat`. `PATH` primeste `C:\Program Files\CMake\bin`,
+`C:\Program Files\LLVM\bin` si `C:\vcpkg\installed\x64-windows\bin`.
 
-Doua capcane verificate pe teren: MSBuild refuza sa construiasca sub `%TEMP%` sau pe cai care depasesc
-260 de caractere (`FTK1011`/`MSB8029`), iar vcpkg instaleaza zlib ca `z.lib` in timp ce
-`libarchive2-sys` cere `zlib.lib` — de aici copierea de mai sus.
+Trei capcane verificate pe teren:
+
+1. MSBuild refuza sa construiasca sub `%TEMP%` sau pe cai care depasesc 260 de caractere
+   (`FTK1011`/`MSB8029`).
+2. vcpkg instaleaza zlib ca `z.lib`, in timp ce `libarchive2-sys` cere `zlib.lib` — de aici copierea
+   de mai sus.
+3. Tripletul `x64-windows` produce librarii **dinamice**, deci `C:\vcpkg\installed\x64-windows\bin` trebuie sa fie in
+   `PATH` si **la rulare**, nu doar la build. Fara el `require` pe addon esueaza cu mesajul generic
+   napi „Cannot find native binding", care ascunde adevarata cauza (`The specified module could not
+   be found` — un DLL de compresie lipsa). Pe Linux nu apare: librariile apt sunt deja pe calea
+   loader-ului.
 
 `npm run check` e un orchestrator: compileaza mai intai TypeScript o singura data, construieste addon-ul Rust, apoi deleaga la `npm run check:prebuilt` — varianta care ruleaza toate gate-urile si testele direct pe artefactele existente, fara niciun build. `npm run check:ts-prebuilt` reconstruieste doar TypeScript si refoloseste addon-ul nativ deja construit (iteratie locala rapida pe cod TS). Scriptul `typecheck` ramane disponibil separat pentru verificarea fara emit.
 

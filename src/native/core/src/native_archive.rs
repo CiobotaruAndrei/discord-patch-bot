@@ -206,7 +206,7 @@ pub(crate) fn write_test_archive(format: &str, entries: &[(&str, &[u8])]) -> Vec
       assert_eq!(sys::archive_write_header(handle, entry), 0);
       if !payload.is_empty() {
         let written = sys::archive_write_data(handle, payload.as_ptr() as *const c_void, payload.len());
-        assert_eq!(written, payload.len() as i64);
+        assert!(written >= 0 && written as usize == payload.len());
       }
       sys::archive_entry_free(entry);
     }

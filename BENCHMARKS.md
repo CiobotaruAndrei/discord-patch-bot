@@ -261,8 +261,14 @@ are nevoie de un lant complet de dependinte de compresie:
 
 | Platforma | Cum sunt aduse |
 | --- | --- |
-| Linux (CI + Docker) | `apt`: `cmake libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev`; runtime-ul primeste bibliotecile partajate corespunzatoare |
+| Linux (CI + Docker) | `apt`: `cmake clang libclang-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev`; runtime-ul primeste bibliotecile partajate corespunzatoare |
 | Windows (dezvoltare) | `vcpkg` cu tripletul `x64-windows` pentru `zlib bzip2 liblzma zstd lz4 openssl`, plus `CMAKE_TOOLCHAIN_FILE` si `VCPKG_INSTALLATION_ROOT` |
+
+`libclang` apare in lista din cauza `bindgen`: spre deosebire de libyara, `libarchive2-sys` **genereaza**
+bindings-urile la build din `archive.h`, deci are nevoie de un clang functional. Imaginea `node:24-slim`
+nu il aduce, iar runner-ul GitHub il are preinstalat — o diferenta care a facut build-ul de container sa
+pice singur, dupa ce CI trecuse. De aceea pachetul e cerut explicit in ambele locuri, nu lasat pe seama
+imaginii de baza.
 
 Asta e diferenta onesta fata de etapa 2: **libyara nu a cerut niciun pachet de sistem, libarchive cere.**
 Costul e documentat aici tocmai pentru ca urmatoarele etape (PDFium, FFmpeg, libvips) vor semana mai
