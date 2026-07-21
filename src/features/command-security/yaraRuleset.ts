@@ -35,24 +35,41 @@ function unavailable(reason: string): YaraScanReport {
   return { status: "unavailable", reason, rulesetId: "", matches: [], truncated: false };
 }
 
+function readBoundedFile(file: string, remaining: number): string {
+  const handle = fs.openSync(file, "r");
+  try {
+    const stats = fs.fstatSync(handle);
+    if (!stats.isFile()) throw new Error(`${file} nu este un fisier obisnuit`);
+    if (stats.size > remaining) throw new Error(`setul de reguli depaseste ${YARA_MAX_RULESET_BYTES} bytes`);
+    const buffer = Buffer.alloc(stats.size);
+    let read = 0;
+    while (read < stats.size) {
+      const chunk = fs.readSync(handle, buffer, read, stats.size - read, read);
+      if (chunk <= 0) break;
+      read += chunk;
+    }
+    return buffer.subarray(0, read).toString("utf8");
+  } finally {
+    fs.closeSync(handle);
+  }
+}
+
 function readRulesetSource(rulesPath: string): string {
   const resolved = path.resolve(rulesPath);
-  const stats = fs.statSync(resolved);
-  if (stats.isFile()) {
-    if (stats.size > YARA_MAX_RULESET_BYTES) throw new Error(`fisierul de reguli depaseste ${YARA_MAX_RULESET_BYTES} bytes`);
-    return fs.readFileSync(resolved, "utf8");
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(resolved);
+  } catch {
+    return readBoundedFile(resolved, YARA_MAX_RULESET_BYTES);
   }
-  const entries = fs.readdirSync(resolved)
-    .filter(entry => entry.endsWith(".yar") || entry.endsWith(".yara"))
-    .sort();
-  if (entries.length === 0) throw new Error(`directorul ${resolved} nu contine fisiere .yar sau .yara`);
-  let total = 0;
+  const ruleFiles = entries.filter(entry => entry.endsWith(".yar") || entry.endsWith(".yara")).sort();
+  if (ruleFiles.length === 0) throw new Error(`directorul ${resolved} nu contine fisiere .yar sau .yara`);
   const parts: string[] = [];
-  for (const entry of entries) {
-    const file = path.join(resolved, entry);
-    total += fs.statSync(file).size;
-    if (total > YARA_MAX_RULESET_BYTES) throw new Error(`setul de reguli depaseste ${YARA_MAX_RULESET_BYTES} bytes`);
-    parts.push(fs.readFileSync(file, "utf8"));
+  let used = 0;
+  for (const entry of ruleFiles) {
+    const body = readBoundedFile(path.join(resolved, entry), YARA_MAX_RULESET_BYTES - used);
+    used += Buffer.byteLength(body, "utf8");
+    parts.push(body);
   }
   return parts.join("\n");
 }
