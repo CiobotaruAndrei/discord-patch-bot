@@ -3,6 +3,7 @@ mod deals;
 mod fuzzy;
 mod hashing;
 mod inspection;
+mod native_archive;
 mod magic;
 mod listing_rank;
 mod steam;
@@ -20,6 +21,9 @@ pub use listing_rank::{
   ListingAnchorData, RankedListingCandidate,
 };
 pub use magic::{inspect_magic, MagicReport};
+pub use native_archive::{
+  decode_native_archive, native_archive_available, NativeArchiveEntry, NativeArchiveOutcome,
+};
 pub use inspection::{
   document_indicators, has_obfuscated_pdf_action_name, inspect_compound_file_binary,
   inspect_untrusted_content, InspectionLimits, InspectionReport,

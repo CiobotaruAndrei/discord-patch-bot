@@ -5,7 +5,7 @@ FROM node:24-bookworm-slim AS build
 WORKDIR /app/src
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates build-essential pkg-config python3 libssl-dev \
+  && apt-get install -y --no-install-recommends ca-certificates build-essential pkg-config python3 cmake clang libclang-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev \
   && rm -rf /var/lib/apt/lists/*
 
 ENV RUSTUP_HOME=/usr/local/rustup \
@@ -28,7 +28,7 @@ ENV NODE_ENV=production
 
 RUN apt-get update \
   && apt-get upgrade -y \
-  && apt-get install -y --no-install-recommends libssl3 \
+  && apt-get install -y --no-install-recommends libssl3 zlib1g libbz2-1.0 liblzma5 libzstd1 liblz4-1 libxml2 libacl1 \
   && rm -rf /var/lib/apt/lists/*
 
 COPY src/package.json src/package-lock.json ./

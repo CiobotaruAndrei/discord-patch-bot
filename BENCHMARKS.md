@@ -249,6 +249,48 @@ plafonat la 8 MiB), primeste un `rulesetId` derivat din continut — folosit in 
 cache key, cum cere PDF-ul — iar un set invalid **nu** inlocuieste setul valid deja incarcat.
 Seriile `bot_yara_rules_loaded` si `bot_yara_engine_available` expun starea operational.
 
+### libarchive: decodarea continutului RAR/7z (etapa 3 din PDF-ul de librarii)
+
+Etapa 1 a livrat scanarea structurala de **headere** RAR/7z: numele intrarilor produc indicatori
+fara sa se decomprime nimic, dar continutul ramanea neinspectat si verdictul `uncertain`. Etapa 3
+adauga decodarea reala, prin libarchive.
+
+**Cum se leaga**: crate-ul `libarchive2-sys`, care vendoreaza sursa libarchive 3.8.1 si o compileaza
+cu CMake, legata **static**. Spre deosebire de libyara (care se compileaza doar cu `cc`), libarchive
+are nevoie de un lant complet de dependinte de compresie:
+
+| Platforma | Cum sunt aduse |
+| --- | --- |
+| Linux (CI + Docker) | `apt`: `cmake clang libclang-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev`; runtime-ul primeste bibliotecile partajate corespunzatoare |
+| Windows (dezvoltare) | `vcpkg` cu tripletul `x64-windows` pentru `zlib bzip2 liblzma zstd lz4 openssl`, plus `CMAKE_TOOLCHAIN_FILE` si `VCPKG_INSTALLATION_ROOT` |
+
+`libclang` apare in lista din cauza `bindgen`: spre deosebire de libyara, `libarchive2-sys` **genereaza**
+bindings-urile la build din `archive.h`, deci are nevoie de un clang functional. Imaginea `node:24-slim`
+nu il aduce, iar runner-ul GitHub il are preinstalat — o diferenta care a facut build-ul de container sa
+pice singur, dupa ce CI trecuse. De aceea pachetul e cerut explicit in ambele locuri, nu lasat pe seama
+imaginii de baza.
+
+Asta e diferenta onesta fata de etapa 2: **libyara nu a cerut niciun pachet de sistem, libarchive cere.**
+Costul e documentat aici tocmai pentru ca urmatoarele etape (PDFium, FFmpeg, libvips) vor semana mai
+mult cu libarchive decat cu libyara.
+
+**Stratificare, nu inlocuire.** Decodorul nativ e o imbunatatire peste scanarea de headere, nu un
+inlocuitor: cand libarchive esueaza sa parseze (arhiva trunchiata, format necunoscut, varianta
+nesuportata), motorul **cade inapoi** pe scanarea de headere din etapa 1, care tot produce nume de
+intrari si un motiv precis. Cand libarchive reuseste, fiecare intrare decodata trece prin exact
+aceleasi verificari ca intrarile ZIP/TAR — `content_indicators` plus `inspect_nested` pentru
+recursivitate — sub aceleasi bugete de intrari, bytes decomprimati si timp.
+
+Constrangerile cerute de PDF sunt respectate: citire exclusiv din memorie (`archive_read_open_memory`),
+nimic nu se materializeaza pe disc, numele absolute / `../` / `C:\` si link-urile simbolice sau hard
+sunt **raportate ca indicatori** fara sa fie urmarite, iar o intrare criptata opreste traversarea cu
+verdict `uncertain`, niciodata „curat".
+
+**Fallback-ul TypeScript nu decodeaza continut RAR/7z** — nu exista echivalent pur-JS rezonabil. Cand
+addonul nativ lipseste, comportamentul degradeaza la scanarea de headere: tot `uncertain`, niciodata
+un fals „curat". Paritatea native==TS din corpusul de fixtures se pastreaza fiindca fixture-urile
+sintetice de acolo nu sunt arhive RAR/7z valide, deci ambele cai ajung pe scanarea de headere.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard

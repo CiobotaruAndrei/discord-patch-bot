@@ -210,3 +210,33 @@ test("OOXML: un .rels cu relatii doar interne nu mai e semnalat ca referinta ext
   const report = await fixtureReport("ooxml-relatii-interne");
   assert.deepEqual(report.indicators, [], "xmlns=\"http://schemas.openxmlformats.org/...\" nu e o tinta externa");
 });
+
+test("libarchive e un strat PESTE scanarea de headere: cand nu poate parsa, raportul ramane cel structural", async () => {
+  const headerOnly = [
+    "rar4-headere-cu-executabil",
+    "rar5-headere-cu-macro",
+    "rar4-criptat",
+    "rar5-header-criptat",
+    "rar-trunchiat",
+    "sevenzip-header-codificat",
+    "sevenzip-header-simplu"
+  ];
+  for (const name of headerOnly) {
+    const fixture = buildInspectionFixtures().find(entry => entry.name === name);
+    assert.ok(fixture, `fixture-ul ${name} exista`);
+    const engine = await inspectUntrustedContent(fixture.bytes, fixture.filename, fixture.mime, fixture.mode);
+    const floor = inspectUntrustedContentFallback(fixture.bytes, fixture.filename, fixture.mime, fixture.mode);
+    assert.equal(engine.status, floor.status, `${name}: decodorul nativ nu coboara verdictul sub scanarea de headere`);
+    assert.equal(engine.reason, floor.reason, `${name}: motivul structural nu se pierde cand libarchive esueaza`);
+    assert.deepEqual(engine.indicators, floor.indicators, `${name}: indicatorii din headere raman intacti`);
+  }
+});
+
+test("nicio arhiva RAR/7z nu poate fi declarata curata pe ruta locala, indiferent de motor", async () => {
+  const archives = buildInspectionFixtures().filter(fixture => /^rar|^sevenzip/.test(fixture.name));
+  assert.ok(archives.length >= 6, "corpusul contine arhivele RAR/7z");
+  for (const fixture of archives) {
+    const report = await inspectUntrustedContent(fixture.bytes, fixture.filename, fixture.mime, fixture.mode);
+    assert.equal(report.status, "uncertain", `${fixture.name}: confirmarea ramane pe motorul extern (PDF, sectiunea 6)`);
+  }
+});
