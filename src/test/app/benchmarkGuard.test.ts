@@ -7,8 +7,24 @@ import path from "path";
 import { evaluateBenchmarkGuard, defaultGuardConfig, HOT_PATH_AREAS, collectGuardSamples } from "../../scripts/benchmarkGuard.js";
 import type { GuardSample, GuardConfig, GuardBenchmarkDeps } from "../../scripts/benchmarkGuard.js";
 import type { AreaBenchmarkResult, CpuBenchmarkResult, BenchmarkAreaKey } from "../../scripts/cpuBenchmark.js";
+import type { InspectionBenchmarkResult } from "../../scripts/inspectionBenchmark.js";
 
 const TIMED = { totalMs: 1, callsPerSecond: 1000 };
+
+function inspectionResult(blockingReduction: number | null, rustAvailable = true): InspectionBenchmarkResult {
+  const timing = { totalMs: 1, mainThreadBlockMs: 1, callsPerSecond: 1000 };
+  return {
+    iterations: 1,
+    payloadBytes: 1024,
+    rustAvailable,
+    ts: timing,
+    native: rustAvailable ? timing : null,
+    latencySpeedup: rustAvailable ? 1 : null,
+    blockingReduction,
+    concurrentSpeedup: rustAvailable ? 3 : null,
+    parityMismatches: []
+  };
+}
 
 function cpuResult(speedup: number | null, rustAvailable = true): CpuBenchmarkResult {
   return { iterations: 1, callsPerIteration: 1, rustAvailable, ts: TIMED, native: rustAvailable ? TIMED : null, speedup };
@@ -104,6 +120,7 @@ test("defaultGuardConfig: addon-ul nativ este obligatoriu implicit si permite do
     assert.equal(base.warnBelow.rankListingCandidates, 1.1);
     assert.equal(base.warnBelow.extractAndRankListingCandidates, 1.1);
     assert.equal(base.warnBelow.chooseBestSteamMatch, 1.3);
+    assert.equal(base.warnBelow.inspectUntrustedContent, 4);
     assert.equal(base.requireNative, true);
 
     process.env.BENCH_HOTPATH_FAIL_RATIO = "1";
@@ -121,13 +138,15 @@ test("defaultGuardConfig: addon-ul nativ este obligatoriu implicit si permite do
 });
 
 test("HOT_PATH_AREAS enumera doar functiile pe care BENCHMARKS.md le pastreaza in Rust", () => {
-  assert.deepEqual([...HOT_PATH_AREAS], ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates", "extractAndRankListingCandidates", "chooseBestSteamMatch"]);
+  assert.deepEqual([...HOT_PATH_AREAS], ["levenshtein", "dealHash", "stableUpdateId", "rankListingCandidates", "extractAndRankListingCandidates", "chooseBestSteamMatch", "inspectUntrustedContent"]);
 });
 
-test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8) si pastreaza cel mai bun speedup per zona", () => {
+test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8) si pastreaza cel mai bun speedup per zona", async () => {
   let cpuCalls = 0;
   let areaCalls = 0;
   let parityCalls = 0;
+  let inspectionCalls = 0;
+  const inspectionBlocking = [6.2, 11.4, 8.1];
   const cpuSpeedups = [1.8, 2.5, 2.1];
   const dealHashSpeedups = [1.3, 1.6, 1.4];
   const stableUpdateIdSpeedups = [1.25, 1.5, 1.35];
@@ -138,10 +157,11 @@ test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8
       const i = areaCalls++;
       return [areaResult("dealHash", dealHashSpeedups[i]), areaResult("stableUpdateId", stableUpdateIdSpeedups[i]), areaResult("rankListingCandidates", listingSpeedups[i]), areaResult("dealPassesFilters", 1.0)];
     },
-    levenshteinParityMismatches: () => { parityCalls++; return []; }
+    levenshteinParityMismatches: () => { parityCalls++; return []; },
+    runInspectionBenchmark: async () => inspectionResult(inspectionBlocking[inspectionCalls++])
   };
 
-  const samples = collectGuardSamples(3, deps);
+  const samples = await collectGuardSamples(3, deps);
 
   assert.equal(cpuCalls, 3, "runCpuBenchmark rulat exact de `runs` ori (nu 4: fara apel separat pentru rustAvailable)");
   assert.equal(areaCalls, 3, "runAreaBenchmarks rulat exact de `runs` ori (nu 8: ambele zone extrase din acelasi run)");
@@ -153,22 +173,28 @@ test("collectGuardSamples: ruleaza fiecare benchmark exact `runs` ori (nu de 4/8
   assert.equal(byArea.rankListingCandidates.speedup, 1.2, "cel mai bun speedup listing-rank din cele 3 runs");
   assert.equal(byArea.dealHash.parityOk, true);
   assert.equal(byArea.levenshtein.rustAvailable, true);
+  assert.equal(inspectionCalls, 3, "runInspectionBenchmark rulat exact de `runs` ori");
+  assert.equal(byArea.inspectUntrustedContent.speedup, 11.4, "zona de inspectie pastreaza cea mai buna reducere de blocare din cele 3 runs");
+  assert.match(byArea.inspectUntrustedContent.metric ?? "", /blocarii event loop/, "zona de inspectie declara explicit ce metrica masoara (nu latenta secventiala)");
 });
 
-test("collectGuardSamples: o singura masuratoare null propaga null pe acea zona (Rust indisponibil)", () => {
+test("collectGuardSamples: o singura masuratoare null propaga null pe acea zona (Rust indisponibil)", async () => {
   const deps: GuardBenchmarkDeps = {
     runCpuBenchmark: () => cpuResult(null, false),
     runAreaBenchmarks: () => [areaResult("dealHash", null, true, false), areaResult("rankListingCandidates", 1.2)],
-    levenshteinParityMismatches: () => []
+    levenshteinParityMismatches: () => [],
+    runInspectionBenchmark: async () => inspectionResult(null, false)
   };
 
-  const samples = collectGuardSamples(2, deps);
+  const samples = await collectGuardSamples(2, deps);
 
   const byArea = Object.fromEntries(samples.map(s => [s.area, s]));
   assert.equal(byArea.levenshtein.speedup, null);
   assert.equal(byArea.levenshtein.rustAvailable, false, "rustAvailable preluat din primul run");
   assert.equal(byArea.dealHash.speedup, null, "speedup null intr-un run face null intreaga zona (propagare)");
   assert.equal(byArea.rankListingCandidates.speedup, 1.2);
+  assert.equal(byArea.inspectUntrustedContent.speedup, null, "fara addon nativ zona de inspectie nu raporteaza reducere de blocare");
+  assert.equal(byArea.inspectUntrustedContent.rustAvailable, false);
 });
 
 test("CI si package.json ruleaza guard-ul de benchmark", () => {

@@ -12,6 +12,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+- Inspectia pasiva a continutului neincredibil ruleaza ca un singur task Rust asincron, in afara event loop-ului, cu fallback TypeScript identic verificat prin paritate.
 - Jurnalul operational foloseste versiuni monotone per resursa, schema versionata, heartbeat, retry limitat si recovery periodic.
 - Outbox-ul protejeaza si prioritizeaza finalizarea `delivered-pending`, inclusiv prin index TTL partial.
 - Configuratia jocurilor este normalizata prin scheme Zod discriminate per tip de sursa.

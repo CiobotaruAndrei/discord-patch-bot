@@ -1,7 +1,7 @@
 "use strict";
 
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
-import { hasObfuscatedPdfActionName, inspectArchivePassively, inspectCompoundFileBinary } from "./passiveArchiveInspection.js";
+import { documentIndicators, inspectUntrustedContent } from "./passiveArchiveInspection.js";
 
 export type ThreatVerdict = "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed";
 
@@ -154,30 +154,9 @@ function magicKind(buffer: Buffer): "executable" | "archive" | "document" | "scr
 
 type ResourceKind = "executable" | "archive" | "document" | "script" | "other";
 
-export function passiveDocumentIndicators(buffer: Buffer): string[] {
-  const window = buffer.subarray(0, Math.min(buffer.length, 1_048_576));
-  const ascii = window.toString("latin1");
-  const indicators: string[] = [];
-  if (ascii.includes("vbaProject.bin") || ascii.includes("word/vbaProject") || ascii.includes("macros/vba") || ascii.includes("_VBA_PROJECT") || /\bMacros\b/.test(ascii)) {
-    indicators.push("indicator de macro VBA");
-  }
-  if (/\/JavaScript\b/.test(ascii) || /\/JS\b/.test(ascii) || ascii.includes("/OpenAction") || /\/AA\b/.test(ascii) || hasObfuscatedPdfActionName(ascii)) {
-    indicators.push("indicator de script/actiune automata in document");
-  }
-  if (ascii.includes("/Launch") || ascii.includes("/EmbeddedFile") || ascii.includes("/RichMedia") || ascii.includes("/GoToR")) {
-    indicators.push("indicator de lansare de proces sau continut incorporat");
-  }
-  if (ascii.includes("DDEAUTO") || /\bDDE\s/.test(ascii)) {
-    indicators.push("indicator de camp DDE (executie externa)");
-  }
-  if (ascii.includes("/XFA")) {
-    indicators.push("formular XFA cu potential de script");
-  }
-  indicators.push(...inspectCompoundFileBinary(buffer));
-  return [...new Set(indicators)];
-}
+export const passiveDocumentIndicators = documentIndicators;
 
-function classifyResource(mime: string, buffer: Buffer | null): ThreatInspectionResult & { kind: ResourceKind } {
+async function classifyResource(mime: string, buffer: Buffer | null, filename = ""): Promise<ThreatInspectionResult & { kind: ResourceKind }> {
   const magic = buffer ? magicKind(buffer) : "other";
   if (magic === "executable" || magic === "script") {
     return { verdict: "risky-file", reason: "tip de fisier executabil sau script confirmat prin continut (tipul e confirmat, nu si intentia malware)", source: "attachment", kind: magic };
@@ -188,7 +167,7 @@ function classifyResource(mime: string, buffer: Buffer | null): ThreatInspection
   if (ARCHIVE_MIME.has(mime) || DOCUMENT_MIME.has(mime) || magic === "document" || magic === "archive") {
     const kind: ResourceKind = magic === "other" ? (ARCHIVE_MIME.has(mime) ? "archive" : "document") : magic;
     if (buffer && kind === "archive") {
-      const archive = inspectArchivePassively(buffer);
+      const archive = await inspectUntrustedContent(buffer, filename, mime, "archive");
       const details = archive.indicators.length > 0 ? `; ${archive.indicators.join(" si ")}` : "";
       return {
         verdict: archive.indicators.some(indicator => /executabil|script/i.test(indicator)) ? "risky-file" : "uncertain",
@@ -197,7 +176,7 @@ function classifyResource(mime: string, buffer: Buffer | null): ThreatInspection
         kind
       };
     }
-    const indicators = buffer ? passiveDocumentIndicators(buffer) : [];
+    const indicators = buffer ? (await inspectUntrustedContent(buffer, filename, mime, "document")).indicators : [];
     if (indicators.length > 0) {
       return { verdict: "uncertain", reason: `document/arhiva cu ${indicators.join(" si ")} - necesita confirmare de motor antivirus extern inainte de orice actiune`, source: "attachment", kind };
     }
@@ -294,7 +273,7 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
       const mime = contentType(response.headers);
       const buffer = toBuffer(response.data);
       const { complete, totalLength } = describeResponseCompleteness(response.status, response.headers, buffer?.length ?? 0, LOCAL_INSPECTION_MAX_BYTES);
-      const { kind, ...result } = classifyResource(mime, buffer);
+      const { kind, ...result } = await classifyResource(mime, buffer, url);
       const base: ThreatInspectionResult = !complete && result.verdict === "safe"
         ? { verdict: "uncertain", reason: "resursa depaseste limita locala de inspectie; a fost verificat doar primul fragment", source: "link" }
         : { ...result, source: "link" };
@@ -306,7 +285,7 @@ export function createThreatInspectionService(deps: ThreatInspectionDeps) {
 
   async function classifyAttachment(attachment: DirectAttachment): Promise<ClassifiedResource> {
     const declaredMime = normalizeMime(attachment.contentType);
-    const { kind: declaredKind, ...declaredResult } = classifyResource(declaredMime, null);
+    const { kind: declaredKind, ...declaredResult } = await classifyResource(declaredMime, null, attachment.name ?? "");
     const declaredScan: ScanCandidate = { url: attachment.url, mime: declaredMime, buffer: null, kind: declaredKind, complete: false, totalLength: null };
     if (!attachment.url || !deps.httpReq) {
       const base: ThreatInspectionResult = declaredResult.verdict === "safe"

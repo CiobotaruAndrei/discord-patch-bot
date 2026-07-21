@@ -9,7 +9,8 @@ Rerulare:
 
 ```bash
 cd src
-npm run benchmark:cpu      # native vs TS pentru hot-path-urile CPU
+npm run benchmark:cpu        # native vs TS pentru hot-path-urile CPU
+npm run benchmark:inspection # motorul de inspectie: blocare event loop + concurenta
 npm run benchmark:outbox   # drenare outbox job-by-job pe Mongo real (MONGO_URI)
 npm run benchmark          # scalare notificari (update-uri/reduceri) pe 100/500/1000 guild-uri
 ```
@@ -118,21 +119,69 @@ cazuri overhead-ul apelului nativ depaseste castigul, deci Rust e mai lent decat
 Fallback-ul TS exista pentru robustete (cand addonul nu poate fi incarcat), nu ca implementare
 principala — cu exceptia notata mai sus, unde ar fi chiar mai eficient.
 
+### Motor batch asincron: `inspectUntrustedContent` (inspectia pasiva de continut neincredibil)
+
+Toate zonele de mai sus sunt apeluri **sincrone**, deci metrica relevanta e apeluri/s. Inspectia
+pasiva a atasamentelor este alt tip de workload: un singur apel poate traversa o arhiva intreaga
+(ZIP/TAR/GZIP recursiv, parser structural CFB/OLE, de-ofuscare PDF), pana la bugetul de 8 MiB
+decomprimati si 64 de intrari. In TypeScript asta rula **sincron pe event loop**, deci un singur
+atasament ostil bloca tot botul (heartbeat-ul Discord, cron-ul, drenarea outbox) cat dura analiza.
+
+Motorul e acum un **singur apel batch asincron** — `inspect_untrusted_content(input) -> InspectionReport`
+in `src/native/core/src/inspection.rs`, expus prin N-API `AsyncTask` (`src/native/src/lib.rs`), deci
+intreaga traversare ruleaza pe thread pool-ul libuv, nu pe event loop. TypeScript pastreaza tot ce e
+I/O si decizie: descarcarea fisierului, integrarea Discord, apelul catre motorul extern de reputatie,
+decizia de alerta/stergere, logarea si persistenta. Rust primeste doar `bytes + filename + mime + mode +
+limite` si intoarce `status / indicators / reason / entriesInspected / expandedBytes / elapsedMs`.
+
+`npm run benchmark:inspection` masoara pe o arhiva ZIP realista (~1,4 MB, 24 de intrari deflate cu
+continut incompresibil, deci fara scurtcircuitul de raport de compresie):
+
+| Metrica | TS sincron | Rust `AsyncTask` | Raport |
+| --- | --- | --- | --- |
+| Blocare main thread / inspectie | ~2,05 ms | ~0,18 ms (doar marshaling) | **~11x mai putina blocare** |
+| Latenta secventiala / inspectie | ~2,05 ms | ~2,02 ms | ~1,0x (egalitate) |
+| 8 atasamente deodata | ~16,4 ms (secvential, blocant) | ~4,1 ms (paralel pe thread pool) | **~4,0x** |
+| Paritate raport native==TS | — | — | OK (16 fixtures) |
+
+Interpretare onesta: **castigul nu e viteza bruta de calcul** — pe o singura inspectie Rust e la egalitate
+cu TypeScript (zlib e deja nativ in Node, iar restul e scanare de bytes, la fel de ieftina in ambele).
+Castigul e ca munca **iese de pe event loop** (~11x mai putina blocare per inspectie) si ca inspectiile
+concurente chiar ruleaza in paralel (~4x la 8 atasamente simultane, plafonat de dimensiunea thread pool-ului
+libuv). De aceea guard-ul masoara pentru aceasta zona **reducerea blocarii**, nu latenta secventiala:
+raportarea unui „speedup" de ~1.0x ar fi corecta ca numar si complet inselatoare ca decizie.
+
+**Decizie:** motorul de inspectie **trece in Rust ca task asincron**, native-first cu fallback TS complet
+(`inspectUntrustedContentFallback`) pentru cand addonul lipseste. Modul (`archive` / `document` / `auto`)
+ramane decis de TypeScript (`classifyResource`), fiindca un `.docx` este fizic un ZIP: daca Rust ar
+autodetecta formatul, un document ar fi tratat brusc ca arhiva si verdictele ar diverge tacut fata de
+comportamentul actual. Limitele (adancime, intrari, bytes decomprimati, raport de compresie, timeout) sunt
+parametri de apel, identici in ambele implementari, verificati prin teste de paritate.
+
+Ce **nu** s-a mutat, deliberat: descarcarea si HTTP-ul, apelul catre motorul extern de reputatie, deciziile
+de moderare si persistenta — sunt I/O si politica, nu calcul (vezi sectiunea 4). Formatele fara decodor
+pasiv local (RAR, 7z) raman `uncertain` si in Rust: verdictul e escaladat catre motorul extern, nu declarat
+curat.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
 automat care leaga acest document de CI: `npm run benchmark:guard` (`scripts/benchmarkGuard.ts`), rulat
 in `ci.yml` dupa `npm run check` (cand addonul nativ e deja construit). Guard-ul masoara, best-of-N
 (`BENCH_GUARD_RUNS`, implicit 3), functiile hot-path pe care le pastram in Rust — `levenshtein`,
-`dealHash`, `stableUpdateId`, `rankListingCandidates`, `extractAndRankListingCandidates` si
-`chooseBestSteamMatch` — fata de fallback-ul TS, si:
+`dealHash`, `stableUpdateId`, `rankListingCandidates`, `extractAndRankListingCandidates`,
+`chooseBestSteamMatch` si `inspectUntrustedContent` — fata de fallback-ul TS, si:
 
 - **esueaza** (`::error::`, exit 1) daca o functie hot-path e **mai lenta decat TS** sub pragul de esec
   (`BENCH_HOTPATH_FAIL_RATIO`, implicit `0.85x`) — semn ca decizia din acest document nu mai e valabila
   (regula limbajului: ramane doar daca e mai bun/eficient), deci trebuie mutata in TS sau investigata regresia;
 - **esueaza** daca paritatea native != TS (rezultate divergente) — bug de corectitudine, nu de viteza;
 - **avertizeaza** (`::warning::`, fara a pica) daca speedup-ul scade sub pragul asteptat documentat aici
-  (`levenshtein` < `1.4x`, `dealHash` < `1.2x`, `stableUpdateId` < `1.2x`, `rankListingCandidates` < `1.1x`, `extractAndRankListingCandidates` < `1.1x`, `chooseBestSteamMatch` < `1.3x`), ca semnal ca avantajul Rust se erodeaza;
+  (`levenshtein` < `1.4x`, `dealHash` < `1.2x`, `stableUpdateId` < `1.2x`, `rankListingCandidates` < `1.1x`, `extractAndRankListingCandidates` < `1.1x`, `chooseBestSteamMatch` < `1.3x`, `inspectUntrustedContent` < `4x`), ca semnal ca avantajul Rust se erodeaza;
+- masoara pentru `inspectUntrustedContent` **alta metrica**, declarata explicit in raport
+  (`metric`): reducerea blocarii event loop-ului (TS sincron / Rust `AsyncTask`), nu latenta
+  secventiala — vezi sectiunea despre motorul batch asincron pentru de ce latenta secventiala ar fi
+  o metrica inselatoare aici;
 - se **sare** (CI-safe, exit 0) cand addonul nativ nu e disponibil — **cu exceptia** modului strict
   `BENCH_GUARD_REQUIRE_NATIVE=true` (setat in `ci.yml`), unde absenta addonului devine **esec**: in CI
   build-ul Rust ruleaza inainte de guard, deci un addon lipsa inseamna o problema de build, nu un skip
@@ -217,6 +266,11 @@ Regula practica derivata din masuratorile de mai sus (si aliniata cu regulile 6 
   acolo, decizia se ia pe benchmark real (`npm run benchmark:cpu`), nu pe intuitie —
   sectiunea 1 arata ca `buildAutocompleteChoices` a iesit ~0.09x in Rust (boundary cost NAPI
   peste un workload mic), deci a ramas TS-primary.
+- **Rust merita si pentru munca lunga care blocheaza event loop-ul**, chiar la egalitate de viteza
+  bruta: daca un singur apel poate rula milisecunde bune pe input controlat de atacator (inspectia
+  pasiva a atasamentelor), mutarea lui intr-un `AsyncTask` scoate blocarea de pe event loop si permite
+  paralelism real. Metrica de decizie acolo e blocarea main thread-ului si throughput-ul concurent, nu
+  latenta unui apel izolat (vezi sectiunea despre motorul batch asincron).
 - **Nu mutam I/O in Rust**: orchestrarea Discord, Mongo, HTTP, cron si fluxul YouTube sunt
   dominate de latenta de retea/DB (sectiunea 2: outbox-ul e I/O-bound, rate-limit Discord e
   factorul real), unde Rust nu aduce nimic si complica build-ul si review-ul. Pentru acestea
