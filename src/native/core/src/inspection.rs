@@ -278,11 +278,75 @@ fn is_compound_file_binary(bytes: &[u8]) -> bool {
   bytes.len() >= 512 && bytes[0..8] == [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]
 }
 
+const MSI_ALPHABET: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz._";
+
+pub fn decode_msi_stream_name(name: &str) -> String {
+  let mut out = String::new();
+  for unit in name.encode_utf16() {
+    if (0x3800..0x4800).contains(&unit) {
+      let value = unit - 0x3800;
+      out.push(MSI_ALPHABET[(value & 0x3f) as usize] as char);
+      out.push(MSI_ALPHABET[((value >> 6) & 0x3f) as usize] as char);
+    } else if (0x4800..0x4840).contains(&unit) {
+      out.push(MSI_ALPHABET[(unit - 0x4800) as usize] as char);
+    } else if unit == 0x4840 {
+      out.push('!');
+    } else {
+      out.push(char::from_u32(u32::from(unit)).unwrap_or('?'));
+    }
+  }
+  out
+}
+
+const MSI_TABLES: &[(&str, &str)] = &[
+  ("CustomAction", "instalatorul MSI declara actiuni personalizate, care pot executa cod la instalare"),
+  ("Binary", "instalatorul MSI poarta payload-uri binare incorporate"),
+  ("ServiceInstall", "instalatorul MSI inregistreaza un serviciu de sistem"),
+  ("ServiceControl", "instalatorul MSI porneste sau opreste servicii"),
+  ("Registry", "instalatorul MSI scrie in registrul Windows"),
+  ("LaunchCondition", "instalatorul MSI are conditii de lansare"),
+  ("InstallExecuteSequence", "instalatorul MSI are o secventa de executie proprie"),
+];
+
+const MSI_SCRIPT_MARKERS: &[(&[u8], &str)] = &[
+  (b"powershell", "referinta la PowerShell in instalatorul MSI"),
+  (b"cmd.exe", "referinta la interpretorul de comenzi in instalatorul MSI"),
+  (b"wscript", "referinta la Windows Script Host in instalatorul MSI"),
+  (b"cscript", "referinta la Windows Script Host in instalatorul MSI"),
+  (b"rundll32", "referinta la rundll32 in instalatorul MSI"),
+  (b"mshta", "referinta la mshta in instalatorul MSI"),
+  (b"regsvr32", "referinta la regsvr32 in instalatorul MSI"),
+];
+
+fn msi_indicators(bytes: &[u8], decoded_names: &[String]) -> Vec<String> {
+  if !decoded_names.iter().any(|name| name.starts_with('!')) {
+    return Vec::new();
+  }
+  let mut indicators: Vec<String> = vec!["instalator MSI (baza de date interna, parser structural)".to_string()];
+  for name in decoded_names {
+    let table = name.trim_start_matches('!');
+    for (needle, message) in MSI_TABLES {
+      if table == *needle {
+        indicators.push((*message).to_string());
+      }
+    }
+  }
+  let window = scan_window(bytes);
+  let lower: Vec<u8> = window.iter().map(|byte| byte.to_ascii_lowercase()).collect();
+  for (needle, message) in MSI_SCRIPT_MARKERS {
+    if contains(&lower, needle) {
+      indicators.push((*message).to_string());
+    }
+  }
+  indicators
+}
+
 pub fn inspect_compound_file_binary(bytes: &[u8]) -> Vec<String> {
   if !is_compound_file_binary(bytes) {
     return Vec::new();
   }
   let mut indicators: Vec<String> = Vec::new();
+  let mut decoded_names: Vec<String> = Vec::new();
   let Some(sector_shift) = read_u16_le(bytes, 30) else { return indicators };
   if sector_shift != 9 && sector_shift != 12 {
     return indicators;
@@ -353,9 +417,11 @@ pub fn inspect_compound_file_binary(bytes: &[u8]) -> Vec<String> {
       if normalized == "ole10native" || normalized == "objectpool" || normalized == "package" {
         indicators.push("obiect OLE incorporat in document OLE (parser structural CFB)".to_string());
       }
+      decoded_names.push(decode_msi_stream_name(&name));
     }
     sector = if (sector as usize) < fat.len() { fat[sector as usize] } else { CFB_END_OF_CHAIN };
   }
+  indicators.extend(msi_indicators(bytes, &decoded_names));
   dedupe(indicators)
 }
 
@@ -1737,6 +1803,60 @@ mod tests {
     let result = report(&bz2, "arhiva.bz2", "application/x-bzip2", "archive");
     assert_eq!(result.status, "uncertain");
     assert_eq!(result.reason, "formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat");
+  }
+
+
+  #[test]
+  fn numele_de_stream_msi_sunt_decodate_din_codificarea_proprie() {
+    let mut mangled = String::new();
+    mangled.push(char::from_u32(0x4840).unwrap());
+    for pair in ["Cu", "st", "om", "Ac", "ti", "on"] {
+      let bytes = pair.as_bytes();
+      let first = MSI_ALPHABET.iter().position(|value| *value == bytes[0]).unwrap() as u32;
+      let second = MSI_ALPHABET.iter().position(|value| *value == bytes[1]).unwrap() as u32;
+      mangled.push(char::from_u32(0x3800 + first + (second << 6)).unwrap());
+    }
+    assert_eq!(decode_msi_stream_name(&mangled), "!CustomAction");
+  }
+
+  #[test]
+  fn un_nume_obisnuit_nu_este_alterat_de_decodarea_msi() {
+    assert_eq!(decode_msi_stream_name("WordDocument"), "WordDocument");
+    assert_eq!(decode_msi_stream_name(""), "");
+  }
+
+  #[test]
+  fn un_document_ole_care_nu_e_msi_nu_primeste_indicatori_de_instalator() {
+    let names = vec!["WordDocument".to_string(), "Macros".to_string()];
+    assert!(msi_indicators(b"continut oarecare", &names).is_empty());
+  }
+
+  #[test]
+  fn tabelele_periculoase_ale_unui_msi_produc_indicatori_distincti() {
+    let names = vec![
+      "!CustomAction".to_string(),
+      "!Binary".to_string(),
+      "!ServiceInstall".to_string(),
+      "!Registry".to_string(),
+    ];
+    let payload = b"CustomAction care cheama powershell.exe -enc ...";
+    let indicators = msi_indicators(payload, &names);
+
+    assert!(indicators.iter().any(|entry| entry.contains("instalator MSI")));
+    assert!(indicators.iter().any(|entry| entry.contains("actiuni personalizate")));
+    assert!(indicators.iter().any(|entry| entry.contains("payload-uri binare")));
+    assert!(indicators.iter().any(|entry| entry.contains("serviciu de sistem")));
+    assert!(indicators.iter().any(|entry| entry.contains("registrul Windows")));
+    assert!(indicators.iter().any(|entry| entry.contains("PowerShell")));
+  }
+
+  #[test]
+  fn un_msi_fara_markeri_de_script_nu_primeste_indicatorul_de_script() {
+    let names = vec!["!Property".to_string(), "!File".to_string()];
+    let indicators = msi_indicators(b"doar fisiere obisnuite", &names);
+    assert!(indicators.iter().any(|entry| entry.contains("instalator MSI")));
+    assert!(!indicators.iter().any(|entry| entry.contains("PowerShell")), "{indicators:?}");
+    assert!(!indicators.iter().any(|entry| entry.contains("interpretorul de comenzi")));
   }
 
   #[test]

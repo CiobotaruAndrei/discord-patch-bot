@@ -16,6 +16,8 @@
 
 - **Raspunsul motorului antivirus extern isi pastreaza semnatura si versiunile (etapa 7 din programul de librarii native).** Numele semnaturii, versiunea motorului si a bazei de date sunt capturate pentru audit, legate de acelasi SHA-256 al continutului si de steagul de completitudine; campurile de text sunt plafonate, fiindca vin de la un serviciu extern. Politica ramane neschimbata: motorul confirma, dar nu poate face nimic `safe`.
 
+- **Instalatoarele MSI sunt interpretate, nu doar recunoscute ca fisiere OLE (etapa 8 din programul de librarii native).** Numele stream-urilor sunt decodate din codificarea proprie MSI, iar tabelele care conteaza operational — CustomAction, Binary, ServiceInstall, Registry, LaunchCondition — produc indicatori distincti, alaturi de referintele la PowerShell, cmd, wscript sau rundll32. Un document OLE obisnuit nu e raportat ca instalator.
+
 Toate schimbarile importante ale proiectului sunt documentate aici.
 
 Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), iar versiunile folosesc [Semantic Versioning](https://semver.org/).

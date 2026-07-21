@@ -457,6 +457,33 @@ si versiune raportata; scanarile antivirus au coada si plafon de bytes proprii. 
 raporteaza versiunile primite, deci un gateway care le completeaza corect face diferenta vizibila in
 audit.
 
+### libmsi: instalatoarele MSI, fara librarie noua (etapa 8 partial din PDF-ul de librarii)
+
+PDF-ul cere libmsi pentru tabelele MSI si libmspack pentru CHM/HLP/KWAJ/SZDD. Un MSI **este** un
+container OLE, iar parserul CFB structural exista deja din auditul anterior — lipsea doar interpretarea.
+
+Numele stream-urilor dintr-un MSI nu sunt text obisnuit: sunt codificate intr-o schema proprie in care
+un singur code point UTF-16 din intervalul `0x3800..0x4800` codeaza **doua** caractere dintr-un alfabet
+de 64. Fara decodare, `!CustomAction` arata ca o secventa de ideograme si trece neobservat. Decodarea e
+~20 de linii; libmsi ar fi adus o librarie intreaga pentru pasul urmator (interogarea propriu-zisa a
+bazei), pe care aceasta etapa nu il face.
+
+Ce se raporteaza acum: prezenta tabelelor care conteaza operational — `CustomAction` (poate executa cod
+la instalare), `Binary` (payload incorporat), `ServiceInstall`/`ServiceControl`, `Registry`,
+`LaunchCondition`, `InstallExecuteSequence` — plus referintele la interpretoare (`powershell`, `cmd.exe`,
+`wscript`, `cscript`, `rundll32`, `mshta`, `regsvr32`) gasite in fereastra de scanare.
+
+Un test verifica explicit ca un document OLE **obisnuit** nu e raportat ca instalator: indicatorul apare
+doar cand exista cel putin un nume de tabela decodat.
+
+**Ce nu s-a facut si de ce.** Interogarea reala a randurilor din tabelele MSI (coloane, tipuri, corelarea
+`CustomAction` cu `Binary`) cere fie libmsi, fie un parser de baza de date propriu. Prezenta tabelelor
+plus markerii de interpretor acopera cazul practic — un MSI cu `CustomAction` si `powershell` inauntru e
+deja `uncertain` si merge la motorul extern. Extragerea randurilor ramane un pas separat, cu cost real.
+
+libmspack (CHM/HLP/KWAJ/SZDD) nu a fost adaugat: sunt formate rare in fluxul unui bot de Discord, iar
+PDF-ul insusi il pune la „fallback specializat", dupa libarchive. Se poate adauga cand apare un caz real.
+
 ### native-inspector + libseccomp: sandbox de syscall (etapa 5 din PDF-ul de librarii)
 
 Etapele 1-4 au adaugat capabilitati **in procesul existent**: libmagic-like, libyara, libarchive si qpdf
