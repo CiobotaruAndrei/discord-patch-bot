@@ -97,6 +97,23 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   newAccountAlertDeliverySchema.index({ guildId: 1, userId: 1 }, { unique: true, background: true });
   newAccountAlertDeliverySchema.index({ status: 1, sendingAt: 1 }, { background: true });
 
+  const channelLockRecoverySchema = new mongoose.Schema({
+    _id: { type: String, required: true },
+    guildId: { type: String, required: true },
+    channelId: { type: String, required: true },
+    command: { type: String, enum: ["lock-channel", "unlock-channel"], required: true },
+    previousState: { type: String, enum: ["allow", "deny", "inherit"], required: true },
+    divergedState: { type: String, enum: ["allow", "deny", "inherit"], required: true },
+    desiredState: { type: String, enum: ["allow", "deny", "inherit"], required: true },
+    desiredLocked: { type: Boolean, required: true },
+    attempts: { type: Number, default: 0 },
+    lastError: { type: String, default: null },
+    createdAt: { type: Date, default: null },
+    expiresAt: { type: Date, required: true, expires: 0 }
+  }, { minimize: false });
+  channelLockRecoverySchema.index({ guildId: 1, channelId: 1 }, { unique: true, background: true });
+  channelLockRecoverySchema.index({ createdAt: 1 }, { background: true });
+
   const playerCountRecordSchema = new mongoose.Schema({
     _id: String,
     gameKey: { type: String, default: "" },
@@ -178,6 +195,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     reviewTrendSnapshotSchema,
     dealPriceSnapshotSchema,
     newAccountAlertDeliverySchema,
+    channelLockRecoverySchema,
     playerCountRecordSchema,
     bugReportSchema,
     userComplaintSchema,

@@ -13,6 +13,8 @@ import { accountAgeLabel, isRecentAccount } from "../command-security/recentAcco
 import { validateModerationText, type DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import { countActiveBotAddPermissions, stopBotAddProtectionAtomically } from "../moderation/botAddRepository.js";
 import { createNewAccountAlertDelivery, deliverNewAccountAlert, type NewAccountAlertClaim, type NewAccountAlertDeliveryModelLike } from "../command-security/newAccountAlertDedup.js";
+import { recordChannelLockDivergence, type ChannelLockRecoveryModelLike } from "../command-security/channelLockRecoveryRepository.js";
+import { readLockedChannelPermissionState } from "../command-security/channelLockRecoveryRuntime.js";
 import { randomUUID } from "node:crypto";
 
 type AccountAlertClaimFn = (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
@@ -92,6 +94,7 @@ type SecurityDeps = {
   formatUserError: (err: unknown, fallback: string) => string;
   logger?: (level: string, context: string, message: string, meta?: unknown) => void;
   NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
+  ChannelLockRecoveryModel?: Pick<ChannelLockRecoveryModelLike, "updateOne">;
 };
 
 const SET_CHANNEL_FIELDS: Record<string, string> = {
@@ -146,10 +149,7 @@ function resultSize(result: unknown): number {
 }
 
 function permissionState(channel: SecurityChannel, everyoneId: string): LockedChannelPermissionState {
-  const overwrite = channel.permissionOverwrites?.cache?.get(everyoneId);
-  if (overwrite?.allow?.has("SendMessages")) return "allow";
-  if (overwrite?.deny?.has("SendMessages")) return "deny";
-  return "inherit";
+  return readLockedChannelPermissionState(channel, everyoneId);
 }
 
 function permissionValue(state: LockedChannelPermissionState): boolean | null {
@@ -357,7 +357,21 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
           if (discordReverted) throw err;
           target.logger?.("ERROR", "LOCK_CHANNEL", "Stare divergenta: persistarea a esuat si rollback-ul permisiunii Discord a esuat si el", { guildId, channelId: channel.id, command, previous, detail: errorDetail(err) });
           const discordStateLabel = command === "lock-channel" ? "blocat (SendMessages=deny)" : "deblocat";
-          return respond(interaction, `Atentie: ${command === "lock-channel" ? "blocarea" : "deblocarea"} canalului <#${channel.id}> a modificat permisiunea in Discord, dar persistenta a esuat, iar revenirea permisiunii a esuat si dupa reincercare. Stare divergenta: Discord = ${discordStateLabel}, persistenta = NESALVATA. Restaureaza manual SendMessages la \`${previous}\` pentru acel canal.`);
+          const scheduled = target.ChannelLockRecoveryModel
+            ? await recordChannelLockDivergence(target.ChannelLockRecoveryModel, {
+              guildId,
+              channelId: channel.id,
+              command,
+              previousState: previous,
+              divergedState: command === "lock-channel" ? "deny" : previous,
+              desiredState: command === "lock-channel" ? previous : "deny",
+              desiredLocked: command !== "lock-channel"
+            })
+            : false;
+          const recoveryNote = scheduled
+            ? " Divergenta a fost inregistrata pentru recovery automat: un worker idempotent reincearca restaurarea si o inchide doar dupa ce Discord si baza de date converg (nu suprascrie o schimbare legitima facuta intre timp)."
+            : " Divergenta NU a putut fi inregistrata pentru recovery automat, deci necesita interventie manuala.";
+          return respond(interaction, `Atentie: ${command === "lock-channel" ? "blocarea" : "deblocarea"} canalului <#${channel.id}> a modificat permisiunea in Discord, dar persistenta a esuat, iar revenirea permisiunii a esuat si dupa reincercare. Stare divergenta: Discord = ${discordStateLabel}, persistenta = NESALVATA. Restaureaza manual SendMessages la \`${previous}\` pentru acel canal.${recoveryNote}`);
         }
         const result = command === "lock-channel" ? `OK: canalul a fost blocat${reason ? ` (motiv: ${reason})` : ""}.` : "OK: canalul a fost deblocat.";
         if (command === "lock-channel") {

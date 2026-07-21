@@ -72,6 +72,7 @@ type CommandMongoKey =
   | "ReviewTrendSnapshotModel"
   | "DealPriceSnapshotModel"
   | "NewAccountAlertDeliveryModel"
+  | "ChannelLockRecoveryModel"
   | "PlayerCountRecordModel" | "FeedbackReportModel" | "BugReportModel" | "UserComplaintModel"
   | "GuildSeenDiscountModel" | "GuildSeenUpdateModel" | "GuildSeenYoutubeModel"
   | "NotificationOutboxModel" | "NotificationOutboxSentModel" | "NotificationHistoryModel"
@@ -189,6 +190,7 @@ export function selectCommandMongoDependencies(source: MongoContextExports): Com
     ReviewTrendSnapshotModel: source.ReviewTrendSnapshotModel,
     DealPriceSnapshotModel: source.DealPriceSnapshotModel,
     NewAccountAlertDeliveryModel: source.NewAccountAlertDeliveryModel,
+    ChannelLockRecoveryModel: source.ChannelLockRecoveryModel,
     PlayerCountRecordModel: source.PlayerCountRecordModel,
     FeedbackReportModel: source.FeedbackReportModel,
     BugReportModel: source.BugReportModel,

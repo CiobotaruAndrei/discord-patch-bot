@@ -58,6 +58,9 @@ import { createModerationLifecycleRuntime } from "../features/moderation/moderat
 import { createServerEventLogRuntime } from "../features/command-security/serverEventLogRuntime.js";
 import { observeConfirmedBotAction } from "../features/command-security/botObservationRepository.js";
 import { createModerationCleanupTask } from "./scheduler/moderationCleanupTask.js";
+import { createChannelLockRecoveryTask } from "./scheduler/channelLockRecoveryTask.js";
+import { createChannelLockRecoveryRuntime } from "../features/command-security/channelLockRecoveryRuntime.js";
+import { setLockedChannelPermissionState } from "../features/guild-config/guildConfigRepository.js";
 import { roleRunsSchedulers } from "../shared/botRole.js";
 import { createNewAccountAlertDelivery, reconcileStuckNewAccountSends } from "../features/command-security/newAccountAlertDedup.js";
 
@@ -123,6 +126,21 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
     })
     : null;
 
+  const lockRecoveryModel = mongo.ChannelLockRecoveryModel;
+  const lockRecoveryGuildModel = mongo.GuildModel;
+  const channelLockRecovery = schedulers && lockRecoveryModel && lockRecoveryGuildModel
+    ? createChannelLockRecoveryTask({
+      runRecoveryCycle: () => createChannelLockRecoveryRuntime({
+        RecoveryModel: lockRecoveryModel,
+        fetchChannel: async (_guildId, channelId) => (await Promise.resolve(client.channels?.fetch(channelId))) ?? null,
+        persistState: (guildId, channelId, previous, locked) =>
+          setLockedChannelPermissionState(lockRecoveryGuildModel, guildId, channelId, previous, locked),
+        logger
+      }).runRecoveryCycle(),
+      metrics, logger, adminAlert, errorMessage, errorDetail
+    })
+    : null;
+
   const httpServer = createHttpServer({
     mongoose, crypto, env, client, metrics, logger, commands: deps.commands,
     getGuildCacheSize, scrapers: deps.scrapers, activeLocks, rateLimiter,
@@ -150,6 +168,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
     releaseDbLock, cronController: schedulers?.cronController, outboxWorker: schedulers?.outboxWorker, housekeeping: schedulers?.housekeeping, adminAlert,
     redis: deps.redis, guildInvalidationChannel, stopOperationJournalRecovery: deps.stopOperationJournalRecovery,
     stopModerationCleanup: moderationCleanup ? moderationCleanup.stop : undefined,
+    stopChannelLockRecovery: channelLockRecovery ? channelLockRecovery.stop : undefined,
     errorMessage, errorDetail
   });
 
@@ -164,6 +183,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
     await bootStart();
     await moderationLifecycleRuntime?.reconcileClient(client);
     moderationCleanup?.start();
+    channelLockRecovery?.start();
   }
 
   return {
