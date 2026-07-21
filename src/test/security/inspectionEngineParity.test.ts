@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  documentIndicators,
   inspectUntrustedContent,
   inspectUntrustedContentFallback,
   DEFAULT_INSPECTION_LIMITS,
@@ -36,6 +37,11 @@ test("corpusul de paritate acopera ZIP/TAR/GZIP/CFB/PDF/RAR/7z plus cazurile de 
     "sevenzip-header-codificat",
     "sevenzip-header-simplu",
     "format-fara-decodor",
+    "pdf-javascript-in-flux-comprimat",
+    "pdf-flux-comprimat-curat",
+    "ooxml-sablon-extern",
+    "ooxml-obiect-ole",
+    "ooxml-relatii-interne",
     "document-pdf-javascript",
     "document-pdf-ofuscat",
     "document-ole-macro",
@@ -167,4 +173,40 @@ test("bugetul de intrari se aplica si scanarii de headere RAR (fara decompresie)
   const limited = await inspectUntrustedContent(fixture.bytes, fixture.filename, fixture.mime, fixture.mode, { maxEntries: 1 });
   assert.equal(limited.status, "uncertain");
   assert.equal(limited.reason, "arhiva depaseste limita de 1 intrari");
+});
+
+test("PDF: actiunea ascunsa intr-un flux FlateDecode e prinsa de parserul structural, nu de fereastra latin1", async () => {
+  const fixture = buildInspectionFixtures().find(entry => entry.name === "pdf-javascript-in-flux-comprimat");
+  assert.ok(fixture);
+  assert.deepEqual(
+    documentIndicators(fixture.bytes),
+    [],
+    "scanarea de fereastra pe bytes-ul brut NU vede JavaScript-ul: e comprimat, deci fixture-ul chiar testeaza parserul structural"
+  );
+  const report = await inspectUntrustedContent(fixture.bytes, fixture.filename, fixture.mime, fixture.mode);
+  assert.equal(report.status, "inspected");
+  assert.ok(report.indicators.includes("actiune automata sau script PDF in flux comprimat (parser structural PDF)"));
+  assert.ok(report.expandedBytes > 0, "bytes-ii decomprimati din fluxurile PDF intra in bugetul raportat");
+});
+
+test("PDF: un flux comprimat cu text banal nu produce indicatori (fara fals pozitiv)", async () => {
+  const report = await fixtureReport("pdf-flux-comprimat-curat");
+  assert.equal(report.status, "inspected");
+  assert.deepEqual(report.indicators, []);
+});
+
+test("OOXML: relatia attachedTemplate externa e semnalata explicit ca sablon incarcat din exterior", async () => {
+  const report = await fixtureReport("ooxml-sablon-extern");
+  assert.ok(report.indicators.includes("sablon sau cadru Office incarcat dintr-o sursa externa (relatie OOXML)"));
+  assert.ok(report.indicators.includes("referinta externa in document Office"));
+});
+
+test("OOXML: tipul relatiei oleObject semnaleaza obiectul incorporat chiar daca numele intrarii nu il tradeaza", async () => {
+  const report = await fixtureReport("ooxml-obiect-ole");
+  assert.ok(report.indicators.includes("obiect OLE incorporat in document Office"));
+});
+
+test("OOXML: un .rels cu relatii doar interne nu mai e semnalat ca referinta externa din cauza namespace-ului http", async () => {
+  const report = await fixtureReport("ooxml-relatii-interne");
+  assert.deepEqual(report.indicators, [], "xmlns=\"http://schemas.openxmlformats.org/...\" nu e o tinta externa");
 });

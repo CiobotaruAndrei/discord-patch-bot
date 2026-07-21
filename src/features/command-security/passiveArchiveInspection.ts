@@ -1,6 +1,6 @@
 "use strict";
 
-import { gunzipSync, inflateRawSync } from "node:zlib";
+import { gunzipSync, inflateRawSync, inflateSync } from "node:zlib";
 import { getNativeFuzzy, recordNativeFallback } from "../../native/fuzzy.js";
 
 export interface PassiveArchiveFinding {
@@ -151,6 +151,124 @@ function enforceBudget(budget: InspectionBudget, compressedBytes: number, expand
   return null;
 }
 
+const PDF_MAX_STREAMS = 64;
+const PDF_DICT_LOOKBEHIND = 4096;
+
+function isPdfDocument(buffer: Buffer): boolean {
+  return buffer.length >= 5 && buffer.subarray(0, 5).toString("latin1") === "%PDF-";
+}
+
+function inflateZlib(data: Buffer, maxOutput: number): Buffer | null {
+  try {
+    return inflateSync(data, { maxOutputLength: maxOutput });
+  } catch {
+    return null;
+  }
+}
+
+function pdfStreamPayload(buffer: Buffer, keywordEnd: number): { payload: Buffer; nextOffset: number } | null {
+  let start = keywordEnd;
+  if (start < buffer.length && buffer[start] === 0x0d) start++;
+  if (start < buffer.length && buffer[start] === 0x0a) start++;
+  const end = buffer.indexOf("endstream", start, "latin1");
+  if (end === -1) return null;
+  return { payload: buffer.subarray(start, end), nextOffset: end + 9 };
+}
+
+function pdfActionIndicators(text: string): boolean {
+  return /\/JavaScript\b/.test(text)
+    || /\/JS\b/.test(text)
+    || text.includes("/OpenAction")
+    || text.includes("/Launch")
+    || /\/AA\b/.test(text)
+    || text.includes("/EmbeddedFile")
+    || text.includes("/RichMedia")
+    || hasObfuscatedPdfActionName(text);
+}
+
+function pdfStructuralIndicators(buffer: Buffer, budget: InspectionBudget): string[] {
+  if (!isPdfDocument(buffer)) return [];
+  const indicators: string[] = [];
+  let streams = 0;
+  let offset = 0;
+  while (streams < PDF_MAX_STREAMS) {
+    const keywordStart = buffer.indexOf("stream", offset, "latin1");
+    if (keywordStart === -1) break;
+    const keywordEnd = keywordStart + 6;
+    if (keywordStart >= 3 && buffer.subarray(keywordStart - 3, keywordStart).toString("latin1") === "end") {
+      offset = keywordEnd;
+      continue;
+    }
+    const stream = pdfStreamPayload(buffer, keywordEnd);
+    if (!stream) break;
+    const dictionary = buffer.subarray(Math.max(0, keywordStart - PDF_DICT_LOOKBEHIND), keywordStart).toString("latin1");
+    if (dictionary.includes("/FlateDecode") || dictionary.includes("/Fl")) {
+      streams++;
+      const decoded = inflateZlib(stream.payload, budget.limits.maxExpandedBytes);
+      if (decoded) {
+        budget.expandedBytes += decoded.length;
+        if (budget.expandedBytes > budget.limits.maxExpandedBytes) break;
+        const text = decoded.toString("latin1");
+        if (pdfActionIndicators(text)) {
+          indicators.push("actiune automata sau script PDF in flux comprimat (parser structural PDF)");
+        }
+        if (text.includes("/Launch") || text.includes("/EmbeddedFile") || text.includes("/RichMedia") || text.includes("/GoToR")) {
+          indicators.push("indicator de lansare de proces sau continut incorporat");
+        }
+        if (text.includes("DDEAUTO") || /\bDDE\s/.test(text)) {
+          indicators.push("indicator de camp DDE (executie externa)");
+        }
+        if (text.includes("/XFA")) {
+          indicators.push("formular XFA cu potential de script");
+        }
+      }
+      if (Date.now() - budget.startedAt > budget.limits.timeoutMs) break;
+    }
+    offset = stream.nextOffset;
+  }
+  return [...new Set(indicators)];
+}
+
+function xmlAttribute(element: string, name: string): string | null {
+  const pattern = new RegExp(`(?:^|[^A-Za-z0-9_])${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, "i");
+  const match = pattern.exec(element);
+  if (!match) return null;
+  return match[2] ?? match[3] ?? "";
+}
+
+function isRemoteTarget(target: string): boolean {
+  const lower = target.toLowerCase();
+  return lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("ftp://") || lower.startsWith("file://") || lower.startsWith("\\\\");
+}
+
+function ooxmlRelationshipIndicators(buffer: Buffer): string[] {
+  const text = buffer.toString("latin1");
+  const indicators: string[] = [];
+  let offset = 0;
+  let parsed = 0;
+  while (parsed < 512) {
+    const start = text.indexOf("<Relationship", offset);
+    if (start === -1) break;
+    const close = text.indexOf(">", start);
+    if (close === -1) break;
+    const element = text.slice(start, close);
+    parsed++;
+    offset = close + 1;
+    const relationType = (xmlAttribute(element, "type") ?? "").toLowerCase();
+    const target = xmlAttribute(element, "target") ?? "";
+    const external = (xmlAttribute(element, "targetmode") ?? "").toLowerCase() === "external";
+    if (relationType.endsWith("/vbaproject")) indicators.push("macro sau script Office intern");
+    if (relationType.endsWith("/oleobject") || relationType.endsWith("/package")) {
+      indicators.push("obiect OLE incorporat in document Office");
+    }
+    if (external && (relationType.endsWith("/attachedtemplate") || relationType.endsWith("/frame"))) {
+      indicators.push("sablon sau cadru Office incarcat dintr-o sursa externa (relatie OOXML)");
+    }
+    if (external || isRemoteTarget(target)) indicators.push("referinta externa in document Office");
+  }
+  return [...new Set(indicators)];
+}
+
 function nameIndicators(name: string): string[] {
   const normalized = name.replaceAll("\\", "/").toLowerCase();
   const indicators: string[] = [];
@@ -166,7 +284,7 @@ function nameIndicators(name: string): string[] {
   return indicators;
 }
 
-function contentIndicators(name: string, buffer: Buffer): string[] {
+function contentIndicators(name: string, buffer: Buffer, budget: InspectionBudget): string[] {
   const normalized = name.replaceAll("\\", "/").toLowerCase();
   const indicators: string[] = nameIndicators(name);
   if (buffer.length >= 2 && buffer[0] === 0x4d && buffer[1] === 0x5a) indicators.push("executabil PE intern");
@@ -178,10 +296,14 @@ function contentIndicators(name: string, buffer: Buffer): string[] {
   if (text.includes("DDEAUTO") || /\bDDE\s/.test(text)) {
     indicators.push("camp DDE intern (executie externa)");
   }
-  if (/(?:TargetMode\s*=\s*["']External["']|https?:\/\/)/i.test(text) && normalized.endsWith(".rels")) {
-    indicators.push("referinta externa in document Office");
+  if (normalized.endsWith(".rels")) {
+    indicators.push(...ooxmlRelationshipIndicators(buffer));
+    if (/TargetMode\s*=\s*["']External["']/i.test(text)) {
+      indicators.push("referinta externa in document Office");
+    }
   }
   indicators.push(...inspectCompoundFileBinary(buffer));
+  indicators.push(...pdfStructuralIndicators(buffer, budget));
   return indicators;
 }
 
@@ -224,7 +346,7 @@ function inspectZip(buffer: Buffer, depth: number, budget: InspectionBudget): Pa
         return uncertain(error instanceof Error ? error.message : "intrarea ZIP nu a putut fi decomprimata", indicators);
       }
       if (uncompressedSize !== 0 && entry.length !== uncompressedSize) return uncertain("dimensiunea decomprimata ZIP nu corespunde headerului", indicators);
-      indicators.push(...contentIndicators(name, entry));
+      indicators.push(...contentIndicators(name, entry, budget));
       const nested = inspectNested(name, entry, depth + 1, budget);
       indicators.push(...nested.indicators);
       if (nested.status === "uncertain") return uncertain(nested.reason, indicators);
@@ -253,7 +375,7 @@ function inspectTar(buffer: Buffer, depth: number, budget: InspectionBudget): Pa
     const limitFailure = enforceBudget(budget, size, size);
     if (limitFailure) return uncertain(limitFailure, indicators);
     const entry = buffer.subarray(dataOffset, endOffset);
-    indicators.push(...contentIndicators(name, entry));
+    indicators.push(...contentIndicators(name, entry, budget));
     const nested = inspectNested(name, entry, depth + 1, budget);
     indicators.push(...nested.indicators);
     if (nested.status === "uncertain") return uncertain(nested.reason, indicators);
@@ -275,7 +397,7 @@ function inspectGzip(buffer: Buffer, depth: number, budget: InspectionBudget): P
   if (limitFailure) return uncertain(limitFailure);
   const tar = inspectTar(expanded, depth + 1, budget);
   if (tar.status === "inspected") return tar;
-  const indicators = contentIndicators("payload", expanded);
+  const indicators = contentIndicators("payload", expanded, budget);
   const nested = inspectNested("payload", expanded, depth + 1, budget);
   indicators.push(...nested.indicators);
   return nested.status === "uncertain" && indicators.length === 0 ? uncertain(tar.reason) : inspected(indicators);
@@ -575,8 +697,8 @@ export function documentIndicators(buffer: Buffer): string[] {
 
 export type InspectionMode = "archive" | "document" | "auto";
 
-function documentFinding(buffer: Buffer): PassiveArchiveFinding {
-  const indicators = documentIndicators(buffer);
+function documentFinding(buffer: Buffer, budget: InspectionBudget): PassiveArchiveFinding {
+  const indicators = [...new Set([...documentIndicators(buffer), ...pdfStructuralIndicators(buffer, budget)])];
   return {
     status: "inspected",
     indicators,
@@ -594,14 +716,14 @@ export function inspectUntrustedContentFallback(
   const startedAt = Date.now();
   const budget: InspectionBudget = { entries: 0, expandedBytes: 0, startedAt, limits: resolveLimits(limits) };
   let finding: PassiveArchiveFinding;
-  if (mode === "document") finding = documentFinding(buffer);
+  if (mode === "document") finding = documentFinding(buffer, budget);
   else if (isZipContainer(buffer)) finding = inspectZip(buffer, 0, budget);
   else if (isGzipContainer(buffer)) finding = inspectGzip(buffer, 0, budget);
   else if (isTarContainer(buffer)) finding = inspectTar(buffer, 0, budget);
   else if (isRar4Container(buffer) || isRar5Container(buffer)) finding = inspectRar(buffer, budget);
   else if (isSevenZipContainer(buffer)) finding = inspectSevenZip(buffer);
   else if (mode === "archive" || looksLikeArchive(buffer, filename, mime)) finding = uncertain(NO_LOCAL_DECODER_REASON);
-  else finding = documentFinding(buffer);
+  else finding = documentFinding(buffer, budget);
   return {
     status: finding.status,
     indicators: [...new Set(finding.indicators)],

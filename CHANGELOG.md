@@ -13,6 +13,7 @@ Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ## [Unreleased]
 
 - Inspectia pasiva a continutului neincredibil ruleaza ca un singur task Rust asincron, in afara event loop-ului, cu fallback TypeScript identic verificat prin paritate.
+- Fluxurile PDF comprimate sunt decodate si scanate structural, iar relatiile OOXML sunt parsate ca graf, cu indicator dedicat pentru sabloanele incarcate din surse externe.
 - Arhivele RAR (v4 si v5) si 7z sunt parcurse structural la nivel de header: numele intrarilor produc indicatori fara decompresie, iar arhiva criptata, headerul criptat si structura trunchiata sunt distinse explicit.
 - Jurnalul operational foloseste versiuni monotone per resursa, schema versionata, heartbeat, retry limitat si recovery periodic.
 - Outbox-ul protejeaza si prioritizeaza finalizarea `delivered-pending`, inclusiv prin index TTL partial.
