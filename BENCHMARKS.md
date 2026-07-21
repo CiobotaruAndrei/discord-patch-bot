@@ -341,6 +341,37 @@ termina; un test construieste ciclul explicit.
 niciodata un fals „curat" — contractul verificat de teste este ca setul nativ le **contine** pe cele ale
 fallback-ului, niciodata invers.
 
+### Costul de CI al librariilor native (masurat, nu estimat)
+
+Fiecare librarie C/C++ legata static se compileaza din surse. Fara cache, costul se aduna la fiecare
+rulare de CI, nu doar la prima. Masuratoare pe jobul `check`, aceleasi trei etape:
+
+| Pas | inainte de librarii (20 iul) | + libyara si libarchive | + qpdf |
+| --- | --- | --- | --- |
+| Validate Rust (clippy + teste) | 14s | 1m37s | 3m08s |
+| Run project checks (napi build + teste) | 47s | 1m20s | 2m10s |
+| Benchmark hot-path guard | 5m41s | 5m26s | 5m39s |
+
+Doua concluzii, ambele contraintuitive:
+
+1. **Pasul dominant a fost dintotdeauna benchmark-ul**, nu compilarea. Cei ~5m40s sunt costul lui
+   legitim: best-of-N pe fiecare functie hot-path, ca pragurile din acest document sa fie stabile
+   statistic. Nu se reduce prin taierea iteratiilor fara sa slabeasca gate-ul.
+2. **Compilarea C a adaugat ~4 minute pe rulare fiindca `ci.yml` nu avea niciun cache de cargo.**
+   Aceleasi surse se recompilau identic la fiecare push.
+
+Solutia e `Swatinem/rust-cache` in `ci.yml`, cu cheia derivata din `Cargo.lock`: dependintele si
+librariile C compilate raman intre rulari, iar o schimbare reala de dependinte invalideaza corect
+cache-ul. Prima rulare dupa o astfel de schimbare ramane la costul intreg; restul refolosesc.
+
+`release.yml` **NU** primeste cache in mod deliberat: artefactele publicate se construiesc de fiecare
+data din surse, ca binarul livrat sa nu depinda de continutul unui cache. Cele cateva minute in plus
+pe un workflow rar sunt un pret corect pentru asta.
+
+Nota pentru etapele urmatoare din programul de librarii: PDFium, FFmpeg si Tesseract sunt cu un ordin
+de marime mai grele decat qpdf. Fara cache-ul de mai sus, CI-ar fi devenit impracticabil in jurul
+etapei 8, nu la sfarsit.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard

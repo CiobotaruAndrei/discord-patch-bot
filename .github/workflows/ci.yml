@@ -51,6 +51,16 @@ jobs:
           toolchain: "1.96.0"
           components: clippy
 
+      # Fara acest cache fiecare rulare recompileaza de la zero libyara, libarchive (CMake)
+      # si qpdf (~100 fisiere .cc), plus zlib/libjpeg vendorate: ~4 minute per rulare, care
+      # cresc cu fiecare librarie nativa adaugata. Cheia e derivata din Cargo.lock, deci o
+      # schimbare de dependinte invalideaza corect cache-ul.
+      - name: Cache Rust build (dependinte + librarii C compilate din surse)
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: src/native
+          cache-on-failure: "true"
+
       - name: Install dependencies
         run: npm ci
 
