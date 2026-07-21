@@ -341,6 +341,57 @@ termina; un test construieste ciclul explicit.
 niciodata un fals „curat" — contractul verificat de teste este ca setul nativ le **contine** pe cele ale
 fallback-ului, niciodata invers.
 
+### Analiza executabilelor: de ce NU s-a folosit LIEF (etapa 6 din PDF-ul de librarii)
+
+PDF-ul cere LIEF pentru PE/ELF/Mach-O si noteaza ca „expune API C++ si Rust". Am verificat calea Rust
+inainte de a o folosi, si acolo se opreste recomandarea.
+
+**Ce face build script-ul crate-ului `lief`:**
+
+```
+const GH_URL: &str = "https://github.com/lief-project/LIEF/releases/download";
+const DEFAULT_S3_URL: &str = "https://lief-rs.s3.fr-par.scw.cloud";
+let mut resp = reqwest::blocking::get(url).expect("failed to download LIEF cache");
+zip.extract(&dst_dir)
+```
+
+Descarca un ZIP precompilat de pe retea si il extrage. Consecintele, pentru **componenta care parseaza
+executabile ostile**:
+
+- binarul nu e acoperit de integritatea `Cargo.lock`, spre deosebire de orice alt crate;
+- build-ul cere retea, deci pica in medii izolate;
+- un bucket S3 tert intra in lantul de aprovizionare al unei componente de securitate.
+
+**Ce s-a folosit in loc:** `goblin` — parser pur Rust pentru PE, ELF si Mach-O, ~14 milioane de
+descarcari pe luna, fara cod C++, fara build script, fara retea.
+
+Argumentul decisiv nu e insa comoditatea, ci suprafata de atac. Parsarea unui executabil controlat de
+atacator e cea mai riscanta parsare din tot lantul. In C++, un bug de parser inseamna coruptie de
+memorie in proces — exact motivul pentru care etapa 5 a trebuit sa adauge un sandbox de syscall peste
+librariile C. In Rust sigur pe memorie, acelasi bug inseamna cel mult un `Err` sau un panic prins.
+**A alege C++ aici ar fi insemnat sa adaugam risc si apoi sa construim inca o aparare impotriva lui.**
+
+Regula arhitecturala din PDF spune ca librariile C/C++ furnizeaza „capabilitati mature greu de
+reimplementat corect". `goblin` **este** implementarea matura; se intampla sa fie Rust, nu C++. Deviatia
+e de la mijloc, nu de la scop.
+
+**Ce se raporteaza**, conform tabelului din PDF: header si arhitectura, sectiuni cu dimensiuni raw vs
+virtual si entropie Shannon calculata pe continutul real, permisiuni (semnalam explicit sectiunile si
+scriibile si executabile), biblioteci si simboluri importate cu risc (injectie in proces, anti-depanare,
+descarcare, lansare de proces), prezenta semnaturii Authenticode, si octetii de dupa ultima sectiune
+(overlay). Numele de sectiuni ale packerelor cunoscute (UPX, ASPack, Themida, VMProtect, MPRESS, Petite)
+au indicator propriu.
+
+**Ce NU face**, tot conform PDF-ului: niciun disassembler. Sectiunile, importurile si anomaliile
+structurale sunt suficiente pentru acest bot; analiza de instructiuni ar fi o cerinta separata.
+
+**Nu produce niciodata `confirmed`.** Un executabil impachetat nu e malware; e doar un executabil
+impachetat. Indicatorii ridica verdictul cel mult la `uncertain`, iar confirmarea ramane a motorului
+extern — aceeasi politica ca la YARA.
+
+**Cost de build: zero pachete de sistem, zero cod C++, zero descarcari.** Prima etapa din program care
+nu adauga nimic la lantul de dependinte.
+
 ### native-inspector + libseccomp: sandbox de syscall (etapa 5 din PDF-ul de librarii)
 
 Etapele 1-4 au adaugat capabilitati **in procesul existent**: libmagic-like, libyara, libarchive si qpdf

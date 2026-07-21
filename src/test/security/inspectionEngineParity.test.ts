@@ -298,3 +298,141 @@ test("escaladarea la qpdf se face doar cand structura o cere, nu la fiecare PDF"
   assert.deepEqual(engine.indicators, fallback.indicators, "un PDF simplu ramane identic pe ambele motoare");
   assert.equal(engine.status, fallback.status);
 });
+
+class ByteWriter {
+  private parts: Buffer[] = [];
+  private length = 0;
+
+  u16(value: number): this {
+    const buffer = Buffer.alloc(2);
+    buffer.writeUInt16LE(value, 0);
+    return this.push(buffer);
+  }
+
+  u32(value: number): this {
+    const buffer = Buffer.alloc(4);
+    buffer.writeUInt32LE(value, 0);
+    return this.push(buffer);
+  }
+
+  u64(value: bigint): this {
+    const buffer = Buffer.alloc(8);
+    buffer.writeBigUInt64LE(value, 0);
+    return this.push(buffer);
+  }
+
+  raw(buffer: Buffer): this {
+    return this.push(buffer);
+  }
+
+  private push(buffer: Buffer): this {
+    this.parts.push(buffer);
+    this.length += buffer.length;
+    return this;
+  }
+
+  get size(): number {
+    return this.length;
+  }
+
+  build(): Buffer {
+    return Buffer.concat(this.parts);
+  }
+}
+
+function minimalPe(sectionName: string, payload: Buffer, characteristics: number): Buffer {
+  const optional = new ByteWriter();
+  optional.u16(0x20b);
+  optional.raw(Buffer.from([14, 0]));
+  optional.u32(0x1000);
+  optional.u32(0);
+  optional.u32(0);
+  optional.u32(0x1000);
+  optional.u32(0x1000);
+  optional.u64(0x140000000n);
+  optional.u32(0x1000);
+  optional.u32(0x200);
+  optional.raw(Buffer.from([6, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0]));
+  optional.u32(0);
+  optional.u32(0x4000);
+  optional.u32(0x400);
+  optional.u32(0);
+  optional.u16(3);
+  optional.u16(0);
+  optional.u64(0x100000n);
+  optional.u64(0x1000n);
+  optional.u64(0x100000n);
+  optional.u64(0x1000n);
+  optional.u32(0);
+  optional.u32(16);
+  for (let index = 0; index < 16; index++) {
+    optional.u32(0);
+    optional.u32(0);
+  }
+  const optionalHeader = optional.build();
+
+  const dos = Buffer.alloc(0x80);
+  dos[0] = 0x4d;
+  dos[1] = 0x5a;
+  dos.writeUInt32LE(0x80, 0x3c);
+
+  const coff = new ByteWriter();
+  coff.raw(Buffer.from([0x50, 0x45, 0x00, 0x00]));
+  coff.u16(0x8664);
+  coff.u16(1);
+  coff.u32(0);
+  coff.u32(0);
+  coff.u32(0);
+  coff.u16(optionalHeader.length);
+  coff.u16(0x0002);
+
+  const rawOffset = 0x400;
+  const nameBytes = Buffer.alloc(8);
+  nameBytes.write(sectionName.slice(0, 8), 0, "ascii");
+  const section = new ByteWriter();
+  section.raw(nameBytes);
+  section.u32(payload.length);
+  section.u32(0x1000);
+  section.u32(payload.length);
+  section.u32(rawOffset);
+  section.u32(0);
+  section.u32(0);
+  section.u16(0);
+  section.u16(0);
+  section.u32(characteristics);
+
+  const header = Buffer.concat([dos, coff.build(), optionalHeader, section.build()]);
+  const padded = Buffer.alloc(rawOffset);
+  header.copy(padded, 0, 0, Math.min(header.length, rawOffset));
+  return Buffer.concat([padded, payload]);
+}
+
+test("un executabil intern impachetat produce indicatori structurali, nu doar recunoasterea formatului", async () => {
+  const highEntropy = Buffer.from(Array.from({ length: 8192 }, (_, index) => index % 256));
+  const pe = minimalPe("UPX0", highEntropy, 0xe0000020);
+  const report = await inspectUntrustedContent(pe, "setup.exe", "application/vnd.microsoft.portable-executable", "archive");
+
+  if (!isRustFuzzyAvailable()) return;
+
+  assert.ok(
+    report.indicators.some(entry => /packer UPX/.test(entry)),
+    `numele sectiunii de packer e recunoscut: ${JSON.stringify(report.indicators)}`
+  );
+  assert.ok(report.indicators.some(entry => /entropie mare/.test(entry)));
+  assert.ok(report.indicators.some(entry => /scriibila si executabila/.test(entry)));
+});
+
+test("un executabil obisnuit nu primeste indicatorii de packer", async () => {
+  const plain = Buffer.from("cod obisnuit cu structura repetitiva si entropie mica ".repeat(200), "latin1");
+  const pe = minimalPe(".text", plain, 0x60000020);
+  const report = await inspectUntrustedContent(pe, "tool.exe", "application/vnd.microsoft.portable-executable", "archive");
+
+  if (!isRustFuzzyAvailable()) return;
+
+  assert.ok(
+    report.indicators.some(entry => /fara semnatura Authenticode/.test(entry)),
+    `executabilul e recunoscut si analizat: ${JSON.stringify(report.indicators)}`
+  );
+  assert.ok(!report.indicators.some(entry => /packer/.test(entry)), JSON.stringify(report.indicators));
+  assert.ok(!report.indicators.some(entry => /entropie mare/.test(entry)));
+});

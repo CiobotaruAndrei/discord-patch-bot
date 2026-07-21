@@ -1,3 +1,4 @@
+use crate::executable::{analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
 use crate::pdf_structure::{
   inspect_pdf_structure, needs_structural_escalation, PdfStructureLimits, PdfStructureOutcome,
 };
@@ -570,6 +571,7 @@ fn content_indicators(name: &str, bytes: &[u8], budget: &mut Budget) -> Vec<Stri
   if bytes.len() >= 4 && bytes[0] == 0x7f && &bytes[1..4] == b"ELF" {
     indicators.push("executabil ELF intern".to_string());
   }
+  indicators.extend(executable_indicators(bytes));
   let text = scan_window(bytes);
   if pdf_action_indicators(text) {
     indicators.push("actiune automata sau script PDF intern".to_string());
@@ -1274,8 +1276,25 @@ fn pdf_deep_indicators(bytes: &[u8], budget: &mut Budget) -> Option<(Vec<String>
   }
 }
 
+fn executable_indicators(bytes: &[u8]) -> Vec<String> {
+  if !looks_like_executable(bytes) {
+    return Vec::new();
+  }
+  match analyze_executable(bytes, &ExecutableLimits::default()) {
+    ExecutableOutcome::Analyzed(report) => {
+      let mut indicators = report.indicators;
+      if report.is_library {
+        indicators.push(format!("biblioteca {} interna, nu executabil de sine statator", report.format));
+      }
+      indicators
+    }
+    ExecutableOutcome::Failed(_) | ExecutableOutcome::Unavailable(_) | ExecutableOutcome::NotExecutable => Vec::new(),
+  }
+}
+
 fn document_finding(bytes: &[u8], budget: &mut Budget) -> Finding {
   let mut indicators = document_indicators(bytes);
+  indicators.extend(executable_indicators(bytes));
   indicators.extend(pdf_structural_indicators(bytes, budget));
   let deep = pdf_deep_indicators(bytes, budget);
   let (uncertain, deep_reason) = match deep {
@@ -1315,6 +1334,14 @@ pub fn inspect_untrusted_content(
     inspect_native_container(bytes, 0, &mut budget, "RAR").unwrap_or_else(|| inspect_rar(bytes, &mut budget))
   } else if is_seven_zip(bytes) {
     inspect_native_container(bytes, 0, &mut budget, "7z").unwrap_or_else(|| inspect_seven_zip(bytes, &mut budget))
+  } else if looks_like_executable(bytes) {
+    let indicators = dedupe(executable_indicators(bytes));
+    let reason = if indicators.is_empty() {
+      "executabil analizat structural fara indicatori".to_string()
+    } else {
+      "executabil analizat structural cu indicatori".to_string()
+    };
+    Finding { uncertain: false, indicators, reason }
   } else if mode == "archive" || looks_like_archive(bytes, filename, mime) {
     uncertain("formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat".to_string(), Vec::new())
   } else {

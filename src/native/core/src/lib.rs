@@ -1,5 +1,6 @@
 mod autocomplete;
 mod deals;
+mod executable;
 mod fuzzy;
 mod hashing;
 mod inspection;
@@ -15,6 +16,10 @@ mod yara_rules;
 
 pub use autocomplete::build_autocomplete_choices;
 pub use deals::{deal_passes_filters, dedupe_and_rank_deals, DealCandidateData};
+pub use executable::{
+  analyze_executable, executable_analysis_available, looks_like_executable, shannon_entropy,
+  ExecutableLimits, ExecutableOutcome, ExecutableReport, ExecutableSection,
+};
 pub use fuzzy::find_game_keys;
 pub use hashing::{deal_hash, normalize_deal_state, stable_update_id};
 pub use listing_rank::{
