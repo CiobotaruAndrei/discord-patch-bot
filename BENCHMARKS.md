@@ -364,6 +364,15 @@ Solutia e `Swatinem/rust-cache` in `ci.yml`, cu cheia derivata din `Cargo.lock`:
 librariile C compilate raman intre rulari, iar o schimbare reala de dependinte invalideaza corect
 cache-ul. Prima rulare dupa o astfel de schimbare ramane la costul intreg; restul refolosesc.
 
+Acelasi rationament se aplica si build-ului de container din `container-scan.yml`, care recompila
+librariile C **inca o data**, in imagine, la fiecare rulare. Acolo cache-ul de layere are insa o
+capcana proprie: cu layere refolosite, `apt-get upgrade` din stage-ul de runtime nu se mai executa,
+iar Trivy ar scana o imagine veche si ar raporta curat pe baza unor pachete pe care productia nu le
+mai are. De aceea cache-ul e activ pe push si pe pull request — unde intrebarea e „a introdus
+schimbarea mea o vulnerabilitate?" — si **dezactivat explicit pe rularea programata saptamanal**,
+unde intrebarea e „au aparut CVE-uri noi in imaginea de baza?". Fara aceasta exceptie, cron-ul
+saptamanal ar fi devenit decorativ.
+
 `release.yml` **NU** primeste cache in mod deliberat: artefactele publicate se construiesc de fiecare
 data din surse, ca binarul livrat sa nu depinda de continutul unui cache. Cele cateva minute in plus
 pe un workflow rar sunt un pret corect pentru asta.
