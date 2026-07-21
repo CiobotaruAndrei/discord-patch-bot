@@ -40,7 +40,7 @@ test("crate-ul core e pur: fara napi, cu teste unitare", () => {
 test("wrapper-ul N-API e subtire: deleaga la core si nu mai are teste proprii", () => {
   const cargo = read(rootCargoPath);
   assert.match(cargo, /\[workspace\]/, "native/ e workspace");
-  assert.match(cargo, /members = \["core"\]/, "core e membru al workspace-ului");
+  assert.match(cargo, /members = \["core", "inspector"\]/, "core si procesul de inspectie sunt membri ai workspace-ului");
   assert.match(cargo, /name = "discord_patch_bot_core"/, "numele cdylib-ului ramane neschimbat (fisierul .node si napi config raman valide)");
   assert.match(cargo, /discord_patch_bot_logic = \{ path = "core" \}/, "wrapper-ul depinde de core prin path");
   const lib = read(wrapperLibPath);
@@ -52,7 +52,7 @@ test("wrapper-ul N-API e subtire: deleaga la core si nu mai are teste proprii", 
 test("check:native si CI testeaza core-ul pur si dau clippy pe tot workspace-ul, in profil release (partajeaza target cache cu napi build, review nou #21)", () => {
   const pkg = read(packageJsonPath);
   assert.match(pkg, /cargo clippy --release --manifest-path native\/Cargo\.toml --workspace --all-targets -- -D warnings/, "clippy acopera ambele crate-uri, in release ca sa refoloseasca dependentele compilate de napi build --release");
-  assert.match(pkg, /cargo test --release --manifest-path native\/Cargo\.toml -p discord_patch_bot_logic --quiet/, "cargo test ruleaza pe crate-ul pur, fara build-ul N-API, in acelasi profil release");
+  assert.match(pkg, /cargo test --release --manifest-path native\/Cargo\.toml -p discord_patch_bot_logic -p native-inspector --quiet/, "cargo test acopera si crate-ul pur si procesul de inspectie sandboxat - altfel testul care verifica filtrul de syscall nu ar rula niciodata in CI");
   const ci = read(ciWorkflowPath);
   assert.match(ci, /run: npm run check:native/, "ci.yml ruleaza validarea Rust prin scriptul unic check:native, nu prin comenzi cargo duplicate in workflow");
   const release = read(releaseWorkflowPath);

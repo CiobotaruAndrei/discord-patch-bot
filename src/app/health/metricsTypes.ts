@@ -43,6 +43,10 @@ export interface BotMetrics {
   permissionDelegationsReverted?: number;
   moderationCleanupRuns?: number;
   yaraRulesLoaded?: number;
+  nativeInspectorKills?: number;
+  nativeInspectorRestarts?: number;
+  nativeInspectorTimeouts?: number;
+  nativeInspectorSandboxed?: number;
   yaraEngineAvailable?: number;
   channelLockRecoveryRuns?: number;
   channelLockRecoveryFailures?: number;

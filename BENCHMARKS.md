@@ -341,6 +341,48 @@ termina; un test construieste ciclul explicit.
 niciodata un fals „curat" — contractul verificat de teste este ca setul nativ le **contine** pe cele ale
 fallback-ului, niciodata invers.
 
+### native-inspector + libseccomp: sandbox de syscall (etapa 5 din PDF-ul de librarii)
+
+Etapele 1-4 au adaugat capabilitati **in procesul existent**: libmagic-like, libyara, libarchive si qpdf
+ruleaza toate in addon-ul N-API, adica in acelasi proces cu botul. Etapa 5 schimba altceva: parserele
+native complexe primesc fisiere controlate de utilizatori, iar izolarea reala cere un proces separat cu
+filtru de syscall-uri, nu doar bugete si timeout-uri.
+
+**Ce contine.** Un binar Rust nou (`native/inspector`), care citeste cereri prin stdin, ruleaza aceeasi
+`inspect_untrusted_content` din core si raspunde prin stdout. Dupa ce librariile sunt incarcate si
+descriptorii deschisi — si abia atunci — se activeaza filtrul seccomp, care devine **ireversibil**
+pentru proces.
+
+**Protocolul e binar, nu JSON.** Cadre cu lungime prefixata, semnatura `DPBI`/`DPBO`, plafoane pe fiecare
+camp text si pe continut. La o granita de securitate, suprafata de parsare conteaza: un parser JSON pe
+partea care primeste date de la un proces ce tocmai a mestecat un fisier ostil ar fi fost un pas inapoi.
+
+**Politica.** Allowlist minima (read, write, mmap/munmap, futex, ceas, exit si ce cere runtime-ul);
+tot restul omoara procesul. Interzise explicit si verificate prin teste: `execve`, `ptrace`, `mount`,
+`unshare`, `socket`/`connect`, `openat`, `bpf`, `init_module`. Un test verifica si ca allowlist-ul si
+denylist-ul nu se suprapun — o politica ambigua e mai rea decat una stricta.
+
+**Dovada ca filtrul chiar taie.** Un test de integratie, exclusiv pe Linux, reporneste binarul de test
+ca sonda: activeaza filtrul, apoi cheama `socket()`. Testul cere ca procesul sa moara cu **SIGSYS**, nu
+sa continue. Acelasi lucru pentru `fork()`. Si invers: un apel din allowlist (`clock_gettime`) trebuie sa
+treaca, altfel filtrul ar ucide procesul inainte sa apuce sa raspunda.
+
+**Ce NU pot verifica local.** Seccomp exista doar pe Linux. Pe Windows am putut testa protocolul,
+supervizorul, repornirea si degradarea; faptul ca un syscall interzis chiar omoara procesul se verifica
+**exclusiv in CI**. De aceea `check:native` a fost extins sa ruleze si testele crate-ului de inspectie:
+altfel testul care apara filtrul nu ar fi rulat niciodata nicaieri.
+
+**Supervizorul, si de ce ramane optional deocamdata.** Partea TypeScript porneste procesul, trimite
+cereri cu termen, si trateaza trei feluri de esec — proces ucis, termen depasit, raspuns necitibil —
+identic: **fara raport**, jobul ramane neconfirmat, procesul se reporneste, metricile cresc
+(`bot_native_inspector_kills_total`, `_restarts_total`, `_timeouts_total`, `bot_native_inspector_sandboxed`).
+
+Inspectia nu e rutata implicit prin acest proces. Motivul e cel de mai sus: nu am putut verifica local
+filtrul, iar calea aceasta ar deveni calea fiecarui atasament. Un IPC per fisier, pe o componenta al
+carei mecanism principal de aparare nu poate fi exersat pe masina de dezvoltare, nu se pune implicit pe
+drumul critic doar pe baza unei rulari verzi de CI. Comutarea implicitului cere masuratori pe staging
+(latenta per atasament, rata de repornire) si e un pas separat, nu o nota de subsol aici.
+
 ### Costul de CI al librariilor native (masurat, nu estimat)
 
 Fiecare librarie C/C++ legata static se compileaza din surse. Fara cache, costul se aduna la fiecare

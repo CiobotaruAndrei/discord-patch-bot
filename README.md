@@ -246,6 +246,12 @@ compilate din surse si legate static. libyara si qpdf nu cer niciun pachet de si
 nevoie doar de un compilator C++17, adus de `build-essential`); libarchive cere un lant de librarii de
 compresie prezente la build.
 
+Separat de addon, binarul `native/inspector` (etapa 5) foloseste **libseccomp** pentru filtrul de
+syscall-uri. Acesta e singurul care cere `libseccomp-dev` la build si `libseccomp2` la rulare, si numai
+pe Linux — pe Windows crate-ul nici nu se compileaza, iar procesul raporteaza explicit ca ruleaza fara
+filtru. Din acelasi motiv, testul care verifica efectiv ca un syscall interzis omoara procesul ruleaza
+exclusiv in CI; `check:native` include acum si crate-ul de inspectie, altfel acel test nu ar rula nicaieri.
+
 Pe **Linux** (CI si Docker) e suficient apt:
 
 ```bash
