@@ -12,6 +12,7 @@ export interface NewAccountAlertDeliveryModelLike {
 export interface NewAccountAlertClaim {
   token: string;
   markDelivered(): Promise<boolean>;
+  markSentUnconfirmed(): Promise<boolean>;
   release(): Promise<void>;
 }
 
@@ -32,7 +33,7 @@ export function createNewAccountAlertDelivery(
         {
           _id: `${guildId}:${userId}`,
           $or: [
-            { status: { $ne: "delivered" }, leaseUntil: { $lte: new Date(current) } },
+            { status: { $nin: ["delivered", "sent-unconfirmed"] }, leaseUntil: { $lte: new Date(current) } },
             { status: { $exists: false } }
           ]
         },
@@ -52,6 +53,13 @@ export function createNewAccountAlertDelivery(
         const result = await model.updateOne(
           { _id: `${guildId}:${userId}`, claimToken: token, status: "claimed" },
           { $set: { status: "delivered", deliveredAt: new Date(now()), expiresAt: new Date(now() + 90 * 86_400_000) }, $unset: { claimToken: "", leaseUntil: "" } }
+        );
+        return result.modifiedCount === 1;
+      },
+      async markSentUnconfirmed(): Promise<boolean> {
+        const result = await model.updateOne(
+          { _id: `${guildId}:${userId}`, claimToken: token, status: "claimed" },
+          { $set: { status: "sent-unconfirmed", deliveredAt: new Date(now()), expiresAt: new Date(now() + 90 * 86_400_000) }, $unset: { leaseUntil: "" } }
         );
         return result.modifiedCount === 1;
       },
