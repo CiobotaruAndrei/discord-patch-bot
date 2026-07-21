@@ -405,6 +405,47 @@ in `ci.yml` dupa `npm run check` (cand addonul nativ e deja construit). Guard-ul
   build-ul Rust ruleaza inainte de guard, deci un addon lipsa inseamna o problema de build, nu un skip
   acceptabil. Local (fara variabila) guard-ul ramane CI-safe si sare cand nativul lipseste.
 
+#### Cum isi alege guard-ul durata de masurare (si de ce nu prin taierea iteratiilor)
+
+Guard-ul rula `runAreaBenchmarks()`, care masoara **toate** ariile, si folosea apoi doar cinci dintre
+ele. Jumatate din munca se arunca, de trei ori la rand. Acum guard-ul cere explicit doar ariile pe care
+le noteaza; raportul complet `npm run benchmark` continua sa le acopere pe toate.
+
+A doua schimbare tine de metodologie. Numarul de iteratii era fixat in cod (200.000 pentru
+`levenshtein`, 100.000 pentru fiecare arie) si nu exista nicio faza de incalzire, deci costul de JIT
+intra direct in fereastra masurata: N-ul urias facea pe ascuns si treaba de warmup. Acum fiecare arie
+primeste o **calibrare**: se incalzeste, se cronometreaza o sonda scurta, si din ea se deduce cate
+iteratii incap intr-un buget de timp (`CPU_BENCH_BUDGET_MS`, implicit 250 ms; incalzire
+`CPU_BENCH_WARMUP_MS`, implicit 50 ms). `CPU_BENCH_ITER` ramane disponibil si, cand e setat, forteaza
+numarul fix de iteratii — util pentru reproducerea unei masuratori vechi.
+
+Detaliu care conteaza pentru corectitudinea raportului: numarul calibrat se deduce din partea **TS**
+si se aplica **identic** ambelor implementari. Altfel fiecare parte ar rula pana la acelasi buget si
+raportul `tsMs / nativeMs` ar iesi mereu ~1, adica exact metrica pe care o apara acest document.
+
+**Ce s-a schimbat in cifre.** Comparatie pe aceeasi masina, metodologia veche vs cea calibrata:
+
+| arie | iteratii fixe | calibrat | diferenta |
+| --- | --- | --- | --- |
+| levenshtein | 1.83x | 1.85x | in zgomot |
+| dealHash | 1.42x | 1.40x | in zgomot |
+| stableUpdateId | 2.01x | 2.04x | in zgomot |
+| rankListingCandidates | 1.39x | 1.37x | in zgomot |
+| extractAndRankListingCandidates | 2.23x | 2.27x | in zgomot |
+| chooseBestSteamMatch | 2.07x | ~2.37x | **real, reproductibil** |
+
+Sase din sapte coincid in ~2%. `chooseBestSteamMatch` raporteaza consecvent mai mult (2.33–2.45 pe
+rulari repetate). **Cauza nu a fost izolata**: nu e incalzirea (fara ea valoarea ramane ~2.36) si nu e
+fereastra prea scurta (la buget de 250 ms, 1 s si 2,5 s valorile sunt 2.45 / 2.35 / 2.38, adica plate).
+E consemnata aici ca observatie deschisa, nu explicata. Ambele valori sunt insa mult peste pragul de
+avertizare al ariei (`1.3x`) si cu un ordin de marime peste pragul de esec (`0.85x`), deci nicio
+decizie a gate-ului nu se schimba; efectul practic e ca o eroziune reala a acestei arii ar trebui sa
+fie ceva mai mare inainte sa treaca pragul.
+
+**Ce NU s-a facut:** nu s-au taiat iteratii ca sa iasa timpul. Aia ar fi fost slabirea gate-ului
+deghizata in optimizare. Calibrarea pastreaza aceeasi bucla stransa, fara ceas in interior; se schimba
+doar felul in care se alege lungimea ei, plus incalzirea care scoate JIT-ul din fereastra masurata.
+
 Pragurile sunt deliberat tolerante la zgomotul masinilor de CI (best-of-N + prag de esec sub `1.0x`),
 deci nu pica la variatii mici, doar la o regresie clara (Rust devine efectiv mai lent decat TS).
 Logica de evaluare (`evaluateBenchmarkGuard`) este acoperita de teste deterministe in

@@ -75,6 +75,42 @@ function timeLoop(fn: () => void, iterations: number, callsPerIteration: number)
   return { totalMs, callsPerSecond: totalCalls / (totalMs / 1000) };
 }
 
+const CALIBRATION_PROBE_ITERATIONS = 64;
+const CALIBRATION_MIN_ITERATIONS = 1_000;
+const CALIBRATION_MAX_ITERATIONS = 5_000_000;
+
+function warmUp(fn: () => void, warmupMs: number): void {
+  if (warmupMs <= 0) return;
+  const deadline = process.hrtime.bigint() + BigInt(Math.round(warmupMs * 1e6));
+  do {
+    for (let i = 0; i < CALIBRATION_PROBE_ITERATIONS; i++) fn();
+  } while (process.hrtime.bigint() < deadline);
+}
+
+export function calibrateIterations(fn: () => void, budgetMs: number, warmupMs: number): number {
+  warmUp(fn, warmupMs);
+  let probe = CALIBRATION_PROBE_ITERATIONS;
+  let elapsedMs = 0;
+  while (probe <= CALIBRATION_MAX_ITERATIONS) {
+    const start = process.hrtime.bigint();
+    for (let i = 0; i < probe; i++) fn();
+    elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
+    if (elapsedMs >= 1) break;
+    probe *= 8;
+  }
+  if (elapsedMs <= 0) return CALIBRATION_MAX_ITERATIONS;
+  const scaled = Math.round((probe * budgetMs) / elapsedMs);
+  return Math.min(CALIBRATION_MAX_ITERATIONS, Math.max(CALIBRATION_MIN_ITERATIONS, scaled));
+}
+
+function benchmarkBudgetMs(): number {
+  return strictEnvInt("CPU_BENCH_BUDGET_MS", 250);
+}
+
+function benchmarkWarmupMs(): number {
+  return strictEnvInt("CPU_BENCH_WARMUP_MS", 50);
+}
+
 export function levenshteinParityMismatches(): Array<{ pair: [string, string]; native: number; ts: number }> {
   const native = getNativeFuzzy();
   if (!native) return [];
@@ -87,17 +123,20 @@ export function levenshteinParityMismatches(): Array<{ pair: [string, string]; n
   return mismatches;
 }
 
-export function runCpuBenchmark(iterations = strictEnvInt("CPU_BENCH_ITER", 200_000)): CpuBenchmarkResult {
+export function runCpuBenchmark(iterations = strictEnvInt("CPU_BENCH_ITER", 0)): CpuBenchmarkResult {
   const native = getNativeFuzzy();
-  const tsTimed = timeLoop(() => {
+  const tsFn = () => {
     for (const pair of SAMPLE_PAIRS) levenshteinFallback(pair[0], pair[1]);
-  }, iterations, SAMPLE_PAIRS.length);
+  };
+  const resolved = iterations > 0 ? iterations : calibrateIterations(tsFn, benchmarkBudgetMs(), benchmarkWarmupMs());
+  if (native) warmUp(() => { for (const pair of SAMPLE_PAIRS) native.levenshtein(pair[0], pair[1]); }, benchmarkWarmupMs());
+  const tsTimed = timeLoop(tsFn, resolved, SAMPLE_PAIRS.length);
   const nativeTimed = native
-    ? timeLoop(() => { for (const pair of SAMPLE_PAIRS) native.levenshtein(pair[0], pair[1]); }, iterations, SAMPLE_PAIRS.length)
+    ? timeLoop(() => { for (const pair of SAMPLE_PAIRS) native.levenshtein(pair[0], pair[1]); }, resolved, SAMPLE_PAIRS.length)
     : null;
   const speedup = nativeTimed ? tsTimed.totalMs / nativeTimed.totalMs : null;
   return {
-    iterations,
+    iterations: resolved,
     callsPerIteration: SAMPLE_PAIRS.length,
     rustAvailable: isRustFuzzyAvailable(),
     ts: tsTimed,
@@ -482,14 +521,22 @@ function buildAreaSpecs(native: NativeFns | null): AreaSpec[] {
   return specs;
 }
 
-export function runAreaBenchmarks(iterations = strictEnvInt("CPU_BENCH_ITER", 100_000)): AreaBenchmarkResult[] {
+export function runAreaBenchmarks(
+  iterations = strictEnvInt("CPU_BENCH_ITER", 0),
+  keys?: readonly BenchmarkAreaKey[]
+): AreaBenchmarkResult[] {
   const native = getNativeFuzzy() as NativeFns | null;
   const rustAvailable = isRustFuzzyAvailable();
-  return buildAreaSpecs(native).map(spec => {
-    const ts = timeLoop(spec.ts, iterations, spec.callsPerIteration);
+  const budgetMs = benchmarkBudgetMs();
+  const warmupMs = benchmarkWarmupMs();
+  const specs = buildAreaSpecs(native).filter(spec => keys === undefined || keys.includes(spec.key));
+  return specs.map(spec => {
+    const resolved = iterations > 0 ? iterations : calibrateIterations(spec.ts, budgetMs, warmupMs);
     const nativeFn = spec.native;
+    if (native && nativeFn) warmUp(() => nativeFn(native), warmupMs);
+    const ts = timeLoop(spec.ts, resolved, spec.callsPerIteration);
     const nativeTimed = native && nativeFn
-      ? timeLoop(() => nativeFn(native), iterations, spec.callsPerIteration)
+      ? timeLoop(() => nativeFn(native), resolved, spec.callsPerIteration)
       : null;
     return {
       key: spec.key,
