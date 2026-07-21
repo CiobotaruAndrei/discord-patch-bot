@@ -8,6 +8,8 @@
 
 - **PDF-urile complexe sunt analizate structural cu qpdf (etapa 4 din programul de librarii native).** Parserul rapid din Rust ramane calea implicita; qpdf este escaladat doar cand structura o cere — criptare, object streams, xref streams, filtre diferite de Flate sau actualizari incrementale. Graful de obiecte este parcurs bounded din trailer si catalog, iar fluxurile decodate intra prin aceleasi verificari ca orice payload intern, ceea ce descopera actiuni ascunse in filtre pe care calea rapida nu le decodeaza. Totul read-only: fara randare, fara JavaScript, fara reparare a fisierului; la esec se cade inapoi pe parserul rapid.
 
+- **Inspectia continutului netrusted poate rula izolat, cu filtru de syscall (etapa 5 din programul de librarii native).** Un proces separat `native-inspector` ruleaza aceleasi parsere native si isi activeaza un filtru seccomp ireversibil dupa incarcarea librariilor: doar read/write/mmap/futex/ceas/exit sunt permise, iar execve, ptrace, mount, unshare, socket si openat omoara procesul. Un test pe Linux verifica efectiv ca un syscall interzis produce SIGSYS. Supervizorul trateaza procesul ucis, termenul depasit si raspunsul necitibil la fel: jobul ramane neconfirmat, procesul reporneste si metricile cresc. Rutarea implicita prin acest proces ramane un pas separat, dupa masuratori pe staging.
+
 Toate schimbarile importante ale proiectului sunt documentate aici.
 
 Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), iar versiunile folosesc [Semantic Versioning](https://semver.org/).
