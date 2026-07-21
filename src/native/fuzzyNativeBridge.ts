@@ -54,8 +54,20 @@ export interface NativeFuzzyModule {
   choose_best_steam_match?(items: Array<{ name: string; itemType: string }>, query: string, forceGameOnly: boolean): number | null;
   dedupeAndRankDeals?(candidates: Array<{ title: string; popularityScore: number; fallbackId: string }>, maxDeals: number): number[];
   dedupe_and_rank_deals?(candidates: Array<{ title: string; popularityScore: number; fallbackId: string }>, maxDeals: number): number[];
+  inspectMagic?(bytes: Buffer, filename: string, declaredMime: string): NativeMagicReport;
+  inspect_magic?(bytes: Buffer, filename: string, declaredMime: string): NativeMagicReport;
   inspectUntrustedContent?(input: NativeInspectionInput): Promise<NativeInspectionReport>;
   inspect_untrusted_content?(input: NativeInspectionInput): Promise<NativeInspectionReport>;
+}
+
+export interface NativeMagicReport {
+  mime: string;
+  description: string;
+  encoding: string;
+  kind: string;
+  extensionMime: string;
+  declaredMime: string;
+  mismatchFlags: number;
 }
 
 export interface NativeInspectionInput {

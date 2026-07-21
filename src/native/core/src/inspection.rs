@@ -97,6 +97,10 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
   find(haystack, needle).is_some()
 }
 
+pub(crate) fn window_contains(haystack: &[u8], needle: &[u8]) -> bool {
+  contains(haystack, needle)
+}
+
 fn is_word_byte(byte: u8) -> bool {
   byte.is_ascii_alphanumeric() || byte == b'_'
 }

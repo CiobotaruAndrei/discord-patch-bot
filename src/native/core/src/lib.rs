@@ -3,6 +3,7 @@ mod deals;
 mod fuzzy;
 mod hashing;
 mod inspection;
+mod magic;
 mod listing_rank;
 mod steam;
 mod text;
@@ -17,6 +18,7 @@ pub use listing_rank::{
   extract_and_rank_listing_candidates, rank_listing_candidates, score_listing_candidate,
   ListingAnchorData, RankedListingCandidate,
 };
+pub use magic::{inspect_magic, MagicReport};
 pub use inspection::{
   document_indicators, has_obfuscated_pdf_action_name, inspect_compound_file_binary,
   inspect_untrusted_content, InspectionLimits, InspectionReport,

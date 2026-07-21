@@ -2,6 +2,7 @@
 
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import { documentIndicators, inspectUntrustedContent } from "./passiveArchiveInspection.js";
+import { describeMismatches, inspectMagic, MISMATCH_DISGUISED_EXECUTABLE, type DetectedKind } from "./contentTypeDetection.js";
 
 export type ThreatVerdict = "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed";
 
@@ -131,54 +132,56 @@ function toBuffer(value: unknown): Buffer | null {
   return null;
 }
 
-function magicKind(buffer: Buffer): "executable" | "archive" | "document" | "script" | "other" {
-  if (buffer.length >= 2 && buffer[0] === 0x4d && buffer[1] === 0x5a) return "executable";
-  if (buffer.length >= 4 && buffer[0] === 0x7f && buffer.subarray(1, 4).toString("ascii") === "ELF") return "executable";
-  const firstFour = buffer.length >= 4 ? buffer.readUInt32BE(0) : 0;
-  if ([0xfeedface, 0xfeedfacf, 0xcafebabe, 0xcefaedfe, 0xcffaedfe].includes(firstFour)) return "executable";
-  if (buffer.length >= 2 && buffer[0] === 0x23 && buffer[1] === 0x21) return "script";
-  if (buffer.length >= 4 && buffer.subarray(0, 4).toString("binary") === "PK\u0003\u0004") return "archive";
-  if (
-    buffer.length >= 6
-    && buffer[0] === 0x37
-    && buffer[1] === 0x7a
-    && buffer[2] === 0xbc
-    && buffer[3] === 0xaf
-    && buffer[4] === 0x27
-    && buffer[5] === 0x1c
-  ) return "archive";
-  if (buffer.length >= 4 && buffer.subarray(0, 4).toString("ascii") === "%PDF") return "document";
-  if (buffer.length >= 8 && buffer.readUInt32BE(0) === 0xd0cf11e0 && buffer.readUInt32BE(4) === 0xa1b11ae1) return "document";
+type ResourceKind = "executable" | "archive" | "document" | "script" | "other";
+
+function toResourceKind(kind: DetectedKind): ResourceKind {
+  if (kind === "executable" || kind === "archive" || kind === "document" || kind === "script") return kind;
   return "other";
 }
-
-type ResourceKind = "executable" | "archive" | "document" | "script" | "other";
 
 export const passiveDocumentIndicators = documentIndicators;
 
 async function classifyResource(mime: string, buffer: Buffer | null, filename = ""): Promise<ThreatInspectionResult & { kind: ResourceKind }> {
-  const magic = buffer ? magicKind(buffer) : "other";
+  const detection = buffer ? inspectMagic(buffer, filename, mime) : null;
+  const magic: ResourceKind = detection ? toResourceKind(detection.kind) : "other";
+  const mismatchNotes = detection ? describeMismatches(detection) : [];
+  const mismatchDetail = mismatchNotes.length > 0 ? `; ${mismatchNotes.join("; ")}` : "";
   if (magic === "executable" || magic === "script") {
-    return { verdict: "risky-file", reason: "tip de fisier executabil sau script confirmat prin continut (tipul e confirmat, nu si intentia malware)", source: "attachment", kind: magic };
+    const disguised = detection && (detection.mismatchFlags & MISMATCH_DISGUISED_EXECUTABLE) !== 0;
+    return {
+      verdict: "risky-file",
+      reason: `tip de fisier executabil sau script confirmat prin continut (${detection?.description ?? magic}); tipul e confirmat, nu si intentia malware${disguised ? "; fisierul era prezentat sub alt tip" : ""}${mismatchDetail}`,
+      source: "attachment",
+      kind: magic
+    };
+  }
+  if (detection && mismatchNotes.length > 0 && magic === "other") {
+    return {
+      verdict: "uncertain",
+      reason: `tipul real al continutului nu corespunde cu ce a fost declarat${mismatchDetail} - necesita confirmare externa inainte de orice actiune`,
+      source: "attachment",
+      kind: magic
+    };
   }
   if (EXECUTABLE_MIME.has(mime)) {
     return { verdict: "uncertain", reason: "MIME executabil declarat fara confirmare suficienta prin continut", source: "attachment", kind: "executable" };
   }
   if (ARCHIVE_MIME.has(mime) || DOCUMENT_MIME.has(mime) || magic === "document" || magic === "archive") {
     const kind: ResourceKind = magic === "other" ? (ARCHIVE_MIME.has(mime) ? "archive" : "document") : magic;
+    const detectedMime = detection ? detection.mime : mime;
     if (buffer && kind === "archive") {
-      const archive = await inspectUntrustedContent(buffer, filename, mime, "archive");
+      const archive = await inspectUntrustedContent(buffer, filename, detectedMime, "archive");
       const details = archive.indicators.length > 0 ? `; ${archive.indicators.join(" si ")}` : "";
       return {
         verdict: archive.indicators.some(indicator => /executabil|script/i.test(indicator)) ? "risky-file" : "uncertain",
-        reason: `${archive.reason}${details}; confirmarea externa ramane obligatorie inainte de orice actiune`,
+        reason: `${archive.reason}${details}${mismatchDetail}; confirmarea externa ramane obligatorie inainte de orice actiune`,
         source: "attachment",
         kind
       };
     }
-    const indicators = buffer ? (await inspectUntrustedContent(buffer, filename, mime, "document")).indicators : [];
+    const indicators = buffer ? (await inspectUntrustedContent(buffer, filename, detectedMime, "document")).indicators : [];
     if (indicators.length > 0) {
-      return { verdict: "uncertain", reason: `document/arhiva cu ${indicators.join(" si ")} - necesita confirmare de motor antivirus extern inainte de orice actiune`, source: "attachment", kind };
+      return { verdict: "uncertain", reason: `document/arhiva cu ${indicators.join(" si ")}${mismatchDetail} - necesita confirmare de motor antivirus extern inainte de orice actiune`, source: "attachment", kind };
     }
     return { verdict: "uncertain", reason: "document sau arhiva care necesita analiza antivirus externa", source: "attachment", kind };
   }
