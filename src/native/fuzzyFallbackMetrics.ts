@@ -11,7 +11,8 @@ export const NATIVE_FALLBACK_FUNCTIONS = [
   "isGoodSteamArticleUrl",
   "extractDateScore",
   "inspectUntrustedContent",
-  "inspectMagic"
+  "inspectMagic",
+  "scanYara"
 ];
 
 export function recordNativeFallback(fnName: string, err: unknown): void {

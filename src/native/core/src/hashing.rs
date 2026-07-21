@@ -38,7 +38,7 @@ pub fn deal_hash(
   sha256_hex(&stable_key)
 }
 
-fn sha256_hex(value: &str) -> String {
+pub(crate) fn sha256_hex(value: &str) -> String {
   let mut hasher = Sha256::new();
   hasher.update(value.as_bytes());
   hex_encode(&hasher.finalize())

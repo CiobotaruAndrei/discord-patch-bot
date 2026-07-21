@@ -56,6 +56,9 @@ export interface NativeFuzzyModule {
   dedupe_and_rank_deals?(candidates: Array<{ title: string; popularityScore: number; fallbackId: string }>, maxDeals: number): number[];
   inspectMagic?(bytes: Buffer, filename: string, declaredMime: string): NativeMagicReport;
   inspect_magic?(bytes: Buffer, filename: string, declaredMime: string): NativeMagicReport;
+  scanYara?(bytes: Buffer, timeoutMs: number, maxMatches: number): Promise<NativeYaraScanReport>;
+  loadYaraRules?(source: string): NativeYaraRulesetInfo;
+  yaraRulesetInfo?(): NativeYaraRulesetInfo;
   inspectUntrustedContent?(input: NativeInspectionInput): Promise<NativeInspectionReport>;
   inspect_untrusted_content?(input: NativeInspectionInput): Promise<NativeInspectionReport>;
 }
@@ -68,6 +71,29 @@ export interface NativeMagicReport {
   extensionMime: string;
   declaredMime: string;
   mismatchFlags: number;
+}
+
+export interface NativeYaraMatch {
+  rule: string;
+  namespace: string;
+  tags: string[];
+  severity: string;
+  description: string;
+}
+
+export interface NativeYaraScanReport {
+  status: string;
+  reason: string;
+  rulesetId: string;
+  matches: NativeYaraMatch[];
+  truncated: boolean;
+}
+
+export interface NativeYaraRulesetInfo {
+  rulesetId: string;
+  ruleCount: number;
+  loaded: boolean;
+  available: boolean;
 }
 
 export interface NativeInspectionInput {

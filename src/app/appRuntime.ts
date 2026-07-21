@@ -62,6 +62,7 @@ import { createChannelLockRecoveryTask } from "./scheduler/channelLockRecoveryTa
 import { createChannelLockRecoveryRuntime } from "../features/command-security/channelLockRecoveryRuntime.js";
 import { setLockedChannelPermissionState } from "../features/guild-config/guildConfigRepository.js";
 import { roleRunsSchedulers } from "../shared/botRole.js";
+import { loadYaraRuleset } from "../features/command-security/yaraRuleset.js";
 import { createNewAccountAlertDelivery, reconcileStuckNewAccountSends } from "../features/command-security/newAccountAlertDedup.js";
 
 function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, schedulers: Schedulers | null): AppRuntime {
@@ -70,6 +71,9 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
 
   const { client, metrics, lifecycle, rateLimiter } = services;
   const reputationScan = createReputationEngine({ env, httpReq: deps.scrapers.httpReq, logger }) ?? undefined;
+  const yaraRuleset = loadYaraRuleset(env.YARA_RULES_PATH, logger);
+  metrics.yaraRulesLoaded = yaraRuleset.loaded ? yaraRuleset.ruleCount : 0;
+  metrics.yaraEngineAvailable = yaraRuleset.available ? 1 : 0;
   const newAccountDelivery = mongo.NewAccountAlertDeliveryModel
     ? createNewAccountAlertDelivery(mongo.NewAccountAlertDeliveryModel, () => crypto.randomBytes(16).toString("hex"))
     : null;

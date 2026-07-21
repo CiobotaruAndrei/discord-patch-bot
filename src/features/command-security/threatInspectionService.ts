@@ -3,6 +3,7 @@
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import { documentIndicators, inspectUntrustedContent } from "./passiveArchiveInspection.js";
 import { describeMismatches, inspectMagic, MISMATCH_DISGUISED_EXECUTABLE, type DetectedKind } from "./contentTypeDetection.js";
+import { scanWithYara, yaraIndicators } from "./yaraRuleset.js";
 
 export type ThreatVerdict = "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed";
 
@@ -148,9 +149,11 @@ async function classifyResource(mime: string, buffer: Buffer | null, filename = 
   const mismatchDetail = mismatchNotes.length > 0 ? `; ${mismatchNotes.join("; ")}` : "";
   if (magic === "executable" || magic === "script") {
     const disguised = detection && (detection.mismatchFlags & MISMATCH_DISGUISED_EXECUTABLE) !== 0;
+    const yaraOnExecutable = buffer ? yaraIndicators(await scanWithYara(buffer)) : [];
+    const executableDetail = yaraOnExecutable.length > 0 ? `; ${yaraOnExecutable.join("; ")}` : "";
     return {
       verdict: "risky-file",
-      reason: `tip de fisier executabil sau script confirmat prin continut (${detection?.description ?? magic}); tipul e confirmat, nu si intentia malware${disguised ? "; fisierul era prezentat sub alt tip" : ""}${mismatchDetail}`,
+      reason: `tip de fisier executabil sau script confirmat prin continut (${detection?.description ?? magic}); tipul e confirmat, nu si intentia malware${disguised ? "; fisierul era prezentat sub alt tip" : ""}${mismatchDetail}${executableDetail}`,
       source: "attachment",
       kind: magic
     };
@@ -166,6 +169,17 @@ async function classifyResource(mime: string, buffer: Buffer | null, filename = 
   if (EXECUTABLE_MIME.has(mime)) {
     return { verdict: "uncertain", reason: "MIME executabil declarat fara confirmare suficienta prin continut", source: "attachment", kind: "executable" };
   }
+  const yaraReport = buffer ? await scanWithYara(buffer) : null;
+  const yaraNotes = yaraReport ? yaraIndicators(yaraReport) : [];
+  const yaraDetail = yaraNotes.length > 0 ? `; ${yaraNotes.join("; ")}` : "";
+  if (yaraNotes.length > 0 && magic !== "archive" && magic !== "document" && !ARCHIVE_MIME.has(mime) && !DOCUMENT_MIME.has(mime)) {
+    return {
+      verdict: "uncertain",
+      reason: `potriviri de reguli YARA pe continutul descarcat${yaraDetail} - regulile locale semnaleaza, dar confirmarea externa ramane obligatorie inainte de orice actiune`,
+      source: "attachment",
+      kind: magic
+    };
+  }
   if (ARCHIVE_MIME.has(mime) || DOCUMENT_MIME.has(mime) || magic === "document" || magic === "archive") {
     const kind: ResourceKind = magic === "other" ? (ARCHIVE_MIME.has(mime) ? "archive" : "document") : magic;
     const detectedMime = detection ? detection.mime : mime;
@@ -174,16 +188,16 @@ async function classifyResource(mime: string, buffer: Buffer | null, filename = 
       const details = archive.indicators.length > 0 ? `; ${archive.indicators.join(" si ")}` : "";
       return {
         verdict: archive.indicators.some(indicator => /executabil|script/i.test(indicator)) ? "risky-file" : "uncertain",
-        reason: `${archive.reason}${details}${mismatchDetail}; confirmarea externa ramane obligatorie inainte de orice actiune`,
+        reason: `${archive.reason}${details}${mismatchDetail}${yaraDetail}; confirmarea externa ramane obligatorie inainte de orice actiune`,
         source: "attachment",
         kind
       };
     }
     const indicators = buffer ? (await inspectUntrustedContent(buffer, filename, detectedMime, "document")).indicators : [];
     if (indicators.length > 0) {
-      return { verdict: "uncertain", reason: `document/arhiva cu ${indicators.join(" si ")}${mismatchDetail} - necesita confirmare de motor antivirus extern inainte de orice actiune`, source: "attachment", kind };
+      return { verdict: "uncertain", reason: `document/arhiva cu ${indicators.join(" si ")}${mismatchDetail}${yaraDetail} - necesita confirmare de motor antivirus extern inainte de orice actiune`, source: "attachment", kind };
     }
-    return { verdict: "uncertain", reason: "document sau arhiva care necesita analiza antivirus externa", source: "attachment", kind };
+    return { verdict: "uncertain", reason: `document sau arhiva care necesita analiza antivirus externa${yaraDetail}; confirmarea externa ramane obligatorie inainte de orice actiune`, source: "attachment", kind };
   }
   return { verdict: "safe", reason: "nu au fost identificate semnaturi periculoase", source: "attachment", kind: magic };
 }

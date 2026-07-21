@@ -3,6 +3,11 @@ name = "discord_patch_bot_logic"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["yara"]
+yara = ["dep:yara"]
+
 [dependencies]
 sha2 = "0.11"
+yara = { version = "0.32", optional = true, default-features = false, features = ["vendored", "bundled-4_5_5"] }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
