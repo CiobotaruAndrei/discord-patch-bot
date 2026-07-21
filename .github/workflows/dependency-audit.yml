@@ -40,6 +40,15 @@ jobs:
         with:
           toolchain: "1.96.0"
 
+      # cargo-audit se compileaza din surse la fiecare rulare (~3 minute) desi versiunea e fixata.
+      # Cache-ul pastreaza binarul instalat; nu atinge artefactele proiectului.
+      - name: Cache cargo-audit
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: src/native
+          cache-targets: "false"
+          key: cargo-audit-0.22.2
+
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked --version 0.22.2
 
