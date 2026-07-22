@@ -67,6 +67,33 @@ test("verdict/clean/unknown si HTTP 4xx/eroare degradeaza la unknown, nu la malw
   assert.equal(await engineThrows!(SCAN_INPUT), "unknown", "un motor cazut => unknown, nu malware");
 });
 
+test("esecurile motorului sunt raportate prin onFailure cu motivul precis (monitorizare, PDF regen #4)", async () => {
+  const reasons: string[] = [];
+  const engine4xx = createReputationEngine({
+    env: { THREAT_REPUTATION_URL: "https://rep.example/scan" },
+    httpReq: async () => ({ data: { verdict: "malware", contentSha256: SCAN_SHA256 }, status: 500 }),
+    onFailure: reason => { reasons.push(reason); }
+  });
+  await engine4xx!(SCAN_INPUT);
+  assert.deepEqual(reasons, ["http-status"], "un raspuns >= 400 se raporteaza ca http-status");
+
+  const engineThrows = createReputationEngine({
+    env: { THREAT_REPUTATION_URL: "https://rep.example/scan" },
+    httpReq: async () => { throw new Error("down"); },
+    onFailure: reason => { reasons.push(reason); }
+  });
+  await engineThrows!(SCAN_INPUT);
+  assert.deepEqual(reasons, ["http-status", "transport"], "o exceptie de retea se raporteaza ca transport");
+
+  const engineOk = createReputationEngine({
+    env: { THREAT_REPUTATION_URL: "https://rep.example/scan" },
+    httpReq: async () => ({ data: { verdict: "clean", contentSha256: SCAN_SHA256 }, status: 200 }),
+    onFailure: reason => { reasons.push(reason); }
+  });
+  await engineOk!(SCAN_INPUT);
+  assert.deepEqual(reasons, ["http-status", "transport"], "un raspuns reusit nu raporteaza esec, chiar daca verdictul e doar clean");
+});
+
 test("verdictul extern fara bytes locali sau cu hash diferit nu poate confirma continutul (audit conformitate, #24)", async () => {
   const mismatch = createReputationEngine({
     env: { THREAT_REPUTATION_URL: "https://rep.example/scan" },

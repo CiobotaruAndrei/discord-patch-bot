@@ -57,3 +57,17 @@ test("monitoring: exista alertele cheie cerute (queue depth, mark-sent, recovery
     assert.ok(text.includes(`alert: ${alertName}`), `lipseste alerta ${alertName}`);
   }
 });
+
+test("monitoring: crash-urile, timeout-urile, fallback-urile si motorul antivirus au alerte (PDF regen #4)", () => {
+  const text = fs.readFileSync(alertsPath, "utf8");
+  for (const alertName of ["NativeFallbackActive", "NativeInspectorTimeouts", "NativeInspectorRestartsHigh", "ThreatEngineFailures", "ThreatEngineSilent"]) {
+    assert.ok(text.includes(`alert: ${alertName}`), `lipseste alerta ${alertName}`);
+  }
+});
+
+test("monitoring: versiunile motorului antivirus sunt expuse cu label-uri la /metrics", () => {
+  const registry = fs.readFileSync(metricsRegistryPath, "utf8");
+  assert.match(registry, /bot_threat_engine_info/, "info-metrica de versiuni exista");
+  assert.match(registry, /engine_version/, "labelul engine_version exista");
+  assert.match(registry, /database_version/, "labelul database_version exista");
+});

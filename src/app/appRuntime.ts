@@ -53,6 +53,7 @@ import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from 
 import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSettingsInvalidationChannel.js";
 import { createSecurityRuntime } from "../features/command-security/securityRuntime.js";
 import { createReputationEngine } from "../features/command-security/reputationEngine.js";
+import { createThreatEngineMonitor } from "../features/command-security/threatEngineMonitor.js";
 import { createPermissionDelegationRuntime } from "../features/command-security/permissionDelegationRuntime.js";
 import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
 import { createServerEventLogRuntime } from "../features/command-security/serverEventLogRuntime.js";
@@ -70,7 +71,14 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   const { logger, env, getGuildCacheSize, activeLocks, releaseDbLock, requestContext, adminAlert } = mongo;
 
   const { client, metrics, lifecycle, rateLimiter } = services;
-  const reputationScan = createReputationEngine({ env, httpReq: deps.scrapers.httpReq, logger }) ?? undefined;
+  const threatEngineMonitor = createThreatEngineMonitor({ metrics, logger });
+  const reputationScan = createReputationEngine({
+    env,
+    httpReq: deps.scrapers.httpReq,
+    logger,
+    onDetails: threatEngineMonitor.onDetails,
+    onFailure: threatEngineMonitor.onFailure
+  }) ?? undefined;
   const yaraRuleset = loadYaraRuleset(env.YARA_RULES_PATH, logger);
   metrics.yaraRulesLoaded = yaraRuleset.loaded ? yaraRuleset.ruleCount : 0;
   metrics.yaraEngineAvailable = yaraRuleset.available ? 1 : 0;

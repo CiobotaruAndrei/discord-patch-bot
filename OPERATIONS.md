@@ -135,6 +135,43 @@ de Rust. Alerta `NativeFallbackActive` se declanseaza cand metrica creste.
    dar `dealHash` / `stableUpdateId` au cai separate care nu cad pe acest fallback — daca acolo
    apar erori, vezi sectiunea despre addon-ul nativ din `README` / fail-fast la boot.
 
+## Inspectorul nativ izolat (crash-uri si timeout-uri)
+
+Procesul `native-inspector` ruleaza parserele native in spatele unui filtru seccomp. Trei serii il
+urmaresc, toate fail-safe (un esec lasa verdictul neconfirmat, nu confirma nimic):
+
+- `bot_native_inspector_timeouts_total` — inspectia a depasit termenul supervizorului; alerta
+  `NativeInspectorTimeouts`. Cauza tipica: arhiva/PDF patologic sau proces blocat. Continutul
+  respectiv ramane la verdictul euristic.
+- `bot_native_inspector_kills_total` — procesul a fost terminat in mijlocul unui job (crash,
+  seccomp kill la un syscall interzis, sau terminare fortata dupa timeout).
+- `bot_native_inspector_restarts_total` — repornirile supervizorului; alerta
+  `NativeInspectorRestartsHigh` la peste 3 in 30m indica un crash-loop. Peste plafonul de
+  restarturi, supervizorul se opreste si verdictele raman neconfirmate pana la interventie.
+
+Diagnostic: log-urile `[NATIVE_INSPECTOR]` contin motivul fiecarui restart. Un kill de seccomp
+repetat pe acelasi tip de continut sugereaza ca un parser incearca un syscall nou (ex. dupa un
+upgrade de librarie C) — reprodu local cu fisierul respectiv si compara cu lista de syscall-uri
+permise din `native/inspector/src/sandbox.rs`. `bot_native_inspector_sandboxed` spune daca filtrul
+chiar e activ (1) sau procesul ruleaza fara sandbox (0, ex. pe Windows in dezvoltare).
+
+## Motorul de reputatie/antivirus (esecuri si versiuni)
+
+- `bot_threat_engine_scans_total` — raspunsuri reusite (indiferent de verdict).
+- `bot_threat_engine_failures_total{reason}` — apeluri fara verdict utilizabil; alerta
+  `ThreatEngineFailures`. `reason="transport"` = retea/timeout/exceptie; `reason="http-status"` =
+  raspuns >= 400 (token gresit, motor supraincarcat). In ambele cazuri verdictul ramane `unknown`
+  si protectia e doar euristica — nu se sterge nimic pe baza euristicilor singure.
+- `bot_threat_engine_info{engine_version,database_version}` — ultimele versiuni observate ale
+  motorului si bazei de semnaturi, exact cele legate in audit de hash-ul continutului scanat. O
+  `database_version` care nu se mai schimba saptamani intregi inseamna ca motorul scaneaza cu
+  semnaturi vechi — semnaleaza operatorului motorului.
+- `bot_threat_engine_version_changes_total` — cate schimbari de versiune au fost observate dupa
+  prima; fiecare schimbare e logata `INFO THREAT_REPUTATION` cu valorile vechi si noi.
+- `bot_threat_engine_last_scan_age_seconds` + alerta `ThreatEngineSilent` (info, >24h fara nicio
+  scanare reusita desi motorul e configurat si a raspuns candva): pe servere linistite e normal;
+  altfel coreleaza cu seria de failures.
+
 ## Canary surse (verificare live programata)
 
 `npm run canary:sources` (script `scripts/canarySources.ts`) face un fetch **live** pe sursele
