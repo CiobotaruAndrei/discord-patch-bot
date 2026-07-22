@@ -1,0 +1,97 @@
+name: Windows native build
+
+# Build-ul nativ pe Windows NU e gate de PR: compilarea libyara + libarchive + qpdf pe un runner
+# Windows costa minute intrinsec, iar feedback-ul rapid pe PR conteaza mai mult. Trei defecte din
+# programul de librarii au fost insa vizibile pe o singura platforma (ssize_t isize vs i64,
+# deprecarea libseccomp, fisierele compiler_depend.ts generate doar de generatorul Makefile), deci
+# verificarea ramane necesara — doar ca dupa merge si noaptea, nu inaintea fiecarui merge.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/native/**"
+      - "src/package.json"
+      - ".github/workflows/windows-native.yml"
+
+concurrency:
+  group: windows-native-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  windows-native:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # master 2026-06
+        with:
+          toolchain: "1.96.0"
+          components: clippy
+
+      # Fara acest cache, vcpkg recompileaza bibliotecile de compresie din surse la fiecare
+      # rulare. Cheia include lista exacta de pachete, deci o schimbare a listei invalideaza corect.
+      - name: Cache vcpkg packages
+        id: vcpkg-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.VCPKG_INSTALLATION_ROOT }}/installed
+          key: vcpkg-x64-windows-zlib-bzip2-liblzma-zstd-lz4-v1
+
+      # OpenSSL NU e in lista: libarchive il foloseste doar pentru digest-uri optionale, iar
+      # compilarea lui din surse pe Windows dubla singura durata jobului.
+      - name: Install native library dependencies (vcpkg)
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: vcpkg install zlib bzip2 liblzma zstd lz4 --triplet x64-windows
+
+      # libarchive2-sys linkeaza neconditionat bibliotecile de compresie pe Windows si cere
+      # zlib.lib, in timp ce vcpkg instaleaza acelasi fisier ca z.lib. Capcana e documentata in README.
+      - name: Align zlib import library name
+        shell: pwsh
+        run: |
+          $lib = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib"
+          if ((Test-Path "$lib\z.lib") -and -not (Test-Path "$lib\zlib.lib")) {
+            Copy-Item "$lib\z.lib" "$lib\zlib.lib"
+          }
+
+      - name: Cache Rust build (dependinte + librarii C compilate din surse)
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: src/native
+          cache-on-failure: "true"
+          key: windows-native
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Suita completa de teste ramane pe Linux: are nevoie de serviciul MongoDB, pe care runner-ul
+      # Windows nu il ofera. Aici se valideaza exact ce e specific platformei — compilarea
+      # librariilor C/C++, legarea addon-ului si incarcarea lui efectiva in Node.
+      - name: Validate Rust and load the addon on Windows
+        shell: pwsh
+        env:
+          CMAKE_TOOLCHAIN_FILE: ${{ env.VCPKG_INSTALLATION_ROOT }}\scripts\buildsystems\vcpkg.cmake
+        run: |
+          $env:PATH = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin;$env:PATH"
+          npm run check:native
+          npm run build:rust
+          npm run build:ts
+          node -e "import('./dist/native/fuzzy.js').then(m => { if (!m.isRustFuzzyAvailable()) { console.error('addonul nativ nu s-a incarcat pe Windows'); process.exit(1); } console.log('addon nativ incarcat pe Windows'); })"
+          node dist/scripts/run-gates.js
