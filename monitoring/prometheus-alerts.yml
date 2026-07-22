@@ -142,3 +142,45 @@ groups:
         annotations:
           summary: "Native (Rust) addon falling back to TypeScript"
           description: "bot_native_fallback_total a crescut: unul sau mai multe apeluri native (Rust) arunca exceptii si cad pe implementarea TypeScript. Risc de divergenta de rezultat/performanta. Verifica build-ul nativ (`npm run build:rust`) si log-urile [NATIVE_FUZZY]."
+
+      - alert: NativeInspectorTimeouts
+        expr: increase(bot_native_inspector_timeouts_total[30m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: native
+        annotations:
+          summary: "Sandboxed inspector jobs exceeding the deadline"
+          description: "bot_native_inspector_timeouts_total a crescut: inspectii de continut au depasit termenul supervizorului. Verdictul ramane neconfirmat (fail-safe), dar continut potential periculos trece doar prin euristici. Cauza tipica: arhive/PDF-uri patologice sau proces blocat. Vezi OPERATIONS.md - sectiunea 'Inspectorul nativ izolat'."
+
+      - alert: NativeInspectorRestartsHigh
+        expr: increase(bot_native_inspector_restarts_total[30m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+          component: native
+        annotations:
+          summary: "Sandboxed inspector restarting repeatedly (crash loop?)"
+          description: "bot_native_inspector_restarts_total a crescut cu peste 3 in 30m: procesul de inspectie izolat moare si e repornit repetat (crash, kill de seccomp sau raspuns necitibil). Peste plafonul de restarturi verdictele raman neconfirmate. Coreleaza cu bot_native_inspector_kills_total si log-urile [NATIVE_INSPECTOR]. Vezi OPERATIONS.md."
+
+  - name: discord-patch-bot-threat-engine
+    rules:
+      - alert: ThreatEngineFailures
+        expr: increase(bot_threat_engine_failures_total[30m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: threat-engine
+        annotations:
+          summary: "Reputation/AV engine calls failing (verdicts stay unknown)"
+          description: "bot_threat_engine_failures_total a crescut: apelurile catre motorul de reputatie/antivirus esueaza (reason=transport: retea/timeout; reason=http-status: raspuns >=400). Verdictele raman unknown si protectia e doar euristica. Verifica THREAT_REPUTATION_URL, tokenul si disponibilitatea motorului. Vezi OPERATIONS.md - sectiunea 'Motorul de reputatie/antivirus'."
+
+      - alert: ThreatEngineSilent
+        expr: (bot_threat_reputation_engine_configured == 1) and (bot_threat_engine_last_scan_age_seconds > 86400) and (bot_threat_engine_scans_total > 0)
+        for: 30m
+        labels:
+          severity: info
+          component: threat-engine
+        annotations:
+          summary: "Reputation/AV engine configured but silent for >24h"
+          description: "Motorul e configurat si a raspuns candva in viata acestui proces, dar nicio scanare reusita de peste 24h. Fie nu mai trece continut suspect prin inspectie (normal pe servere linistite), fie apelurile esueaza sistematic - coreleaza cu bot_threat_engine_failures_total. Versiunile observate raman in bot_threat_engine_info."
