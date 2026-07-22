@@ -598,6 +598,21 @@ anulat exact castigul. Verificarea ruleaza **dupa merge** (push pe main, cand se
 nativa) si **noaptea**; breakage-ul specific platformei e prins in aceeasi zi, inainte de release, fara
 sa intarzie niciun PR.
 
+**Cache-urile schimba ordinul de marime, iar cache miss-ul e calea fragila.** Prima rulare pe main a
+durat 17m55s (vcpkg compileaza bibliotecile de compresie din surse + cargo compileaza libyara,
+libarchive si qpdf); cu ambele cache-uri calde, aceeasi verificare dureaza **3m16s–3m48s**. Fix la un
+cache miss s-a vazut si defectul caii fragile: un singur `SSL connect error` la descarcarea surselor xz
+de pe github.com a picat tot jobul, pentru ca vcpkg refuza sa reincerce erorile pe care nu le considera
+tranzitorii. Pasul de instalare are acum **3 incercari cu pauza de 30s** — descarcarile upstream sunt
+exact genul de esec care se repara singur la reincercare.
+
+Un gate din `check` (`nativeCiPlatforms`) tine acoperirea pe ambele platforme onesta: Linux ruleaza
+`check:native` la fiecare PR cu cache-ul cargo pe workspace-ul nativ; Windows are jobul separat cu
+ambele cache-uri (vcpkg cu cheia derivata din lista de pachete + rust-cache), ruleaza clippy si testele,
+compileaza addon-ul si **il incarca efectiv in Node**, pastreaza retry-ul si tratarea capcanei
+`z.lib`/`zlib.lib`, si nu apare niciodata ca gate de PR. Scoaterea oricareia dintre aceste piese pica
+verificarea in loc sa treaca neobservata.
+
 ### SBOM pentru stratul nativ (PDF regen, prioritate reala #1)
 
 Scanarea de container produce deja un SBOM CycloneDX, dar acela vede **imaginea**: pachetele apt si
