@@ -1,11 +1,14 @@
 name: Windows native build
 
-# Ruleaza DOAR cand se schimba suprafata nativa. Trei defecte din programul de librarii au fost
-# vizibile pe o singura platforma (ssize_t isize vs i64, deprecarea libseccomp, fisierele
-# compiler_depend.ts generate doar de generatorul Makefile al CMake), deci verificarea e necesara —
-# dar nu la fiecare PR de TypeScript, unde ar adauga minute fara sa acopere nimic.
+# Build-ul nativ pe Windows NU e gate de PR: compilarea libyara + libarchive + qpdf pe un runner
+# Windows costa minute intrinsec, iar feedback-ul rapid pe PR conteaza mai mult. Trei defecte din
+# programul de librarii au fost insa vizibile pe o singura platforma (ssize_t isize vs i64,
+# deprecarea libseccomp, fisierele compiler_depend.ts generate doar de generatorul Makefile), deci
+# verificarea ramane necesara — doar ca dupa merge si noaptea, nu inaintea fiecarui merge.
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
   push:
     branches:
       - main
@@ -13,15 +16,10 @@ on:
       - "src/native/**"
       - "src/package.json"
       - ".github/workflows/windows-native.yml"
-  pull_request:
-    paths:
-      - "src/native/**"
-      - "src/package.json"
-      - ".github/workflows/windows-native.yml"
 
 concurrency:
   group: windows-native-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 permissions:
   contents: read

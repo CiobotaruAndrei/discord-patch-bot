@@ -591,6 +591,13 @@ se incarca in Node** (nu doar ca s-a produs fisierul `.node` — capcana cu DLL-
 Suita completa de teste ramane pe Linux, fiindca are nevoie de serviciul MongoDB pe care runner-ul
 Windows nu il ofera. Gate-urile statice ruleaza pe ambele.
 
+**Nu e gate de PR, si asta e o decizie, nu o scapare.** Compilarea libyara + libarchive + qpdf pe un
+runner Windows costa minute intrinsec — nu se repara prin reglaje. Dupa ce jobul `check` a fost adus de
+la 11m52s la ~2m, adaugarea unui gate de PR care sa coste mai mult decat tot restul la un loc ar fi
+anulat exact castigul. Verificarea ruleaza **dupa merge** (push pe main, cand se schimba suprafata
+nativa) si **noaptea**; breakage-ul specific platformei e prins in aceeasi zi, inainte de release, fara
+sa intarzie niciun PR.
+
 ### Costul de CI al librariilor native (masurat, nu estimat)
 
 Fiecare librarie C/C++ legata static se compileaza din surse. Fara cache, costul se aduna la fiecare
