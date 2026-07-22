@@ -670,6 +670,37 @@ cere ca fiecare sa apara si in workflow-ul de sanitizer, si ca pachetul care le 
 `check:native`. O tinta de fuzz noua care nu ajunge sub sanitizer, sau un pachet scos din `check:native`,
 pica verificarea in loc sa treaca neobservat.
 
+### Corpus de regresie pentru arhive, PDF-uri, executabile si imagini QR (PDF regen, prioritate reala #3)
+
+Fuzzing-ul raspunde la intrebarea „crapa?". Corpusul raspunde la cealalta intrebare, pe care fuzzing-ul
+nu o poate pune: „**mai detecteaza?**". O refactorizare care face parserul sa nu mai vada macro-ul VBA
+dintr-un tar trece prin fuzz fara nicio panica — verdictul e gresit, dar procesul nu crapa.
+
+`native/core/tests/regression_corpus.rs` fixeaza 17 esantioane construite determinist, pe patru
+categorii, fiecare cu **verdictul complet** inghetat: status, motiv, indicatorii care trebuie sa apara
+si — la fel de important — indicatorii care **nu au voie** sa apara:
+
+| Categorie | Ostile | Benigne | Ce prind |
+| --- | --- | --- | --- |
+| arhive | ZIP cu PE, ZIP imbricat, ZIP criptat, bomba de compresie, tar Office cu macro + referinta externa, gzip peste tar | ZIP cu texte | disparitia unui indicator sau a unui motiv de `uncertain` |
+| PDF-uri | OpenAction+JavaScript, nume de actiune ofuscat hex (`/Open#41ction`), Launch, EmbeddedFiles | PDF simplu cu pagini | regresie in detectia de actiuni si in de-ofuscare |
+| executabile | PE cu sectiune UPX si entropie reala | PE obisnuit cu `.text` | regresie in detectia de packer si fals-pozitive |
+| imagini QR | QR cu link, QR cu text | PNG alb fara cod | payload-ul decodat, clasificarea de link, zero indicatori pe imagine curata |
+
+Doua proprietati care nu sunt negociabile:
+
+1. **Octetii sunt legati criptografic.** Fiecare esantion are SHA-256-ul fixat in test. Daca cineva
+   „ajusteaza" un builder de fixture si octetii se schimba, testul de amprenta pica primul, cu hash-ul
+   nou in mesaj — schimbarea corpusului devine o decizie explicita, nu un efect secundar.
+2. **Fiecare categorie are si un esantion benign.** Un corpus doar cu mostre ostile prinde regresii de
+   detectie, dar lasa regresiile de fals-pozitiv invizibile — iar pentru un bot care sterge continut
+   confirmat, fals-pozitivul e la fel de scump.
+
+Esantioanele QR se genereaza cu `qrcode` (dev-dependency pura Rust, doar in teste, nu in addon-ul
+livrat) si se decodeaza cu `rqrr` — encoder si decoder independente, deci un bug comun e improbabil.
+Tot corpusul ruleaza in ~0,01 s si e gate de PR in `check:native`; un gate din `check` verifica din TS
+ca toate cele patru categorii raman prezente si ca fiecare esantion isi pastreaza amprenta completa.
+
 ### Costul de CI al librariilor native (masurat, nu estimat)
 
 Fiecare librarie C/C++ legata static se compileaza din surse. Fara cache, costul se aduna la fiecare
