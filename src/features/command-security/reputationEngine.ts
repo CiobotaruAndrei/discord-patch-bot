@@ -31,6 +31,7 @@ export interface ReputationEngineDeps {
   httpReq?: ReputationHttpRequest;
   logger?: (level: string, context: string, message: string, meta?: unknown) => void;
   onDetails?: (details: ReputationEngineDetails) => void;
+  onFailure?: (reason: string) => void;
 }
 
 export interface ReputationEngineStatus {
@@ -119,7 +120,10 @@ export function createReputationEngine(deps: ReputationEngineDeps): ReputationSc
         },
         headers
       }, 0);
-      if (typeof response.status === "number" && response.status >= 400) return "unknown";
+      if (typeof response.status === "number" && response.status >= 400) {
+        deps.onFailure?.("http-status");
+        return "unknown";
+      }
       const verdict = normalizeBoundVerdict(response.data, contentSha256);
       deps.onDetails?.({
         verdict,
@@ -131,6 +135,7 @@ export function createReputationEngine(deps: ReputationEngineDeps): ReputationSc
       });
       return verdict;
     } catch (err) {
+      deps.onFailure?.("transport");
       deps.logger?.("WARN", "THREAT_REPUTATION", "Apel esuat catre motorul de reputatie; verdict unknown", err);
       return "unknown";
     }

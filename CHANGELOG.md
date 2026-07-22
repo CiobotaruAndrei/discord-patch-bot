@@ -26,6 +26,8 @@
 
 - **Stratul nativ isi declara componentele C/C++ si e hranit cu intrare ostila.** `npm run sbom:native` emite versiunile exacte ale libyara, libarchive, qpdf si libseccomp direct din `native/Cargo.lock`, cu tipul legarii si sursa vendorata, iar un gate pica daca o componenta declarata dispare din lock sau nu are versiune fixa. Doua tinte de fuzz deterministe — pe parserele native si pe protocolul procesului izolat — trec ~113.000 de cazuri per rulare in sub 0,1 s, deci raman gate de PR; AddressSanitizer peste aceleasi tinte ruleaza noaptea, fiindca instrumentarea intregului strat C/C++ depaseste bugetul de timp al unui PR. Un gate leaga cele doua: o tinta de fuzz noua care nu ajunge sub sanitizer pica verificarea.
 
+- **Stratul de securitate nativa e monitorizat cap-coada: crash-uri, timeout-uri, fallback-uri si versiunile motorului antivirus.** Versiunile motorului extern si ale bazei de semnaturi — capturate deja per-scan in audit — ajung acum si la `/metrics` (`bot_threat_engine_info{engine_version,database_version}`), cu contor de schimbari de versiune si varsta ultimei scanari reusite. Esecurile de apel sunt numarate pe motiv (`transport` vs `http-status`), iar o schimbare de versiune se logheaza cu valorile vechi si noi. Alerte Prometheus noi acopera timeout-urile si crash-loop-ul inspectorului izolat, esecurile motorului si tacerea lui prelungita; dashboard-ul Grafana primeste doua panouri, iar OPERATIONS.md documenteaza diagnosticul pentru fiecare serie.
+
 Toate schimbarile importante ale proiectului sunt documentate aici.
 
 Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), iar versiunile folosesc [Semantic Versioning](https://semver.org/).

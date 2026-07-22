@@ -97,6 +97,18 @@ function renderPrometheusMetrics(input: MetricsSnapshotInput): string {
   pushMetric(lines, seenMetricNames, "bot_guild_settings_listener_failures", "counter", "GuildSettingsChanged listener/publisher failures (counted even when the error reporter itself throws)", metrics.guildSettingsListenerFailures);
   pushMetric(lines, seenMetricNames, "bot_security_runtime_errors", "counter", "Security runtime event failures", metrics.securityRuntimeErrors ?? 0);
   pushMetric(lines, seenMetricNames, "bot_threat_reputation_engine_configured", "gauge", "Threat reputation/AV engine configured (1) or not (0)", metrics.threatReputationEngineConfigured ?? 0);
+  pushMetric(lines, seenMetricNames, "bot_threat_engine_scans_total", "counter", "Successful reputation/AV engine responses (any verdict)", metrics.threatEngineScans ?? 0);
+  const threatFailureTotals = metrics.threatEngineFailures ?? {};
+  const threatFailureReasons = Array.from(new Set(["http-status", "transport", ...Object.keys(threatFailureTotals)])).sort();
+  for (const reason of threatFailureReasons) {
+    pushMetric(lines, seenMetricNames, "bot_threat_engine_failures_total", "counter", "Reputation/AV engine calls that produced no usable verdict, per failure reason (verdict stays unknown, protection stays heuristic-only)", threatFailureTotals[reason] || 0, { reason });
+  }
+  pushMetric(lines, seenMetricNames, "bot_threat_engine_version_changes_total", "counter", "Times the observed engine or signature-database version changed after the first observation", metrics.threatEngineVersionChanges ?? 0);
+  pushMetric(lines, seenMetricNames, "bot_threat_engine_last_scan_age_seconds", "gauge", "Seconds since the last successful engine response (0 = never scanned this process lifetime)", metrics.threatEngineLastScanAt !== undefined && metrics.threatEngineLastScanAt > 0 ? Math.max(0, Math.round((Date.now() - metrics.threatEngineLastScanAt) / 1000)) : 0);
+  pushMetric(lines, seenMetricNames, "bot_threat_engine_info", "gauge", "Last observed reputation/AV engine and signature-database versions (labels carry the values)", 1, {
+    engine_version: metrics.threatEngineVersion !== undefined && metrics.threatEngineVersion !== "" ? metrics.threatEngineVersion : "unknown",
+    database_version: metrics.threatEngineDatabaseVersion !== undefined && metrics.threatEngineDatabaseVersion !== "" ? metrics.threatEngineDatabaseVersion : "unknown"
+  });
   pushMetric(lines, seenMetricNames, "bot_moderation_cleanup_runs", "counter", "Periodic moderation cleanup completed runs", metrics.moderationCleanupRuns ?? 0);
   pushMetric(lines, seenMetricNames, "bot_moderation_cleanup_failures", "counter", "Periodic moderation cleanup failed runs", metrics.moderationCleanupFailures ?? 0);
   pushMetric(lines, seenMetricNames, "bot_yara_rules_loaded", "gauge", "YARA rules currently compiled into the running ruleset", metrics.yaraRulesLoaded ?? 0);

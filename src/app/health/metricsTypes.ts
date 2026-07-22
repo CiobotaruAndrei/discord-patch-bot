@@ -53,6 +53,12 @@ export interface BotMetrics {
   channelLockRecoveriesConverged?: number;
   moderationCleanupFailures?: number;
   threatReputationEngineConfigured?: number;
+  threatEngineScans?: number;
+  threatEngineFailures?: Record<string, number>;
+  threatEngineVersionChanges?: number;
+  threatEngineLastScanAt?: number;
+  threatEngineVersion?: string;
+  threatEngineDatabaseVersion?: string;
   commandRuns: Record<string, number>;
   commandErrors: Record<string, number>;
   commandDurationMsTotal: Record<string, number>;
