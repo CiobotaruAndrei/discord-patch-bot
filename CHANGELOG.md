@@ -20,6 +20,8 @@
 
 - **Codurile QR din imagini sunt citite si semnalate (etapa 9 din programul de librarii native).** Un QR care contine un link primeste indicator distinct fata de unul cu text simplu. Dimensiunea imaginii se verifica din antet, inainte de decodare, deci o bomba de decompresie e respinsa fara sa fie desfacuta. Randarea PDF, OCR-ul si extragerea de cadre video raman neimplementate, cu motivele scrise in BENCHMARKS.md.
 
+- **Stratul nativ isi declara componentele C/C++ si e hranit cu intrare ostila.** `npm run sbom:native` emite versiunile exacte ale libyara, libarchive, qpdf si libseccomp direct din `native/Cargo.lock`, cu tipul legarii si sursa vendorata, iar un gate pica daca o componenta declarata dispare din lock sau nu are versiune fixa. Doua tinte de fuzz deterministe — pe parserele native si pe protocolul procesului izolat — trec ~113.000 de cazuri per rulare in sub 0,1 s, deci raman gate de PR; AddressSanitizer peste aceleasi tinte ruleaza noaptea, fiindca instrumentarea intregului strat C/C++ depaseste bugetul de timp al unui PR. Un gate leaga cele doua: o tinta de fuzz noua care nu ajunge sub sanitizer pica verificarea.
+
 Toate schimbarile importante ale proiectului sunt documentate aici.
 
 Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), iar versiunile folosesc [Semantic Versioning](https://semver.org/).
