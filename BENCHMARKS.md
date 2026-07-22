@@ -569,6 +569,28 @@ carei mecanism principal de aparare nu poate fi exersat pe masina de dezvoltare,
 drumul critic doar pe baza unei rulari verzi de CI. Comutarea implicitului cere masuratori pe staging
 (latenta per atasament, rata de repornire) si e un pas separat, nu o nota de subsol aici.
 
+### Build-uri testate separat pe Linux si Windows (PDF regen, prioritate reala #5)
+
+Trei defecte din programul de librarii au fost vizibile **doar pe o singura platforma**, si toate au
+ajuns la merge sau la CI abia dupa ce au picat acolo:
+
+| Defect | Vizibil doar pe |
+| --- | --- |
+| `archive_write_data` intoarce `ssize_t` — `isize` pe Linux, `i64` pe Windows | Linux |
+| `ScmpFilterContext::new_filter` depreciat in libseccomp 0.4 | Linux (codul nici nu se compileaza altundeva) |
+| CMake genereaza fisiere `compiler_depend.ts` pe care `tsc` le inghite | Linux (generatorul Makefile; pe Windows e MSBuild) |
+
+Invers, capcanele de pe Windows — MSBuild care refuza cai peste 260 de caractere, `z.lib` vs `zlib.lib`
+din vcpkg, DLL-urile dinamice cerute la rulare — nu apar niciodata pe Linux.
+
+Jobul `windows-native` acopera exact ce e specific platformei: instaleaza dependintele prin vcpkg,
+compileaza librariile C/C++, ruleaza clippy si testele native, leaga addon-ul si **verifica efectiv ca
+se incarca in Node** (nu doar ca s-a produs fisierul `.node` — capcana cu DLL-urile lipsa da un
+`.node` valid care esueaza la `require`).
+
+Suita completa de teste ramane pe Linux, fiindca are nevoie de serviciul MongoDB pe care runner-ul
+Windows nu il ofera. Gate-urile statice ruleaza pe ambele.
+
 ### Costul de CI al librariilor native (masurat, nu estimat)
 
 Fiecare librarie C/C++ legata static se compileaza din surse. Fara cache, costul se aduna la fiecare
