@@ -52,6 +52,7 @@
     "check:ts-prebuilt": "npm run build:ts && npm run check:prebuilt",
     "check:native": "cargo clippy --release --manifest-path native/Cargo.toml --workspace --all-targets -- -D warnings && cargo test --release --manifest-path native/Cargo.toml -p discord_patch_bot_logic -p native-inspector --quiet",
     "profile:tests": "npm run build:ts && node dist/scripts/profile-tests.js",
+    "sbom:native": "npm run build:ts && node dist/scripts/native-sbom.js",
     "check:full": "npm run check && npm run check:native && npm run test:e2e:prebuilt",
     "start:web": "node dist/app/web.js",
     "start:web:local": "node --env-file=.env dist/app/web.js",

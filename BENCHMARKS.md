@@ -598,6 +598,39 @@ anulat exact castigul. Verificarea ruleaza **dupa merge** (push pe main, cand se
 nativa) si **noaptea**; breakage-ul specific platformei e prins in aceeasi zi, inainte de release, fara
 sa intarzie niciun PR.
 
+### SBOM pentru stratul nativ (PDF regen, prioritate reala #1)
+
+Scanarea de container produce deja un SBOM CycloneDX, dar acela vede **imaginea**: pachetele apt si
+modulele npm. Librariile C/C++ compilate din surse **in interiorul addon-ului Rust** nu apar acolo ca
+propriile componente — libyara, libarchive si qpdf sunt invizibile in raportul imaginii, desi sunt exact
+codul care parseaza continut ostil.
+
+`npm run sbom:native` citeste `native/Cargo.lock` si emite versiunile exacte, tipul legarii si sursa
+C/C++ vendorata:
+
+| Crate | Versiune | Tip | Sursa C/C++ | Rol |
+| --- | --- | --- | --- | --- |
+| `yara` | 0.32.0 | c-static | YARA 4.5.5 | motor de reguli malware |
+| `yara-sys` | 0.32.0 | c-static | YARA 4.5.5 | legaturi FFI pentru libyara |
+| `libarchive2-sys` | 0.2.0 | c-static | libarchive 3.8.1 | decodare arhive RAR/7z si filtre |
+| `qpdf` | 0.3.5 | cpp-static | qpdf + zlib + libjpeg | structura PDF complexa |
+| `qpdf-sys` | 0.3.5 | cpp-static | qpdf + zlib + libjpeg | legaturi FFI pentru qpdf |
+| `libseccomp` | 0.4.0 | c-system | libseccomp de sistem | filtru de syscall in procesul izolat |
+| `libseccomp-sys` | 0.3.0 | c-system | libseccomp de sistem | legaturi FFI pentru libseccomp |
+| `goblin` | 0.10.7 | rust | - | parsare PE/ELF/Mach-O |
+| `idna` | 1.1.0 | rust | - | UTS#46, Punycode |
+| `unicode-security` | 0.1.2 | rust | - | UTS#39, confusables |
+| `publicsuffix` | 2.3.0 | rust | - | eTLD+1 |
+| `rqrr` | 0.10.1 | rust | - | decodare coduri QR |
+| `image` | 0.25.10 | rust | - | decodare imagini |
+| `flate2` | 1.1.9 | rust | - | inflate pentru fluxuri PDF si ZIP |
+| `sha2` | 0.11.0 | rust | - | hash de continut |
+
+Un gate din `check` verifica trei lucruri: fiecare componenta declarata **exista** efectiv in lock (un
+SBOM care mentioneaza ceva ce nu se mai livreaza e mai rau decat niciunul), versiunile sunt fixe (nu
+intervale), si fiecare componenta non-Rust declara ce sursa C/C++ aduce. Cele patru librarii legate
+efectiv — libyara, libarchive, qpdf, libseccomp — sunt cerute explicit.
+
 ### Costul de CI al librariilor native (masurat, nu estimat)
 
 Fiecare librarie C/C++ legata static se compileaza din surse. Fara cache, costul se aduna la fiecare
