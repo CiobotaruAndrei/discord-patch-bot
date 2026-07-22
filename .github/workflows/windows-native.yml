@@ -56,10 +56,23 @@ jobs:
 
       # OpenSSL NU e in lista: libarchive il foloseste doar pentru digest-uri optionale, iar
       # compilarea lui din surse pe Windows dubla singura durata jobului.
+      # Retry-ul exista pentru ca vcpkg descarca sursele upstream la cache miss, iar un singur
+      # SSL connect error (vazut pe 22 iul: xz de pe github.com) pica altfel tot jobul; vcpkg
+      # insusi refuza sa reincerce erorile pe care nu le considera tranzitorii.
       - name: Install native library dependencies (vcpkg)
         if: steps.vcpkg-cache.outputs.cache-hit != 'true'
         shell: pwsh
-        run: vcpkg install zlib bzip2 liblzma zstd lz4 --triplet x64-windows
+        run: |
+          $attempts = 3
+          for ($i = 1; $i -le $attempts; $i++) {
+            vcpkg install zlib bzip2 liblzma zstd lz4 --triplet x64-windows
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            if ($i -lt $attempts) {
+              Write-Host "vcpkg install a esuat (incercarea $i/$attempts); reincerc in 30s"
+              Start-Sleep -Seconds 30
+            }
+          }
+          exit 1
 
       # libarchive2-sys linkeaza neconditionat bibliotecile de compresie pe Windows si cere
       # zlib.lib, in timp ce vcpkg instaleaza acelasi fisier ca z.lib. Capcana e documentata in README.
