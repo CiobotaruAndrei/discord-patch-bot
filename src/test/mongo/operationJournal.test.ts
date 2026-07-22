@@ -207,7 +207,7 @@ test("heartbeat-ul de lease e serializat: nu porneste o reinnoire noua cat timp 
     renewals++;
     renewalsInFlight++;
     maxRenewalsInFlight = Math.max(maxRenewalsInFlight, renewalsInFlight);
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await new Promise(resolve => setTimeout(resolve, 120));
     renewalsInFlight--;
     return baseUpdateOne(filter, update, options);
   };
@@ -216,7 +216,7 @@ test("heartbeat-ul de lease e serializat: nu porneste o reinnoire noua cat timp 
     logger: () => undefined,
     ownerId: "worker-1",
     leaseMs: 300,
-    executors: { "test-op": async () => { await new Promise(resolve => setTimeout(resolve, 550)); } }
+    executors: { "test-op": async () => { await new Promise(resolve => setTimeout(resolve, 350)); } }
   });
   await journal.runJournaled("k1", "test-op", {});
   assert.ok(renewals >= 2, `heartbeat-ul a rulat de mai multe ori in timpul executiei (${renewals})`);

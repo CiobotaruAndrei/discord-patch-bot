@@ -756,6 +756,45 @@ Nota pentru etapele urmatoare din programul de librarii: PDFium, FFmpeg si Tesse
 de marime mai grele decat qpdf. Fara cache-ul de mai sus, CI-ar fi devenit impracticabil in jurul
 etapei 8, nu la sfarsit.
 
+### Runda 3 de viteza: scan-ul de container era noul drum critic al PR-ului
+
+Dupa ce `check` a coborat la ~2m14s, gate-ul care dicta cat asteapta un PR devenise **`scan`**
+(container-scan): 4m35s–5m34s, din care **`Build image` singur 222s**. Cache-ul de layere GHA era
+deja configurat, dar nu putea salva stratul scump, dintr-un motiv de ordine in Dockerfile:
+
+```
+COPY src/ ./          <- orice schimbare de cod TS invalideaza stratul
+RUN npm run build     <- ... si recompileaza si addon-ul Rust + libyara/libarchive/qpdf, din zero
+```
+
+Fix-ul e separarea build-ului nativ de cel TS, in straturi distincte:
+
+```
+COPY src/native/ ./native/   <- se invalideaza doar cand se schimba stratul nativ
+RUN npm run build:rust       <- compilarea C/C++ (partea de ~3 minute) ramane in cache
+COPY src/ ./
+RUN npm run build:ts         <- singurul strat care se reconstruieste la un PR de cod TS
+```
+
+Imaginea finala e identic aceeasi (`npm run build` insemna exact `build:rust && build:ts`, in aceeasi
+ordine); artefactele napi nu sunt in contextul Docker (gitignored), deci `COPY src/ ./` nu le poate
+suprascrie. Exceptia de pe rularea programata (no-cache pentru CVE-uri proaspete) ramane neatinsa.
+Un PR care nu atinge `src/native/**` reconstruieste doar tsc-ul si stage-ul de runtime.
+
+Pe partea locala, singurul cost eliminabil ramas era un test cu somnuri reale: heartbeat-ul de lease
+din `operationJournal` dormea 550ms + 2×250ms per rulare si tinea procesul inca ~700ms dupa ultimul
+test (renewal-ul in zbor, nepteptat de nimeni). Constantele au fost scalate la 350ms/120ms **pastrand
+exact aceleasi asertiuni si aceleasi margini relative de jitter** (renewal-ul poate aluneca cu ~67%
+inainte sa rateze un tick, fata de ~20% cat tolera varianta veche — testul e acum mai putin flaky, nu
+mai mult): fisierul scade de la ~1,3s la ~0,55s, verificat stabil pe 8 rulari consecutive.
+
+Ce s-a masurat si NU s-a atins, ca sa nu scada calitatea: `build:ts` foloseste deja compilatorul nativ
+(`@typescript/native`, 2,5s pe tot proiectul — incremental n-ar mai aduce nimic); importul
+`commandRegistry` costa ~550ms per proces de test (din care discord.js 402ms) in cele 7 fisiere de
+comenzi de ~2s, dar costul e pretul izolarii per-fisier — alternativa (`--experimental-test-isolation=none`)
+a fost respinsa data trecuta fiindca a rulat silentios doar 961 din 1929 de teste; iar teardown-ul de
+~1,6s al `benchmarks.test.js` e GC pe heap-ul mare al calibrarii, nu un handle care se poate inchide.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
