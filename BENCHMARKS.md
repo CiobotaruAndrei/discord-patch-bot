@@ -795,6 +795,27 @@ comenzi de ~2s, dar costul e pretul izolarii per-fisier — alternativa (`--expe
 a fost respinsa data trecuta fiindca a rulat silentios doar 961 din 1929 de teste; iar teardown-ul de
 ~1,6s al `benchmarks.test.js` e GC pe heap-ul mare al calibrarii, nu un handle care se poate inchide.
 
+**Compile cache-ul V8 (`NODE_COMPILE_CACHE`) a fost masurat si respins cu date, nu din principiu.**
+Ipoteza suna perfect: suma celor 310 procese de test e dominata de parsarea/compilarea JS, deci un
+cache de bytecode validat pe continut ar trebui sa o taie fara niciun risc de corectitudine.
+Masuratoarea a aratat inversul, pe Windows:
+
+| Scenariu | Suita completa | `import("discord.js")` singur (mediana din 5) |
+| --- | --- | --- |
+| fara cache | 7,1–7,2s | 361 ms |
+| cache rece (il scrie) | 12,8s | — |
+| cache cald | 8,3–8,4s | 404 ms |
+
+Cache-ul cald e **mai lent** decat lipsa lui, chiar si pe cel mai greu import: V8 compileaza lazy
+(parsarea initiala e deja ieftina), iar citirea si validarea sutelor de fisiere de cache adauga I/O
+pe fiecare dintre cele 310 procese. Cifrele raman aici ca urmatorul care are ideea sa nu o mai
+plateasca inca o data.
+
+Limita de imachetare, ca referinta: 310 fisiere insumeaza ~76s si ruleaza pe 15 workers, deci optimul
+teoretic e ~5–6s (constrans si de cozile de ~2s); wall-ul real e 7,1s, iar cozile lungi pornesc deja
+devreme (ordinea glob e alfabetica, `app/` si `commands/` sunt primele). Sub 7s se ajunge doar
+taind suma — adica exact importurile care sunt pretul izolarii.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
