@@ -631,6 +631,45 @@ SBOM care mentioneaza ceva ce nu se mai livreaza e mai rau decat niciunul), vers
 intervale), si fiecare componenta non-Rust declara ce sursa C/C++ aduce. Cele patru librarii legate
 efectiv — libyara, libarchive, qpdf, libseccomp — sunt cerute explicit.
 
+### Fuzzing si sanitizere pe stratul nativ (PDF regen, prioritate reala #2)
+
+Restul testelor native verifica **raspunsuri corecte la intrari plauzibile**. Problema e ca intrarea
+reala nu e plauzibila: e o arhiva trunchiata intentionat, un PDF cu xref mincinos, un cadru de protocol
+scris de un proces care tocmai a fost compromis. Doua tinte de fuzz acopera exact zona asta.
+
+`native/core/tests/parser_fuzz.rs` hraneste `inspect_untrusted_content`, `inspect_magic`,
+`document_indicators`, `inspect_compound_file_binary`, `analyze_executable`, `scan_visual_codes` si
+`decode_msi_stream_name` cu octeti aleatori, cu octeti aleatori **precedati de un antet real** (ZIP,
+gzip, RAR4, RAR5, 7z, PDF, CFB, PE, ELF, PNG, JPEG, GIF) si cu continut gol sau de un singur byte.
+Antetul conteaza: fara el, gunoiul se opreste la prima verificare de semnatura si nu ajunge niciodata in
+parserul propriu-zis. Cu el, gunoiul intra fix pe calea in care ruleaza codul C/C++.
+
+`native/inspector/tests/protocol_fuzz.rs` ataca `read_request` si `read_response`: octeti aleatori,
+octeti aleatori dupa o semnatura valida, un cadru valid mutat bit cu bit, acelasi cadru trunchiat la
+**fiecare** lungime posibila, si o lungime de continut de `u64::MAX` — care trebuie respinsa, nu alocata.
+
+| Tinta | Cazuri per rulare | Durata |
+| --- | --- | --- |
+| `parser_fuzz` | ~32.800 | 0,06 s |
+| `protocol_fuzz` | ~80.000 | 0,01 s |
+
+Pentru ca sunt atat de ieftine, **raman gate de PR**: ruleaza in `check:native`, la fiecare PR, alaturi
+de restul testelor cargo. Generatorul e un Xorshift cu samanta fixa per test, nu o sursa de entropie —
+un esec care nu se reproduce nu se poate repara, iar un test care pica aleator ajunge sa fie ignorat.
+
+**Sanitizerele sunt separate, si asta e o decizie.** Un test de fuzz in Rust prinde panici, indexari in
+afara limitelor si dezacorduri de contract. Ce **nu** poate prinde e un `use-after-free` sau o citire in
+afara heap-ului **in libyara, libarchive sau qpdf** — acolo raspunderea pentru memorie e a librariei C,
+nu a compilatorului Rust. Pentru asta e `native-sanitizers.yml`: `cargo +nightly test -Zbuild-std` cu
+`-Zsanitizer=address` peste exact cele doua tinte de fuzz. Costul e recompilarea intregului strat C/C++
+cu instrumentare, plus `std`, deci ruleaza **noaptea si la cerere**, nu ca gate de PR — aceeasi logica
+ca la jobul de Windows: bugetul de PR e ~2 minute, iar o rulare instrumentata singura il depaseste.
+
+Un gate din `check` leaga cele doua: descopera singur fisierele `*_fuzz.rs` din workspace-ul nativ si
+cere ca fiecare sa apara si in workflow-ul de sanitizer, si ca pachetul care le contine sa fie rulat de
+`check:native`. O tinta de fuzz noua care nu ajunge sub sanitizer, sau un pachet scos din `check:native`,
+pica verificarea in loc sa treaca neobservat.
+
 ### Costul de CI al librariilor native (masurat, nu estimat)
 
 Fiecare librarie C/C++ legata static se compileaza din surse. Fara cache, costul se aduna la fiecare

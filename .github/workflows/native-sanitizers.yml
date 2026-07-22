@@ -1,0 +1,59 @@
+name: Native sanitizers
+
+# Sanitizerele cer toolchain nightly si recompileaza tot stratul C/C++ cu instrumentare, deci
+# costa minute. Nu sunt gate de PR: ruleaza noaptea si la cerere. Testele de fuzz propriu-zise
+# ruleaza in `check` la fiecare PR (sunt rapide); aici se adauga doar detectia de erori de memorie
+# pe care Rust-ul sigur nu o poate da singur, dar wrapper-ele peste libyara, libarchive si qpdf da.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 3 * * *"
+
+concurrency:
+  group: native-sanitizers-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  address-sanitizer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install native library dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake clang libclang-dev libseccomp-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev
+
+      - name: Setup Rust nightly
+        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # master 2026-06
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: src/native
+          cache-on-failure: "true"
+          key: sanitizers
+
+      # AddressSanitizer prinde erorile din codul C/C++ legat (libyara, libarchive, qpdf) pe care
+      # garantiile Rust nu le acopera: acolo raspunderea pentru memorie e a librariei, nu a
+      # compilatorului. Testele de fuzz sunt exact intrarea ostila pe care le hranim.
+      - name: Run fuzz corpora under AddressSanitizer
+        env:
+          RUSTFLAGS: "-Zsanitizer=address"
+          RUSTDOCFLAGS: "-Zsanitizer=address"
+          ASAN_OPTIONS: "detect_leaks=0:abort_on_error=1"
+        run: |
+          cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu \
+            --manifest-path native/Cargo.toml \
+            -p discord_patch_bot_logic -p native-inspector \
+            --test parser_fuzz --test protocol_fuzz
