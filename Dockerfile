@@ -18,8 +18,11 @@ RUN rustc --version && cargo --version
 COPY src/package.json src/package-lock.json ./
 RUN npm ci
 
+COPY src/native/ ./native/
+RUN npm run build:rust
+
 COPY src/ ./
-RUN npm run build
+RUN npm run build:ts
 
 FROM node:24-bookworm-slim AS runtime
 
