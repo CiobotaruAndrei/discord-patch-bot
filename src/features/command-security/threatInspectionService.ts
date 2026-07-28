@@ -2,7 +2,7 @@
 
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import { documentIndicators, inspectUntrustedContent } from "./passiveArchiveInspection.js";
-import { describeMismatches, inspectMagic, MISMATCH_DISGUISED_EXECUTABLE, type DetectedKind } from "./contentTypeDetection.js";
+import { describeMismatches, inspectMagic, isZipContainerMime, MISMATCH_DISGUISED_EXECUTABLE, type DetectedKind } from "./contentTypeDetection.js";
 import { scanWithYara, yaraIndicators } from "./yaraRuleset.js";
 
 export type ThreatVerdict = "safe" | "uncertain" | "policy-violation" | "risky-file" | "confirmed";
@@ -183,7 +183,7 @@ async function classifyResource(mime: string, buffer: Buffer | null, filename = 
   if (ARCHIVE_MIME.has(mime) || DOCUMENT_MIME.has(mime) || magic === "document" || magic === "archive") {
     const kind: ResourceKind = magic === "other" ? (ARCHIVE_MIME.has(mime) ? "archive" : "document") : magic;
     const detectedMime = detection ? detection.mime : mime;
-    if (buffer && kind === "archive") {
+    if (buffer && (kind === "archive" || isZipContainerMime(detectedMime))) {
       const archive = await inspectUntrustedContent(buffer, filename, detectedMime, "archive");
       const details = archive.indicators.length > 0 ? `; ${archive.indicators.join(" si ")}` : "";
       return {

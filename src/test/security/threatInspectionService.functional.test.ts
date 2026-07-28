@@ -286,6 +286,31 @@ test("ZIP Office cu macro si ZIP imbricat cu executabil expun indicatorii fara v
   assert.notEqual(result.verdict, "confirmed");
 });
 
+test("un OOXML recunoscut ca document e traversat tot ca arhiva: executabilul imbricat nu scapa din cauza etichetei de container", async () => {
+  const nested = storedZip([{ name: "payload.exe", data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]) }]);
+  const docx = storedZip([
+    { name: "word/document.xml", data: Buffer.from("<w:document/>") },
+    { name: "word/embeddings/nested.zip", data: nested }
+  ]);
+  const inspector = createThreatInspectionService({
+    httpReq: async () => ({
+      data: docx,
+      headers: { "content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+      status: 200
+    })
+  });
+
+  const result = await inspector.inspectMessage("https://example.test/raport.docx", []);
+
+  assert.equal(
+    result.verdict,
+    "risky-file",
+    "un container ZIP ramane parcurs ca arhiva chiar cand detectorul ii da eticheta semantica de document OOXML"
+  );
+  assert.match(result.reason, /executabil/);
+  assert.notEqual(result.verdict, "confirmed", "escaladarea locala nu confirma singura amenintarea");
+});
+
 test("ZIP Office cu obiect OLE incorporat (embeddings/oleObject) expune indicatorul, dar ramane uncertain (audit #1, 154)", async () => {
   const zip = storedZip([
     { name: "[Content_Types].xml", data: Buffer.from("<Types/>") },

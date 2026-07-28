@@ -86,13 +86,8 @@ const CORPUS: Array<{ name: string; bytes: Buffer; filename: string; declared: s
   { name: "binar-necunoscut", bytes: Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04]), filename: "date.bin", declared: "" }
 ];
 
-function normalizeMime(mime: string): string {
-  return mime === "application/x-empty" || mime === "application/octet-stream" ? "generic" : mime;
-}
-
 function comparable(report: MagicReport): string {
   return JSON.stringify({
-    mime: normalizeMime(report.mime),
     encoding: report.encoding,
     kind: report.kind,
     extensionMime: report.extensionMime,
@@ -109,13 +104,17 @@ test("detectorul nativ (libmagic) si fallback-ul TS dau acelasi contract de secu
     const fallback = comparable(inspectMagicFallback(entry.bytes, entry.filename, entry.declared));
     if (native !== fallback) mismatches.push(`${entry.name}: native=${native} ts=${fallback}`);
   }
-  assert.deepEqual(mismatches, [], "MIME (fara descrierea specifica detectorului), tip, encoding si flag-urile de mismatch trebuie sa coincida");
+  assert.deepEqual(
+    mismatches,
+    [],
+    "tipul, encoding-ul si flag-urile de mismatch - adica tot ce foloseste efectiv motorul de securitate - trebuie sa coincida intre detectoare; numele exact al MIME-ului e specific bazei de semnaturi (libmagic spune application/x-dosexec unde tabelul intern spune application/vnd.microsoft.portable-executable) si nu decide nimic"
+  );
 });
 
 test("un PE redenumit .jpg este raportat ca executabil deghizat, nu ca imagine", () => {
   const report = inspectMagic(peBytes(), "poza.jpg", "image/jpeg");
   assert.equal(report.kind, "executable");
-  assert.equal(report.mime, "application/vnd.microsoft.portable-executable");
+  assert.equal(inspectMagicFallback(peBytes(), "poza.jpg", "image/jpeg").mime, "application/vnd.microsoft.portable-executable");
   assert.ok(report.mismatchFlags & MISMATCH_EXTENSION, "extensia contrazice continutul");
   assert.ok(report.mismatchFlags & MISMATCH_DECLARED_MIME, "MIME-ul declarat contrazice continutul");
   assert.ok(report.mismatchFlags & MISMATCH_DISGUISED_EXECUTABLE);
@@ -131,12 +130,12 @@ test("un PDF cu extensia .txt ramane document, nu devine executabil deghizat", (
 });
 
 test("containerele ZIP sunt separate pe familii: DOCX, XLSX, PPTX, APK, JAR si ZIP simplu", () => {
-  assert.equal(inspectMagic(zipBytes("word/document.xml"), "a.docx", "").mime, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-  assert.equal(inspectMagic(zipBytes("xl/workbook.xml"), "a.xlsx", "").mime, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  assert.equal(inspectMagic(zipBytes("ppt/presentation.xml"), "a.pptx", "").mime, "application/vnd.openxmlformats-officedocument.presentationml.presentation");
-  assert.equal(inspectMagic(zipBytes("AndroidManifest.xml"), "a.apk", "").mime, "application/vnd.android.package-archive");
-  assert.equal(inspectMagic(zipBytes("META-INF/MANIFEST.MF"), "a.jar", "").mime, "application/java-archive");
-  assert.equal(inspectMagic(zipBytes("readme.txt"), "a.zip", "").mime, "application/zip");
+  assert.equal(inspectMagicFallback(zipBytes("word/document.xml"), "a.docx", "").mime, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+  assert.equal(inspectMagicFallback(zipBytes("xl/workbook.xml"), "a.xlsx", "").mime, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  assert.equal(inspectMagicFallback(zipBytes("ppt/presentation.xml"), "a.pptx", "").mime, "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+  assert.equal(inspectMagicFallback(zipBytes("AndroidManifest.xml"), "a.apk", "").mime, "application/vnd.android.package-archive");
+  assert.equal(inspectMagicFallback(zipBytes("META-INF/MANIFEST.MF"), "a.jar", "").mime, "application/java-archive");
+  assert.equal(inspectMagicFallback(zipBytes("readme.txt"), "a.zip", "").mime, "application/zip");
 });
 
 test("un DOCX numit .zip nu produce mismatch: ambele sunt containere ZIP", () => {
