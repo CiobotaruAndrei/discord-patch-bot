@@ -15,6 +15,7 @@ mod types;
 mod updates;
 mod url_identity;
 mod chm_listing;
+mod similarity_corpus;
 mod document_text;
 mod pdf_vector;
 mod visual;
@@ -39,6 +40,7 @@ pub use msi_database::{
 pub use native_archive::{
   decode_native_archive, native_archive_available, NativeArchiveEntry, NativeArchiveOutcome,
 };
+pub use similarity_corpus::{categories, digest_of, known_sample_indicators, hostile_sample_count, lookup_by_digest, LabeledSample, LABELED_CORPUS, LABELED_CORPUS_VERSION};
 pub use chm_listing::{is_chm, list_chm_entries, ChmListingLimits};
 pub use document_text::{extract_pdf_text, find_url_hosts, DocumentTextLimits};
 pub use executable::analysis_blind_spots;

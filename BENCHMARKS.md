@@ -1009,6 +1009,21 @@ colectorului de metrici.
 Practic: dupa o perioada de rulare, `bot_uninspectable_content_total` spune direct daca vreun gate merita deschis.
 Zero pe `video_*` inseamna ca FFmpeg ramane nejustificat, cu dovada, nu cu presupunerea.
 
+### Baza de comparatie ceruta inainte de TLSH
+
+Documentul de librarii conditioneaza TLSH de „un corpus local versionat si un index de mostre cu etichete
+verificate", si adauga explicit: nu calcula hash fara baza de comparatie. Repo-ul avea deja materialul — 17 mostre
+inghetate, etichetate ostil sau benign, pe categorii, cu amprente SHA-256 fixate — dar traia doar ca fixture de test,
+deci nu putea fi interogat de nimic.
+
+`native/core/src/similarity_corpus.rs` il expune ca index versionat, cu cautare dupa amprenta. Corpusul inghetat si
+indexul sunt legate printr-un test care pica daca se despart: fara el, indexul ar putea deveni o lista de amprente
+fara acoperire in mostre reale, adica exact opusul unei baze de comparatie.
+
+Indexul e util imediat, nu doar ca pregatire pentru TLSH: un continut identic la octet cu o mostra cunoscuta e
+raportat cu eticheta si categoria ei. TLSH ar extinde potrivirea de la **identica** la **apropiata**, ceea ce e
+pasul care are nevoie de biblioteca; scheletul si datele exista de acum.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
