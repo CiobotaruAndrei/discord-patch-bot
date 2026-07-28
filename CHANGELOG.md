@@ -30,6 +30,8 @@
 
 - **Stratul de securitate nativa e monitorizat cap-coada: crash-uri, timeout-uri, fallback-uri si versiunile motorului antivirus.** Versiunile motorului extern si ale bazei de semnaturi — capturate deja per-scan in audit — ajung acum si la `/metrics` (`bot_threat_engine_info{engine_version,database_version}`), cu contor de schimbari de versiune si varsta ultimei scanari reusite. Esecurile de apel sunt numarate pe motiv (`transport` vs `http-status`), iar o schimbare de versiune se logheaza cu valorile vechi si noi. Alerte Prometheus noi acopera timeout-urile si crash-loop-ul inspectorului izolat, esecurile motorului si tacerea lui prelungita; dashboard-ul Grafana primeste doua panouri, iar OPERATIONS.md documenteaza diagnosticul pentru fiecare serie.
 
+- **Suita de teste nu mai are bomba cu ceas din fixture-ul YouTube.** Harness-ul de interactiune fixa `publishedAt` la o data absoluta; cand acea data a iesit din fereastra de recenta de o luna, testul de abonare a inceput sa pice **fara nicio schimbare de cod**, blocand toate PR-urile deschise. Fixture-ul e acum relativ la momentul rularii, iar o garda noua verifica direct invariantul (`isRecentYouTubeVideo` pe fixture trebuie sa fie adevarat oricand ruleaza suita), deci regresia nu se poate repeta tacut.
+
 Toate schimbarile importante ale proiectului sunt documentate aici.
 
 Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), iar versiunile folosesc [Semantic Versioning](https://semver.org/).
