@@ -936,6 +936,36 @@ Si aceste reguli sunt verificate prin mutatie: un `RUN pip install` nedeclarat p
 verde. Cazul concret al pre-compilarii native ramane pazit separat, in `nativeBuildCaching.test.ts`, ca sa
 nu existe doua gate-uri care verifica acelasi lucru.
 
+### libdeflate: masurat pe pragurile din document si respins
+
+Documentul de librarii listeaza libdeflate ca P5, benchmark-only, cu praguri explicite: cel putin 1,5x pe
+corpusul real si o reducere masurabila a p95/p99. Conditia lui prealabila e insa alta, si pe aceea am
+masurat-o intai: „adaugarea are sens numai daca profilerul arata ca inflate consuma o parte relevanta din
+p95/p99".
+
+`native/core/tests/inflate_share.rs` construieste un PDF cu 24 de fluxuri FlateDecode, 3,1 MB necomprimati in
+total, si cronometreaza pe 60 de rulari doua lucruri separat: inspectia completa si numai decompresia acelorasi
+fluxuri.
+
+| Masura | p50 | p95 | p99 |
+| --- | --- | --- | --- |
+| Inspectie completa | 126,8 ms | 130,5 ms | 131,3 ms |
+| Numai inflate | 1,76 ms | 2,85 ms | 2,89 ms |
+| **Cota inflate** | **1,4%** | **2,2%** | - |
+
+Inflate e sub 2,5% din timpul inspectiei. Un inflate **instantaneu** ar taia cel mult atat; cei 1,5x ceruti de
+document ar economisi in jur de 0,7% din total, adica sub zgomotul dintre rulari. Pragul de „reducere
+masurabila a p95/p99" nu poate fi atins, indiferent cat de bun ar fi codecul.
+
+**Verdict: gate-ul ramane inchis, fara dependinta noua.** Masuratoarea ramane in repo, marcata `#[ignore]`, si se
+reia cu `cargo test -p discord_patch_bot_logic --test inflate_share -- --ignored --nocapture` daca profilul se
+schimba. Daca cineva adauga totusi un crate `libdeflate-sys`, gate-ul de clasificare din SBOM il opreste si cere o
+decizie scrisa, deci decizia asta nu se poate eroda tacut.
+
+Masuratoarea spune si altceva, util pentru orice incercare viitoare de optimizare: la 3,1 MB si 24 de fluxuri,
+inspectia completa ia ~127 ms, din care decompresia ~2 ms. Timpul sta in restul lantului, nu in codec, deci
+inflate e o tinta gresita cu doua ordine de marime.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
