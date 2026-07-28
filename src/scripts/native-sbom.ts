@@ -35,6 +35,34 @@ export const NATIVE_COMPONENTS: readonly NativeComponent[] = [
   { crate: "sha2", kind: "rust", vendored: "-", role: "hash de continut" }
 ];
 
+export interface ExemptNativeCrate {
+  crate: string;
+  reason: string;
+}
+
+export const NON_SHIPPED_NATIVE_CRATES: readonly ExemptNativeCrate[] = [
+  { crate: "clang-sys", reason: "rulat doar la build de bindgen; nu ajunge in binarul livrat" },
+  { crate: "napi-sys", reason: "legaturi la ABI-ul Node deja prezent in proces, nu o librarie impachetata" },
+  { crate: "windows-sys", reason: "legaturi la API-ul Windows de sistem, parte din platforma" },
+  { crate: "js-sys", reason: "legaturi WebAssembly, neincluse in tintele native pe care le livram" }
+];
+
+export function isNativeBindingCrate(name: string): boolean {
+  return name.endsWith("-sys");
+}
+
+export function findUnclassifiedNativeCrates(
+  lockText: string,
+  components: readonly NativeComponent[] = NATIVE_COMPONENTS,
+  exempt: readonly ExemptNativeCrate[] = NON_SHIPPED_NATIVE_CRATES
+): string[] {
+  const declared = new Set(components.map(component => component.crate));
+  const excused = new Set(exempt.map(entry => entry.crate));
+  return [...parseLockVersions(lockText).keys()]
+    .filter(name => isNativeBindingCrate(name) && !declared.has(name) && !excused.has(name))
+    .sort();
+}
+
 export function parseLockVersions(lockText: string): Map<string, string> {
   const versions = new Map<string, string>();
   for (const block of lockText.split("[[package]]")) {
@@ -74,9 +102,18 @@ export function readLock(root: string): string {
 }
 
 if (process.argv[1] !== undefined && process.argv[1].endsWith("native-sbom.js")) {
-  const { entries, missing } = buildSbom(readLock(process.cwd()));
+  const lock = readLock(process.cwd());
+  const { entries, missing } = buildSbom(lock);
   if (missing.length > 0) {
     console.error(`Crate-uri native declarate dar absente din Cargo.lock: ${missing.join(", ")}`);
+    process.exit(1);
+  }
+  const unclassified = findUnclassifiedNativeCrates(lock);
+  if (unclassified.length > 0) {
+    console.error(
+      `Crate-uri cu legaturi native prezente in Cargo.lock dar neclasificate: ${unclassified.join(", ")}. ` +
+        "Adauga-le in NATIVE_COMPONENTS daca livreaza cod C/C++, altfel in NON_SHIPPED_NATIVE_CRATES cu motiv."
+    );
     process.exit(1);
   }
   console.log(renderSbomTable(entries));
