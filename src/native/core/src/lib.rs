@@ -14,6 +14,7 @@ mod text;
 mod types;
 mod updates;
 mod url_identity;
+mod document_text;
 mod pdf_vector;
 mod visual;
 mod yara_rules;
@@ -37,6 +38,7 @@ pub use msi_database::{
 pub use native_archive::{
   decode_native_archive, native_archive_available, NativeArchiveEntry, NativeArchiveOutcome,
 };
+pub use document_text::{extract_pdf_text, find_url_hosts, DocumentTextLimits};
 pub use executable::analysis_blind_spots;
 pub use inspection::{container_signature, uninspectable_format};
 pub use inspection::{
