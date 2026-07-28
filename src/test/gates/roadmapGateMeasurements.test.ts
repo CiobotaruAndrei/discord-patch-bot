@@ -21,7 +21,7 @@ test("masuratorile care tin gate-urile din roadmap exista", () => {
 test("fiecare gate ramas deschis are o masuratoare, nu doar o mentiune in document", () => {
   const source = readMeasurements();
   for (const [gate, marker] of [
-    ["PDFium", "gate_pdfium_un_qr_desenat_in_pagina_pdf_nu_e_vazut_azi"],
+    
     ["libheif", "gate_libheif_heic_si_avif_nu_ajung_niciodata_la_scanarea_vizuala"]
   ]) {
     assert.ok(
@@ -31,7 +31,7 @@ test("fiecare gate ramas deschis are o masuratoare, nu doar o mentiune in docume
   }
 });
 
-test("golul inchis ramane acoperit: continutul imbricat ajunge la scanarea vizuala", () => {
+test("golurile inchise raman acoperite: continut imbricat si imagini din PDF", () => {
   const source = readMeasurements();
   assert.ok(
     source.includes("un_png_cu_qr_dintr_o_arhiva_e_citit_ca_si_cand_ar_fi_trimis_direct"),

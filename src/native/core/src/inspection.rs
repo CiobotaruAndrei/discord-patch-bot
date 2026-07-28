@@ -1,5 +1,5 @@
 use crate::executable::{analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
-use crate::visual::{looks_like_image, scan_visual_codes, VisualLimits, VisualOutcome};
+use crate::visual::{looks_like_image, png_from_samples, scan_visual_codes, VisualLimits, VisualOutcome};
 use crate::pdf_structure::{
   inspect_pdf_structure, needs_structural_escalation, PdfStructureLimits, PdfStructureOutcome,
 };
@@ -493,6 +493,50 @@ fn pdf_stream_payload(bytes: &[u8], keyword_end: usize) -> Option<(&[u8], usize)
   Some((&bytes[start..start + relative], start + relative + 9))
 }
 
+const PDF_MAX_RECONSTRUCTED_PIXELS: u64 = 4_000_000;
+
+fn pdf_dictionary_number(dictionary: &[u8], key: &[u8]) -> Option<u32> {
+  let at = find(dictionary, key)?;
+  let mut cursor = at + key.len();
+  while cursor < dictionary.len() && dictionary[cursor].is_ascii_whitespace() {
+    cursor += 1;
+  }
+  let start = cursor;
+  while cursor < dictionary.len() && dictionary[cursor].is_ascii_digit() {
+    cursor += 1;
+  }
+  if cursor == start || cursor - start > 9 {
+    return None;
+  }
+  std::str::from_utf8(&dictionary[start..cursor]).ok()?.parse::<u32>().ok()
+}
+
+fn pdf_image_indicators(dictionary: &[u8], samples: &[u8]) -> Vec<String> {
+  if !contains(dictionary, b"/Image") || pdf_dictionary_number(dictionary, b"/BitsPerComponent") != Some(8) {
+    return Vec::new();
+  }
+  let channels = if contains(dictionary, b"/DeviceGray") {
+    1u32
+  } else if contains(dictionary, b"/DeviceRGB") {
+    3u32
+  } else {
+    return Vec::new();
+  };
+  let (Some(width), Some(height)) = (
+    pdf_dictionary_number(dictionary, b"/Width"),
+    pdf_dictionary_number(dictionary, b"/Height")
+  ) else {
+    return Vec::new();
+  };
+  if u64::from(width) * u64::from(height) > PDF_MAX_RECONSTRUCTED_PIXELS {
+    return Vec::new();
+  }
+  match png_from_samples(width, height, channels, samples) {
+    Some(png) => visual_indicators(&png),
+    None => Vec::new()
+  }
+}
+
 fn pdf_structural_indicators(bytes: &[u8], budget: &mut Budget) -> Vec<String> {
   if !is_pdf(bytes) {
     return Vec::new();
@@ -518,6 +562,7 @@ fn pdf_structural_indicators(bytes: &[u8], budget: &mut Budget) -> Vec<String> {
         if budget.expanded_bytes > budget.limits.max_expanded_bytes {
           break;
         }
+        indicators.extend(pdf_image_indicators(dictionary, &decoded));
         if pdf_action_indicators(&decoded) {
           indicators.push("actiune automata sau script PDF in flux comprimat (parser structural PDF)".to_string());
         }

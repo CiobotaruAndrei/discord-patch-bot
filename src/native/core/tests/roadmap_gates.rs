@@ -84,7 +84,7 @@ fn indicators_for(bytes: &[u8], filename: &str, mime: &str, mode: &str) -> Vec<S
 
 #[cfg(feature = "visual")]
 #[test]
-fn gate_pdfium_un_qr_desenat_in_pagina_pdf_nu_e_vazut_azi() {
+fn un_qr_incorporat_ca_imagine_in_pdf_e_citit_fara_pdfium() {
   let (width, height, gray) = qr_grayscale();
   let pdf = pdf_with_embedded_image(width, height, &gray);
   assert!(pdf.starts_with(b"%PDF-"), "mostra e un PDF");
@@ -105,7 +105,7 @@ fn gate_pdfium_un_qr_desenat_in_pagina_pdf_nu_e_vazut_azi() {
 
   let embedded = indicators_for(&pdf, "factura.pdf", "application/pdf", "document");
   assert!(
-    !embedded.iter().any(|entry| entry.contains("cod QR")),
+    embedded.iter().any(|entry| entry.contains("cod QR")),
     "masuratoare pentru gate-ul PDFium: daca acest cod ajunge sa fie citit din PDF, golul s-a inchis \
      si roadmap-ul trebuie actualizat, nu testul sters. Indicatori: {embedded:?}"
   );

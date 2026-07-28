@@ -11,7 +11,6 @@ const rootCargoPath = path.join(srcRoot, "native", "Cargo.toml");
 const coreCargoPath = path.join(srcRoot, "native", "core", "Cargo.toml");
 const coreLibPath = path.join(srcRoot, "native", "core", "src", "lib.rs");
 const wrapperLibPath = path.join(srcRoot, "native", "src", "lib.rs");
-const packageJsonPath = path.join(srcRoot, "package.json");
 const nativePackageJsonPath = path.join(srcRoot, "native", "package.json");
 const ciWorkflowPath = path.join(repoRoot, ".github", "workflows", "ci.yml");
 const releaseWorkflowPath = path.join(repoRoot, ".github", "workflows", "release.yml");
