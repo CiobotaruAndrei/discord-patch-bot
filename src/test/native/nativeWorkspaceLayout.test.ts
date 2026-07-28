@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import fs from "fs";
 import path from "path";
+import { nativeCheckCommands } from "../../scripts/check-native.js";
 
 const srcRoot = process.cwd();
 const repoRoot = path.resolve(srcRoot, "..");
@@ -50,9 +51,9 @@ test("wrapper-ul N-API e subtire: deleaga la core si nu mai are teste proprii", 
 });
 
 test("check:native si CI testeaza core-ul pur si dau clippy pe tot workspace-ul, in profil release (partajeaza target cache cu napi build, review nou #21)", () => {
-  const pkg = read(packageJsonPath);
-  assert.match(pkg, /cargo clippy --release --manifest-path native\/Cargo\.toml --workspace --all-targets -- -D warnings/, "clippy acopera ambele crate-uri, in release ca sa refoloseasca dependentele compilate de napi build --release");
-  assert.match(pkg, /cargo test --release --manifest-path native\/Cargo\.toml -p discord_patch_bot_logic -p native-inspector --quiet/, "cargo test acopera si crate-ul pur si procesul de inspectie sandboxat - altfel testul care verifica filtrul de syscall nu ar rula niciodata in CI");
+  const [clippy, cargoTest] = nativeCheckCommands("x86_64-unknown-linux-gnu").map(args => args.join(" "));
+  assert.match(clippy, /^clippy --release --target \S+ --manifest-path native\/Cargo\.toml --workspace --all-targets -- -D warnings$/, "clippy acopera ambele crate-uri, in release si pe tripletul lui napi ca sa refoloseasca dependentele deja compilate");
+  assert.match(cargoTest, /^test --release --target \S+ --manifest-path native\/Cargo\.toml -p discord_patch_bot_logic -p native-inspector --quiet$/, "cargo test acopera si crate-ul pur si procesul de inspectie sandboxat - altfel testul care verifica filtrul de syscall nu ar rula niciodata in CI");
   const ci = read(ciWorkflowPath);
   assert.match(ci, /run: npm run check:native/, "ci.yml ruleaza validarea Rust prin scriptul unic check:native, nu prin comenzi cargo duplicate in workflow");
   const release = read(releaseWorkflowPath);

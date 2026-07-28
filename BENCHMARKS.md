@@ -863,6 +863,41 @@ importului si iesirea procesului, care pentru un fisier de test e chiar rularea 
 catre `node:test`. Cine se lua dupa ea vana un handle scapat care nu exista. Acum scrie „rulare" si
 explica in ce conditii cifra chiar devine suspecta.
 
+### Cache-ul librariilor C/C++: doua scurgeri, ambele masurate
+
+Intrebarea „au si librariile C/C++ nevoie de cache" are un raspuns pe date, iar el e da de doua ori.
+
+**Prima scurgere: un bump de npm recompila librariile C/C++.** Duratele pasului „Build image" din
+`container-scan`, corelate cu ce s-a schimbat in commit: 85s cand nu se atinsese nici `package-lock.json`
+nici `src/native/`, 324s cand se schimbase efectiv `src/native/` (legitim), dar **290s si 340s pe commit-uri
+care schimbasera doar `package-lock.json`**. Cauza era ordinea straturilor: `RUN npm ci` venea inainte de
+`RUN npm run build:rust`, deci orice actualizare de dependinta npm — dependabot ruleaza saptamanal — invalida
+stratul npm si tot ce urma, inclusiv compilarea din surse a libyara, libarchive, qpdf si ZXing-C++.
+
+Dependintele cargo se pre-compileaza acum intr-un strat asezat **inaintea** lui `npm ci`, care copiaza doar
+manifestele (`Cargo.toml`, `Cargo.lock`, manifestele membrilor) si construieste peste surse goale, apoi
+sterge doar artefactele crate-urilor din workspace cu `cargo clean -p`. Stratul depinde astfel exclusiv de
+manifestele cargo: un bump npm nu-l mai atinge.
+
+**A doua scurgere: cele patru librarii se compilau de doua ori in aceeasi rulare.** `napi build` compileaza
+cu `--target`, deci scrie in `target/<triplet>/release`, in timp ce `cargo clippy` si `cargo test` din
+`check:native`, fara `--target`, scriu in `target/release`. Verificat direct: dupa un `npm run build:rust`
+fortat, `target/x86_64-pc-windows-msvc/release` primeste 19 fisiere iar `target/release` zero, si ambele
+directoare contin cate 6 iesiri de build script pentru librariile C/C++ — adica doua compilari complete.
+Cu tripletul aliniat, clippy refoloseste artefactele lui napi si mai are de verificat doar cele doua
+crate-uri de workspace (9,5s pentru tot `check:native`, fara nicio librarie C/C++ recompilata).
+
+Alinierea sta in `scripts/check-native.ts`, nu intr-o variabila de mediu pusa in workflow. Motivul e ca
+problema nu era intr-un singur loc: `ci.yml`, `windows-native.yml` (jobul de 8-12 minute, unde compilarea
+pe Windows e cea mai scumpa) si `release.yml` prin `check:full` rulau toate `check:native` langa un build
+napi, deci toate compilau de doua ori — iar `release.yml` **fara niciun cache**, fiindca acolo cache-ul e
+interzis intentionat pentru proveninenta. O variabila repetata in trei workflow-uri s-ar fi uitat la al
+patrulea; asa merge si local. Tripletul e citit din `rustc -vV`, nu presupus, deci ramane corect si pe
+alta arhitectura — acelasi lucru se aplica in Dockerfile.
+
+Ambele sunt pazite de gate-uri, fiindca sunt exact genul de lucru care se strica tacut: nimic nu pica daca
+cineva muta stratul, doar CI-ul devine iar de trei ori mai lent fara ca cineva sa observe imediat.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard

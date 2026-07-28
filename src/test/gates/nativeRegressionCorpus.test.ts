@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import fs from "fs";
 import path from "path";
+import { nativeCheckCommands } from "../../scripts/check-native.js";
 
 const srcRoot = process.cwd();
 const corpusPath = path.join(srcRoot, "native", "core", "tests", "regression_corpus.rs");
@@ -13,11 +14,9 @@ function readCorpus(): string {
 
 test("corpusul de regresie exista si e rulat de check:native prin pachetul core", () => {
   assert.ok(fs.existsSync(corpusPath), "native/core/tests/regression_corpus.rs exista");
-  const scripts = JSON.parse(fs.readFileSync(path.join(srcRoot, "package.json"), "utf8")) as {
-    scripts: Record<string, string>;
-  };
+  const checkNative = nativeCheckCommands("x86_64-unknown-linux-gnu").map(args => args.join(" ")).join(" ");
   assert.ok(
-    scripts.scripts["check:native"].includes("-p discord_patch_bot_logic"),
+    checkNative.includes("-p discord_patch_bot_logic"),
     "corpusul traieste in pachetul core; daca pachetul iese din check:native, corpusul nu mai ruleaza la niciun PR"
   );
 });
