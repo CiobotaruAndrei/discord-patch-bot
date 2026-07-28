@@ -1,0 +1,55 @@
+# Instructiuni pentru agentii care lucreaza in acest repo
+
+Acest fisier exista dintr-un singur motiv: regulile repo-ului traiau doar in `docs/Reguli de respectat.md`,
+deci un agent le vedea numai daca isi amintea sa le caute. Sunt copiate mai jos ca sa fie in context de la
+primul mesaj al fiecarei sesiuni, fara ca cineva sa trebuiasca sa le ceara.
+
+**Sursa autoritara ramane `docs/Reguli de respectat.md`.** Blocul de mai jos este o copie identica, nu un set
+paralel de reguli, si nu adauga nimic la ele: regula 32 spune ca doar regulile din fisierul acela exista pentru
+acest repo. Un gate din `npm run check` pica daca cele doua se despart, deci copia nu poate ramane in urma.
+Cand adaugi o regula noua, o adaugi in fisierul sursa si regenerezi copia cu `npm run rules:sync`.
+
+## Cele mai des uitate in practica
+
+Nu sunt reguli noi si nu au prioritate peste celelalte; sunt cele ratate cel mai des:
+
+- **3** — orice schimbare de cod se reflecta si in documentatie, nu doar in `CHANGELOG.md`.
+- **13** — inainte de commit si push, verifica PR-urile deschise cu conflicte sau check-uri picate si rezolva-le intai.
+- **22** — cand raman lucruri de implementat, scrie-le undeva; memoria conversatiei nu tine loc de lista.
+- **24** — nu se da skip la o problema; singura exceptie e peste 2.000 de linii, si atunci se implementeaza o parte utila.
+- **30** — toate implementarile respecta toate regulile de mai jos, nu doar cele care par relevante.
+
+## Reguli de respectat
+
+1. Fara comentarii in fisierele cu cod.
+2. AI-ul nu trebuie sa introduca in fisierele cu cod sursa constructii care SLABESC tiparea: `any`, `as never`, dubla asertiune `as unknown as`, sau escape-uri de tipare marcate `legacy`. Sunt permise `unknown` (tipul top, type-safe, fiindca forteaza narrowing si este opusul lui `any`) si cast-urile de narrowing care ingusteaza dintr-un `unknown` sau din date dinamice externe (Mongo lean, Discord.js, JSON de la API-uri) la un tip real utilizabil, de exemplu `value as Record<string, unknown>`, `item as DealInfo` sau `require(...) as typeof import(...)`, fiindca acelea intaresc tiparea, nu o slabesc. Exceptie: in testele al caror rol explicit este sa prinda bug-uri, erori, regresii sau cazuri similare, de exemplu input invalid deliberat, este permis orice cast, inclusiv cele care slabesc tiparea. Subsetul sintactic (`any`, `as never`, `as unknown as`) este impus automat de `scripts/check-no-weakening-types.ts`, parte din `npm run check`, inclusiv peste `src/test`, cu allowlist explicit doar pentru teste bug-catching.
+3. Orice update facut in cod trebuie sa fie reflectat conform si in fisierele de documentatie.
+4. Implementarile in cod vor fi gandite astfel incat botul sa fie cat mai bun in ce face si cat mai optimizat; nu conteaza greutatea implementarii, ci ca propunerea in cod sa faca botul cat mai performant posibil. Acelasi lucru este valabil si cand se da review la cod, nu doar cand se face implementarea de cod.
+5. Pentru fiecare functionalitate nou introdusa pentru botul de Discord, trebuie adaugate teste care sa testeze functionalitatea nou adaugata.
+6. Cand AI-ului i se cere sa introduca comenzi noi in repo, trebuie sa verifice mai intai daca functionalitatea acelor comenzi nu exista deja in repo. Se verifica ce face comanda, nu doar numele ei; fiecare comanda noua trebuie totusi sa aiba si un nume diferit de comenzile existente.
+7. Comenzile de tip admin sau owner-only trebuie obligatoriu sa raspunda ephemeral, astfel incat raspunsurile, confirmarile, erorile de permisiune si mesajele de configurare sa fie vizibile doar userului care a rulat comanda.
+8. AI-ul trebuie sa verifice daca exista teste care nu isi mai au locul in repo: teste moarte care nu verifica nimic util, teste duplicate inutil sau teste care blocheaza un comportament vechi care nu mai trebuie pastrat. Astfel de teste se actualizeaza sau se sterg doar dupa ce se confirma ca nu mai protejeaza o functionalitate reala.
+9. Nu se scoate o bucata de limbaj de cod, de exemplu Rust, decat daca noul limbaj cu care este inlocuita acea bucata de cod face botul mai bun in ce face si mai eficient.
+10. Testele repo-ului trebuie rulate intr-un mediu care are pachetele si tool-urile necesare pentru validare; de exemplu, pentru testele Rust s-a instalat Cargo.
+11. Orice noua implementare de cod in repo trebuie facuta in GitHub pe branch nou si PR, ca implementarea sa fie verificata ca merge.
+12. Cand se face un nou PR, AI-ul trebuie sa verifice daca acest PR va avea conflicte cu situatia curenta din repo.
+13. Inainte ca AI-ul sa dea commit si push la un PR nou, trebuie sa verifice daca exista PR-uri deschise care nu au primit merge si sunt in conflict sau au check-uri cu fail. Daca gaseste PR-uri cu conflicte sau check-uri cu fail, AI-ul rezolva conflictele acelea sau check-urile cu fail inainte sa dea commit si push la PR-ul sau.
+14. Cand check-urile unui PR raman blocate in `QUEUED` fara niciun job `IN_PROGRESS`, AI-ul nu trateaza situatia ca fail de cod. AI-ul trebuie sa verifice starea GitHub Actions (`queued`, `in_progress`, `failed`, `cancelled` sau stale), sa vada daca exista alte run-uri queued sau in progress care blocheaza coada si sa anuleze run-urile stale sau inutile. Daca PR-ul ramane blocat, AI-ul anuleaza run-urile stale ale acelui PR si retriggeruieste check-urile prin `rerun` sau printr-un commit gol, apoi verifica din nou pana cand check-urile pornesc sau apare un fail real.
+15. Cand AI-ului i se da o lista de review cu lucruri de implementat in repo, AI-ul nu se opreste pana nu termina toate lucrurile din lista.
+16. Cand AI-ul primeste o lista de review, trebuie sa rezolve mai intai toate problemele din clasa de prioritate cea mai mare, apoi sa continue in ordine descrescatoare cu problemele din clasele de prioritate urmatoare, pana cand termina intreaga lista.
+17. Fiecare fisier nou trebuie sa primeasca un nume corespunzator functionalitatii sau rolului pe care il are in repo, nu un nume random, de exemplu `notification/codex`. Numele fisierului trebuie sa descrie doar functionalitatea corespunzatoare si nu trebuie sa includa cine a facut acel fisier.
+18. Daca se da review la acest repo, review-ul trebuie sa fie onest si sa dea nota pentru fiecare categorie relevanta a botului de Discord. Nota nu trebuie sa fie incurajatoare, ci trebuie sa reflecte nivelul real la care este botul acum. Pentru fiecare categorie notata, trebuie justificat de ce s-a dat nota respectiva si cum s-ar putea imbunatati codul pentru acea categorie.
+19. Cand AI-ul da review la repo de mai multe ori, fiecare review nou trebuie sa tina cont de notele pe categorii date in review-urile anterioare, ca evolutia notelor sa fie realista si justificata, nu reinventata de la zero. Notele pe categorii pot fi marite sau scazute in functie de calitatea reala a repo-ului: daca repo-ul a fost imbunatatit, notele pot creste; daca repo-ul a scazut la calitate sau apar finding-uri noi verificate, notele pot scadea.
+20. Cand AI-ul prezinta notele unui review, trebuie sa includa obligatoriu, fara omisiuni, urmatoarele categorii: `Arhitectura`, `Type safety`, `Persistenta si recovery`, `Testare`, `Performanta`, `Securitate`, `Documentatie`, `Boundaries si DI`, `Consistenta si concurenta`, `Contracte de tip`, `Modularitate`, `Operabilitate si CI`, `Observabilitate`, `Discord si rate limits`, `Experienta utilizatorului` si `General`. Notele trebuie afisate vertical intr-un tabel, cu cate o categorie pe rand si in formatul `nota anterioara -> nota noua`. Categoria `General` trebuie afisata ultima, deoarece reprezinta media generala a tuturor celorlalte categorii evaluate.
+21. Cand se da review la repo, AI-ul nu trebuie sa dea review pe baza copertii repo-ului, adica sa citeasca doar numele fisierelor si sa presupuna automat ca numele fisierului corespunde 100% cu codul din acel fisier; AI-ul trebuie sa citeasca codul din fisiere pentru un review realist.
+22. Daca la un review de cod sunt mai multe lucruri de implementat in repo si nu se pot face toate dintr-o data, AI-ul trebuie sa retina sau sa isi scrie undeva toate lucrurile care sunt de implementat.
+23. Cand AI-ul citeste un review de cod si vrea sa implementeze in cod ce se cere in review, trebuie sa verifice mai intai daca ce se spune in review este adevarat si folositor inainte sa implementeze schimbarea.
+24. AI-ul nu da skip la o problema. Singura situatie considerata overengineering foarte mare este cea in care rezolvarea completa a unei singure probleme ar necesita peste 2.000 de linii de cod. In aceasta situatie, AI-ul nu abandoneaza problema, ci implementeaza obligatoriu o parte utila a solutiei care rezolva cat mai mult din problema fara sa depaseasca 2.000 de linii de cod.
+25. Un AI care trebuie sa dea doar review la cod trebuie sa respecte doar regulile din acest fisier care tin de review-ul de cod, nu si regulile care nu au legatura cu review-ul de cod.
+26. Cand se da review la cod, AI-ul trebuie sa mentioneze mai multe fix-uri sau imbunatatiri pentru codul din repo, nu doar un singur fix sau o singura imbunatatire, decat daca a ramas un singur fix sau o singura imbunatatire pentru nota 10.
+27. Cand se da review la cod, AI-ul trebuie sa verifice pentru repo-ul curent daca o anumita bucata de cod scrisa intr-un anumit limbaj poate fi inlocuita cu o bucata de cod scrisa intr-un alt limbaj care ar face botul mai performant pentru acea bucata de cod, astfel incat botul sa fie mai bun in ce face si mai bine optimizat.
+28. Daca o regula noua care urmeaza sa fie adaugata in acest fisier are aceleasi cerinte ca o regula deja existenta mai sus, regula noua nu se mai adauga in fisier.
+29. Cand se adauga o regula noua in acest fisier, se da direct merge, pentru ca nu este nevoie sa se verifice ceva cand este adaugata o regula.
+30. Toate implementarile in cod trebuie sa respecte toate regulile din acest fisier.
+31. Regulile care au legatura cu toate celelalte reguli trebuie puse ultimele in lista de reguli si trebuie facuta renumerotarea.
+32. Doar regulile din acest fisier vor exista pentru acest repo; oricare alta regula din alte fisiere, daca exista, trebuie stearsa.
