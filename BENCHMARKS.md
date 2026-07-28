@@ -984,6 +984,21 @@ MIME-ul alese de expeditor, iar `bot_uninspectable_content_total{format}` o adun
 | `7z` | 7-Zip SDK |
 | `xz`, `zstandard`, `lz4`, `bzip2`, `arhiva_necunoscuta` | decodoare suplimentare in libarchive |
 
+Capstone nu incape in tabelul de mai sus, fiindca golul lui nu e un format nedeschis, ci o clasa de analiza. Un
+asemenea gol nu se poate numara direct fara sa il implementezi. Se pot numara insa **cazurile in care analiza
+structurala reuseste si totusi nu are ce spune**, adica exact populatia pe care Capstone ar tinti-o, prin
+`bot_analysis_blind_spot_total{kind}`:
+
+| Punct orb | De ce e exact tinta lui Capstone |
+| --- | --- |
+| `cod_fara_importuri_rezolvabile` | sectiuni executabile de peste 4 KB, dar tabela de importuri goala: semnul clasic de rezolvare dinamica de API, pe care doar instructiunile o arata |
+| `cod_cu_entropie_de_impachetare_fara_packer_cunoscut` | entropie peste 7,2 intr-o sectiune de cod, fara ca vreun packer sa fie recunoscut dupa semnatura |
+| `executabil_fara_niciun_indicator_structural` | analiza a mers pana la capat si nu a gasit nimic; daca fisierul e totusi rau, semnalul sta in instructiuni |
+
+Pragurile exista ca metrica sa nu se umple de zgomot: sub 4 KB de cod executabil nu se raporteaza nimic, iar
+entropia dintr-o sectiune de date nu conteaza, fiindca nu e cod impachetat. Ca si la formate, instrumentarea nu
+schimba niciun verdict.
+
 Instrumentarea **nu schimba niciun verdict**, nici macar pentru video, unde nu exista astazi nicio inspectie: doar
 numara ce nu poate fi deschis. Etichetele sunt normalizate la caractere sigure si plafonate la 64 de serii
 distincte, fiindca sursa lor e continut netrusted si o explozie de cardinalitate ar fi un mod ieftin de a face rau

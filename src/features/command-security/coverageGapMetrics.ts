@@ -1,15 +1,16 @@
 const MAX_TRACKED_FORMATS = 64;
 
 const totals = new Map<string, number>();
+const blindSpots = new Map<string, number>();
 
-export function normalizeUninspectableFormat(format: string): string | undefined {
+export function normalizeCoverageGapLabel(format: string): string | undefined {
   const trimmed = format.trim().toLowerCase().replace(/[^a-z0-9 -]/g, "");
   if (trimmed.length === 0 || trimmed.length > 32) return undefined;
   return trimmed.replace(/\s+/g, "_");
 }
 
 export function recordUninspectableFormat(format: string): void {
-  const key = normalizeUninspectableFormat(format);
+  const key = normalizeCoverageGapLabel(format);
   if (key === undefined) return;
   if (!totals.has(key) && totals.size >= MAX_TRACKED_FORMATS) return;
   totals.set(key, (totals.get(key) ?? 0) + 1);
@@ -21,4 +22,19 @@ export function getUninspectableFormatTotals(): Record<string, number> {
 
 export function resetUninspectableFormatTotals(): void {
   totals.clear();
+}
+
+export function recordAnalysisBlindSpot(kind: string): void {
+  const key = normalizeCoverageGapLabel(kind);
+  if (key === undefined) return;
+  if (!blindSpots.has(key) && blindSpots.size >= MAX_TRACKED_FORMATS) return;
+  blindSpots.set(key, (blindSpots.get(key) ?? 0) + 1);
+}
+
+export function getAnalysisBlindSpotTotals(): Record<string, number> {
+  return Object.fromEntries(blindSpots);
+}
+
+export function resetAnalysisBlindSpotTotals(): void {
+  blindSpots.clear();
 }

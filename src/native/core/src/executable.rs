@@ -43,6 +43,38 @@ pub fn executable_analysis_available() -> bool {
   cfg!(feature = "executable")
 }
 
+
+const PACKED_ENTROPY_THRESHOLD: f64 = 7.2;
+const MEANINGFUL_CODE_BYTES: u64 = 4096;
+
+pub fn analysis_blind_spots(report: &ExecutableReport) -> Vec<String> {
+  let mut spots: Vec<String> = Vec::new();
+  let code_bytes: u64 = report
+    .sections
+    .iter()
+    .filter(|section| section.executable)
+    .map(|section| section.raw_size)
+    .sum();
+  if code_bytes >= MEANINGFUL_CODE_BYTES && report.imported_libraries.is_empty() {
+    spots.push("cod fara importuri rezolvabile".to_string());
+  }
+  let packer_cunoscut = report
+    .indicators
+    .iter()
+    .any(|indicator| indicator.contains("packer") || indicator.contains("impachetat cu"));
+  let entropie_de_impachetare = report
+    .sections
+    .iter()
+    .any(|section| section.executable && section.entropy >= PACKED_ENTROPY_THRESHOLD);
+  if entropie_de_impachetare && !packer_cunoscut {
+    spots.push("cod cu entropie de impachetare fara packer cunoscut".to_string());
+  }
+  if report.indicators.is_empty() && code_bytes >= MEANINGFUL_CODE_BYTES {
+    spots.push("executabil fara niciun indicator structural".to_string());
+  }
+  spots
+}
+
 pub fn shannon_entropy(bytes: &[u8]) -> f64 {
   if bytes.is_empty() {
     return 0.0;

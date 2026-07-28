@@ -9,7 +9,7 @@ export interface PassiveArchiveFinding {
   reason: string;
 }
 
-import { recordUninspectableFormat } from "./uninspectableFormatMetrics.js";
+import { recordAnalysisBlindSpot, recordUninspectableFormat } from "./coverageGapMetrics.js";
 
 export interface InspectionReport {
   status: "inspected" | "uncertain";
@@ -19,6 +19,7 @@ export interface InspectionReport {
   expandedBytes: number;
   elapsedMs: number;
   uninspectableFormat?: string;
+  analysisBlindSpots?: string[];
 }
 
 export interface InspectionLimits {
@@ -763,6 +764,7 @@ export async function inspectUntrustedContent(
       });
       if (report && (report.status === "inspected" || report.status === "uncertain")) {
         if (typeof report.uninspectableFormat === "string") recordUninspectableFormat(report.uninspectableFormat);
+        if (Array.isArray(report.analysisBlindSpots)) for (const spot of report.analysisBlindSpots) recordAnalysisBlindSpot(String(spot));
         return {
           status: report.status,
           indicators: Array.isArray(report.indicators) ? report.indicators.map(indicator => String(indicator)) : [],
@@ -770,7 +772,8 @@ export async function inspectUntrustedContent(
           entriesInspected: Number(report.entriesInspected) || 0,
           expandedBytes: Number(report.expandedBytes) || 0,
           elapsedMs: Number(report.elapsedMs) || 0,
-          uninspectableFormat: typeof report.uninspectableFormat === "string" ? report.uninspectableFormat : undefined
+          uninspectableFormat: typeof report.uninspectableFormat === "string" ? report.uninspectableFormat : undefined,
+          analysisBlindSpots: Array.isArray(report.analysisBlindSpots) ? report.analysisBlindSpots.map(spot => String(spot)) : undefined
         };
       }
       recordNativeFallback("inspectUntrustedContent", new Error("raport nativ invalid"));
