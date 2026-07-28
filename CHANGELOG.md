@@ -41,6 +41,8 @@
 
 - **Auditul de dependinte Rust are o singura exceptie, ingusta si documentata.** `zxing-cpp` aduce tranzitiv `paste`, un proc-macro marcat *unmaintained* (RUSTSEC-2024-0436). Nu e o vulnerabilitate: avizul spune ca autorul a arhivat proiectul, iar `paste` ruleaza doar la compilare si nu emite cod in binarul livrat, deci nu e in suprafata de atac a productiei. Exceptia e limitata la acel ID, motivul e scris langa pasul de audit, iar o poarta noua fixeaza lista exacta de avize ignorate, ca sa nu creasca tacut. Politica `--deny warnings` ramane activa, iar o vulnerabilitate reala in `paste` ar primi alt ID si ar pica in continuare.
 
+- **Avizul HIGH pentru `js-yaml` e inchis.** Versiunea 4.2.0, adusa tranzitiv de `@napi-rs/cli`, era vulnerabila la consum patratic de CPU prin lanturi de chei de imbinare YAML (interval afectat `>= 4.0.0, < 4.3.0`). Fiind dependinta de dezvoltare, `npm audit --omit=dev` nu o vedea, deci poarta de audit trecea in timp ce alerta ramanea deschisa. Fixata prin `overrides` la `^4.3.0` — acelasi mecanism folosit deja pentru `form-data` si `ws` — nu ca dependinta directa, fiindca nu o folosim noi. Ramane in linia majora 4, iar build-ul napi a fost verificat cu versiunea noua.
+
 Toate schimbarile importante ale proiectului sunt documentate aici.
 
 Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), iar versiunile folosesc [Semantic Versioning](https://semver.org/).
