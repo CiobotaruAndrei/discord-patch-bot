@@ -634,19 +634,22 @@ C/C++ vendorata:
 
 | Crate | Versiune | Tip | Sursa C/C++ | Rol |
 | --- | --- | --- | --- | --- |
+| `magic` | 0.16.7 | c-system | libmagic de sistem (file 5.x) | detectie tip real + MIME + encoding |
+| `magic-sys` | 0.3.0 | c-system | libmagic de sistem (file 5.x) | legaturi FFI pentru libmagic |
 | `yara` | 0.32.0 | c-static | YARA 4.5.5 | motor de reguli malware |
 | `yara-sys` | 0.32.0 | c-static | YARA 4.5.5 | legaturi FFI pentru libyara |
 | `libarchive2-sys` | 0.2.0 | c-static | libarchive 3.8.1 | decodare arhive RAR/7z si filtre |
 | `qpdf` | 0.3.5 | cpp-static | qpdf + zlib + libjpeg | structura PDF complexa |
 | `qpdf-sys` | 0.3.5 | cpp-static | qpdf + zlib + libjpeg | legaturi FFI pentru qpdf |
+| `zxing-cpp` | 0.5.2 | cpp-static | ZXing-C++ 2.x (bundled) | decodare coduri QR, DataMatrix, Aztec, PDF417 si 1D |
 | `libseccomp` | 0.4.0 | c-system | libseccomp de sistem | filtru de syscall in procesul izolat |
 | `libseccomp-sys` | 0.3.0 | c-system | libseccomp de sistem | legaturi FFI pentru libseccomp |
 | `goblin` | 0.10.7 | rust | - | parsare PE/ELF/Mach-O |
 | `idna` | 1.1.0 | rust | - | UTS#46, Punycode |
 | `unicode-security` | 0.1.2 | rust | - | UTS#39, confusables |
 | `publicsuffix` | 2.3.0 | rust | - | eTLD+1 |
-| `zxing-cpp` | 0.5.2 | cpp-static | ZXing-C++ 2.x (bundled) | decodare QR, DataMatrix, Aztec, PDF417 si 1D |
 | `image` | 0.25.10 | rust | - | decodare imagini |
+| `msi` | 0.10.0 | rust | - | citirea randurilor din baza de date MSI |
 | `flate2` | 1.1.9 | rust | - | inflate pentru fluxuri PDF si ZIP |
 | `sha2` | 0.11.0 | rust | - | hash de continut |
 
@@ -654,6 +657,26 @@ Un gate din `check` verifica trei lucruri: fiecare componenta declarata **exista
 SBOM care mentioneaza ceva ce nu se mai livreaza e mai rau decat niciunul), versiunile sunt fixe (nu
 intervale), si fiecare componenta non-Rust declara ce sursa C/C++ aduce. Cele sase librarii legate
 efectiv — libmagic, libyara, libarchive, qpdf, ZXing-C++, libseccomp — sunt cerute explicit.
+
+Verificarile de mai sus merg intr-o singura directie: pleaca de la ce **declaram** si confirma ca se
+regaseste in lock. Directia inversa lipsea, si ea e cea periculoasa — o librarie C/C++ aparuta in lock
+fara sa fie declarata s-ar livra in imagine fara sa apara in niciun inventar, exact esecul pe care SBOM-ul
+trebuie sa-l previna. `findUnclassifiedNativeCrates` inchide directia asta: orice crate `-sys` din
+`native/Cargo.lock` trebuie **clasificat** explicit, fie in `NATIVE_COMPONENTS` (livram cod C/C++ prin el),
+fie in `NON_SHIPPED_NATIVE_CRATES` cu motiv scris. Patru crate cad in a doua categorie si niciunul nu e o
+librarie impachetata: `clang-sys` ruleaza doar la build-ul de bindgen, `napi-sys` leaga ABI-ul Node deja
+prezent in proces, `windows-sys` si `js-sys` sunt legaturi de platforma. Regula e ca **tacerea nu mai e o
+optiune**: un crate nativ nou pica gate-ul pana cand cineva decide, in scris, in ce categorie intra.
+
+Tabelul de mai sus e generat din aceeasi sursa si verificat impotriva ei. Motivul e empiric: intre timp
+adaugasem libmagic si `msi` in cod, iar tabelul din documentatie ramasese la versiunea veche — un SBOM
+publicat care nu mai descria ce se livreaza. Un gate compara acum randurile din acest fisier cu iesirea
+lui `npm run sbom:native`, deci derapajul pica la PR in loc sa fie descoperit citind documentul.
+
+Artefactele de release nu reutilizeaza cache: `release.yml` nu are `actions/cache`, `rust-cache` sau
+`cache-from`/`cache-to`, iar un gate verifica asta. Cache-urile raman peste tot altundeva, unde ne
+cumpara timp; la release ar cumpara timp cu pretul provenientei, fiindca am semna un binar ale carui
+straturi vin dintr-un cache mutabil in loc de din sursa tag-ului.
 
 ### Fuzzing si sanitizere pe stratul nativ (PDF regen, prioritate reala #2)
 
