@@ -484,6 +484,7 @@ fn is_generic_mime(mime: &str) -> bool {
   matches!(mime, "application/octet-stream" | "text/plain" | "application/x-empty" | "")
 }
 
+#[derive(Clone)]
 struct TypeVerdict {
   mime: String,
   description: String,
@@ -532,23 +533,31 @@ fn is_refinable_container(mime: &str) -> bool {
   matches!(mime, "application/zip" | "application/x-ole-storage")
 }
 
-fn detect_type(bytes: &[u8], encoding: &str) -> TypeVerdict {
-  #[cfg(feature = "magic")]
-  {
-    if let Some(verdict) = detect_type_via_libmagic(bytes, encoding) {
-      if verdict.concrete {
-        if is_refinable_container(&verdict.mime) {
-          let refined = detect_type_via_signatures(bytes, encoding);
-          if refined.concrete && refined.mime != verdict.mime && mime_family(&refined.mime) == mime_family(&verdict.mime) {
-            return refined;
-          }
-        }
-        return verdict;
-      }
-      let fallback = detect_type_via_signatures(bytes, encoding);
-      return if fallback.concrete { fallback } else { verdict };
-    }
+#[cfg(feature = "magic")]
+fn combine_verdicts(engine: Option<TypeVerdict>, builtin: TypeVerdict) -> TypeVerdict {
+  let Some(verdict) = engine else {
+    return builtin;
+  };
+  if !verdict.concrete {
+    return if builtin.concrete { builtin } else { verdict };
   }
+  if is_refinable_container(&verdict.mime)
+    && builtin.concrete
+    && builtin.mime != verdict.mime
+    && mime_family(&builtin.mime) == mime_family(&verdict.mime)
+  {
+    return builtin;
+  }
+  verdict
+}
+
+#[cfg(feature = "magic")]
+fn detect_type(bytes: &[u8], encoding: &str) -> TypeVerdict {
+  combine_verdicts(detect_type_via_libmagic(bytes, encoding), detect_type_via_signatures(bytes, encoding))
+}
+
+#[cfg(not(feature = "magic"))]
+fn detect_type(bytes: &[u8], encoding: &str) -> TypeVerdict {
   detect_type_via_signatures(bytes, encoding)
 }
 
@@ -628,7 +637,12 @@ mod tests {
   fn pe_renamed_as_jpg_is_reported_as_executable_with_mismatch() {
     let result = report(&pe_bytes(), "poza.jpg", "image/jpeg");
     assert_eq!(result.kind, "executable");
-    assert_eq!(result.mime, "application/vnd.microsoft.portable-executable");
+    assert_eq!(
+      kind_for_mime(&result.mime),
+      "executable",
+      "MIME-ul exact difera intre detectoare (libmagic: application/x-dosexec), dar clasa ramane executabil: {}",
+      result.mime
+    );
     assert!(result.mismatch_flags & MISMATCH_EXTENSION != 0, "extensia .jpg contrazice continutul");
     assert!(result.mismatch_flags & MISMATCH_DECLARED_MIME != 0, "MIME-ul declarat de Discord contrazice continutul");
     assert!(result.mismatch_flags & MISMATCH_DISGUISED_EXECUTABLE != 0, "executabil deghizat");
@@ -676,6 +690,7 @@ mod tests {
   #[test]
   fn builtin_signature_table_labels_archives_exactly() {
     let label = |bytes: &[u8]| detect_type_via_signatures(bytes, detect_encoding(bytes));
+    assert_eq!(label(&pe_bytes()).mime, "application/vnd.microsoft.portable-executable");
     assert_eq!(label(b"Rar!\x1a\x07\x01\x00rest").mime, "application/vnd.rar");
     assert_eq!(label(b"Rar!\x1a\x07\x00rest").description, "arhiva RAR4");
     assert_eq!(label(&[0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 0]).mime, "application/x-7z-compressed");
@@ -799,11 +814,50 @@ mod tests {
 
   #[cfg(feature = "magic")]
   #[test]
-  fn a_buffer_libmagic_does_not_recognize_falls_back_to_the_builtin_signatures() {
-    if !libmagic_available() {
-      return;
-    }
-    let result = report(&pe_bytes(), "setup.exe", "");
-    assert_eq!(result.kind, "executable", "stub-ul PE scurt e prins de tabelul intern cand libmagic e nesigur");
+  fn compunerea_verdictelor_alege_corect_intre_motor_si_tabelul_intern() {
+    let builtin_pe = detect_type_via_signatures(&pe_bytes(), detect_encoding(&pe_bytes()));
+    let generic = |mime: &str| TypeVerdict {
+      mime: mime.to_string(),
+      description: "data".to_string(),
+      kind: "other".to_string(),
+      concrete: false,
+    };
+    let concrete = |mime: &str, kind: &str| TypeVerdict {
+      mime: mime.to_string(),
+      description: "din motor".to_string(),
+      kind: kind.to_string(),
+      concrete: true,
+    };
+
+    assert_eq!(
+      combine_verdicts(None, builtin_pe.clone()).mime,
+      "application/vnd.microsoft.portable-executable",
+      "fara motor (baza magic lipseste) preia complet tabelul intern"
+    );
+    assert_eq!(
+      combine_verdicts(Some(generic("application/octet-stream")), builtin_pe.clone()).mime,
+      "application/vnd.microsoft.portable-executable",
+      "un verdict generic al motorului cedeaza in fata tabelului intern concret"
+    );
+    assert_eq!(
+      combine_verdicts(Some(concrete("application/x-dosexec", "executable")), builtin_pe.clone()).mime,
+      "application/x-dosexec",
+      "un verdict concret al motorului ramane autoritatea, chiar daca tabelul intern are alt nume MIME"
+    );
+
+    let docx = zip_bytes("word/document.xml");
+    let builtin_docx = detect_type_via_signatures(&docx, detect_encoding(&docx));
+    assert_eq!(
+      combine_verdicts(Some(concrete("application/zip", "archive")), builtin_docx).mime,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "un container ZIP recunoscut de motor e rafinat de tabelul intern in subtipul real"
+    );
+
+    let text = detect_type_via_signatures(b"doar text", detect_encoding(b"doar text"));
+    assert_eq!(
+      combine_verdicts(Some(generic("application/octet-stream")), text).mime,
+      "application/octet-stream",
+      "cand nici tabelul intern nu e concret, verdictul generic al motorului ramane"
+    );
   }
 }
