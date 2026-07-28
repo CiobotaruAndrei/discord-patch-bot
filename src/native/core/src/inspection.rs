@@ -1608,6 +1608,7 @@ pub fn inspect_untrusted_content(
 ) -> InspectionReport {
   let started = Instant::now();
   let mut imagine_fara_cod = false;
+  let mut decodor_nativ_esuat: Option<&str> = None;
   let mut budget = Budget { entries: 0, expanded_bytes: 0, started, limits };
   let finding = if mode == "document" {
     document_finding(bytes, &mut budget)
@@ -1618,9 +1619,15 @@ pub fn inspect_untrusted_content(
   } else if is_tar(bytes) {
     inspect_tar(bytes, 0, &mut budget)
   } else if is_rar4(bytes) || is_rar5(bytes) {
-    inspect_native_container(bytes, 0, &mut budget, "RAR").unwrap_or_else(|| inspect_rar(bytes, &mut budget))
+    inspect_native_container(bytes, 0, &mut budget, "RAR").unwrap_or_else(|| {
+      decodor_nativ_esuat = Some("RAR");
+      inspect_rar(bytes, &mut budget)
+    })
   } else if is_seven_zip(bytes) {
-    inspect_native_container(bytes, 0, &mut budget, "7z").unwrap_or_else(|| inspect_seven_zip(bytes, &mut budget))
+    inspect_native_container(bytes, 0, &mut budget, "7z").unwrap_or_else(|| {
+      decodor_nativ_esuat = Some("7z");
+      inspect_seven_zip(bytes, &mut budget)
+    })
   } else if looks_like_image(bytes) {
     let indicators = dedupe(visual_indicators(bytes));
     let reason = if indicators.is_empty() {
@@ -1660,6 +1667,9 @@ pub fn inspect_untrusted_content(
     uninspectable_format: format_neinspectat,
     analysis_blind_spots: {
       let mut spots = executable_blind_spots(bytes);
+      if let Some(format) = decodor_nativ_esuat {
+        spots.push(format!("{format} deschis doar la nivel de header, decodorul nativ a esuat"));
+      }
       if imagine_fara_cod {
         spots.push("imagine fara cod vizual, text posibil necitit".to_string());
       }

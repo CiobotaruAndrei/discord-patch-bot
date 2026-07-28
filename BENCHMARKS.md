@@ -995,6 +995,7 @@ structurala reuseste si totusi nu are ce spune**, adica exact populatia pe care 
 | `cod_cu_entropie_de_impachetare_fara_packer_cunoscut` | entropie peste 7,2 intr-o sectiune de cod, fara ca vreun packer sa fie recunoscut dupa semnatura |
 | `executabil_fara_niciun_indicator_structural` | analiza a mers pana la capat si nu a gasit nimic; daca fisierul e totusi rau, semnalul sta in instructiuni |
 | `imagine_fara_cod_vizual_text_posibil_necitit` | imagine peste 16 KB scanata fara niciun cod: daca poarta un mesaj, el e text rasterizat, adica exact ce ar citi OCR-ul |
+| `rar_deschis_doar_la_nivel_de_header_decodorul_nativ_a_esuat`, la fel pentru `7z` | libarchive nu a putut deschide arhiva si s-a cazut pe parserul de header: exact conditia „libarchive esueaza sistematic" din gate-urile UnRAR si 7-Zip SDK |
 
 Pragurile exista ca metrica sa nu se umple de zgomot: sub 4 KB de cod executabil nu se raporteaza nimic, iar
 entropia dintr-o sectiune de date nu conteaza, fiindca nu e cod impachetat. Ca si la formate, instrumentarea nu
