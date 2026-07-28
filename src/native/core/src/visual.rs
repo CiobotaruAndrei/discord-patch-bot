@@ -45,8 +45,22 @@ pub fn payload_looks_like_url(payload: &str) -> bool {
 }
 
 #[cfg(feature = "visual")]
+fn describe_format(format: zxingcpp::BarcodeFormat) -> &'static str {
+  use zxingcpp::BarcodeFormat;
+  match format {
+    BarcodeFormat::QRCode | BarcodeFormat::MicroQRCode | BarcodeFormat::RMQRCode => "cod QR",
+    BarcodeFormat::DataMatrix => "cod DataMatrix",
+    BarcodeFormat::Aztec => "cod Aztec",
+    BarcodeFormat::PDF417 => "cod PDF417",
+    BarcodeFormat::MaxiCode => "cod MaxiCode",
+    _ => "cod de bare",
+  }
+}
+
+#[cfg(feature = "visual")]
 mod engine {
   use super::*;
+  use super::describe_format;
   use image::ImageReader;
   use std::io::Cursor;
 
@@ -80,26 +94,44 @@ mod engine {
       Err(error) => return VisualOutcome::Failed(error.to_string()),
     };
 
-    let mut prepared = rqrr::PreparedImage::prepare(decoded.to_luma8());
-    let grids = prepared.detect_grids();
+    let luma = decoded.to_luma8();
+    let view = match zxingcpp::ImageView::from_slice(
+      luma.as_raw(),
+      luma.width(),
+      luma.height(),
+      zxingcpp::ImageFormat::Lum,
+    ) {
+      Ok(view) => view,
+      Err(error) => return VisualOutcome::Failed(format!("imaginea nu a putut fi pregatita pentru decodare: {}", error)),
+    };
+
+    let reader = zxingcpp::BarcodeReader::new()
+      .try_harder(true)
+      .try_rotate(true)
+      .try_invert(true)
+      .max_number_of_symbols(limits.max_codes as i32 + 1);
+    let barcodes = match reader.from(&view) {
+      Ok(barcodes) => barcodes,
+      Err(error) => return VisualOutcome::Failed(format!("decodarea codurilor a esuat: {}", error)),
+    };
+
+    let valid: Vec<&zxingcpp::Barcode> = barcodes.iter().filter(|barcode| barcode.is_valid()).collect();
     let mut codes: Vec<VisualCode> = Vec::new();
     let mut indicators: Vec<String> = Vec::new();
 
-    for grid in grids.iter().take(limits.max_codes) {
-      let Ok((_, decoded_payload)) = grid.decode() else {
-        continue;
-      };
-      let mut payload = decoded_payload;
+    for barcode in valid.iter().take(limits.max_codes) {
+      let mut payload = barcode.text();
       payload.truncate(limits.max_payload_bytes);
       let looks_like_url = payload_looks_like_url(&payload);
+      let symbology = describe_format(barcode.format());
       if looks_like_url {
-        indicators.push("cod QR care contine un link".to_string());
+        indicators.push(format!("{} care contine un link", symbology));
       } else {
-        indicators.push("cod QR in imagine".to_string());
+        indicators.push(format!("{} in imagine", symbology));
       }
       codes.push(VisualCode { payload, looks_like_url });
     }
-    if grids.len() > limits.max_codes {
+    if valid.len() > limits.max_codes {
       indicators.push(format!("imaginea contine mai mult de {} coduri; restul nu au fost citite", limits.max_codes));
     }
 
@@ -157,6 +189,74 @@ mod tests {
     assert!(payload_looks_like_url("  HTTP://EXAMPLE.COM  "));
     assert!(!payload_looks_like_url("doar un text"));
     assert!(!payload_looks_like_url("javascript:alert(1)"));
+  }
+
+  #[cfg(feature = "visual")]
+  fn render_barcode(format: zxingcpp::BarcodeFormat, payload: &str) -> image::GrayImage {
+    let barcode = zxingcpp::BarcodeCreator::new(format).from_str(payload).expect("codul se genereaza");
+    let bitmap = barcode
+      .to_image_with(&zxingcpp::BarcodeWriter::new().scale(4))
+      .expect("codul se randeaza");
+    let width = bitmap.width() as u32;
+    let height = bitmap.height() as u32;
+    image::GrayImage::from_raw(width, height, bitmap.data()).expect("dimensiunile corespund")
+  }
+
+  #[cfg(feature = "visual")]
+  fn png_of(image: &image::GrayImage) -> Vec<u8> {
+    let mut out = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageLuma8(image.clone())
+      .write_to(&mut out, image::ImageFormat::Png)
+      .expect("PNG-ul se codifica");
+    out.into_inner()
+  }
+
+  #[cfg(feature = "visual")]
+  #[test]
+  fn formatele_pe_care_un_decodor_doar_qr_nu_le_putea_citi_sunt_acum_decodate() {
+    for (format, payload) in [
+      (zxingcpp::BarcodeFormat::DataMatrix, "https://exemplu.test/datamatrix"),
+      (zxingcpp::BarcodeFormat::Aztec, "https://exemplu.test/aztec"),
+      (zxingcpp::BarcodeFormat::PDF417, "https://exemplu.test/pdf417"),
+    ] {
+      let bytes = png_of(&render_barcode(format, payload));
+      match scan_visual_codes(&bytes, &VisualLimits::default()) {
+        VisualOutcome::Scanned { codes, indicators } => {
+          assert_eq!(codes.len(), 1, "{:?} produce exact un cod decodat", format);
+          assert_eq!(codes[0].payload, payload, "payload-ul {:?} e citit integral", format);
+          assert!(codes[0].looks_like_url, "payload-ul e recunoscut ca link");
+          assert!(
+            indicators.iter().any(|value| value.contains("care contine un link")),
+            "indicatorul spune ca e un link: {:?}",
+            indicators
+          );
+        }
+        other => panic!(
+          "{:?} trebuie decodat; un decodor doar-QR il rata complet ({})",
+          format,
+          match other {
+            VisualOutcome::NotImage => "NotImage".to_string(),
+            VisualOutcome::Failed(detail) => detail,
+            VisualOutcome::Unavailable(detail) => detail,
+            _ => "altceva".to_string(),
+          }
+        ),
+      }
+    }
+  }
+
+  #[cfg(feature = "visual")]
+  #[test]
+  fn simbologia_decodata_apare_in_indicator_nu_e_toata_numita_cod_qr() {
+    let bytes = png_of(&render_barcode(zxingcpp::BarcodeFormat::DataMatrix, "text simplu"));
+    match scan_visual_codes(&bytes, &VisualLimits::default()) {
+      VisualOutcome::Scanned { indicators, .. } => assert!(
+        indicators.iter().any(|value| value.contains("DataMatrix")),
+        "raportul spune ce simbologie a fost gasita: {:?}",
+        indicators
+      ),
+      _ => panic!("codul DataMatrix trebuie decodat"),
+    }
   }
 
   #[cfg(feature = "visual")]

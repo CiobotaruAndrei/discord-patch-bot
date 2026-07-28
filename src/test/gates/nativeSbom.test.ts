@@ -22,7 +22,7 @@ test("fiecare componenta nativa declarata exista efectiv in Cargo.lock", () => {
 
 test("librariile C/C++ legate efectiv sunt toate in SBOM", () => {
   const linked = NATIVE_COMPONENTS.filter(entry => entry.kind !== "rust").map(entry => entry.crate);
-  for (const required of ["magic-sys", "yara", "libarchive2-sys", "qpdf", "libseccomp"]) {
+  for (const required of ["magic-sys", "yara", "libarchive2-sys", "qpdf", "zxing-cpp", "libseccomp"]) {
     assert.ok(linked.includes(required), `${required} este legata efectiv si trebuie sa apara in SBOM`);
   }
 });
