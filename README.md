@@ -242,7 +242,7 @@ Pentru operare locala, `npm run doctor:local` verifica intr-un singur flux `.env
 
 Addon-ul leaga cinci librarii C/C++: **libmagic** (detectia tipului real, etapa 1), **ZXing-C++** (decodarea codurilor din imagini, inclusiv din imaginile gasite in arhive si din imaginile incorporate in PDF-uri, al caror bitmap e reconstruit din dictionarul obiectului, din previzualizarea JPEG a unui container HEIC/AVIF cand exista, si din codurile desenate vectorial in pagina PDF, rasterizate bounded din dreptunghiurile umplute ale fluxului de continut, etapa 9), **libyara** (motorul
 de reguli, etapa 2), **libarchive** (decodarea continutului arhivelor, etapa 3) si **qpdf** (analiza
-structurala a PDF-urilor, etapa 4). libyara, libarchive si qpdf sunt compilate din surse si legate
+structurala a PDF-urilor, etapa 4), inclusiv extragerea adreselor din textul vizibil si trecerea lor prin analiza de identitate a gazdei. libyara, libarchive si qpdf sunt compilate din surse si legate
 static (libyara si qpdf nu cer niciun pachet de sistem in plus; libarchive cere un lant de librarii de
 compresie la build). **libmagic** e o librarie de sistem: pe Linux se leaga dinamic la `libmagic1`
 (`magic_load(NULL)` gaseste `/usr/lib/file/magic.mgc`), la build cere `libmagic-dev`. Cand baza

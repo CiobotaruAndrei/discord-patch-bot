@@ -1,4 +1,5 @@
 use crate::executable::{analysis_blind_spots, analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
+use crate::document_text::{extract_pdf_text, find_url_hosts, DocumentTextLimits};
 use crate::pdf_vector::{rasterize_filled_rectangles, VectorRasterLimits};
 use crate::visual::{embedded_jpeg_preview, iso_bmff_image_brand, looks_like_image, png_from_samples, scan_visual_codes, VisualLimits, VisualOutcome};
 use crate::pdf_structure::{
@@ -514,6 +515,32 @@ fn pdf_dictionary_number(dictionary: &[u8], key: &[u8]) -> Option<u32> {
   std::str::from_utf8(&dictionary[start..cursor]).ok()?.parse::<u32>().ok()
 }
 
+#[cfg(feature = "url-identity")]
+fn host_identity_indicators(host: &str) -> Vec<String> {
+  crate::url_identity::analyze_url_host(host, &[]).indicators
+}
+
+#[cfg(not(feature = "url-identity"))]
+fn host_identity_indicators(_host: &str) -> Vec<String> {
+  Vec::new()
+}
+
+fn pdf_text_link_indicators(content: &[u8]) -> Vec<String> {
+  let limits = DocumentTextLimits::default();
+  let text = extract_pdf_text(content, &limits);
+  if text.is_empty() {
+    return Vec::new();
+  }
+  let mut indicators: Vec<String> = Vec::new();
+  for host in find_url_hosts(&text, &limits) {
+    indicators.push(format!("link in textul vizibil al documentului catre {host}"));
+    for semnal in host_identity_indicators(&host) {
+      indicators.push(format!("{semnal} (gazda din textul documentului)"));
+    }
+  }
+  indicators
+}
+
 fn pdf_vector_code_indicators(content: &[u8]) -> Vec<String> {
   if !contains(content, b" re") {
     return Vec::new();
@@ -583,6 +610,7 @@ fn pdf_structural_indicators(bytes: &[u8], budget: &mut Budget) -> Vec<String> {
         }
         indicators.extend(pdf_image_indicators(dictionary, &decoded));
         indicators.extend(pdf_vector_code_indicators(&decoded));
+        indicators.extend(pdf_text_link_indicators(&decoded));
         if pdf_action_indicators(&decoded) {
           indicators.push("actiune automata sau script PDF in flux comprimat (parser structural PDF)".to_string());
         }
