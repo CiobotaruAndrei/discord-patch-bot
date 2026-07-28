@@ -18,6 +18,13 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # `napi build` compileaza cu --target, deci scrie in target/<triplet>/release, in timp ce un
+    # `cargo clippy`/`cargo test` fara --target scrie in target/release. Fara variabila asta cele doua
+    # nu impart nimic si cele patru librarii C/C++ (libyara, libarchive, qpdf, ZXing-C++) se compileaza
+    # de doua ori per rulare, umfland si cache-ul. Verificat local: cu tripletul aliniat, clippy
+    # refoloseste artefactele lui napi si mai compileaza doar cele doua crate-uri de workspace.
+    env:
+      CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
     defaults:
       run:
         working-directory: src

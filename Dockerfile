@@ -15,6 +15,28 @@ COPY --from=rust-toolchain /usr/local/rustup /usr/local/rustup
 COPY --from=rust-toolchain /usr/local/cargo /usr/local/cargo
 RUN rustc --version && cargo --version
 
+# libyara, libarchive, qpdf si ZXing-C++ se compileaza din surse prin build script-urile crate-urilor
+# -sys, deci intra in stratul de dependinte cargo. Stratul acela e pus INAINTE de `npm ci` si depinde
+# doar de manifestele cargo: altfel orice bump de dependinta npm (dependabot ruleaza saptamanal) ar
+# invalida `npm ci` si tot ce urmeaza, recompiland cele patru librarii degeaba. Masurat pe rulari reale
+# de container-scan: 85s cu totul in cache, 290-340s cand se schimbase doar package-lock.json.
+COPY src/native/Cargo.toml src/native/Cargo.lock src/native/build.rs src/native/rust-toolchain.toml ./native/
+COPY src/native/core/Cargo.toml ./native/core/
+COPY src/native/inspector/Cargo.toml ./native/inspector/
+# Tripletul e explicit fiindca `napi build` compileaza cu --target, deci scrie in
+# target/<triplet>/release. Un `cargo build` fara --target ar popula target/release, adica alt
+# director, si pre-compilarea n-ar fi refolosita de nimic — ar adauga un build intreg in loc sa scuteasca.
+RUN TARGET="$(rustc -vV | sed -n 's/^host: //p')" \
+  && mkdir -p native/src native/core/src native/inspector/src \
+  && printf 'fn main() {}\n' > native/inspector/src/main.rs \
+  && : > native/src/lib.rs \
+  && : > native/core/src/lib.rs \
+  && : > native/inspector/src/lib.rs \
+  && cargo build --release --target "$TARGET" --manifest-path native/Cargo.toml --workspace \
+  && cargo clean --release --target "$TARGET" --manifest-path native/Cargo.toml \
+    -p discord_patch_bot_core -p discord_patch_bot_logic -p native-inspector \
+  && rm -rf native/src native/core/src native/inspector/src
+
 COPY src/package.json src/package-lock.json ./
 RUN npm ci
 
