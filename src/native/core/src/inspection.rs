@@ -1,4 +1,5 @@
 use crate::executable::{analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
+use crate::pdf_vector::{rasterize_filled_rectangles, VectorRasterLimits};
 use crate::visual::{embedded_jpeg_preview, iso_bmff_image_brand, looks_like_image, png_from_samples, scan_visual_codes, VisualLimits, VisualOutcome};
 use crate::pdf_structure::{
   inspect_pdf_structure, needs_structural_escalation, PdfStructureLimits, PdfStructureOutcome,
@@ -511,6 +512,22 @@ fn pdf_dictionary_number(dictionary: &[u8], key: &[u8]) -> Option<u32> {
   std::str::from_utf8(&dictionary[start..cursor]).ok()?.parse::<u32>().ok()
 }
 
+fn pdf_vector_code_indicators(content: &[u8]) -> Vec<String> {
+  if !contains(content, b" re") {
+    return Vec::new();
+  }
+  let Some(raster) = rasterize_filled_rectangles(content, &VectorRasterLimits::default()) else {
+    return Vec::new();
+  };
+  match png_from_samples(raster.width, raster.height, 1, &raster.samples) {
+    Some(png) => visual_indicators(&png)
+      .into_iter()
+      .map(|entry| format!("{entry} (desenat vectorial in pagina PDF)"))
+      .collect(),
+    None => Vec::new()
+  }
+}
+
 fn pdf_image_indicators(dictionary: &[u8], samples: &[u8]) -> Vec<String> {
   if !contains(dictionary, b"/Image") || pdf_dictionary_number(dictionary, b"/BitsPerComponent") != Some(8) {
     return Vec::new();
@@ -563,6 +580,7 @@ fn pdf_structural_indicators(bytes: &[u8], budget: &mut Budget) -> Vec<String> {
           break;
         }
         indicators.extend(pdf_image_indicators(dictionary, &decoded));
+        indicators.extend(pdf_vector_code_indicators(&decoded));
         if pdf_action_indicators(&decoded) {
           indicators.push("actiune automata sau script PDF in flux comprimat (parser structural PDF)".to_string());
         }
