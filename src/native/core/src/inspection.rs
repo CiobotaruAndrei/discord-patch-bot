@@ -647,6 +647,7 @@ fn content_indicators(name: &str, bytes: &[u8], budget: &mut Budget) -> Vec<Stri
     indicators.push("executabil ELF intern".to_string());
   }
   indicators.extend(executable_indicators(bytes));
+  indicators.extend(visual_indicators(bytes));
   let text = scan_window(bytes);
   if pdf_action_indicators(text) {
     indicators.push("actiune automata sau script PDF intern".to_string());
