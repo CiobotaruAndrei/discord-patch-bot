@@ -1,4 +1,5 @@
 use crate::executable::{analysis_blind_spots, analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
+use crate::chm_listing::{list_chm_entries, ChmListingLimits};
 use crate::document_text::{extract_pdf_text, find_url_hosts, DocumentTextLimits};
 use crate::pdf_vector::{rasterize_filled_rectangles, VectorRasterLimits};
 use crate::visual::{embedded_jpeg_preview, iso_bmff_image_brand, looks_like_image, png_from_samples, scan_visual_codes, VisualLimits, VisualOutcome};
@@ -523,6 +524,23 @@ fn host_identity_indicators(host: &str) -> Vec<String> {
 #[cfg(not(feature = "url-identity"))]
 fn host_identity_indicators(_host: &str) -> Vec<String> {
   Vec::new()
+}
+
+const IMAGE_TEXT_BLIND_SPOT_BYTES: usize = 16 * 1024;
+
+fn chm_indicators(bytes: &[u8]) -> Vec<String> {
+  let entries = list_chm_entries(bytes, &ChmListingLimits::default());
+  if entries.is_empty() {
+    return Vec::new();
+  }
+  let mut indicators = vec![format!(
+    "ajutor compilat CHM cu {} intrari listate din structura, fara decompresie",
+    entries.len()
+  )];
+  for entry in &entries {
+    indicators.extend(name_indicators(entry));
+  }
+  dedupe(indicators)
 }
 
 fn pdf_text_link_indicators(content: &[u8]) -> Vec<String> {
@@ -1589,6 +1607,7 @@ pub fn inspect_untrusted_content(
   limits: InspectionLimits,
 ) -> InspectionReport {
   let started = Instant::now();
+  let mut imagine_fara_cod = false;
   let mut budget = Budget { entries: 0, expanded_bytes: 0, started, limits };
   let finding = if mode == "document" {
     document_finding(bytes, &mut budget)
@@ -1609,6 +1628,7 @@ pub fn inspect_untrusted_content(
     } else {
       "imagine scanata cu coduri vizuale".to_string()
     };
+    imagine_fara_cod = indicators.is_empty() && bytes.len() >= IMAGE_TEXT_BLIND_SPOT_BYTES;
     Finding { uncertain: false, indicators, reason }
   } else if looks_like_executable(bytes) {
     let indicators = dedupe(executable_indicators(bytes));
@@ -1619,7 +1639,10 @@ pub fn inspect_untrusted_content(
     };
     Finding { uncertain: false, indicators, reason }
   } else if mode == "archive" || looks_like_archive(bytes, filename, mime) {
-    uncertain("formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat".to_string(), Vec::new())
+    uncertain(
+      "formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat".to_string(),
+      chm_indicators(bytes)
+    )
   } else {
     document_finding(bytes, &mut budget)
   };
@@ -1635,7 +1658,13 @@ pub fn inspect_untrusted_content(
     expanded_bytes: budget.expanded_bytes,
     elapsed_ms: started.elapsed().as_secs_f64() * 1000.0,
     uninspectable_format: format_neinspectat,
-    analysis_blind_spots: executable_blind_spots(bytes),
+    analysis_blind_spots: {
+      let mut spots = executable_blind_spots(bytes);
+      if imagine_fara_cod {
+        spots.push("imagine fara cod vizual, text posibil necitit".to_string());
+      }
+      spots
+    },
   }
 }
 
