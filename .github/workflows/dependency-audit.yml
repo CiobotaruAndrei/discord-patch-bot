@@ -52,5 +52,11 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked --version 0.22.2
 
+      # RUSTSEC-2024-0436 (`paste`, marcat "unmaintained") e singura exceptie, si e ingusta:
+      # `paste` e un proc-macro care ruleaza DOAR la compilare si nu emite cod in binarul livrat,
+      # deci nu e in suprafata de atac a productiei. Avizul spune ca autorul a arhivat proiectul,
+      # nu ca exista un defect. Ajunge in graf doar prin `zxing-cpp` (decodorul de coduri din
+      # imagini), care nu are o versiune fara el. Daca vreodata se raporteaza o vulnerabilitate
+      # reala in `paste`, aceea primeste alt ID de aviz si pica in continuare aceasta poarta.
       - name: Audit Rust dependencies (cargo audit)
-        run: cargo audit --file native/Cargo.lock --deny warnings
+        run: cargo audit --file native/Cargo.lock --deny warnings --ignore RUSTSEC-2024-0436
