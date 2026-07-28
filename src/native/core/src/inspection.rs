@@ -275,7 +275,7 @@ fn read_u64_le(bytes: &[u8], offset: usize) -> Option<u64> {
   Some(u64::from_le_bytes(buffer))
 }
 
-fn is_compound_file_binary(bytes: &[u8]) -> bool {
+pub(crate) fn is_compound_file_binary(bytes: &[u8]) -> bool {
   bytes.len() >= 512 && bytes[0..8] == [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]
 }
 
@@ -423,7 +423,15 @@ pub fn inspect_compound_file_binary(bytes: &[u8]) -> Vec<String> {
     sector = if (sector as usize) < fat.len() { fat[sector as usize] } else { CFB_END_OF_CHAIN };
   }
   indicators.extend(msi_indicators(bytes, &decoded_names));
+  indicators.extend(msi_database_indicators(bytes));
   dedupe(indicators)
+}
+
+fn msi_database_indicators(bytes: &[u8]) -> Vec<String> {
+  match crate::read_msi_database(bytes, &crate::MsiLimits::default()) {
+    crate::MsiDatabaseOutcome::Read(report) => report.indicators,
+    _ => Vec::new(),
+  }
 }
 
 fn has_executable_extension(normalized: &str) -> bool {

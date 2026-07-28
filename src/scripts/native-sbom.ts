@@ -30,6 +30,7 @@ export const NATIVE_COMPONENTS: readonly NativeComponent[] = [
   { crate: "publicsuffix", kind: "rust", vendored: "-", role: "eTLD+1" },
   { crate: "rqrr", kind: "rust", vendored: "-", role: "decodare coduri QR" },
   { crate: "image", kind: "rust", vendored: "-", role: "decodare imagini" },
+  { crate: "msi", kind: "rust", vendored: "-", role: "citirea randurilor din baza de date MSI" },
   { crate: "flate2", kind: "rust", vendored: "-", role: "inflate pentru fluxuri PDF si ZIP" },
   { crate: "sha2", kind: "rust", vendored: "-", role: "hash de continut" }
 ];

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["magic", "yara", "archive", "qpdf", "executable", "url-identity", "visual"]
+default = ["magic", "msi", "yara", "archive", "qpdf", "executable", "url-identity", "visual"]
 magic = ["dep:magic"]
 yara = ["dep:yara"]
 archive = ["dep:libarchive2-sys"]
@@ -12,6 +12,7 @@ qpdf = ["dep:qpdf"]
 executable = ["dep:goblin"]
 url-identity = ["dep:idna", "dep:unicode-security", "dep:publicsuffix"]
 visual = ["dep:rqrr", "dep:image"]
+msi = ["dep:msi"]
 
 [dependencies]
 sha2 = "0.11"
@@ -26,6 +27,7 @@ unicode-security = { version = "0.1.2", optional = true }
 publicsuffix = { version = "2.3.0", optional = true }
 rqrr = { version = "0.10.1", optional = true }
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"], optional = true }
+msi = { version = "0.10", optional = true }
 
 [dev-dependencies]
 qrcode = { version = "0.14.1", default-features = false }
