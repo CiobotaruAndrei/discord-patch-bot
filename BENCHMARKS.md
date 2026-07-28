@@ -922,6 +922,20 @@ Doua reguli suplimentare inchid exact drumurile prin care s-a strecurat problema
 Gate-ul e verificat prin mutatie, nu doar prin faptul ca trece: un workflow de proba care ruleaza
 `cargo build` fara cache si fara `--target` pica ambele reguli, iar dupa stergerea lui suita revine verde.
 
+Aceeasi politica acopera si straturile din Dockerfile, prin `src/test/gates/dockerLayerPolicy.test.ts`,
+fiindca acolo pozitia unui pas decide ce il invalideaza. Un `RUN` scump — compilare cargo, `npm ci`,
+`apt-get install`, `cmake`, `pip install` — trebuie declarat in `EXPENSIVE_LAYERS` cu motivul pentru care
+sta unde sta, iar o intrare ramasa pentru un pas disparut pica drept invechita. A doua regula e mai
+generala si nu depinde de cazuri cunoscute: **intr-un stage, un `COPY` din context nu are voie sa se
+ingusteze dupa unul mai larg**. Odata ce un arbore larg a fost copiat, tot ce urmeaza se invalideaza la
+orice fisier din el, deci un `COPY` mai ingust de dupa inseamna ca un pas scump asteapta degeaba dupa
+surse care nu-l privesc — exact forma pe care a avut-o problema initiala.
+
+Si aceste reguli sunt verificate prin mutatie: un `RUN pip install` nedeclarat plus un `COPY`
+`src/native/extra.txt` asezat dupa `COPY src/ ./` pica ambele reguli, iar dupa restaurare suita revine
+verde. Cazul concret al pre-compilarii native ramane pazit separat, in `nativeBuildCaching.test.ts`, ca sa
+nu existe doua gate-uri care verifica acelasi lucru.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
