@@ -1,5 +1,6 @@
 import type { BotMetrics, CommandCacheSizes } from "../../types.js";
 import { getNativeFallbackTotals, NATIVE_FALLBACK_FUNCTIONS } from "../../native/fuzzy.js";
+import { getUninspectableFormatTotals } from "../../features/command-security/uninspectableFormatMetrics.js";
 
 type PrometheusMetricType = "counter" | "gauge";
 
@@ -137,6 +138,17 @@ function renderPrometheusMetrics(input: MetricsSnapshotInput): string {
   const nativeFallbackFns = Array.from(new Set([...NATIVE_FALLBACK_FUNCTIONS, ...Object.keys(nativeFallbackTotals)]));
   for (const fnName of nativeFallbackFns) {
     pushMetric(lines, seenMetricNames, "bot_native_fallback_total", "counter", "Native (Rust) calls that threw and fell back to the TypeScript implementation, per function (>0 means that native function is partially failing)", nativeFallbackTotals[fnName] || 0, { fn: fnName });
+  }
+  for (const [format, total] of Object.entries(getUninspectableFormatTotals())) {
+    pushMetric(
+      lines,
+      seenMetricNames,
+      "bot_uninspectable_content_total",
+      "counter",
+      "Continut primit pe care inspectia nu il poate deschide, pe format detectat din octeti; deschide gate-urile de librarii cand traficul real le justifica",
+      total,
+      { format }
+    );
   }
   return lines.join("\n") + "\n";
 }
