@@ -1,4 +1,4 @@
-use crate::executable::{analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
+use crate::executable::{analysis_blind_spots, analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
 use crate::pdf_vector::{rasterize_filled_rectangles, VectorRasterLimits};
 use crate::visual::{embedded_jpeg_preview, iso_bmff_image_brand, looks_like_image, png_from_samples, scan_visual_codes, VisualLimits, VisualOutcome};
 use crate::pdf_structure::{
@@ -36,6 +36,7 @@ pub struct InspectionReport {
   pub expanded_bytes: u64,
   pub elapsed_ms: f64,
   pub uninspectable_format: Option<String>,
+  pub analysis_blind_spots: Vec<String>,
 }
 
 struct Finding {
@@ -1443,6 +1444,16 @@ fn pdf_deep_indicators(bytes: &[u8], budget: &mut Budget) -> Option<(Vec<String>
   }
 }
 
+fn executable_blind_spots(bytes: &[u8]) -> Vec<String> {
+  if !looks_like_executable(bytes) {
+    return Vec::new();
+  }
+  match analyze_executable(bytes, &ExecutableLimits::default()) {
+    ExecutableOutcome::Analyzed(report) => analysis_blind_spots(&report),
+    _ => Vec::new()
+  }
+}
+
 fn executable_indicators(bytes: &[u8]) -> Vec<String> {
   if !looks_like_executable(bytes) {
     return Vec::new();
@@ -1596,6 +1607,7 @@ pub fn inspect_untrusted_content(
     expanded_bytes: budget.expanded_bytes,
     elapsed_ms: started.elapsed().as_secs_f64() * 1000.0,
     uninspectable_format: format_neinspectat,
+    analysis_blind_spots: executable_blind_spots(bytes),
   }
 }
 

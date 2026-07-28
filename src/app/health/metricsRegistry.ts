@@ -1,6 +1,6 @@
 import type { BotMetrics, CommandCacheSizes } from "../../types.js";
 import { getNativeFallbackTotals, NATIVE_FALLBACK_FUNCTIONS } from "../../native/fuzzy.js";
-import { getUninspectableFormatTotals } from "../../features/command-security/uninspectableFormatMetrics.js";
+import { getAnalysisBlindSpotTotals, getUninspectableFormatTotals } from "../../features/command-security/coverageGapMetrics.js";
 
 type PrometheusMetricType = "counter" | "gauge";
 
@@ -148,6 +148,17 @@ function renderPrometheusMetrics(input: MetricsSnapshotInput): string {
       "Continut primit pe care inspectia nu il poate deschide, pe format detectat din octeti; deschide gate-urile de librarii cand traficul real le justifica",
       total,
       { format }
+    );
+  }
+  for (const [kind, total] of Object.entries(getAnalysisBlindSpotTotals())) {
+    pushMetric(
+      lines,
+      seenMetricNames,
+      "bot_analysis_blind_spot_total",
+      "counter",
+      "Executabile analizate structural in care semnalele ar sta doar in instructiuni; deschide gate-ul Capstone cand traficul real il justifica",
+      total,
+      { kind }
     );
   }
   return lines.join("\n") + "\n";

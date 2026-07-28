@@ -24,6 +24,7 @@ pub struct InspectionReportJs {
   pub expanded_bytes: f64,
   pub elapsed_ms: f64,
   pub uninspectable_format: Option<String>,
+  pub analysis_blind_spots: Vec<String>,
 }
 
 pub struct InspectContentTask {
@@ -67,6 +68,7 @@ impl Task for InspectContentTask {
       expanded_bytes: output.expanded_bytes as f64,
       elapsed_ms: output.elapsed_ms,
       uninspectable_format: output.uninspectable_format,
+      analysis_blind_spots: output.analysis_blind_spots,
     })
   }
 }
