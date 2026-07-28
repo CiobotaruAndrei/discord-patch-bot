@@ -898,6 +898,30 @@ alta arhitectura — acelasi lucru se aplica in Dockerfile.
 Ambele sunt pazite de gate-uri, fiindca sunt exact genul de lucru care se strica tacut: nimic nu pica daca
 cineva muta stratul, doar CI-ul devine iar de trei ori mai lent fara ca cineva sa observe imediat.
 
+### Politica de reutilizare: decizie obligatorie, nu cache obligatoriu
+
+Dupa ce recompilarea librariilor C/C++ a trecut nevazuta luni de zile, intrebarea fireasca e daca se
+poate cere cache pentru orice bucata noua de cod. Nu se poate, si nici nu e de dorit: majoritatea codului
+n-are ce cache-ui, iar un cache pus reflex aduce exact clasa de bug-uri pe care nimeni nu le vrea — date
+invechite servite ca proaspete. Ce se poate impune este **decizia**, nu raspunsul.
+
+`src/test/gates/buildReusePolicy.test.ts` cere ca orice workflow care compileaza cod nativ, instaleaza un
+binar cargo sau construieste o imagine de container sa spuna explicit ce face cu reutilizarea: fie
+foloseste un cache (`Swatinem/rust-cache`, `actions/cache`, `cache-from`, cache-ul din `setup-node`), fie
+apare in `REUSE_WAIVERS` cu motivul pentru care refuza. Azi exista o singura derogare, `release.yml`, si
+motivul ei e scris: artefactul publicat trebuie sa vina din sursa tag-ului, nu din straturi dintr-un cache
+mutabil. Lista se pastreaza onesta prin doua verificari: un motiv sub 40 de caractere pica, iar o derogare
+pentru un workflow care intre timp a inceput sa cache-uiasca pica si ea ca invechita.
+
+Doua reguli suplimentare inchid exact drumurile prin care s-a strecurat problema initiala: nicio comanda
+`cargo build`/`test`/`clippy` dintr-un workflow nu are voie fara `--target` (altfel scrie in
+`target/release` si recompila de la zero acelasi set de librarii pe care napi le-a construit deja in
+`target/<triplet>/release`), si niciun script npm nu cheama `cargo` direct, ca alinierea din
+`scripts/check-native.ts` sa nu poata fi ocolita.
+
+Gate-ul e verificat prin mutatie, nu doar prin faptul ca trece: un workflow de proba care ruleaza
+`cargo build` fara cache si fara `--target` pica ambele reguli, iar dupa stergerea lui suita revine verde.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
