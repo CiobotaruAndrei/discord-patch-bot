@@ -51,11 +51,20 @@ export function readRulesSource(repoRoot: string): string {
   return fs.readFileSync(path.join(repoRoot, RULES_SOURCE), "utf8");
 }
 
+export function readIfPresent(file: string): string {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
+    throw error;
+  }
+}
+
 if (process.argv[1] !== undefined && /sync-agent-rules\.(ts|js)$/.test(process.argv[1])) {
   const repoRoot = path.resolve(process.cwd(), "..");
   const document = buildAgentRulesDocument(readRulesSource(repoRoot));
   const target = path.join(repoRoot, AGENT_RULES_FILE);
-  const previous = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : "";
+  const previous = readIfPresent(target);
   if (previous === document) {
     console.log(`${AGENT_RULES_FILE} e deja sincronizat (${countRules(document)} reguli)`);
   } else {
