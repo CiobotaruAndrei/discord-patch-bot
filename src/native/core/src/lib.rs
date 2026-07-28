@@ -51,7 +51,7 @@ pub use text::{clean_text, levenshtein, normalize_title_for_dedupe};
 pub use types::{AutocompleteChoiceData, FuzzyMatch, GameCandidateData, ListingCandidateData};
 pub use updates::{classify_patch_note, extract_date_score, is_good_steam_article_url};
 pub use visual::{
-  looks_like_image, payload_looks_like_url, scan_visual_codes, visual_analysis_available, VisualCode,
+  looks_like_image, payload_looks_like_url, png_from_samples, scan_visual_codes, visual_analysis_available, VisualCode,
   VisualLimits, VisualOutcome,
 };
 pub use url_identity::{

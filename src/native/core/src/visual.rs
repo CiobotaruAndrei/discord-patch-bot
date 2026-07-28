@@ -39,6 +39,29 @@ pub fn looks_like_image(bytes: &[u8]) -> bool {
   png || jpeg || gif || bmp || webp
 }
 
+#[cfg(feature = "visual")]
+pub fn png_from_samples(width: u32, height: u32, channels: u32, samples: &[u8]) -> Option<Vec<u8>> {
+  if width == 0 || height == 0 {
+    return None;
+  }
+  if u64::from(width) * u64::from(height) * u64::from(channels) != samples.len() as u64 {
+    return None;
+  }
+  let dynamic = match channels {
+    1 => image::DynamicImage::ImageLuma8(image::GrayImage::from_raw(width, height, samples.to_vec())?),
+    3 => image::DynamicImage::ImageRgb8(image::RgbImage::from_raw(width, height, samples.to_vec())?),
+    _ => return None
+  };
+  let mut png = Vec::new();
+  dynamic.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
+  Some(png)
+}
+
+#[cfg(not(feature = "visual"))]
+pub fn png_from_samples(_width: u32, _height: u32, _channels: u32, _samples: &[u8]) -> Option<Vec<u8>> {
+  None
+}
+
 pub fn payload_looks_like_url(payload: &str) -> bool {
   let lower = payload.trim().to_lowercase();
   lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("ftp://")
