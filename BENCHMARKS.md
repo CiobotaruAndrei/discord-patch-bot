@@ -182,38 +182,42 @@ precis: arhiva criptata, header criptat, structura trunchiata sau „inspectata 
 intrari)". Bugetul de intrari se aplica si scanarii de headere, iar intrarile de tip director nu produc
 indicatori de fisier.
 
-### Detectia tipului real (`inspectMagic`) si de ce NU s-a linkat libmagic
+### Detectia tipului real (`inspectMagic`): libmagic legat direct (PDF ACTUA, revenire pe decizia Rust)
 
-PDF-ul „Librarii C/C++ pentru discord-patch-bot" propune un program de 15 etape care incepe cu
-`libmagic` pentru identificarea tipului real. Capabilitatea e livrata (etapa 1), dar **fara a lega o
-librarie C** — decizia se ia pe aceleasi criterii ca restul documentului, aplicate onest:
+Etapa 1 a fost livrata initial cu un tabel de semnaturi in Rust, iar documentul justifica alegerea prin
+costul de build. Un PDF ulterior a cerut explicit **inlocuirea echivalentelor Rust cu librariile C/C++
+reale, cu instalarea dependintelor necesare** — nu o solutie mai slaba calitativ. Asa ca detectorul de
+tip foloseste acum **libmagic**, exact baza de semnaturi din `file(1)`, legata prin crate-ul `magic`
+(FFI peste libmagic), la fel cum `yara`→libyara, `libarchive2-sys`→libarchive si `qpdf`→qpdf sunt deja
+legaturi FFI catre librariile C/C++.
 
-- **Cost de build real.** CI ruleaza pe `ubuntu-latest` fara pachete dev, iar Dockerfile-ul are doar
-  `build-essential pkg-config python3`. Fiecare librarie C din lista cere apt in CI, apt in stage-ul de
-  build **si** in cel de runtime (pentru `.so`-uri), plus vcpkg pe masina de dezvoltare Windows. Un
-  singur artefact lipsa opreste `npm run check` si declanseaza fail-fast-ul „addon nativ obligatoriu in
-  productie".
-- **Ce aduce efectiv libmagic** e baza de semnaturi, nu algoritmul. Pentru suprafata reala a botului —
-  atasamente Discord — un tabel de semnaturi fixat in Rust acopera formatele care conteaza si e testabil
-  determinist, fara dependinta externa versionata separat.
-- **Regula documentului insusi**: „C++ nu devine al treilea limbaj de business. Rust ramane
-  coordonatorul nativ." Aici nu exista nimic „greu de reimplementat corect" — clasificarea dupa magic
-  bytes e exact genul de cod pentru care Rust e potrivit.
+**Cum se leaga si se incarca baza de date.**
 
-Ce inlocuieste `magicKind` (8 semnaturi hardcodate, fara MIME): `inspect_magic` intoarce MIME real,
-descriere, encoding, `kind` pentru rutarea parserului si un camp de **flag-uri de nepotrivire** —
-extensie falsa, MIME declarat contradictoriu, poliglot, executabil deghizat, continut trunchiat.
-Containerele sunt tratate pe **familii** (DOCX/XLSX/PPTX/APK/JAR/ODF sunt toate ZIP; MSI/DOC/XLS/PPT
-sunt toate OLE), deci un `.docx` numit `.zip` nu mai produce o nepotrivire falsa.
+| Platforma | Legare | Baza `magic.mgc` |
+| --- | --- | --- |
+| Linux / Docker (livrat) | `-lmagic` dinamic catre `libmagic1` de sistem | `magic_load(NULL)` gaseste `/usr/lib/file/magic.mgc` (din `libmagic-mgc`, tras de `libmagic1`) |
+| Windows (doar CI) | vcpkg `libmagic` (triplet dinamic `x64-windows`) | `DPB_MAGIC_DB` indica `magic.mgc`; libmagic n-are cale implicita pe Windows |
 
-Politica ceruta de PDF e respectata: **detectia clasifica tipul, nu intentia**. O nepotrivire produce
-cel mult `uncertain` si o ruta de inspectie mai stricta; niciodata `confirmed`. Paritatea native == TS
-e verificata pe un corpus de 39 de tipuri in `contentTypeDetection.test.ts`.
+Pe Windows, Node cauta DLL-urile dependente **langa `.node`**, nu in `PATH`, deci workflow-ul copiaza
+DLL-urile vcpkg langa addon inainte de load-check. Pe Linux, `libmagic.so` de sistem e o dependinta
+normala de runtime (Dockerfile-ul instaleaza `libmagic-dev` la build si `libmagic1` la runtime). libmagic
+apare acum in SBOM (`magic` / `magic-sys`, tip `c-system`) si e verificat de gate-ul anti-drift.
 
-Pentru etapele urmatoare din PDF (YARA, decodare RAR/7z, PDF structural complet, PE/ELF/Mach-O, IDN),
-aceeasi intrebare se pune separat de fiecare data: exista o implementare Rust matura care ofera aceeasi
-capabilitate fara costul de build si de suprafata de atac al unei librarii C? Cand raspunsul e nu,
-librarie C — dar dupa acelasi benchmark si aceleasi gate-uri.
+**Detector primar cu backstop, nu inlocuire oarba.** libmagic conduce detectia (MIME real + descriere +
+`kind` pentru rutare). Cand libmagic raspunde generic (`application/octet-stream`, `x-empty`) — de ex.
+pe un fragment prea scurt pentru semnaturile lui — motorul consulta tabelul de semnaturi Rust ca
+**backstop**, exact ca escaladarea qpdf. Cand baza `magic.mgc` lipseste (mediu fara libmagic), acelasi
+tabel Rust preia complet, deci detectia nu se prabuseste niciodata. Pe deasupra libmagic ramane logica
+de **politica**, care nu e detectie de tip: flag-uri de nepotrivire (extensie falsa, MIME declarat
+contradictoriu, poliglot, executabil deghizat, trunchiere), rafinarea containerelor ZIP/OLE in
+subtipuri (DOCX/APK/JAR pe familia ZIP), si compatibilitatea pe **kind** care tolereaza variantele de
+MIME libmagic (`application/x-dosexec` == `application/vnd.microsoft.portable-executable`) fara sa
+confunde tipuri diferite.
+
+Politica ceruta de PDF ramane: **detectia clasifica tipul, nu intentia**. O nepotrivire produce cel mult
+`uncertain`; niciodata `confirmed`. Contractul de securitate (kind + flag-uri de nepotrivire) e verificat
+sa coincida intre libmagic si fallback-ul TS pe corpusul din `contentTypeDetection.test.ts`; descrierea
+ramane specifica detectorului (libmagic e in engleza, mai bogata), fiindca nu face parte din contract.
 ### libyara: prima librarie C legata efectiv (etapa 2 din PDF-ul de librarii)
 
 Etapa 2 din PDF-ul „Librarii C/C++" cere un motor de reguli actualizabil fara recompilarea
@@ -643,8 +647,8 @@ C/C++ vendorata:
 
 Un gate din `check` verifica trei lucruri: fiecare componenta declarata **exista** efectiv in lock (un
 SBOM care mentioneaza ceva ce nu se mai livreaza e mai rau decat niciunul), versiunile sunt fixe (nu
-intervale), si fiecare componenta non-Rust declara ce sursa C/C++ aduce. Cele patru librarii legate
-efectiv — libyara, libarchive, qpdf, libseccomp — sunt cerute explicit.
+intervale), si fiecare componenta non-Rust declara ce sursa C/C++ aduce. Cele cinci librarii legate
+efectiv — libmagic, libyara, libarchive, qpdf, libseccomp — sunt cerute explicit.
 
 ### Fuzzing si sanitizere pe stratul nativ (PDF regen, prioritate reala #2)
 

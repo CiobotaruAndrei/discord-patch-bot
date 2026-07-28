@@ -28,7 +28,7 @@ pub use listing_rank::{
   extract_and_rank_listing_candidates, rank_listing_candidates, score_listing_candidate,
   ListingAnchorData, RankedListingCandidate,
 };
-pub use magic::{inspect_magic, MagicReport};
+pub use magic::{inspect_magic, libmagic_available, MagicReport};
 pub use native_archive::{
   decode_native_archive, native_archive_available, NativeArchiveEntry, NativeArchiveOutcome,
 };

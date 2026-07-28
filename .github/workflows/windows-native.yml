@@ -52,7 +52,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.VCPKG_INSTALLATION_ROOT }}/installed
-          key: vcpkg-x64-windows-zlib-bzip2-liblzma-zstd-lz4-v1
+          key: vcpkg-x64-windows-zlib-bzip2-liblzma-zstd-lz4-libmagic-v1
 
       # OpenSSL NU e in lista: libarchive il foloseste doar pentru digest-uri optionale, iar
       # compilarea lui din surse pe Windows dubla singura durata jobului.
@@ -65,7 +65,7 @@ jobs:
         run: |
           $attempts = 3
           for ($i = 1; $i -le $attempts; $i++) {
-            vcpkg install zlib bzip2 liblzma zstd lz4 --triplet x64-windows
+            vcpkg install zlib bzip2 liblzma zstd lz4 libmagic --triplet x64-windows
             if ($LASTEXITCODE -eq 0) { exit 0 }
             if ($i -lt $attempts) {
               Write-Host "vcpkg install a esuat (incercarea $i/$attempts); reincerc in 30s"
@@ -97,14 +97,22 @@ jobs:
       # Suita completa de teste ramane pe Linux: are nevoie de serviciul MongoDB, pe care runner-ul
       # Windows nu il ofera. Aici se valideaza exact ce e specific platformei — compilarea
       # librariilor C/C++, legarea addon-ului si incarcarea lui efectiva in Node.
+      # libmagic e legata dinamic pe Windows (vcpkg x64-windows e triplet dinamic; asa il foloseste
+      # orice aplicatie). Node cauta DLL-urile dependente langa .node, nu in PATH, deci le copiem
+      # acolo inainte de load-check. Pe Linux/Docker (platforma livrata) libmagic1 e o librarie de
+      # sistem si nu apare aceasta complicatie. DPB_MAGIC_DB indica baza magic.mgc, fiindca Windows
+      # nu are calea implicita compilata in libmagic; pe Linux magic_load(NULL) o gaseste singur.
       - name: Validate Rust and load the addon on Windows
         shell: pwsh
         env:
           CMAKE_TOOLCHAIN_FILE: ${{ env.VCPKG_INSTALLATION_ROOT }}\scripts\buildsystems\vcpkg.cmake
+          VCPKGRS_DYNAMIC: "1"
+          DPB_MAGIC_DB: ${{ env.VCPKG_INSTALLATION_ROOT }}\installed\x64-windows\share\libmagic\misc\magic.mgc
         run: |
           $env:PATH = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin;$env:PATH"
           npm run check:native
           npm run build:rust
           npm run build:ts
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" native\
           node -e "import('./dist/native/fuzzy.js').then(m => { if (!m.isRustFuzzyAvailable()) { console.error('addonul nativ nu s-a incarcat pe Windows'); process.exit(1); } console.log('addon nativ incarcat pe Windows'); })"
           node dist/scripts/run-gates.js

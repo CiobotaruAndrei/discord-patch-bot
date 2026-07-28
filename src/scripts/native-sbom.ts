@@ -15,6 +15,8 @@ export interface SbomEntry extends NativeComponent {
 }
 
 export const NATIVE_COMPONENTS: readonly NativeComponent[] = [
+  { crate: "magic", kind: "c-system", vendored: "libmagic de sistem (file 5.x)", role: "detectie tip real + MIME + encoding" },
+  { crate: "magic-sys", kind: "c-system", vendored: "libmagic de sistem (file 5.x)", role: "legaturi FFI pentru libmagic" },
   { crate: "yara", kind: "c-static", vendored: "YARA 4.5.5", role: "motor de reguli malware" },
   { crate: "yara-sys", kind: "c-static", vendored: "YARA 4.5.5", role: "legaturi FFI pentru libyara" },
   { crate: "libarchive2-sys", kind: "c-static", vendored: "libarchive 3.8.1", role: "decodare arhive RAR/7z si filtre" },

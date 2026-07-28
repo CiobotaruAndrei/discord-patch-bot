@@ -240,11 +240,14 @@ Pentru operare locala, `npm run doctor:local` verifica intr-un singur flux `.env
 
 ### Dependinte native pentru build-ul addon-ului Rust
 
-Addon-ul leaga trei librarii C/C++: **libyara** (motorul de reguli, etapa 2), **libarchive** (decodarea
-continutului arhivelor, etapa 3) si **qpdf** (analiza structurala a PDF-urilor, etapa 4). Toate trei sunt
-compilate din surse si legate static. libyara si qpdf nu cer niciun pachet de sistem in plus (qpdf are
-nevoie doar de un compilator C++17, adus de `build-essential`); libarchive cere un lant de librarii de
-compresie prezente la build.
+Addon-ul leaga patru librarii C/C++: **libmagic** (detectia tipului real, etapa 1), **libyara** (motorul
+de reguli, etapa 2), **libarchive** (decodarea continutului arhivelor, etapa 3) si **qpdf** (analiza
+structurala a PDF-urilor, etapa 4). libyara, libarchive si qpdf sunt compilate din surse si legate
+static (libyara si qpdf nu cer niciun pachet de sistem in plus; libarchive cere un lant de librarii de
+compresie la build). **libmagic** e o librarie de sistem: pe Linux se leaga dinamic la `libmagic1`
+(`magic_load(NULL)` gaseste `/usr/lib/file/magic.mgc`), la build cere `libmagic-dev`. Cand baza
+`magic.mgc` lipseste, detectorul cade pe un tabel de semnaturi Rust, deci build-ul nu se rupe pe medii
+fara libmagic.
 
 Separat de addon, binarul `native/inspector` (etapa 5) foloseste **libseccomp** pentru filtrul de
 syscall-uri. Acesta e singurul care cere `libseccomp-dev` la build si `libseccomp2` la rulare, si numai
@@ -255,7 +258,7 @@ exclusiv in CI; `check:native` include acum si crate-ul de inspectie, altfel ace
 Pe **Linux** (CI si Docker) e suficient apt:
 
 ```bash
-sudo apt-get install -y --no-install-recommends   cmake clang libclang-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev
+sudo apt-get install -y --no-install-recommends   cmake clang libclang-dev libmagic-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev
 ```
 
 Pe **Windows** (dezvoltare) sunt necesare CMake, LLVM (pentru `libclang`, folosit de bindgen) si vcpkg:
@@ -265,7 +268,7 @@ winget install Kitware.CMake
 winget install LLVM.LLVM
 git clone --depth 1 https://github.com/microsoft/vcpkg C:\vcpkg
 C:\vcpkg\bootstrap-vcpkg.bat
-C:\vcpkg\vcpkg.exe install zlib bzip2 liblzma zstd lz4 openssl --triplet x64-windows
+C:\vcpkg\vcpkg.exe install zlib bzip2 liblzma zstd lz4 libmagic openssl --triplet x64-windows
 Copy-Item C:\vcpkg\installed\x64-windows\lib\z.lib C:\vcpkg\installed\x64-windows\lib\zlib.lib
 ```
 
@@ -287,6 +290,13 @@ Trei capcane verificate pe teren:
    napi „Cannot find native binding", care ascunde adevarata cauza (`The specified module could not
    be found` — un DLL de compresie lipsa). Pe Linux nu apare: librariile apt sunt deja pe calea
    loader-ului.
+4. **libmagic pe Windows**: Node cauta DLL-urile dependente ale unui `.node` **langa fisierul `.node`**,
+   nu in `PATH`, deci `magic-1.dll` (si dependintele lui vcpkg) trebuie copiate in `src\native\` inainte
+   de a incarca addon-ul (workflow-ul de CI o face automat). In plus, libmagic n-are pe Windows o cale
+   implicita catre baza de semnaturi, deci `DPB_MAGIC_DB` trebuie sa indice
+   `C:\vcpkg\installed\x64-windows\share\libmagic\misc\magic.mgc`. Fara baza, detectorul cade pe tabelul
+   de semnaturi Rust (nu se blocheaza). Pe Linux/Docker nimic din toate astea: `libmagic1` de sistem si
+   baza lui sunt gasite automat de loader si de `magic_load(NULL)`.
 
 `npm run check` e un orchestrator: compileaza mai intai TypeScript o singura data, construieste addon-ul Rust, apoi deleaga la `npm run check:prebuilt` — varianta care ruleaza toate gate-urile si testele direct pe artefactele existente, fara niciun build. `npm run check:ts-prebuilt` reconstruieste doar TypeScript si refoloseste addon-ul nativ deja construit (iteratie locala rapida pe cod TS). Scriptul `typecheck` ramane disponibil separat pentru verificarea fara emit.
 

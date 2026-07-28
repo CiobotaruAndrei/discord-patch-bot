@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["yara", "archive", "qpdf", "executable", "url-identity", "visual"]
+default = ["magic", "yara", "archive", "qpdf", "executable", "url-identity", "visual"]
+magic = ["dep:magic"]
 yara = ["dep:yara"]
 archive = ["dep:libarchive2-sys"]
 qpdf = ["dep:qpdf"]
@@ -14,6 +15,7 @@ visual = ["dep:rqrr", "dep:image"]
 
 [dependencies]
 sha2 = "0.11"
+magic = { version = "0.16", optional = true }
 yara = { version = "0.32", optional = true, default-features = false, features = ["vendored", "bundled-4_5_5"] }
 libarchive2-sys = { version = "0.2", optional = true }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }

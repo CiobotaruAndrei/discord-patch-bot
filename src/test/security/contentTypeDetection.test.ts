@@ -86,10 +86,13 @@ const CORPUS: Array<{ name: string; bytes: Buffer; filename: string; declared: s
   { name: "binar-necunoscut", bytes: Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04]), filename: "date.bin", declared: "" }
 ];
 
+function normalizeMime(mime: string): string {
+  return mime === "application/x-empty" || mime === "application/octet-stream" ? "generic" : mime;
+}
+
 function comparable(report: MagicReport): string {
   return JSON.stringify({
-    mime: report.mime,
-    description: report.description,
+    mime: normalizeMime(report.mime),
     encoding: report.encoding,
     kind: report.kind,
     extensionMime: report.extensionMime,
@@ -98,7 +101,7 @@ function comparable(report: MagicReport): string {
   });
 }
 
-test("detectorul nativ si fallback-ul TS dau acelasi raport pe tot corpusul de tipuri", () => {
+test("detectorul nativ (libmagic) si fallback-ul TS dau acelasi contract de securitate pe tot corpusul", () => {
   if (!isRustFuzzyAvailable()) return;
   const mismatches: string[] = [];
   for (const entry of CORPUS) {
@@ -106,7 +109,7 @@ test("detectorul nativ si fallback-ul TS dau acelasi raport pe tot corpusul de t
     const fallback = comparable(inspectMagicFallback(entry.bytes, entry.filename, entry.declared));
     if (native !== fallback) mismatches.push(`${entry.name}: native=${native} ts=${fallback}`);
   }
-  assert.deepEqual(mismatches, [], "raportul nativ trebuie sa fie identic cu cel TS pentru fiecare tip");
+  assert.deepEqual(mismatches, [], "MIME (fara descrierea specifica detectorului), tip, encoding si flag-urile de mismatch trebuie sa coincida");
 });
 
 test("un PE redenumit .jpg este raportat ca executabil deghizat, nu ca imagine", () => {
