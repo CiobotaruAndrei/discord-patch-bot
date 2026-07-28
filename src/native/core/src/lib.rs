@@ -37,7 +37,7 @@ pub use msi_database::{
 pub use native_archive::{
   decode_native_archive, native_archive_available, NativeArchiveEntry, NativeArchiveOutcome,
 };
-pub use inspection::container_signature;
+pub use inspection::{container_signature, uninspectable_format};
 pub use inspection::{
   decode_msi_stream_name, document_indicators, has_obfuscated_pdf_action_name, inspect_compound_file_binary,
   inspect_untrusted_content, InspectionLimits, InspectionReport,

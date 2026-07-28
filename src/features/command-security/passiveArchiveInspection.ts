@@ -9,6 +9,8 @@ export interface PassiveArchiveFinding {
   reason: string;
 }
 
+import { recordUninspectableFormat } from "./uninspectableFormatMetrics.js";
+
 export interface InspectionReport {
   status: "inspected" | "uncertain";
   indicators: string[];
@@ -16,6 +18,7 @@ export interface InspectionReport {
   entriesInspected: number;
   expandedBytes: number;
   elapsedMs: number;
+  uninspectableFormat?: string;
 }
 
 export interface InspectionLimits {
@@ -759,13 +762,15 @@ export async function inspectUntrustedContent(
         timeoutMs: limits.timeoutMs ?? 0
       });
       if (report && (report.status === "inspected" || report.status === "uncertain")) {
+        if (typeof report.uninspectableFormat === "string") recordUninspectableFormat(report.uninspectableFormat);
         return {
           status: report.status,
           indicators: Array.isArray(report.indicators) ? report.indicators.map(indicator => String(indicator)) : [],
           reason: String(report.reason || ""),
           entriesInspected: Number(report.entriesInspected) || 0,
           expandedBytes: Number(report.expandedBytes) || 0,
-          elapsedMs: Number(report.elapsedMs) || 0
+          elapsedMs: Number(report.elapsedMs) || 0,
+          uninspectableFormat: typeof report.uninspectableFormat === "string" ? report.uninspectableFormat : undefined
         };
       }
       recordNativeFallback("inspectUntrustedContent", new Error("raport nativ invalid"));

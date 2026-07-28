@@ -139,6 +139,7 @@ export interface NativeInspectionReport {
   entriesInspected: number;
   expandedBytes: number;
   elapsedMs: number;
+  uninspectableFormat?: string;
 }
 
 let nativeModule: NativeFuzzyModule | null | undefined;

@@ -35,6 +35,7 @@ pub struct InspectionReport {
   pub entries_inspected: u32,
   pub expanded_bytes: u64,
   pub elapsed_ms: f64,
+  pub uninspectable_format: Option<String>,
 }
 
 struct Finding {
@@ -1508,6 +1509,39 @@ fn document_finding(bytes: &[u8], budget: &mut Budget) -> Finding {
   Finding { uncertain, indicators, reason }
 }
 
+const VIDEO_BRANDS: &[&[u8; 4]] = &[b"isom", b"iso2", b"mp41", b"mp42", b"qt  ", b"M4V ", b"3gp4"];
+
+pub fn uninspectable_format(bytes: &[u8], filename: &str, mime: &str) -> Option<String> {
+  if let Some(label) = container_signature(bytes) {
+    return Some(label.to_string());
+  }
+  if let Some(brand) = iso_bmff_image_brand(bytes) {
+    return Some(brand.to_string());
+  }
+  if bytes.len() >= 12 && &bytes[4..8] == b"ftyp" {
+    let candidate = &bytes[8..12];
+    if VIDEO_BRANDS.iter().any(|brand| *brand == candidate) {
+      return Some("video ISO-BMFF".to_string());
+    }
+  }
+  if bytes.starts_with(&[0x1a, 0x45, 0xdf, 0xa3]) {
+    return Some("video Matroska".to_string());
+  }
+  if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"AVI " {
+    return Some("video AVI".to_string());
+  }
+  if is_rar4(bytes) || is_rar5(bytes) {
+    return Some("RAR".to_string());
+  }
+  if is_seven_zip(bytes) {
+    return Some("7z".to_string());
+  }
+  if looks_like_archive(bytes, filename, mime) {
+    return Some("arhiva necunoscuta".to_string());
+  }
+  None
+}
+
 pub fn inspect_untrusted_content(
   bytes: &[u8],
   filename: &str,
@@ -1550,6 +1584,10 @@ pub fn inspect_untrusted_content(
   } else {
     document_finding(bytes, &mut budget)
   };
+  let format_neinspectat = match uninspectable_format(bytes, filename, mime) {
+    Some(label) if finding.uncertain || label.starts_with("video") || iso_bmff_image_brand(bytes).is_some() => Some(label),
+    _ => None
+  };
   InspectionReport {
     status: if finding.uncertain { "uncertain".to_string() } else { "inspected".to_string() },
     indicators: dedupe(finding.indicators),
@@ -1557,6 +1595,7 @@ pub fn inspect_untrusted_content(
     entries_inspected: budget.entries,
     expanded_bytes: budget.expanded_bytes,
     elapsed_ms: started.elapsed().as_secs_f64() * 1000.0,
+    uninspectable_format: format_neinspectat,
   }
 }
 

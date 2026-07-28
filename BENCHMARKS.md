@@ -966,6 +966,32 @@ Masuratoarea spune si altceva, util pentru orice incercare viitoare de optimizar
 inspectia completa ia ~127 ms, din care decompresia ~2 ms. Timpul sta in restul lantului, nu in codec, deci
 inflate e o tinta gresita cu doua ordine de marime.
 
+### Instrumentarea care deschide singura gate-urile de librarii
+
+Documentul de librarii conditioneaza FFmpeg, libmspack, UnRAR, 7-Zip SDK, libheif si TLSH de aparitia unui trafic
+real. Conditia era insa nefalsificabila: nimeni nu masura ce formate ajung efectiv la bot, deci gate-urile nu se
+puteau nici deschide, nici inchide definitiv.
+
+Raportul de inspectie poarta acum `uninspectable_format`, o eticheta calculata **din octeti**, nu din numele sau
+MIME-ul alese de expeditor, iar `bot_uninspectable_content_total{format}` o aduna. Cine deschide ce gate:
+
+| Eticheta | Gate pe care il alimenteaza |
+| --- | --- |
+| `cab`, `chm`, `szdd`, `kwaj` | libmspack |
+| `heic`, `heif`, `avif` | libheif (decodarea imaginii principale) |
+| `video_iso-bmff`, `video_matroska`, `video_avi` | FFmpeg |
+| `rar` | UnRAR |
+| `7z` | 7-Zip SDK |
+| `xz`, `zstandard`, `lz4`, `bzip2`, `arhiva_necunoscuta` | decodoare suplimentare in libarchive |
+
+Instrumentarea **nu schimba niciun verdict**, nici macar pentru video, unde nu exista astazi nicio inspectie: doar
+numara ce nu poate fi deschis. Etichetele sunt normalizate la caractere sigure si plafonate la 64 de serii
+distincte, fiindca sursa lor e continut netrusted si o explozie de cardinalitate ar fi un mod ieftin de a face rau
+colectorului de metrici.
+
+Practic: dupa o perioada de rulare, `bot_uninspectable_content_total` spune direct daca vreun gate merita deschis.
+Zero pe `video_*` inseamna ca FFmpeg ramane nejustificat, cu dovada, nu cu presupunerea.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
