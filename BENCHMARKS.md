@@ -461,32 +461,45 @@ si versiune raportata; scanarile antivirus au coada si plafon de bytes proprii. 
 raporteaza versiunile primite, deci un gateway care le completeaza corect face diferenta vizibila in
 audit.
 
-### libmsi: instalatoarele MSI, fara librarie noua (etapa 8 partial din PDF-ul de librarii)
+### MSI: de la prezenta tabelelor la randurile reale (etapa 8, completata)
 
-PDF-ul cere libmsi pentru tabelele MSI si libmspack pentru CHM/HLP/KWAJ/SZDD. Un MSI **este** un
-container OLE, iar parserul CFB structural exista deja din auditul anterior — lipsea doar interpretarea.
+Prima transa detecta doar **prezenta** numelor de tabele (`!CustomAction`, `!Binary`) si cauta siruri
+ca „powershell" in fereastra de octeti. Diferenta pe un caz real, masurata pe un MSI construit cu
+`msibuild`:
 
-Numele stream-urilor dintr-un MSI nu sunt text obisnuit: sunt codificate intr-o schema proprie in care
-un singur code point UTF-16 din intervalul `0x3800..0x4800` codeaza **doua** caractere dintr-un alfabet
-de 64. Fara decodare, `!CustomAction` arata ca o secventa de ideograme si trece neobservat. Decodarea e
-~20 de linii; libmsi ar fi adus o librarie intreaga pentru pasul urmator (interogarea propriu-zisa a
-bazei), pe care aceasta etapa nu il face.
+| Intrebare | Detectia veche | Cititorul de randuri |
+| --- | --- | --- |
+| Exista o actiune personalizata? | da | da |
+| **Care** actiune lanseaza PowerShell? | nu se stie | `RunPS` |
+| Ce comanda ruleaza? | nu se stie | `powershell.exe -enc SQBFAFgA…` (`IEX(New-Object` in UTF-16) |
+| Ce tip are actiunea? | nu se stie | 3106 = EXE dintr-un director, in script, fara impersonare |
+| Actiunea legitima e separata de cea ostila? | nu | da, `InstallLegit` (tip 1) nu produce indicatori |
 
-Ce se raporteaza acum: prezenta tabelelor care conteaza operational — `CustomAction` (poate executa cod
-la instalare), `Binary` (payload incorporat), `ServiceInstall`/`ServiceControl`, `Registry`,
-`LaunchCondition`, `InstallExecuteSequence` — plus referintele la interpretoare (`powershell`, `cmd.exe`,
-`wscript`, `cscript`, `rundll32`, `mshta`, `regsvr32`) gasite in fereastra de scanare.
+Detectia veche gasea cuvantul „powershell" undeva in octeti — inclusiv cand apare intr-un flux fara
+legatura cu vreo actiune. Asta inseamna si fals-pozitive, si lipsa atributiei.
 
-Un test verifica explicit ca un document OLE **obisnuit** nu e raportat ca instalator: indicatorul apare
-doar cand exista cel putin un nume de tabela decodat.
+**De ce crate-ul `msi` si nu libmsi.** Am instalat libmsi 0.103 si am verificat-o pe un MSI real: citeste
+corect randurile. Doua constrangeri au decis insa impotriva ei:
 
-**Ce nu s-a facut si de ce.** Interogarea reala a randurilor din tabelele MSI (coloane, tipuri, corelarea
-`CustomAction` cu `Binary`) cere fie libmsi, fie un parser de baza de date propriu. Prezenta tabelelor
-plus markerii de interpretor acopera cazul practic — un MSI cu `CustomAction` si `powershell` inauntru e
-deja `uncertain` si merge la motorul extern. Extragerea randurilor ramane un pas separat, cu cost real.
+1. `libmsi_database_new` accepta **doar o cale de fisier**. Continutul nostru vine in memorie, deci
+   fiecare atasament ar fi trebuit scris temporar pe disc — continut ostil, pe disc, la fiecare inspectie.
+2. Procesul izolat `native-inspector` blocheaza `openat` prin seccomp (e in lista care **omoara**
+   procesul). Deci libmsi nu ar putea rula niciodata inauntrul sandbox-ului construit la etapa 5: exact
+   componenta de securitate a programului ar fi devenit incompatibila cu librarie.
 
-libmspack (CHM/HLP/KWAJ/SZDD) nu a fost adaugat: sunt formate rare in fluxul unui bot de Discord, iar
-PDF-ul insusi il pune la „fallback specializat", dupa libarchive. Se poate adauga cand apare un caz real.
+Crate-ul `msi` citeste aceleasi randuri direct dintr-un `Cursor` peste octetii din memorie, deci merge
+si in sandbox, si pe Windows. Aici echivalentul nu e „mai slab": e strict mai compatibil cu arhitectura,
+la aceeasi capabilitate. libmsi ramane instalabila daca apare vreodata nevoia de scriere sau de
+transformari MSI, pe care nu le facem.
+
+**Ce se citeste, cu plafoane.** Maximum 256 de randuri, 64 de tabele, 512 octeti per camp de text (160
+in indicator), ca un MSI ostil sa nu poata umple raportul. Tipul actiunii e decodat dupa masca de baza
+(`& 0x3f`) in ce executa efectiv — DLL/EXE/JScript/VBScript, din Binary, din director sau din
+proprietate — iar combinatia in-script + no-impersonate e semnalata separat, fiindca inseamna executie
+cu privilegii ridicate.
+
+Politica ramane neschimbata: indicatorii nu confirma singuri nimic, verdictul local ramane cel mult
+`uncertain`/`risky-file`, iar confirmarea externa e in continuare obligatorie.
 
 ### Etapa 9 (multimodal) si etapa 10 (conditionata): ce s-a facut si ce NU
 

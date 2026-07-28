@@ -6,6 +6,7 @@ mod hashing;
 mod inspection;
 mod native_archive;
 mod magic;
+mod msi_database;
 mod pdf_structure;
 mod listing_rank;
 mod steam;
@@ -29,6 +30,9 @@ pub use listing_rank::{
   ListingAnchorData, RankedListingCandidate,
 };
 pub use magic::{inspect_magic, libmagic_available, MagicReport};
+pub use msi_database::{
+  msi_database_available, read_msi_database, MsiCustomAction, MsiDatabaseOutcome, MsiDatabaseReport, MsiLimits,
+};
 pub use native_archive::{
   decode_native_archive, native_archive_available, NativeArchiveEntry, NativeArchiveOutcome,
 };

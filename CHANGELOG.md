@@ -36,6 +36,8 @@
 
 - **Actiunile CodeQL sunt tinute in lockstep, iar dependabot nu le mai poate desincroniza.** `init`, `analyze` si `upload-sarif` sunt parti ale aceleiasi versiuni de codeql-action: daca difera, analiza pica cu „Loaded a configuration file for version X, but running version Y". Dependabot le propunea in PR-uri separate, deci fiecare PR luat singur amesteca versiunile si nu putea trece niciodata. Toate trei sunt acum pe acelasi commit, un grup nou de dependabot le aduce impreuna, iar o poarta din `check` verifica atat identitatea commit-ului intre workflow-uri, cat si faptul ca raman fixate pe commit, nu pe eticheta mobila.
 
+- **Instalatoarele MSI sunt citite pe randuri, nu doar dupa numele tabelelor.** Pana acum se detecta ca exista o actiune personalizata si ca fisierul contine undeva cuvantul „powershell"; acum se citeste tabelul `CustomAction` si se stie **care** actiune ruleaza, **ce comanda** exact si **ce tip** are (DLL/EXE/JScript/VBScript, din Binary, din director sau din proprietate), plus daca ruleaza cu privilegii ridicate fara impersonare. O actiune legitima nu mai e confundata cu una ostila doar fiindca ambele stau in acelasi fisier. Citirea e plafonata (256 randuri, 64 tabele, 512 octeti per camp) si se face din memorie, deci functioneaza si in procesul izolat, unde `openat` e blocat de seccomp.
+
 Toate schimbarile importante ale proiectului sunt documentate aici.
 
 Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), iar versiunile folosesc [Semantic Versioning](https://semver.org/).

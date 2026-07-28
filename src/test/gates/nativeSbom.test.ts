@@ -27,6 +27,13 @@ test("librariile C/C++ legate efectiv sunt toate in SBOM", () => {
   }
 });
 
+test("cititorul de randuri MSI e declarat in SBOM, ca sursa capabilitatii sa fie trasabila", () => {
+  const { entries } = buildSbom(lock);
+  const reader = entries.find(entry => entry.crate === "msi");
+  assert.ok(reader, "capabilitatea de citire a tabelelor MSI vine dintr-o componenta care trebuie sa apara in inventar");
+  assert.match(reader.role, /MSI/i, `rolul spune ce aduce componenta: ${reader.role}`);
+});
+
 test("SBOM-ul poarta versiunea exacta, nu un interval", () => {
   const { entries } = buildSbom(lock);
   for (const entry of entries) {
