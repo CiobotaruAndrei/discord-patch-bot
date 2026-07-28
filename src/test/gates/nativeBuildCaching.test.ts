@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import fs from "fs";
 import path from "path";
 
+import { nativeCheckCommands, parseHostTriple } from "../../scripts/check-native.js";
+
 const repoRoot = path.resolve(process.cwd(), "..");
 const dockerfile = fs.readFileSync(path.join(repoRoot, "Dockerfile"), "utf8");
 const ciWorkflow = fs.readFileSync(path.join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
@@ -43,11 +45,37 @@ test("pre-compilarea foloseste tripletul gazda, acelasi pe care il foloseste nap
   assert.match(dockerfile, /cargo clean --release --target "\$TARGET"/);
 });
 
-test("jobul de CI aliniaza tripletul, ca librariile C/C++ sa nu se compileze de doua ori", () => {
-  assert.match(
-    ciWorkflow,
-    /CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu/,
-    "fara asta, clippy si cargo test scriu in target/release, iar napi build in target/<triplet>/release, " +
-      "deci libyara, libarchive, qpdf si ZXing-C++ se compileaza de doua ori per rulare"
+test("check:native trece prin scriptul care aliniaza tripletul cu napi", () => {
+  const scripts = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
+    scripts: Record<string, string>;
+  };
+  assert.equal(
+    scripts.scripts["check:native"],
+    "node scripts/check-native.ts",
+    "cargo fara --target scrie in target/release, iar napi build in target/<triplet>/release; " +
+      "cele patru librarii C/C++ s-ar compila de doua ori per rulare, in CI, pe Windows si la release"
+  );
+});
+
+test("comenzile native poarta tripletul, si clippy si test", () => {
+  for (const args of nativeCheckCommands("x86_64-unknown-linux-gnu")) {
+    const targetAt = args.indexOf("--target");
+    assert.notEqual(targetAt, -1, `lipseste --target din ${args[0]}`);
+    assert.equal(args[targetAt + 1], "x86_64-unknown-linux-gnu");
+  }
+});
+
+test("tripletul gazda e citit din iesirea reala a lui rustc -vV", () => {
+  const sample = "rustc 1.96.0 (abcdef 2026-01-01)\nbinary: rustc\nhost: x86_64-pc-windows-msvc\nrelease: 1.96.0\n";
+  assert.equal(parseHostTriple(sample), "x86_64-pc-windows-msvc");
+  assert.equal(parseHostTriple("rustc 1.96.0\nrelease: 1.96.0\n"), undefined);
+});
+
+test("jobul de CI nu mai are nevoie de variabila per-workflow", () => {
+  assert.equal(
+    ciWorkflow.includes("CARGO_BUILD_TARGET"),
+    false,
+    "alinierea se face acum in check:native, deci merge si pe Windows, si la release, si local; " +
+      "o variabila repetata per workflow s-ar uita la al patrulea"
   );
 });

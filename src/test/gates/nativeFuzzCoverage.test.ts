@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import fs from "fs";
 import path from "path";
+import { nativeCheckCommands } from "../../scripts/check-native.js";
 
 const srcRoot = process.cwd();
 const repoRoot = path.resolve(srcRoot, "..");
@@ -63,9 +64,7 @@ test("sanitizerul cere toolchain nightly si build-std, altfel instrumentarea nu 
 });
 
 test("tintele de fuzz raman in rularea implicita de cargo test din check:native", () => {
-  const scripts = JSON.parse(readText(path.join(srcRoot, "package.json"))) as { scripts: Record<string, string> };
-  const checkNative = scripts.scripts["check:native"];
-  assert.ok(checkNative !== undefined, "check:native exista");
+  const checkNative = nativeCheckCommands("x86_64-unknown-linux-gnu").map(args => args.join(" ")).join(" ");
   const crates = new Set(discoverFuzzTargets().map(entry => entry.crate));
   const packageForCrate: Record<string, string> = { core: "discord_patch_bot_logic", inspector: "native-inspector" };
   for (const crate of crates) {

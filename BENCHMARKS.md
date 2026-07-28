@@ -884,9 +884,16 @@ cu `--target`, deci scrie in `target/<triplet>/release`, in timp ce `cargo clipp
 `check:native`, fara `--target`, scriu in `target/release`. Verificat direct: dupa un `npm run build:rust`
 fortat, `target/x86_64-pc-windows-msvc/release` primeste 19 fisiere iar `target/release` zero, si ambele
 directoare contin cate 6 iesiri de build script pentru librariile C/C++ — adica doua compilari complete.
-Cu `CARGO_BUILD_TARGET` aliniat, clippy refoloseste artefactele lui napi si mai are de verificat doar cele
-doua crate-uri de workspace (18,7s). Acelasi lucru se aplica in Dockerfile, unde tripletul e derivat din
-`rustc -vV` in loc sa fie scris de mana, ca sa ramana corect si pe alta arhitectura.
+Cu tripletul aliniat, clippy refoloseste artefactele lui napi si mai are de verificat doar cele doua
+crate-uri de workspace (9,5s pentru tot `check:native`, fara nicio librarie C/C++ recompilata).
+
+Alinierea sta in `scripts/check-native.ts`, nu intr-o variabila de mediu pusa in workflow. Motivul e ca
+problema nu era intr-un singur loc: `ci.yml`, `windows-native.yml` (jobul de 8-12 minute, unde compilarea
+pe Windows e cea mai scumpa) si `release.yml` prin `check:full` rulau toate `check:native` langa un build
+napi, deci toate compilau de doua ori — iar `release.yml` **fara niciun cache**, fiindca acolo cache-ul e
+interzis intentionat pentru proveninenta. O variabila repetata in trei workflow-uri s-ar fi uitat la al
+patrulea; asa merge si local. Tripletul e citit din `rustc -vV`, nu presupus, deci ramane corect si pe
+alta arhitectura — acelasi lucru se aplica in Dockerfile.
 
 Ambele sunt pazite de gate-uri, fiindca sunt exact genul de lucru care se strica tacut: nimic nu pica daca
 cineva muta stratul, doar CI-ul devine iar de trei ori mai lent fara ca cineva sa observe imediat.
