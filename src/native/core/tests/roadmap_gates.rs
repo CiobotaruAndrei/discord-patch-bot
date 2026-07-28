@@ -112,22 +112,25 @@ fn un_qr_incorporat_ca_imagine_in_pdf_e_citit_fara_pdfium() {
 }
 
 #[test]
-fn gate_libheif_heic_si_avif_nu_ajung_niciodata_la_scanarea_vizuala() {
-  let mut heic = vec![0u8; 12];
-  heic[3] = 24;
+fn gate_libheif_heic_si_avif_nu_pot_fi_decodate_dar_nu_mai_trec_tacut() {
+  let mut heic = vec![0u8; 16];
+  heic[3] = 16;
   heic[4..8].copy_from_slice(b"ftyp");
   heic[8..12].copy_from_slice(b"heic");
   let mut avif = heic.clone();
   avif[8..12].copy_from_slice(b"avif");
 
-  assert!(!looks_like_image(&heic), "masuratoare pentru gate-ul libheif: HEIC nu e recunoscut ca imagine");
-  assert!(!looks_like_image(&avif), "masuratoare pentru gate-ul libheif: AVIF nu e recunoscut ca imagine");
+  assert!(!looks_like_image(&heic), "gate-ul libheif ramane deschis: HEIC nu are decodor");
+  assert!(!looks_like_image(&avif), "gate-ul libheif ramane deschis: AVIF nu are decodor");
 
-  for (bytes, name, mime) in [(&heic, "poza.heic", "image/heic"), (&avif, "poza.avif", "image/avif")] {
+  for (bytes, name, mime, marca) in [
+    (&heic, "poza.heic", "image/heic", "HEIC"),
+    (&avif, "poza.avif", "image/avif", "AVIF")
+  ] {
     let indicators = indicators_for(bytes, name, mime, "content");
     assert!(
-      !indicators.iter().any(|entry| entry.contains("cod")),
-      "{name} nu produce niciun semnal vizual azi: {indicators:?}"
+      indicators.iter().any(|entry| entry.contains(marca) && entry.contains("neinspectata vizual")),
+      "fara decodor, {name} trebuie sa spuna ca nu a fost inspectat, nu sa para curat: {indicators:?}"
     );
   }
 }

@@ -22,7 +22,7 @@ test("fiecare gate ramas deschis are o masuratoare, nu doar o mentiune in docume
   const source = readMeasurements();
   for (const [gate, marker] of [
     
-    ["libheif", "gate_libheif_heic_si_avif_nu_ajung_niciodata_la_scanarea_vizuala"]
+    ["libheif", "gate_libheif_heic_si_avif_nu_pot_fi_decodate_dar_nu_mai_trec_tacut"]
   ]) {
     assert.ok(
       source.includes(marker),
