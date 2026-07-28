@@ -503,46 +503,38 @@ Politica ramane neschimbata: indicatorii nu confirma singuri nimic, verdictul lo
 
 ### Etapa 9 (multimodal) si etapa 10 (conditionata): ce s-a facut si ce NU
 
-PDF-ul grupeaza in ultimele doua trepte sapte componente: PDFium, libvips, ZXing, Tesseract, FFmpeg,
-apoi UnRAR, 7-Zip SDK si TLSH. Le-am tratat diferit, pentru ca PDF-ul insusi le trateaza diferit.
+Codurile QR raman amenintarea cu valoare imediata pentru Discord: un link de phishing intr-o imagine
+ocoleste orice filtru care se uita la textul mesajului. Prima transa folosea `rqrr`, un decodor **doar
+QR**. Inlocuit acum cu **ZXing-C++**, libraria de referinta, legata prin crate-ul `zxing-cpp` cu
+feature-ul `bundled`: sursa C++ se compileaza si se leaga static, exact ca libyara si qpdf, fara niciun
+pachet de sistem nou.
 
-**Ce s-a livrat: citirea codurilor QR din imagini.**
+Ce s-a castigat, verificat prin teste care genereaza codurile si le decodeaza inapoi:
 
-E amenintarea concreta pe care PDF-ul o numeste („QR de phishing"), si singura din treapta multimodala
-care se plateste imediat pentru un bot de Discord: o imagine cu un QR care duce spre o pagina falsa de
-login e un atac obisnuit, iar restul continutului vizual (pagini randate, cadre video) nu e. Decodarea
-foloseste `image` + `rqrr`, ambele pure Rust.
+| Simbologie | `rqrr` | ZXing-C++ |
+| --- | --- | --- |
+| QR (inclusiv Micro/rMQR) | da | da |
+| DataMatrix | **nu** | da |
+| Aztec | **nu** | da |
+| PDF417 | **nu** | da |
+| coduri 1D (EAN, Code128, ...) | **nu** | da |
 
-Plafoane inainte de orice decodare: dimensiunea pe latura si numarul total de pixeli se verifica din
-**antet**, nu dupa ce imaginea a ajuns in memorie — o „decompression bomb" de imagine e respinsa fara sa
-fie desfacuta. Numarul de coduri citite si lungimea payload-ului sunt si ele plafonate; un payload care
-arata a link primeste indicator distinct fata de unul cu text.
+Un cod DataMatrix cu un link de phishing trecea inainte complet nevazut — nu „prost decodat", ci
+**ignorat**. In plus, decodorul ruleaza cu `try_harder`, `try_rotate` si `try_invert`, deci prinde si
+coduri rotite, in negativ sau cu contrast slab, pe care un decodor simplu le rateaza chiar si cand
+formatul e QR.
 
-**Ce NU s-a facut din etapa 9, si de ce:**
+Raportul spune acum si **ce simbologie** a fost gasita (`cod DataMatrix care contine un link`), nu doar
+„cod QR", fiindca simbologia conteaza pentru triaj: un PDF417 intr-un chat de gaming e mult mai
+neobisnuit decat un QR.
 
-| Componenta | Motiv |
-| --- | --- |
-| PDFium | Crate-ul Rust cere un binar PDFium precompilat, descarcat separat — aceeasi problema de lant de aprovizionare ca la LIEF. Un build din surse cere depot_tools si ~10 GB. |
-| Tesseract (OCR) | Cere date de antrenare per limba (zeci de MB) care trebuie versionate si actualizate; valoarea pentru un bot de patch-uri e mult sub cost. |
-| FFmpeg | Extragerea de cadre video pentru un bot care primeste rar video; build enorm. |
-| libvips | Necesar doar impreuna cu OCR/randare, care nu s-au facut. |
+Plafoanele raman: dimensiunea se verifica din antet inainte de decodare (o bomba de decompresie e
+respinsa fara sa fie desfacuta), maximum 8 coduri si 2048 de octeti per payload. `MaxNumberOfSymbols`
+e trimis si catre motor, deci limita e impusa si inauntru, nu doar la citirea rezultatelor.
 
-Toate trei sunt **randare sau transcodare**, adica exact clasa de operatii pentru care etapa 5 a trebuit
-sa construiasca un sandbox de syscall. Adaugarea lor inseamna si build-uri de ordinul zecilor de minute,
-si suprafata de atac in C/C++ pe continut ostil. Se pot adauga cand apare o cerinta reala; nu preventiv.
-
-**Etapa 10 nu se implementeaza acum, si asta e conform PDF-ului, nu impotriva lui.**
-
-PDF-ul spune explicit: *„Fallback conditionat — se activeaza numai dupa corpus si benchmark"*, iar despre
-TLSH: *„merita numai daca proiectul mentine un corpus local de mostre si un index de similaritate. Fara
-baza de referinta, SHA-256 si motorul extern sunt suficiente."*
-
-Proiectul **nu** are un corpus local de mostre. Un hash de similaritate fara nimic cu ce sa fie comparat
-produce un numar pe care nimeni nu il foloseste. UnRAR si 7-Zip SDK sunt pozitionate ca fallback dupa
-libarchive, care decodeaza deja RAR si 7z din etapa 3 — conditia de activare (esec sistematic al
-libarchive pe corpus real) nu s-a produs.
-
-Implementarea lor acum ar fi incalcat instructiunea PDF-ului, nu ar fi urmat-o.
+**Ce ramane neimplementat**, cu aceleasi motive ca inainte: randarea PDF (PDFium), OCR (Tesseract +
+Leptonica), preprocesarea avansata de imagine (libvips) si extragerea de cadre video (FFmpeg). Niciuna
+nu se adauga preventiv, fara un caz real si un corpus.
 
 ### native-inspector + libseccomp: sandbox de syscall (etapa 5 din PDF-ul de librarii)
 
@@ -653,15 +645,15 @@ C/C++ vendorata:
 | `idna` | 1.1.0 | rust | - | UTS#46, Punycode |
 | `unicode-security` | 0.1.2 | rust | - | UTS#39, confusables |
 | `publicsuffix` | 2.3.0 | rust | - | eTLD+1 |
-| `rqrr` | 0.10.1 | rust | - | decodare coduri QR |
+| `zxing-cpp` | 0.5.2 | cpp-static | ZXing-C++ 2.x (bundled) | decodare QR, DataMatrix, Aztec, PDF417 si 1D |
 | `image` | 0.25.10 | rust | - | decodare imagini |
 | `flate2` | 1.1.9 | rust | - | inflate pentru fluxuri PDF si ZIP |
 | `sha2` | 0.11.0 | rust | - | hash de continut |
 
 Un gate din `check` verifica trei lucruri: fiecare componenta declarata **exista** efectiv in lock (un
 SBOM care mentioneaza ceva ce nu se mai livreaza e mai rau decat niciunul), versiunile sunt fixe (nu
-intervale), si fiecare componenta non-Rust declara ce sursa C/C++ aduce. Cele cinci librarii legate
-efectiv — libmagic, libyara, libarchive, qpdf, libseccomp — sunt cerute explicit.
+intervale), si fiecare componenta non-Rust declara ce sursa C/C++ aduce. Cele sase librarii legate
+efectiv — libmagic, libyara, libarchive, qpdf, ZXing-C++, libseccomp — sunt cerute explicit.
 
 ### Fuzzing si sanitizere pe stratul nativ (PDF regen, prioritate reala #2)
 
@@ -729,7 +721,7 @@ Doua proprietati care nu sunt negociabile:
    confirmat, fals-pozitivul e la fel de scump.
 
 Esantioanele QR se genereaza cu `qrcode` (dev-dependency pura Rust, doar in teste, nu in addon-ul
-livrat) si se decodeaza cu `rqrr` — encoder si decoder independente, deci un bug comun e improbabil.
+livrat) si se decodeaza cu ZXing-C++ — encoder si decoder independente, deci un bug comun e improbabil.
 Tot corpusul ruleaza in ~0,01 s si e gate de PR in `check:native`; un gate din `check` verifica din TS
 ca toate cele patru categorii raman prezente si ca fiecare esantion isi pastreaza amprenta completa.
 
