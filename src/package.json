@@ -51,6 +51,7 @@
     "check:prebuilt": "node dist/scripts/run-gates.js && node --test --test-reporter=spec \"dist/test/**/*.test.js\"",
     "check:ts-prebuilt": "npm run build:ts && npm run check:prebuilt",
     "check:native": "node scripts/check-native.ts",
+    "rules:sync": "node scripts/sync-agent-rules.ts",
     "profile:tests": "npm run build:ts && node dist/scripts/profile-tests.js",
     "sbom:native": "npm run build:ts && node dist/scripts/native-sbom.js",
     "check:full": "npm run check && npm run check:native && npm run test:e2e:prebuilt",
