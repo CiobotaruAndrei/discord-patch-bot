@@ -2,6 +2,7 @@ dist/
 node_modules/
 native/target/
 native/*.node
+native/*.dll
 native/index.js
 native/index.d.ts
 .env

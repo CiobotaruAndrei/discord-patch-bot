@@ -258,6 +258,10 @@ const OLE_CONTAINERS = new Set([
   "application/vnd.ms-powerpoint"
 ]);
 
+export function isZipContainerMime(mime: string): boolean {
+  return ZIP_CONTAINERS.has(mime);
+}
+
 function mimeFamily(mime: string): string {
   if (ZIP_CONTAINERS.has(mime)) return "zip-container";
   if (OLE_CONTAINERS.has(mime)) return "ole-container";

@@ -14,6 +14,73 @@ pub struct MagicReport {
   pub mismatch_flags: u32,
 }
 
+pub fn libmagic_available() -> bool {
+  cfg!(feature = "magic") && libmagic_probe()
+}
+
+#[cfg(feature = "magic")]
+mod libmagic {
+  use magic::cookie::{Cookie, DatabasePaths, Flags, Load};
+  use std::cell::RefCell;
+
+  thread_local! {
+    static ENGINE: RefCell<Option<Option<Cookie<Load>>>> = const { RefCell::new(None) };
+  }
+
+  fn load_from_default() -> Option<Cookie<Load>> {
+    Cookie::open(Flags::ERROR).ok()?.load(&DatabasePaths::default()).ok()
+  }
+
+  fn load_from_env() -> Option<Cookie<Load>> {
+    let path = std::env::var_os("DPB_MAGIC_DB")?;
+    let paths = DatabasePaths::new([path]).ok()?;
+    Cookie::open(Flags::ERROR).ok()?.load(&paths).ok()
+  }
+
+  fn open() -> Option<Cookie<Load>> {
+    load_from_default().or_else(load_from_env)
+  }
+
+  fn describe(cookie: &Cookie<Load>, bytes: &[u8], flags: Flags) -> Option<String> {
+    cookie.set_flags(flags | Flags::ERROR).ok()?;
+    cookie.buffer(bytes).ok()
+  }
+
+  pub fn detect(bytes: &[u8]) -> Option<(String, String)> {
+    ENGINE.with(|cell| {
+      let mut slot = cell.borrow_mut();
+      if slot.is_none() {
+        *slot = Some(open());
+      }
+      let cookie = slot.as_ref().and_then(|inner| inner.as_ref())?;
+      let mime = describe(cookie, bytes, Flags::MIME_TYPE)?;
+      let description = describe(cookie, bytes, Flags::empty())?;
+      Some((mime.trim().to_string(), description.trim().to_string()))
+    })
+  }
+
+  pub fn probe() -> bool {
+    ENGINE.with(|cell| {
+      let mut slot = cell.borrow_mut();
+      if slot.is_none() {
+        *slot = Some(open());
+      }
+      matches!(slot.as_ref(), Some(Some(_)))
+    })
+  }
+}
+
+fn libmagic_probe() -> bool {
+  #[cfg(feature = "magic")]
+  {
+    libmagic::probe()
+  }
+  #[cfg(not(feature = "magic"))]
+  {
+    false
+  }
+}
+
 struct Signature {
   mime: &'static str,
   description: &'static str,
@@ -281,6 +348,79 @@ fn mime_for_extension(extension: &str) -> &'static str {
   }
 }
 
+fn kind_for_mime(mime: &str) -> &'static str {
+  if mime.is_empty() {
+    return "other";
+  }
+  if mime.starts_with("image/") {
+    return "image";
+  }
+  if mime.starts_with("video/") || mime.starts_with("audio/") || mime == "application/ogg" {
+    return "media";
+  }
+  match mime {
+    "application/vnd.microsoft.portable-executable"
+    | "application/x-dosexec"
+    | "application/x-msdownload"
+    | "application/x-executable"
+    | "application/x-pie-executable"
+    | "application/x-sharedlib"
+    | "application/x-elf"
+    | "application/x-object"
+    | "application/x-mach-binary"
+    | "application/java-vm"
+    | "application/wasm" => "executable",
+    "text/x-shellscript"
+    | "text/x-perl"
+    | "text/x-python"
+    | "text/x-ruby"
+    | "text/x-php"
+    | "text/javascript"
+    | "application/javascript"
+    | "text/vbscript"
+    | "application/x-bat"
+    | "application/x-msdos-program"
+    | "application/x-powershell"
+    | "application/x-sh" => "script",
+    "application/zip"
+    | "application/vnd.android.package-archive"
+    | "application/java-archive"
+    | "application/x-7z-compressed"
+    | "application/vnd.rar"
+    | "application/x-rar"
+    | "application/gzip"
+    | "application/x-gzip"
+    | "application/x-tar"
+    | "application/x-bzip2"
+    | "application/x-xz"
+    | "application/zstd"
+    | "application/x-zstd"
+    | "application/x-lzma"
+    | "application/vnd.ms-cab-compressed"
+    | "application/x-cpio"
+    | "application/x-archive" => "archive",
+    "application/pdf"
+    | "application/rtf"
+    | "text/rtf"
+    | "application/msword"
+    | "application/vnd.ms-excel"
+    | "application/vnd.ms-powerpoint"
+    | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    | "application/vnd.oasis.opendocument.text"
+    | "application/vnd.oasis.opendocument.spreadsheet"
+    | "application/vnd.oasis.opendocument.presentation"
+    | "application/x-ole-storage"
+    | "application/vnd.ms-outlook"
+    | "application/x-msi"
+    | "application/x-ms-installer" => "document",
+    "text/plain" | "application/json" | "application/xml" | "text/xml" | "text/html" | "text/csv" => "text",
+    _ if mime.starts_with("text/") => "text",
+    _ => "other",
+  }
+}
+
 fn mime_family(mime: &str) -> &str {
   match mime {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -306,6 +446,10 @@ fn compatible(detected: &str, candidate: &str) -> bool {
     return true;
   }
   if mime_family(detected) == mime_family(candidate) {
+    return true;
+  }
+  let detected_kind = kind_for_mime(detected);
+  if detected_kind != "other" && detected_kind == kind_for_mime(candidate) {
     return true;
   }
   matches!(
@@ -336,18 +480,96 @@ fn looks_truncated(bytes: &[u8], kind: &str, mime: &str) -> bool {
   false
 }
 
+fn is_generic_mime(mime: &str) -> bool {
+  matches!(mime, "application/octet-stream" | "text/plain" | "application/x-empty" | "")
+}
+
+#[derive(Clone)]
+struct TypeVerdict {
+  mime: String,
+  description: String,
+  kind: String,
+  concrete: bool,
+}
+
+#[cfg(feature = "magic")]
+fn detect_type_via_libmagic(bytes: &[u8], encoding: &str) -> Option<TypeVerdict> {
+  let (mime, description) = libmagic::detect(bytes)?;
+  let mime = mime.split(';').next().unwrap_or("").trim().to_lowercase();
+  if mime.is_empty() {
+    return None;
+  }
+  let kind = kind_for_mime(&mime);
+  let concrete = !is_generic_mime(&mime) && kind != "text";
+  let kind = if !concrete && encoding == "binary" && is_generic_mime(&mime) { "other" } else { kind };
+  Some(TypeVerdict { mime, description, kind: kind.to_string(), concrete })
+}
+
+fn detect_type_via_signatures(bytes: &[u8], encoding: &str) -> TypeVerdict {
+  match detect_signature(bytes) {
+    Some(found) => TypeVerdict {
+      mime: found.mime.to_string(),
+      description: found.description.to_string(),
+      kind: found.kind.to_string(),
+      concrete: true,
+    },
+    None if encoding != "binary" => TypeVerdict {
+      mime: "text/plain".to_string(),
+      description: "text simplu".to_string(),
+      kind: "text".to_string(),
+      concrete: false,
+    },
+    None => TypeVerdict {
+      mime: "application/octet-stream".to_string(),
+      description: "date binare neidentificate".to_string(),
+      kind: "other".to_string(),
+      concrete: false,
+    },
+  }
+}
+
+#[cfg(feature = "magic")]
+fn is_refinable_container(mime: &str) -> bool {
+  matches!(mime, "application/zip" | "application/x-ole-storage")
+}
+
+#[cfg(feature = "magic")]
+fn combine_verdicts(engine: Option<TypeVerdict>, builtin: TypeVerdict) -> TypeVerdict {
+  let Some(verdict) = engine else {
+    return builtin;
+  };
+  if !verdict.concrete {
+    return if builtin.concrete { builtin } else { verdict };
+  }
+  if is_refinable_container(&verdict.mime)
+    && builtin.concrete
+    && builtin.mime != verdict.mime
+    && mime_family(&builtin.mime) == mime_family(&verdict.mime)
+  {
+    return builtin;
+  }
+  verdict
+}
+
+#[cfg(feature = "magic")]
+fn detect_type(bytes: &[u8], encoding: &str) -> TypeVerdict {
+  combine_verdicts(detect_type_via_libmagic(bytes, encoding), detect_type_via_signatures(bytes, encoding))
+}
+
+#[cfg(not(feature = "magic"))]
+fn detect_type(bytes: &[u8], encoding: &str) -> TypeVerdict {
+  detect_type_via_signatures(bytes, encoding)
+}
+
 pub fn inspect_magic(bytes: &[u8], filename: &str, declared_mime: &str) -> MagicReport {
   let normalized_declared = declared_mime.split(';').next().unwrap_or("").trim().to_lowercase();
   let extension = extension_of(filename);
   let extension_mime = mime_for_extension(&extension).to_string();
   let encoding = detect_encoding(bytes);
 
-  let detected = detect_signature(bytes);
-  let (mime, description, kind) = match &detected {
-    Some(found) => (found.mime.to_string(), found.description.to_string(), found.kind.to_string()),
-    None if encoding != "binary" => ("text/plain".to_string(), "text simplu".to_string(), "text".to_string()),
-    None => ("application/octet-stream".to_string(), "date binare neidentificate".to_string(), "other".to_string()),
-  };
+  let verdict = detect_type(bytes, encoding);
+  let detected = verdict.concrete;
+  let TypeVerdict { mime, description, kind, .. } = verdict;
 
   let mut mismatch_flags = 0u32;
   if !extension_mime.is_empty() && !compatible(&mime, &extension_mime) {
@@ -359,13 +581,13 @@ pub fn inspect_magic(bytes: &[u8], filename: &str, declared_mime: &str) -> Magic
   if kind == "executable" && mismatch_flags & (MISMATCH_EXTENSION | MISMATCH_DECLARED_MIME) != 0 {
     mismatch_flags |= MISMATCH_DISGUISED_EXECUTABLE;
   }
-  if detected.is_some() && is_text_like(&extension_mime) && kind != "text" && kind != "script" {
+  if detected && is_text_like(&extension_mime) && kind != "text" && kind != "script" {
     mismatch_flags |= MISMATCH_EXTENSION;
   }
   if looks_truncated(bytes, &kind, &mime) {
     mismatch_flags |= MISMATCH_TRUNCATED;
   }
-  if detected.is_some() && bytes.len() > 4 {
+  if detected && bytes.len() > 4 {
     let tail = &bytes[4..bytes.len().min(65_536)];
     if mime != "application/pdf" && super::inspection::window_contains(tail, b"%PDF-") {
       mismatch_flags |= MISMATCH_POLYGLOT;
@@ -415,7 +637,12 @@ mod tests {
   fn pe_renamed_as_jpg_is_reported_as_executable_with_mismatch() {
     let result = report(&pe_bytes(), "poza.jpg", "image/jpeg");
     assert_eq!(result.kind, "executable");
-    assert_eq!(result.mime, "application/vnd.microsoft.portable-executable");
+    assert_eq!(
+      kind_for_mime(&result.mime),
+      "executable",
+      "MIME-ul exact difera intre detectoare (libmagic: application/x-dosexec), dar clasa ramane executabil: {}",
+      result.mime
+    );
     assert!(result.mismatch_flags & MISMATCH_EXTENSION != 0, "extensia .jpg contrazice continutul");
     assert!(result.mismatch_flags & MISMATCH_DECLARED_MIME != 0, "MIME-ul declarat de Discord contrazice continutul");
     assert!(result.mismatch_flags & MISMATCH_DISGUISED_EXECUTABLE != 0, "executabil deghizat");
@@ -449,15 +676,29 @@ mod tests {
 
   #[test]
   fn archive_signatures_are_classified() {
-    assert_eq!(report(b"Rar!\x1a\x07\x01\x00rest", "a.rar", "").mime, "application/vnd.rar");
-    assert_eq!(report(b"Rar!\x1a\x07\x00rest", "a.rar", "").description, "arhiva RAR4");
-    assert_eq!(report(&[0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 0], "a.7z", "").mime, "application/x-7z-compressed");
-    assert_eq!(report(&[0x1f, 0x8b, 0x08, 0x00], "a.gz", "").mime, "application/gzip");
-    assert_eq!(report(b"MSCF\0\0\0\0", "a.cab", "").mime, "application/vnd.ms-cab-compressed");
+    assert_eq!(report(b"Rar!\x1a\x07\x01\x00rest", "a.rar", "").kind, "archive");
+    assert_eq!(report(b"Rar!\x1a\x07\x00rest", "a.rar", "").kind, "archive");
+    assert_eq!(report(&[0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 0], "a.7z", "").kind, "archive");
+    assert_eq!(report(&[0x1f, 0x8b, 0x08, 0x00], "a.gz", "").kind, "archive");
+    assert_eq!(report(b"MSCF\0\0\0\0", "a.cab", "").kind, "archive");
     let mut ole = vec![0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
     ole.extend(std::iter::repeat_n(0u8, 512));
-    assert_eq!(report(&ole, "setup.msi", "").mime, "application/x-ole-storage");
+    assert_eq!(report(&ole, "setup.msi", "").kind, "document");
     assert_eq!(report(&ole, "setup.msi", "").mismatch_flags, 0, "MSI este un container OLE, nu un mismatch");
+  }
+
+  #[test]
+  fn builtin_signature_table_labels_archives_exactly() {
+    let label = |bytes: &[u8]| detect_type_via_signatures(bytes, detect_encoding(bytes));
+    assert_eq!(label(&pe_bytes()).mime, "application/vnd.microsoft.portable-executable");
+    assert_eq!(label(b"Rar!\x1a\x07\x01\x00rest").mime, "application/vnd.rar");
+    assert_eq!(label(b"Rar!\x1a\x07\x00rest").description, "arhiva RAR4");
+    assert_eq!(label(&[0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 0]).mime, "application/x-7z-compressed");
+    assert_eq!(label(&[0x1f, 0x8b, 0x08, 0x00]).mime, "application/gzip");
+    assert_eq!(label(b"MSCF\0\0\0\0").mime, "application/vnd.ms-cab-compressed");
+    let mut ole = vec![0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+    ole.extend(std::iter::repeat_n(0u8, 512));
+    assert_eq!(label(&ole).mime, "application/x-ole-storage");
   }
 
   #[test]
@@ -525,5 +766,98 @@ mod tests {
     let result = report(&pe_bytes(), "setup.exe", "application/octet-stream");
     assert_eq!(result.kind, "executable");
     assert_eq!(result.mismatch_flags, 0, "octet-stream este generic, nu o contradictie");
+  }
+
+  #[test]
+  fn mime_kinds_cover_the_routing_categories() {
+    assert_eq!(kind_for_mime("image/png"), "image");
+    assert_eq!(kind_for_mime("video/mp4"), "media");
+    assert_eq!(kind_for_mime("audio/mpeg"), "media");
+    assert_eq!(kind_for_mime("application/x-dosexec"), "executable");
+    assert_eq!(kind_for_mime("application/x-sharedlib"), "executable");
+    assert_eq!(kind_for_mime("text/x-shellscript"), "script");
+    assert_eq!(kind_for_mime("application/x-7z-compressed"), "archive");
+    assert_eq!(kind_for_mime("application/pdf"), "document");
+    assert_eq!(kind_for_mime("application/vnd.openxmlformats-officedocument.wordprocessingml.document"), "document");
+    assert_eq!(kind_for_mime("text/plain"), "text");
+    assert_eq!(kind_for_mime("application/octet-stream"), "other");
+  }
+
+  #[test]
+  fn kind_based_compatibility_tolerates_mime_variants_but_not_cross_kind() {
+    assert!(compatible("application/x-dosexec", "application/vnd.microsoft.portable-executable"), "acelasi kind executabil, variante MIME diferite");
+    assert!(compatible("application/x-gzip", "application/gzip"), "aceeasi arhiva sub nume MIME alternativ");
+    assert!(!compatible("application/x-dosexec", "image/jpeg"), "executabil vs imagine ramane contradictie");
+    assert!(!compatible("application/pdf", "application/zip"), "document vs arhiva raman incompatibile daca nu au familie comuna");
+  }
+
+  #[cfg(feature = "magic")]
+  #[test]
+  fn libmagic_when_available_drives_the_type_from_its_own_database() {
+    if !libmagic_available() {
+      return;
+    }
+    let mut gif = b"GIF89a".to_vec();
+    gif.extend_from_slice(&[0x10, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00]);
+    gif.extend(std::iter::repeat_n(0u8, 64));
+    let disguised = report(&gif, "raport.pdf", "application/pdf");
+    assert_eq!(disguised.mime, "image/gif", "libmagic clasifica GIF-ul din propria baza de semnaturi");
+    assert_eq!(disguised.kind, "image");
+    assert!(disguised.mismatch_flags & MISMATCH_EXTENSION != 0, "extensia .pdf contrazice continutul GIF");
+
+    let mut pdf = b"%PDF-1.7\n1 0 obj<<>>endobj\n".to_vec();
+    pdf.extend_from_slice(b"%%EOF\n");
+    let doc = report(&pdf, "doc.pdf", "application/pdf");
+    assert_eq!(doc.kind, "document");
+    assert_eq!(doc.mismatch_flags, 0, "un PDF real numit .pdf nu are contradictii");
+  }
+
+  #[cfg(feature = "magic")]
+  #[test]
+  fn compunerea_verdictelor_alege_corect_intre_motor_si_tabelul_intern() {
+    let builtin_pe = detect_type_via_signatures(&pe_bytes(), detect_encoding(&pe_bytes()));
+    let generic = |mime: &str| TypeVerdict {
+      mime: mime.to_string(),
+      description: "data".to_string(),
+      kind: "other".to_string(),
+      concrete: false,
+    };
+    let concrete = |mime: &str, kind: &str| TypeVerdict {
+      mime: mime.to_string(),
+      description: "din motor".to_string(),
+      kind: kind.to_string(),
+      concrete: true,
+    };
+
+    assert_eq!(
+      combine_verdicts(None, builtin_pe.clone()).mime,
+      "application/vnd.microsoft.portable-executable",
+      "fara motor (baza magic lipseste) preia complet tabelul intern"
+    );
+    assert_eq!(
+      combine_verdicts(Some(generic("application/octet-stream")), builtin_pe.clone()).mime,
+      "application/vnd.microsoft.portable-executable",
+      "un verdict generic al motorului cedeaza in fata tabelului intern concret"
+    );
+    assert_eq!(
+      combine_verdicts(Some(concrete("application/x-dosexec", "executable")), builtin_pe.clone()).mime,
+      "application/x-dosexec",
+      "un verdict concret al motorului ramane autoritatea, chiar daca tabelul intern are alt nume MIME"
+    );
+
+    let docx = zip_bytes("word/document.xml");
+    let builtin_docx = detect_type_via_signatures(&docx, detect_encoding(&docx));
+    assert_eq!(
+      combine_verdicts(Some(concrete("application/zip", "archive")), builtin_docx).mime,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "un container ZIP recunoscut de motor e rafinat de tabelul intern in subtipul real"
+    );
+
+    let text = detect_type_via_signatures(b"doar text", detect_encoding(b"doar text"));
+    assert_eq!(
+      combine_verdicts(Some(generic("application/octet-stream")), text).mime,
+      "application/octet-stream",
+      "cand nici tabelul intern nu e concret, verdictul generic al motorului ramane"
+    );
   }
 }
