@@ -1,6 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHarness, makeInteraction } from "../youtubeInteractionTestKit.js";
+import { createHarness, makeInteraction, HARNESS_RECENT_PUBLISHED_AT } from "../youtubeInteractionTestKit.js";
+import { isRecentYouTubeVideo } from "../../features/youtube/youtubeDeliveryPolicy.js";
+
+test("fixture-ul din harness ramane recent oricand ruleaza suita, nu doar in luna in care a fost scris", () => {
+  const video = {
+    videoId: "abcdefghijk",
+    channelId: "UC1234567890123456789012",
+    channelName: "Canal Test",
+    title: "Video",
+    link: "https://www.youtube.com/watch?v=abcdefghijk",
+    publishedAt: HARNESS_RECENT_PUBLISHED_AT,
+    thumbnail: ""
+  };
+  assert.equal(
+    isRecentYouTubeVideo(video, new Date()),
+    true,
+    "o data absoluta hardcodata iese din fereastra de recenta odata cu trecerea timpului si rupe suita fara nicio schimbare de cod"
+  );
+});
 
 test("/youtube subscribe pastreaza nevazute videoclipurile recente si salveaza abonarea", async () => {
   const harness = createHarness();

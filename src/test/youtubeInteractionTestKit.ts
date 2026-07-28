@@ -1,4 +1,7 @@
 import installYouTube from "../features/command-handlers/youtubeInteractionHandler.js";
+
+export const HARNESS_RECENT_PUBLISHED_AT = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
 type HandlerDeps = Parameters<typeof installYouTube.createYouTubeInteractionHandler>[0];
 type HandlerInteraction = Parameters<ReturnType<typeof installYouTube.createYouTubeInteractionHandler>["handleYouTubeInteraction"]>[0];
 
@@ -132,7 +135,7 @@ export function createHarness(settingsOverrides: object = {}, preparedCount = 3,
       channelName: "Canal Test",
       title: "Video",
       link: "https://www.youtube.com/watch?v=abcdefghijk",
-      publishedAt: "2026-06-24T06:00:00.000Z",
+      publishedAt: HARNESS_RECENT_PUBLISHED_AT,
       thumbnail: ""
     }],
     seedSeenVideos: async (_guildId, _channelId, videos) => { seeded.push(videos.map(video => video.videoId)); },
@@ -143,7 +146,7 @@ export function createHarness(settingsOverrides: object = {}, preparedCount = 3,
       return {
         deliverable: Array.from({ length: preparedCount }, (_unused, index) => ({
           channel: { channelId: `UC${index}`, channelName: "x", channelUrl: "https://www.youtube.com/x", subscribedAt: new Date() },
-          video: { videoId: `v${index}`, channelId: `UC${index}`, channelName: "x", title: "t", link: "https://www.youtube.com/watch?v=x", publishedAt: "2026-06-24T06:00:00.000Z", thumbnail: "" },
+          video: { videoId: `v${index}`, channelId: `UC${index}`, channelName: "x", title: "t", link: "https://www.youtube.com/watch?v=x", publishedAt: HARNESS_RECENT_PUBLISHED_AT, thumbnail: "" },
           metadata: { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }
         })),
         skipped: skippedCount,
