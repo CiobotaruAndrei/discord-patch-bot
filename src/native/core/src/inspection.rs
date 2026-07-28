@@ -1,5 +1,5 @@
 use crate::executable::{analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
-use crate::visual::{looks_like_image, png_from_samples, scan_visual_codes, VisualLimits, VisualOutcome};
+use crate::visual::{embedded_jpeg_preview, iso_bmff_image_brand, looks_like_image, png_from_samples, scan_visual_codes, VisualLimits, VisualOutcome};
 use crate::pdf_structure::{
   inspect_pdf_structure, needs_structural_escalation, PdfStructureLimits, PdfStructureOutcome,
 };
@@ -1413,9 +1413,27 @@ fn executable_indicators(bytes: &[u8]) -> Vec<String> {
   }
 }
 
+const ISO_BMFF_PREVIEW_SCAN_BYTES: usize = 512 * 1024;
+
+fn iso_bmff_visual_indicators(bytes: &[u8]) -> Vec<String> {
+  let Some(brand) = iso_bmff_image_brand(bytes) else { return Vec::new() };
+  if let Some(preview) = embedded_jpeg_preview(bytes, ISO_BMFF_PREVIEW_SCAN_BYTES) {
+    if let VisualOutcome::Scanned { indicators, codes } = scan_visual_codes(preview, &VisualLimits::default()) {
+      if !codes.is_empty() {
+        let mut found = vec![format!("cod citit din previzualizarea incorporata a unei imagini {brand}")];
+        found.extend(indicators);
+        return found;
+      }
+    }
+  }
+  vec![format!(
+    "imagine {brand} neinspectata vizual: formatul nu are decodor, deci un cod din ea nu poate fi citit"
+  )]
+}
+
 fn visual_indicators(bytes: &[u8]) -> Vec<String> {
   if !looks_like_image(bytes) {
-    return Vec::new();
+    return iso_bmff_visual_indicators(bytes);
   }
   match scan_visual_codes(bytes, &VisualLimits::default()) {
     VisualOutcome::Scanned { indicators, .. } => indicators,

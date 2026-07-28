@@ -62,6 +62,48 @@ pub fn png_from_samples(_width: u32, _height: u32, _channels: u32, _samples: &[u
   None
 }
 
+const ISO_BMFF_IMAGE_BRANDS: &[(&[u8; 4], &str)] = &[
+  (b"heic", "HEIC"),
+  (b"heix", "HEIC"),
+  (b"heim", "HEIC"),
+  (b"heis", "HEIC"),
+  (b"hevc", "HEIC"),
+  (b"mif1", "HEIF"),
+  (b"msf1", "HEIF"),
+  (b"avif", "AVIF"),
+  (b"avis", "AVIF")
+];
+
+pub fn iso_bmff_image_brand(bytes: &[u8]) -> Option<&'static str> {
+  if bytes.len() < 16 || &bytes[4..8] != b"ftyp" {
+    return None;
+  }
+  let declared = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize;
+  let box_end = declared.clamp(16, bytes.len().min(256));
+  let mut cursor = 8;
+  while cursor + 4 <= box_end {
+    if cursor != 12 {
+      let candidate = &bytes[cursor..cursor + 4];
+      if let Some((_, label)) = ISO_BMFF_IMAGE_BRANDS.iter().find(|(brand, _)| *brand == candidate) {
+        return Some(label);
+      }
+    }
+    cursor += 4;
+  }
+  None
+}
+
+pub fn embedded_jpeg_preview(bytes: &[u8], max_scan: usize) -> Option<&[u8]> {
+  let window = &bytes[..bytes.len().min(max_scan)];
+  let start = window.windows(3).position(|chunk| chunk == [0xff, 0xd8, 0xff])?;
+  let tail = &window[start..];
+  let end = tail.windows(2).rposition(|chunk| chunk == [0xff, 0xd9])?;
+  if end < 4 {
+    return None;
+  }
+  Some(&tail[..end + 2])
+}
+
 pub fn payload_looks_like_url(payload: &str) -> bool {
   let lower = payload.trim().to_lowercase();
   lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("ftp://")
