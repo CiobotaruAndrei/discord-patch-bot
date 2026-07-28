@@ -1361,6 +1361,29 @@ fn inspect_seven_zip(bytes: &[u8], budget: &mut Budget) -> Finding {
   header_scan_finding(scan, "7z", budget)
 }
 
+pub fn container_signature(bytes: &[u8]) -> Option<&'static str> {
+  const SIGNATURES: &[(&[u8], &str)] = &[
+    (&[0x4d, 0x53, 0x43, 0x46], "CAB"),
+    (&[0x49, 0x54, 0x53, 0x46], "CHM"),
+    (&[0x53, 0x5a, 0x44, 0x44, 0x88, 0xf0, 0x27, 0x33], "SZDD"),
+    (&[0x4b, 0x57, 0x41, 0x4a, 0x88, 0xf0, 0x27, 0xd1], "KWAJ"),
+    (&[0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00], "XZ"),
+    (&[0x28, 0xb5, 0x2f, 0xfd], "Zstandard"),
+    (&[0x04, 0x22, 0x4d, 0x18], "LZ4"),
+    (&[0x1f, 0xa0], "compress LZH"),
+    (&[0x1f, 0x9d], "compress LZW")
+  ];
+  for (magic, label) in SIGNATURES {
+    if bytes.starts_with(magic) {
+      return Some(label);
+    }
+  }
+  if bytes.len() >= 4 && &bytes[0..3] == b"BZh" && bytes[3].is_ascii_digit() && bytes[3] != b'0' {
+    return Some("bzip2");
+  }
+  None
+}
+
 fn looks_like_archive(bytes: &[u8], filename: &str, mime: &str) -> bool {
   if is_zip(bytes) || is_gzip(bytes) || is_tar(bytes) {
     return true;
@@ -1371,9 +1394,13 @@ fn looks_like_archive(bytes: &[u8], filename: &str, mime: &str) -> bool {
   if bytes.len() >= 6 && bytes[0..6] == [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c] {
     return true;
   }
+  if container_signature(bytes).is_some() {
+    return true;
+  }
   let lower_name = filename.to_lowercase();
   let lower_mime = mime.to_lowercase();
-  const ARCHIVE_EXTENSIONS: &[&str] = &[".zip", ".tar", ".gz", ".tgz", ".rar", ".7z", ".bz2", ".xz"];
+  const ARCHIVE_EXTENSIONS: &[&str] =
+    &[".zip", ".tar", ".gz", ".tgz", ".rar", ".7z", ".bz2", ".xz", ".cab", ".chm", ".zst", ".lz4"];
   if ARCHIVE_EXTENSIONS.iter().any(|extension| lower_name.ends_with(extension)) {
     return true;
   }
