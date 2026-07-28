@@ -6,7 +6,7 @@
   "scripts": {
     "build:rust": "cd native && napi build --platform --release --js index.js --dts index.d.ts",
     "build:ts": "node node_modules/@typescript/native/bin/tsc",
-    "build": "npm run build:rust && npm run build:ts",
+    "build": "node scripts/run-parallel.ts build:rust build:ts",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "rebuild": "npm run clean && npm run build",
     "start": "node dist/app/main.js",
@@ -47,7 +47,7 @@
     "audit": "npm audit --omit=dev --audit-level=moderate",
     "audit:strict": "npm audit --omit=dev",
     "precommit": "npm run check:full && npm run audit",
-    "check": "npm run build:ts && npm run build:rust && npm run check:prebuilt",
+    "check": "node scripts/run-parallel.ts build:ts build:rust && npm run check:prebuilt",
     "check:prebuilt": "node dist/scripts/run-gates.js && node --test --test-reporter=spec \"dist/test/**/*.test.js\"",
     "check:ts-prebuilt": "npm run build:ts && npm run check:prebuilt",
     "check:native": "cargo clippy --release --manifest-path native/Cargo.toml --workspace --all-targets -- -D warnings && cargo test --release --manifest-path native/Cargo.toml -p discord_patch_bot_logic -p native-inspector --quiet",
