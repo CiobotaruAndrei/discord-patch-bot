@@ -1,5 +1,6 @@
 use crate::executable::{analysis_blind_spots, analyze_executable, looks_like_executable, ExecutableLimits, ExecutableOutcome};
 use crate::chm_listing::{list_chm_entries, ChmListingLimits};
+use crate::similarity_corpus::known_sample_indicators;
 use crate::document_text::{extract_pdf_text, find_url_hosts, DocumentTextLimits};
 use crate::pdf_vector::{rasterize_filled_rectangles, VectorRasterLimits};
 use crate::visual::{embedded_jpeg_preview, iso_bmff_image_brand, looks_like_image, png_from_samples, scan_visual_codes, VisualLimits, VisualOutcome};
@@ -1653,13 +1654,18 @@ pub fn inspect_untrusted_content(
   } else {
     document_finding(bytes, &mut budget)
   };
+  let mostra_cunoscuta = known_sample_indicators(bytes);
   let format_neinspectat = match uninspectable_format(bytes, filename, mime) {
     Some(label) if finding.uncertain || label.starts_with("video") || iso_bmff_image_brand(bytes).is_some() => Some(label),
     _ => None
   };
   InspectionReport {
     status: if finding.uncertain { "uncertain".to_string() } else { "inspected".to_string() },
-    indicators: dedupe(finding.indicators),
+    indicators: {
+      let mut toti = finding.indicators;
+      toti.extend(mostra_cunoscuta);
+      dedupe(toti)
+    },
     reason: finding.reason,
     entries_inspected: budget.entries,
     expanded_bytes: budget.expanded_bytes,

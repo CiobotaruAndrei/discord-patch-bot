@@ -667,3 +667,14 @@ fn fiecare_esantion_produce_exact_verdictul_fixat() {
     }
   }
 }
+
+#[test]
+fn fiecare_esantion_inghetat_exista_in_indexul_etichetat() {
+  for sample in corpus() {
+    let gasit = discord_patch_bot_logic::lookup_by_digest(sample.digest)
+      .unwrap_or_else(|| panic!("esantionul {} nu apare in indexul etichetat", sample.name));
+    assert_eq!(gasit.id, sample.name, "identitatea difera pentru {}", sample.name);
+    assert_eq!(gasit.category, sample.category, "categoria difera pentru {}", sample.name);
+    assert_eq!(gasit.hostile, !sample.benign, "eticheta ostil/benign difera pentru {}", sample.name);
+  }
+}
