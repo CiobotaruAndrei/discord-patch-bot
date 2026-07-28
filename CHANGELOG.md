@@ -38,6 +38,8 @@
 
 - **Instalatoarele MSI sunt citite pe randuri, nu doar dupa numele tabelelor.** Pana acum se detecta ca exista o actiune personalizata si ca fisierul contine undeva cuvantul „powershell"; acum se citeste tabelul `CustomAction` si se stie **care** actiune ruleaza, **ce comanda** exact si **ce tip** are (DLL/EXE/JScript/VBScript, din Binary, din director sau din proprietate), plus daca ruleaza cu privilegii ridicate fara impersonare. O actiune legitima nu mai e confundata cu una ostila doar fiindca ambele stau in acelasi fisier. Citirea e plafonata (256 randuri, 64 tabele, 512 octeti per camp) si se face din memorie, deci functioneaza si in procesul izolat, unde `openat` e blocat de seccomp.
 
+- **Avizul HIGH pentru `js-yaml` e inchis.** Versiunea 4.2.0, adusa tranzitiv de `@napi-rs/cli`, era vulnerabila la consum patratic de CPU prin lanturi de chei de imbinare YAML (interval afectat `>= 4.0.0, < 4.3.0`). Fiind dependinta de dezvoltare, `npm audit --omit=dev` nu o vedea, deci poarta de audit trecea in timp ce alerta ramanea deschisa. Fixata prin `overrides` la `^4.3.0` — acelasi mecanism folosit deja pentru `form-data` si `ws` — nu ca dependinta directa, fiindca nu o folosim noi. Ramane in linia majora 4, iar build-ul napi a fost verificat cu versiunea noua.
+
 Toate schimbarile importante ale proiectului sunt documentate aici.
 
 Formatul urmeaza ideea din [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), iar versiunile folosesc [Semantic Versioning](https://semver.org/).
