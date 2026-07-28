@@ -17,7 +17,7 @@ test("scripturile operationale compileaza o singura data si ruleaza gate-urile d
   assert.equal(scriptValue("check:quick"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-config.js");
   assert.equal(scriptValue("lint"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-nul-bytes.js && node dist/scripts/check-no-weakening-types.js");
   const checkScript = scriptValue("check");
-  assert.equal(checkScript.startsWith("npm run build:ts && npm run build:rust && "), true);
+  assert.equal(checkScript.startsWith("node scripts/run-parallel.ts build:ts build:rust && "), true);
   assert.equal(checkScript.includes("npm run typecheck"), false);
   assert.equal(checkScript.includes("npm run build &&"), false);
   assert.equal(scriptValue("check:full"), "npm run check && npm run check:native && npm run test:e2e:prebuilt");
@@ -25,7 +25,7 @@ test("scripturile operationale compileaza o singura data si ruleaza gate-urile d
 });
 
 test("check e un orchestrator: construieste O DATA si deleaga la variantele prebuilt (review nou #21/#22)", () => {
-  assert.equal(scriptValue("check"), "npm run build:ts && npm run build:rust && npm run check:prebuilt", "check = build complet + verificari prebuilt, fara gate-uri duplicate inline");
+  assert.equal(scriptValue("check"), "node scripts/run-parallel.ts build:ts build:rust && npm run check:prebuilt", "check = build complet + verificari prebuilt, fara gate-uri duplicate inline");
   const prebuilt = scriptValue("check:prebuilt");
   assert.equal(prebuilt.includes("build:"), false, "check:prebuilt nu construieste nimic - ruleaza pe artefactele existente");
   assert.equal(prebuilt.startsWith("node dist/scripts/run-gates.js && "), true, "gate-urile ruleaza direct pe dist, in paralel, printr-un singur orchestrator");

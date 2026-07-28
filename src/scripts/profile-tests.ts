@@ -97,10 +97,14 @@ if (process.argv[1] !== undefined && process.argv[1].endsWith("profile-tests.js"
   console.log("--- cele mai lente ---");
   for (const entry of summary.slowest) console.log(`${String(entry.totalMs).padStart(7)} ms  ${entry.file}`);
   if (summary.lingering.length > 0) {
-    console.log(`\n--- fisiere care tin procesul viu dupa ce testele s-au terminat (peste ${LINGER_THRESHOLD_MS} ms) ---`);
+    console.log(`\n--- fisiere unde executia dupa import domina importul (peste ${LINGER_THRESHOLD_MS} ms) ---`);
     for (const entry of summary.lingering) {
-      console.log(`${String(entry.lingerMs).padStart(7)} ms agatat (lucru ${entry.workMs} ms)  ${entry.file}`);
+      console.log(`${String(entry.lingerMs).padStart(7)} ms rulare (import ${entry.workMs} ms)  ${entry.file}`);
     }
-    console.log("\nUn timer nedeschis sau o asteptare reala tine event loop-ul; injecteaza ceasul sau foloseste unref().");
+    console.log(
+      "\nRunner-ul node:test executa testele asincron dupa ce importul se rezolva, deci acest timp e in mod normal" +
+        " chiar rularea lor. Devine suspect doar daca depaseste durata raportata de runner pentru acelasi fisier:" +
+        " atunci un timer fara unref() sau o asteptare reala tine event loop-ul."
+    );
   }
 }

@@ -827,6 +827,42 @@ comenzi de ~2s, dar costul e pretul izolarii per-fisier — alternativa (`--expe
 a fost respinsa data trecuta fiindca a rulat silentios doar 961 din 1929 de teste; iar teardown-ul de
 ~1,6s al `benchmarks.test.js` e GC pe heap-ul mare al calibrarii, nu un handle care se poate inchide.
 
+### Runda 4 de viteza: cele doua build-uri nu depindeau unul de altul
+
+Masurat pe main, la cald: `build:ts` 2,5s, `build:rust` 2,4s, gate-uri 1,05s, 2007 teste 7,4s. Build-urile
+rulau in serie desi produc in directoare diferite — `tsc` scrie in `dist/`, `napi build` scrie
+`native/index.js`, `native/index.d.ts` si `.node`. Singurul motiv plauzibil de dependenta ar fi fost ca
+`tsc` citeste `.d.ts`-ul generat de napi, si l-am verificat direct: cu `native/index.js` si
+`native/index.d.ts` mutate deoparte, `build:ts` trece. Podul nativ incarca addon-ul prin `createRequire`
+la rulare, nu printr-un import static, deci nu exista legatura la compilare.
+
+`scripts/run-parallel.ts` le lanseaza concurent. **`npm run check`: 14,03s -> 12,29s**, din faza de build
+4,7s -> 2,5s. Orchestratorul e TypeScript rulat direct de Node 24 prin type stripping, nu un `.js`
+adaugat langa surse: gate-ul de sintaxa interzice fisierele JavaScript dupa migrarea la TypeScript, si
+nu merita slabit pentru doua secunde. Un gate verifica acum ca niciun modul TS nu importa static
+`native/index.*` — daca cineva o face, paralelizarea devine o cursa pe un fisier scris in acelasi timp,
+si atunci gate-ul pica inainte sa apara un build intermitent.
+
+Ce s-a masurat si respins in aceasta runda:
+
+- **`--test-isolation=none`**, reincercat fiindca pare cea mai mare parghie (313 procese Node, mediana
+  60ms per fisier, pornirea unui proces gol 87ms). 4,98s fata de 7,43s, deci aparent 33% mai rapid — dar
+  ruleaza **1002 din 2003 de teste**, are **2 esecuri** si **iese cu cod 0**. Nu doar ca acopera mai
+  putin, ci raporteaza verde peste esecuri; e mai rau decat descrierea din runda trecuta, unde se stia
+  doar ca ruleaza mai putine teste.
+- **`NODE_COMPILE_CACHE`**, cea mai promitatoare idee pe hartie: fiecare din cele 313 procese plateste
+  importul bibliotecilor grele (discord.js 434ms, mongoose 339ms, cheerio 242ms, axios 159ms, zod
+  117ms). Cu cache-ul incalzit in prealabil: 8,06s fata de 7,43s, adica **8% mai lent**, pentru 17 MB si
+  2833 de fisiere de cache. La 313 procese, citirea bytecode-ului de pe disc costa mai mult decat
+  recompilarea.
+- **Concurenta runner-ului**: implicit e numarul de nuclee (16 aici). Fortat pe 8 -> 9,72s, pe 24 ->
+  7,37s, pe 32 -> 7,24s fata de 7,32s la 16. Peste numarul de nuclee, diferenta e zgomot.
+
+Eticheta din `profile:tests` era si ea inselatoare: raporta drept „agatat" timpul dintre rezolvarea
+importului si iesirea procesului, care pentru un fisier de test e chiar rularea asincrona a testelor de
+catre `node:test`. Cine se lua dupa ea vana un handle scapat care nu exista. Acum scrie „rulare" si
+explica in ce conditii cifra chiar devine suspecta.
+
 ### Guard automat in CI (deciziile de mai sus, impuse)
 
 Pentru ca deciziile „ramane in Rust pentru ca e mai rapid" sa nu se erodeze tacut, exista un guard
