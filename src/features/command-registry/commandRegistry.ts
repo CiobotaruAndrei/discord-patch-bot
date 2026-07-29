@@ -86,7 +86,7 @@ import attachSlashCommandDefinitions from "../command-definitions/slashCommandDe
 import attachHelpInteractionHandler from "../command-handlers/helpInteractionHandler.js";
 import attachCommandSnoozeGuard from "../command-security/commandSnoozeGuard.js";
 import attachAdminCommandRouterGuard from "../command-security/adminCommandRouterGuard.js";
-import { buildNarrowCommandHandler, createCommandHandlerDescriptors } from "./commandHandlerDescriptors.js";
+import { createCommandHandlerDescriptors } from "./commandHandlerDescriptors.js";
 import { assertExclusiveCommandOwnership } from "./commandOwnership.js";
 import type { CommandOwnerCandidate } from "./commandOwnership.js";
 
@@ -156,11 +156,11 @@ function createAppServices(
 export type CommandAppServices = ReturnType<typeof createAppServices>;
 
 function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { commandHandlers: CommandHandler[]; helpCommand: ReturnType<typeof attachHelpInteractionHandler.buildCommandHandler>; commandOwners: CommandOwnerCandidate[] } {
-  const helpCommand = buildNarrowCommandHandler(attachHelpInteractionHandler.buildCommandHandler, ctx);
+  const helpCommand = attachHelpInteractionHandler.buildCommandHandler(ctx);
   const descriptors = createCommandHandlerDescriptors();
   const built = descriptors.map(descriptor => ({
     descriptor,
-    handler: descriptor.id === "help" ? helpCommand : buildNarrowCommandHandler(descriptor.build, ctx)
+    handler: descriptor.id === "help" ? helpCommand : descriptor.build(ctx)
   }));
   const commandHandlers: CommandHandler[] = built.map(entry => entry.handler);
   const commandOwners: CommandOwnerCandidate[] = built.map(entry => ({
