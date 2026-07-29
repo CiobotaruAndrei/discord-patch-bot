@@ -74,3 +74,17 @@ test("simbolul global al TLSH-ului nostru e redenumit, ca sa nu se bata cu cel d
       "problema nu apare, deci disparitia liniei ar trece nevazuta local si ar pica abia in CI"
   );
 });
+
+test("ordinea octetilor e spusa explicit compilatorului Microsoft, care nu o declara singur", () => {
+  const build = readNative(path.join("tlsh-sys", "build.rs"));
+  assert.ok(
+    build.includes('build.define("__BYTE_ORDER__"'),
+    "TLSH alege ordinea campurilor Q1ratio/Q2ratio dupa `__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__`. MSVC nu " +
+      "defineste niciunul dintre macro-uri, deci ambele devin 0 si conditia iese adevarata: Windows ar compila " +
+      "ramura big-endian pe o masina little-endian si ar produce alta amprenta decat Linux pentru acelasi continut"
+  );
+  assert.ok(
+    build.includes("CARGO_CFG_TARGET_ENDIAN"),
+    "valoarea se ia din tinta de compilare, nu se presupune little-endian"
+  );
+});

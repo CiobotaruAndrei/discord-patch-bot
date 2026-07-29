@@ -8,6 +8,13 @@ fn main() {
   let mut build = cc::Build::new();
   build.cpp(true).include(&include).warnings(false);
   build.define("topval", "discord_patch_bot_tlsh_topval");
+
+  if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+    let big_endian = std::env::var("CARGO_CFG_TARGET_ENDIAN").as_deref() == Ok("big");
+    build.define("__ORDER_LITTLE_ENDIAN__", "1234");
+    build.define("__ORDER_BIG_ENDIAN__", "4321");
+    build.define("__BYTE_ORDER__", if big_endian { "4321" } else { "1234" });
+  }
   if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
     build.define("WINDOWS", None);
   }
