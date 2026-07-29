@@ -32,9 +32,15 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: src/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      # Un singur build per job; canary-ul ruleaza pe dist-ul deja construit.
+      - name: Build TypeScript once
+        run: npm run build:ts
 
       # Fail-closed: un crash complet la getLatestForAllGames/fetchDeals pica workflow-ul.
       # Pentru rulari controlate cu retea instabila se poate seta ALLOW_CANARY_NETWORK_SKIP=true (nu in CI).
@@ -44,4 +50,4 @@ jobs:
           DISCORD_TOKEN: canary_token
           DISCORD_CLIENT_ID: canary_client_id
           METRICS_PUBLIC: "true"
-        run: npm run canary:sources
+        run: npm run canary:sources:prebuilt

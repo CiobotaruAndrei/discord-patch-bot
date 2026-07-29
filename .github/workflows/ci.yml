@@ -78,7 +78,7 @@ jobs:
       - name: Benchmark hot-path guard (BENCHMARKS.md)
         env:
           BENCH_GUARD_REQUIRE_NATIVE: "true"
-        run: node dist/scripts/benchmarkGuard.js
+        run: npm run benchmark:guard:prebuilt
 
       - name: Run e2e tests explicitly (guard impotriva putrezirii scriptului test:e2e, fara rebuild - check a construit deja dist)
         env:
