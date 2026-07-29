@@ -1,5 +1,15 @@
 "use strict";
 
+import type {
+  BooleanOption,
+  ChannelOption,
+  ChatInputInteraction,
+  IntegerOption,
+  InteractionGuildRef,
+  StringOption,
+  SubcommandGroupOption,
+  SubcommandOption
+} from "../discordInteractionPorts.js";
 import type { GuildSettings, LoggerFunction, YouTubeVideo } from "../../../types.js";
 import type { NotificationDiscordClient } from "../../notifications/outboundChannel.js";
 import type { ResolvedYouTubeChannel } from "../../youtube/youtubeSource.js";
@@ -13,24 +23,11 @@ export interface DiscordChannel {
   id: string;
 }
 
-export interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  client?: NotificationDiscordClient;
-  isChatInputCommand?: () => boolean;
-  options: {
-    getSubcommand(): string;
-    getSubcommandGroup(required?: boolean): string | null;
-    getString(name: string, required?: boolean): string | null;
-    getBoolean(name: string, required?: boolean): boolean | null;
-    getInteger(name: string, required?: boolean): number | null;
-    getChannel(name: string, required?: boolean): DiscordChannel | null;
-  };
-  reply?(payload: InteractionPayload): Promise<unknown>;
-  followUp?(payload: InteractionPayload): Promise<unknown>;
-}
+export type DiscordInteraction = ChatInputInteraction<
+  SubcommandOption & SubcommandGroupOption & StringOption & BooleanOption & IntegerOption & ChannelOption<DiscordChannel>,
+  InteractionGuildRef,
+  InteractionPayload
+> & { client?: NotificationDiscordClient };
 
 export interface ChannelPermissions {
   viewChannel: boolean;

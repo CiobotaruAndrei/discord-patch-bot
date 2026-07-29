@@ -1,5 +1,12 @@
 "use strict";
 
+import type {
+  BooleanOption,
+  ChannelOption,
+  ChatInputInteraction,
+  PartialInteractionUserRef,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { CurrencyCode, DiscordReplyPayload, GameConfig } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
@@ -21,22 +28,7 @@ interface DiscordChannel {
   id: string;
 }
 
-interface DiscordInteraction {
-  id?: string;
-  commandName?: string;
-  guild?: { id: string } | null;
-  user?: { id?: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand(required?: boolean): string;
-    getBoolean(name: string, required?: boolean): boolean | null;
-    getChannel(name: string, required?: boolean): DiscordChannel | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & BooleanOption & ChannelOption<DiscordChannel>> & { user?: PartialInteractionUserRef | null };
 
 interface ChannelPermissions {
   viewChannel: boolean;

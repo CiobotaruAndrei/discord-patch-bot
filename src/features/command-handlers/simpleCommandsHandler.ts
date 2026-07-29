@@ -1,5 +1,10 @@
 "use strict";
 
+import type {
+  AlwaysFollowsUp,
+  AlwaysReplies,
+  BaseChatInputInteraction
+} from "./discordInteractionPorts.js";
 import type { LoggerFunction } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 
@@ -7,15 +12,7 @@ import { errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string; aliases?: string[] } & Record<string, unknown>;
-type DiscordInteraction = {
-  commandName?: string;
-  guild?: unknown;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?: () => boolean;
-  reply: (payload: unknown) => Promise<unknown>;
-  followUp: (payload: unknown) => Promise<unknown>;
-};
+type DiscordInteraction = BaseChatInputInteraction & AlwaysReplies & AlwaysFollowsUp;
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
 type SimpleCommandsDeps = {

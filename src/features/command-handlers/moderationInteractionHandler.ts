@@ -1,5 +1,15 @@
 "use strict";
 
+import type {
+  AlwaysReplies,
+  AttachmentOption,
+  ChatInputInteraction,
+  IntegerOption,
+  OptionalChannelOption,
+  StringOption,
+  SubcommandOption,
+  UserOption
+} from "./discordInteractionPorts.js";
 import { randomUUID } from "node:crypto";
 import { PermissionFlagsBits } from "discord.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
@@ -33,24 +43,12 @@ type Guild = {
   bans?: { remove(userId: string, reason?: string): Promise<unknown> };
   channels?: { fetch(channelId: string): Promise<Channel | null> };
 };
-type Interaction = {
-  commandName?: string;
-  guild?: Guild | null;
+type Interaction = ChatInputInteraction<
+  Partial<SubcommandOption> & UserOption<User> & StringOption & IntegerOption & AttachmentOption<DirectAttachment> & OptionalChannelOption<Channel>,
+  Guild
+> & AlwaysReplies & {
   user?: User | null;
   member?: Member | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand?(required?: boolean): string;
-    getUser(name: string, required?: boolean): User | null;
-    getString(name: string, required?: boolean): string | null;
-    getInteger(name: string, required?: boolean): number | null;
-    getAttachment?(name: string, required?: boolean): DirectAttachment | null;
-    getChannel?(name: string, required?: boolean): Channel | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply(payload: unknown): Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
 };
 type Deps = {
   GuildModel: Parameters<typeof moderationRepository.getModerationState>[0];

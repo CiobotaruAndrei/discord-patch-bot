@@ -1,5 +1,11 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  InteractionUserRef,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { GameConfig, GuildSettings, InteractionMessage } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
@@ -9,20 +15,7 @@ import { errorDetail } from "../../shared/errors.js";
 import { addGameAlias, removeGameAlias, type GameAliasGuildModelLike } from "../guild-config/gameAliasRepository.js";
 import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  user?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?(): boolean;
-  reply?(payload: unknown): Promise<unknown>;
-  followUp?(payload: unknown): Promise<unknown>;
-  options: {
-    getSubcommand(required?: boolean): string;
-    getString(name: string, required?: boolean): string | null;
-  };
-}
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption> & { user?: InteractionUserRef | null };
 
 interface CoverageAliasDeps {
   logger(level: string, context: string, message: string, meta?: unknown): void;

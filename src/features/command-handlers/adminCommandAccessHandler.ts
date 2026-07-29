@@ -1,5 +1,13 @@
 "use strict";
 
+import type {
+  BooleanOption,
+  ChatInputInteraction,
+  PartialInteractionUserRef,
+  RoleOption,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { CommandGame, CommandHandler } from "../command-registry/commandHandler.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
@@ -49,23 +57,13 @@ type DiscordGuild = {
   fetchOwner?: () => Promise<GuildOwnerMember | null>;
 };
 
-type DiscordInteraction = {
-  id?: string;
-  commandName?: string;
-  guild?: DiscordGuild | null;
-  user?: { id?: string } | null;
+type DiscordInteraction = ChatInputInteraction<
+  SubcommandOption & RoleOption<DiscordRole> & StringOption & BooleanOption,
+  DiscordGuild,
+  InteractionPayload
+> & {
+  user?: PartialInteractionUserRef | null;
   globalAccessCodeAuthorized?: boolean;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand(required?: boolean): string;
-    getRole(name: string, required?: boolean): DiscordRole | null;
-    getString(name: string, required?: boolean): string | null;
-    getBoolean(name: string, required?: boolean): boolean | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: InteractionPayload) => Promise<unknown>;
-  followUp?: (payload: InteractionPayload) => Promise<unknown>;
 };
 
 type GuildFindQuery = {

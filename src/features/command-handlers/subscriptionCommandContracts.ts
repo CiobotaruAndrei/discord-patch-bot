@@ -1,5 +1,12 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  InteractionGuildRef,
+  InteractionUserRef,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { DealInfo, DiscordReplyPayload, FetchResult, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types.js";
 
 export type SubscriptionLogger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -10,21 +17,14 @@ export interface DiscordChannel {
   id: string;
 }
 
-export interface SubscriptionInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
+export type SubscriptionInteraction = ChatInputInteraction<
+  SubcommandOption & Partial<StringOption>,
+  InteractionGuildRef,
+  InteractionPayload
+> & {
   channel?: DiscordChannel | null;
-  client?: { user?: { id: string } | null } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand(): string;
-    getString?(name: string, required?: boolean): string | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
+  client?: { user?: InteractionUserRef | null } | null;
+};
 
 export type GuildModelLike = {
   updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<MongoWriteResult>;

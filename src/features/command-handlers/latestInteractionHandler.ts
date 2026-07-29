@@ -1,5 +1,11 @@
 "use strict";
 
+import type {
+  AlwaysReplies,
+  ChatInputInteraction,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import type { GameConfig } from "../../types.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
@@ -15,16 +21,7 @@ import { createLatestSingleHandler } from "./latest/latestSingleHandler.js";
 import { createPriceSearchHandler } from "./latest/priceSearchHandler.js";
 
 type MaybePromise<T> = T | Promise<T>;
-type DiscordInteraction = {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?: () => boolean;
-  reply: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-  options: { getSubcommand(): string; getString(name: string): string | null };
-};
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption> & AlwaysReplies;
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
 type LatestContextDeps = LatestUpdatesHandlerDeps

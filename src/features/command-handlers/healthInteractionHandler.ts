@@ -1,5 +1,11 @@
 "use strict";
 
+import type {
+  AlwaysReplies,
+  ChatInputInteraction,
+  PartialInteractionGuildRef,
+  StringOption
+} from "./discordInteractionPorts.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import type { RedisStatus } from "../../infra/redis/redisClient.js";
@@ -10,16 +16,8 @@ import { errorDetail } from "../../shared/errors.js";
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
 
-type DiscordInteraction = {
-  commandName?: string;
-  guild?: { id?: string } | null;
+type DiscordInteraction = ChatInputInteraction<StringOption, PartialInteractionGuildRef> & AlwaysReplies & {
   client?: { isReady?: () => boolean; ws?: { ping?: number } } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?: () => boolean;
-  reply: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-  options: { getString: (name: string) => string | null };
 };
 
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;

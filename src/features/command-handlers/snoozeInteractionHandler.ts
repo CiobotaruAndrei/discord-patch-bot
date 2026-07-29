@@ -1,5 +1,11 @@
 "use strict";
 
+import type {
+  AlwaysReplies,
+  ChatInputInteraction,
+  PartialInteractionGuildRef,
+  StringOption
+} from "./discordInteractionPorts.js";
 import { clearCommandSnooze, setCommandSnooze } from "../guild-config/guildConfigRepository.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import type { MongoWriteOutcome } from "../../types.js";
@@ -23,18 +29,7 @@ type SnoozeUnsetUpdate = { $unset: Record<string, string> };
 type SnoozeUpdate = SnoozeSetUpdate | SnoozeUnsetUpdate;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
-type DiscordInteraction = {
-  commandName?: string;
-  guild?: { id?: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?: () => boolean;
-  options: {
-    getString(name: string, required?: boolean): string | null;
-  };
-  reply: (payload: InteractionPayload) => Promise<unknown>;
-  followUp?: (payload: InteractionPayload) => Promise<unknown>;
-};
+type DiscordInteraction = ChatInputInteraction<StringOption, PartialInteractionGuildRef, InteractionPayload> & AlwaysReplies<InteractionPayload>;
 
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 

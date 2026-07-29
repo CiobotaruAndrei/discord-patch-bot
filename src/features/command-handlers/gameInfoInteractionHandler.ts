@@ -1,5 +1,14 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  IntegerOption,
+  InteractionGuildRef,
+  NumberOption,
+  OptionalSubcommandGroupOption,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { CheerioAPI } from "cheerio";
 import type { DealInfo, GameConfig, GuildSettings, PriceValue, SteamReviewData } from "../../types.js";
 import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary, SteamLatestUpdateSizeSummary } from "../../sources/sourceApis.js";
@@ -42,22 +51,11 @@ type InteractionReplyPayload = string | {
   flags?: number;
 };
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand(required?: boolean): string;
-    getSubcommandGroup?(required?: boolean): string | null;
-    getString(name: string, required?: boolean): string | null;
-    getNumber(name: string, required?: boolean): number | null;
-    getInteger(name: string, required?: boolean): number | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: InteractionReplyPayload) => Promise<object | void>;
-  followUp?: (payload: InteractionReplyPayload) => Promise<object | void>;
-}
+type DiscordInteraction = ChatInputInteraction<
+  SubcommandOption & OptionalSubcommandGroupOption & StringOption & NumberOption & IntegerOption,
+  InteractionGuildRef,
+  InteractionReplyPayload
+>;
 
 interface GameInfoDeps {
   logger: Logger;

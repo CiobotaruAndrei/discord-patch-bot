@@ -1,5 +1,12 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  InteractionUserRef,
+  PartialInteractionUserRef,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { DiscordReplyPayload, FutureReleaseGameEntry, GameConfig, GuildSettings } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
@@ -22,22 +29,11 @@ interface ChannelPermissions {
   readMessageHistory: boolean;
 }
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption> & {
   channel?: DiscordChannel | null;
-  client?: { user?: { id: string } | null } | null;
-  user?: { id?: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand(): string;
-    getString(name: string, required?: boolean): string | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
+  client?: { user?: InteractionUserRef | null } | null;
+  user?: PartialInteractionUserRef | null;
+};
 
 interface FutureReleaseDeps {
   GuildModel: Parameters<typeof saveFutureReleaseGame>[0];

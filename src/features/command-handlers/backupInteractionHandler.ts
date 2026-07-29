@@ -1,5 +1,12 @@
 "use strict";
 
+import type {
+  BooleanOption,
+  ChatInputInteraction,
+  PartialInteractionUserRef,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { DiscordReplyPayload, GameConfig, GuildSettings } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import {
@@ -40,22 +47,7 @@ import { errorDetail } from "../../shared/errors.js";
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
-interface DiscordInteraction {
-  id?: string;
-  commandName?: string;
-  guild?: BackupDiscordGuild | null;
-  user?: { id?: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand(): string;
-    getString(name: string, required?: boolean): string | null;
-    getBoolean(name: string, required?: boolean): boolean | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption & BooleanOption, BackupDiscordGuild> & { user?: PartialInteractionUserRef | null };
 
 interface BackupInteractionDeps {
   GuildModel: GuildConfigWriteModelLike;

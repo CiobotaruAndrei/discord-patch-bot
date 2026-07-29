@@ -1,5 +1,9 @@
 "use strict";
 
+import type {
+  InteractionGuildRef,
+  StringOption
+} from "./discordInteractionPorts.js";
 import { errorMessage } from "../../shared/errors.js";
 
 export type GameConfig = { key: string; name: string; aliases?: string[] } & Record<string, unknown>;
@@ -13,12 +17,7 @@ export type GuildSettingsLite = {
   youtubeTitleIncludeWords?: string[];
 };
 
-export type ChoiceBuilderInteraction = {
-  guild?: { id: string } | null;
-  options: {
-    getString(name: string, required: false): string | null;
-  };
-};
+export type ChoiceBuilderInteraction = { guild?: InteractionGuildRef | null; options: StringOption };
 
 export type AutocompleteChoiceBuilderDeps = {
   logger: Logger;

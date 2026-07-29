@@ -1,5 +1,10 @@
 "use strict";
 
+import type {
+  InteractionGuildRef,
+  InteractionUserRef,
+  SubcommandOption
+} from "../discordInteractionPorts.js";
 import type { FetchResult, EmbeddableUpdate, GameConfig, InteractionMessage } from "../../../types.js";
 
 import { errorMessage } from "../../../shared/errors.js";
@@ -8,11 +13,11 @@ const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
 type NotificationMode = "compact" | "detailed";
 
-interface DiscordInteraction {
-  guild?: { id: string } | null;
-  user?: { id: string };
-  options: { getSubcommand(): string };
-}
+type DiscordInteraction = {
+  guild?: InteractionGuildRef | null;
+  user?: InteractionUserRef;
+  options: SubcommandOption;
+};
 
 type UpdateRecord = FetchResult;
 
