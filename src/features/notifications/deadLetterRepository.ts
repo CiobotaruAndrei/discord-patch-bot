@@ -24,7 +24,7 @@ export interface DeadLetterQueryLike {
 
 export interface DeadLetterModelLike {
   insertMany(docs: GuildDeadLetterRecord[], options?: Record<string, unknown>): Promise<unknown>;
-  deleteMany(filter: Record<string, unknown>): Promise<{ deletedCount?: number }>;
+  deleteMany(filter: Record<string, unknown>, options?: Record<string, unknown>): Promise<{ deletedCount?: number }>;
   countDocuments(filter: Record<string, unknown>): Promise<number>;
   find(filter: Record<string, unknown>): DeadLetterQueryLike;
 }
@@ -73,8 +73,12 @@ export async function countDeadLetters(model: Pick<DeadLetterModelLike, "countDo
   return model.countDocuments({ guildId });
 }
 
-export async function clearDeadLetters(model: Pick<DeadLetterModelLike, "deleteMany">, guildId: string): Promise<void> {
-  await model.deleteMany({ guildId });
+export async function clearDeadLetters(
+  model: Pick<DeadLetterModelLike, "deleteMany">,
+  guildId: string,
+  options?: Record<string, unknown>
+): Promise<void> {
+  await model.deleteMany({ guildId }, options);
 }
 
 export async function deleteDeadLettersByDedupeKeys(

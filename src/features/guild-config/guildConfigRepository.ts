@@ -5,6 +5,7 @@ import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-re
 import { buildResetConfiguration } from "./guildConfigDefaults.js";
 import { clearYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
 import { clearDeadLetters, type DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
+import { sequentialRunner, type TransactionRunner } from "../../shared/transactionPort.js";
 
 export type GuildConfigWriteResult = MongoWriteOutcome;
 export type LockedChannelPermissionState = "allow" | "deny" | "inherit";
@@ -95,18 +96,27 @@ export async function setLockedChannelPermissionState(
 
 export async function resetGuildConfigurationWithAudit(
   GuildModel: GuildConfigWriteModelLike,
-  GuildAuditLogModel: GuildAuditLogModelLike,
+  GuildAuditLogModel: Pick<GuildAuditLogModelLike, "create" | "updateOne">,
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "deleteMany">,
   GuildDeadLetterModel: Pick<DeadLetterModelLike, "deleteMany">,
   guildId: string,
   defaultCurrency: CurrencyCode,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">,
-  operationId: string
+  operationId: string,
+  runner?: TransactionRunner
 ): Promise<void> {
-  await GuildModel.updateOne({ _id: guildId }, { $set: buildResetConfiguration(defaultCurrency) }, { upsert: true });
-  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId);
-  await clearYoutubeErrors(GuildYoutubeErrorModel, guildId);
-  await clearDeadLetters(GuildDeadLetterModel, guildId);
+  const run = runner ?? sequentialRunner;
+  await run.atomic("reset-config", async session => {
+    const options = session ? { session } : undefined;
+    await GuildModel.updateOne(
+      { _id: guildId },
+      { $set: buildResetConfiguration(defaultCurrency) },
+      { upsert: true, ...(options ?? {}) }
+    );
+    await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId, options);
+    await clearYoutubeErrors(GuildYoutubeErrorModel, guildId, options);
+    await clearDeadLetters(GuildDeadLetterModel, guildId, options);
+  });
 }
 
 export async function setAdminAlertChannel(

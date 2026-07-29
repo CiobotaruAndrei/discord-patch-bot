@@ -1,3 +1,4 @@
+import type { TransactionRunner } from "../../shared/transactionPort.js";
 import type { ConfigBackupRecord, CurrencyCode, ServerAuditLogEntry } from "../../types.js";
 import { createOperationJournal, type OperationJournal, type OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
 import { resetGuildConfigurationWithAudit, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
@@ -92,6 +93,7 @@ export interface OperationJournalRuntimeDeps {
   GuildYoutubeErrorModel?: Pick<YoutubeErrorModelLike, "deleteMany">;
   GuildDeadLetterModel?: Pick<DeadLetterModelLike, "deleteMany">;
   NotificationDeadLetterReplayModel?: ReplayPayloadModelLike;
+  transactionRunner?: TransactionRunner;
   logger: JournalLogger;
 }
 
@@ -193,7 +195,7 @@ export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps)
       execute: async (payload, operationId) => {
         await resetGuildConfigurationWithAudit(
           deps.GuildModel, deps.GuildAuditLogModel, requiredYoutubeErrorModel(deps.GuildYoutubeErrorModel), requiredDeadLetterModel(deps.GuildDeadLetterModel),
-          payload.guildId, payload.defaultCurrency, payload.audit, operationId
+          payload.guildId, payload.defaultCurrency, payload.audit, operationId, deps.transactionRunner
         );
         if (deps.NotificationDeadLetterReplayModel) {
           await deps.NotificationDeadLetterReplayModel.deleteMany({ guildId: payload.guildId });

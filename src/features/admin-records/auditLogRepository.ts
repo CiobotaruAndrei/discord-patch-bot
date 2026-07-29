@@ -24,7 +24,7 @@ export interface GuildAuditLogQueryLike {
 }
 
 export interface GuildAuditLogModelLike {
-  create(doc: GuildAuditLogRecord): Promise<unknown>;
+  create(doc: GuildAuditLogRecord, options?: Record<string, unknown>): Promise<unknown>;
   updateOne?(
     filter: Record<string, unknown>,
     update: Record<string, unknown>,
@@ -96,10 +96,11 @@ export async function recordBotAuditEntry(
 }
 
 export async function recordServerAuditEntry(
-  model: GuildAuditLogModelLike,
+  model: Pick<GuildAuditLogModelLike, "create" | "updateOne">,
   guildId: string,
   entry: Omit<ServerAuditLogEntry, "serverId" | "at">,
-  operationId?: string
+  operationId?: string,
+  options?: Record<string, unknown>
 ): Promise<void> {
   const actorId = entry.actorId || entry.userId || "";
   const document: GuildAuditLogRecord = {
@@ -121,7 +122,7 @@ export async function recordServerAuditEntry(
     );
     return;
   }
-  await model.create(document);
+  await model.create(document, options);
 }
 
 export async function listBotAuditEntries(model: GuildAuditLogModelLike, guildId: string, limit: number): Promise<BotAuditLogEntry[]> {

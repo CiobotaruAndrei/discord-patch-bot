@@ -1,9 +1,10 @@
 "use strict";
 
+import type { TransactionRunner, TransactionSession, TransactionSupport } from "../../shared/transactionPort.js";
+
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
-type SessionLike = {
-  endSession(): Promise<unknown> | unknown;
+type SessionLike = TransactionSession & {
   withTransaction?(fn: () => Promise<void>): Promise<unknown>;
 };
 
@@ -14,12 +15,7 @@ type MongooseLike = {
   };
 };
 
-export type TransactionSupport = "replica-set" | "sharded" | "standalone" | "unknown";
-
-export type TransactionRunner = {
-  support: () => TransactionSupport;
-  atomic: <T>(label: string, work: (session: SessionLike | null) => Promise<T>) => Promise<T>;
-};
+export type { TransactionRunner, TransactionSupport } from "../../shared/transactionPort.js";
 
 export async function detectTransactionSupport(mongoose: MongooseLike): Promise<TransactionSupport> {
   const admin = mongoose.connection?.db?.admin?.();
@@ -68,5 +64,24 @@ export function createTransactionRunner(
         await session.endSession();
       }
     }
+  };
+}
+
+export function createDeferredTransactionRunner(mongoose: MongooseLike, logger: Logger): TransactionRunner {
+  let resolved: TransactionRunner | null = null;
+  let detected: TransactionSupport = "unknown";
+
+  async function ensure(): Promise<TransactionRunner> {
+    if (!resolved) {
+      detected = await detectTransactionSupport(mongoose);
+      resolved = createTransactionRunner(mongoose, detected, logger);
+      logger("INFO", "MONGO_TX", `Suport tranzactii detectat: ${detected}`);
+    }
+    return resolved;
+  }
+
+  return {
+    support: () => detected,
+    atomic: async (label, work) => (await ensure()).atomic(label, work)
   };
 }

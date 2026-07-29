@@ -134,3 +134,12 @@ export function decodeSteamNewsResponse(value: unknown): z.infer<typeof SteamNew
   const parsed = SteamNewsSchema.safeParse(value);
   return parsed.success ? parsed.data : {};
 }
+
+const StatusPageSchema = z.object({
+  status: z.object({ description: z.string().optional(), indicator: z.string().optional() }).optional()
+}).passthrough();
+
+export function decodeStatusPageResponse(value: unknown): z.infer<typeof StatusPageSchema> {
+  const parsed = StatusPageSchema.safeParse(value);
+  return parsed.success ? parsed.data : {};
+}

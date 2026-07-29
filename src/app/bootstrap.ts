@@ -29,6 +29,7 @@ const {
 import commandRegistryFactories from "../features/command-registry/commandRegistry.js";
 import { sourceRegistry as scrapers, commandRuntimeInput, mongoContextBundles } from "./runtimeComposition.js";
 import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
+import { createDeferredTransactionRunner } from "../infra/mongo/transactionRunner.js";
 import { createScheduledTaskRunner } from "./scheduler/scheduledTaskRunner.js";
 
 const { repositories, locks, migrations, snapshots, administration } = mongoContextBundles;
@@ -43,6 +44,7 @@ const operationJournal = createOperationJournalRuntime({
   GuildYoutubeErrorModel: repositories.GuildYoutubeErrorModel,
   GuildDeadLetterModel: repositories.GuildDeadLetterModel,
   NotificationDeadLetterReplayModel: repositories.NotificationDeadLetterReplayModel,
+  transactionRunner: createDeferredTransactionRunner(mongoose, logger),
   logger
 });
 const OPERATION_JOURNAL_RECOVERY_MIN_AGE_MS = 5 * 60 * 1000;

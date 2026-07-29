@@ -1,6 +1,7 @@
 import { requestOptionsFor } from "../sourcePolicies.js";
 import type { CurrencyConfig, DealInfo, LoggerFunction } from "../../types.js";
 import { errorMessage } from "../../shared/errors.js";
+import { decodeSteamDetailsResponse } from "../responseDecoders.js";
 import type { DealCurrencyCode, HttpReq, WithInflightTimeout } from "./dealHelpers.js";
 
 interface EnrichedCacheEntry {
@@ -8,16 +9,6 @@ interface EnrichedCacheEntry {
   currency: string;
   expiresAt: number;
 }
-
-interface SteamAppDetailsPayload {
-  platforms?: {
-    windows?: boolean;
-    mac?: boolean;
-    linux?: boolean;
-  };
-}
-
-type SteamAppDetailsResponse = Record<string, { data?: SteamAppDetailsPayload } | undefined>;
 
 const enrichedCache = new Map<string, EnrichedCacheEntry>();
 
@@ -128,7 +119,7 @@ export function createDealEnrichment(deps: DealEnrichmentDeps) {
             })
           ]);
 
-          const data = detailsRes ? (detailsRes.data as SteamAppDetailsResponse)[String(enriched.steamAppID)]?.data : undefined;
+          const data = detailsRes ? decodeSteamDetailsResponse(detailsRes.data)[String(enriched.steamAppID)]?.data : undefined;
           if (data && data.platforms) {
             const platformList = [
               data.platforms.windows ? "Win" : "",

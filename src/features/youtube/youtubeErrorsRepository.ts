@@ -20,7 +20,7 @@ export interface YoutubeErrorQueryLike {
 
 export interface YoutubeErrorModelLike {
   create(doc: GuildYoutubeErrorRecord): Promise<unknown>;
-  deleteMany(filter: Record<string, unknown>): Promise<{ deletedCount?: number }>;
+  deleteMany(filter: Record<string, unknown>, options?: Record<string, unknown>): Promise<{ deletedCount?: number }>;
   countDocuments(filter: Record<string, unknown>): Promise<number>;
   find(filter: Record<string, unknown>): YoutubeErrorQueryLike;
 }
@@ -72,6 +72,10 @@ export async function countYoutubeErrors(model: Pick<YoutubeErrorModelLike, "cou
   return model.countDocuments({ guildId });
 }
 
-export async function clearYoutubeErrors(model: Pick<YoutubeErrorModelLike, "deleteMany">, guildId: string): Promise<void> {
-  await model.deleteMany({ guildId });
+export async function clearYoutubeErrors(
+  model: Pick<YoutubeErrorModelLike, "deleteMany">,
+  guildId: string,
+  options?: Record<string, unknown>
+): Promise<void> {
+  await model.deleteMany({ guildId }, options);
 }
