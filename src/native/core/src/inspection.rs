@@ -3,6 +3,7 @@ use crate::executable::{
   analysis_blind_spots, analyze_executable, locate_code_region, looks_like_executable, ExecutableLimits,
   ExecutableOutcome,
 };
+use crate::mspack_container::{decode_ms_container, ContainerDecodeLimits, ContainerOutcome};
 use crate::chm_listing::{list_chm_entries, ChmListingLimits};
 use crate::similarity_corpus::known_sample_indicators;
 use crate::document_text::{extract_pdf_text, find_url_hosts, DocumentTextLimits};
@@ -532,6 +533,31 @@ fn host_identity_indicators(_host: &str) -> Vec<String> {
 }
 
 const IMAGE_TEXT_BLIND_SPOT_BYTES: usize = 16 * 1024;
+
+fn ms_container_indicators(bytes: &[u8]) -> Vec<String> {
+  let ContainerOutcome::Decoded(report) = decode_ms_container(bytes, &ContainerDecodeLimits::default()) else {
+    return Vec::new();
+  };
+  if report.entries.is_empty() {
+    return Vec::new();
+  }
+  let mut indicators = vec![format!(
+    "{} decomprimat, {} intrari citite din continut, nu doar din structura",
+    report.format,
+    report.entries.len()
+  )];
+  for entry in &report.entries {
+    indicators.extend(name_indicators(&entry.name));
+    indicators.extend(text_link_indicators(&entry.bytes));
+    if entry.truncated {
+      indicators.push(format!("intrarea {} depaseste plafonul de decompresie, citita partial", entry.name));
+    }
+  }
+  if report.truncated {
+    indicators.push(format!("{} citit partial, plafonul de decompresie a fost atins", report.format));
+  }
+  dedupe(indicators)
+}
 
 fn chm_indicators(bytes: &[u8]) -> Vec<String> {
   let entries = list_chm_entries(bytes, &ChmListingLimits::default());
@@ -1722,10 +1748,17 @@ pub fn inspect_untrusted_content(
     };
     Finding { uncertain: false, indicators, reason }
   } else if mode == "archive" || looks_like_archive(bytes, filename, mime) {
-    uncertain(
-      "formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat".to_string(),
-      chm_indicators(bytes)
-    )
+    match ms_container_indicators(bytes) {
+      decomprimate if !decomprimate.is_empty() => Finding {
+        uncertain: false,
+        indicators: decomprimate,
+        reason: "container Microsoft decomprimat, continutul intrarilor a fost citit".to_string()
+      },
+      _ => uncertain(
+        "formatul arhivei nu are un decodor pasiv local; verdictul ramane neconfirmat".to_string(),
+        chm_indicators(bytes)
+      )
+    }
   } else {
     document_finding(bytes, &mut budget)
   };

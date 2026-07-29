@@ -279,6 +279,7 @@ dependencies = [
  "libarchive2-sys",
  "magic",
  "msi",
+ "mspack-sys",
  "publicsuffix",
  "qpdf",
  "qrcode",
@@ -838,6 +839,14 @@ dependencies = [
  "cfb",
  "encoding_rs",
  "uuid",
+]
+
+[[package]]
+name = "mspack-sys"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "cc",
 ]
 
 [[package]]

@@ -16,6 +16,7 @@ mod updates;
 mod url_identity;
 mod chm_listing;
 mod code_disassembly;
+mod mspack_container;
 mod similarity_corpus;
 mod document_text;
 mod pdf_vector;
@@ -47,6 +48,10 @@ pub use native_archive::{
 };
 pub use similarity_corpus::{categories, digest_of, known_sample_indicators, hostile_sample_count, lookup_by_digest, LabeledSample, LABELED_CORPUS, LABELED_CORPUS_VERSION};
 pub use chm_listing::{is_chm, list_chm_entries, ChmListingLimits};
+pub use mspack_container::{
+  container_decode_available, decode_ms_container, is_cabinet, is_compiled_help, looks_like_ms_container,
+  ContainerDecodeLimits, ContainerOutcome, ContainerReport, DecodedEntry,
+};
 pub use document_text::{extract_pdf_text, find_url_hosts, DocumentTextLimits};
 pub use executable::analysis_blind_spots;
 pub use inspection::{container_signature, uninspectable_format};

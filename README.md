@@ -240,9 +240,9 @@ Pentru operare locala, `npm run doctor:local` verifica intr-un singur flux `.env
 
 ### Dependinte native pentru build-ul addon-ului Rust
 
-Addon-ul leaga sase librarii C/C++: **libmagic** (detectia tipului real, etapa 1), **ZXing-C++** (decodarea codurilor din imagini, inclusiv din imaginile gasite in arhive si din imaginile incorporate in PDF-uri, al caror bitmap e reconstruit din dictionarul obiectului, din previzualizarea JPEG a unui container HEIC/AVIF cand exista, si din codurile desenate vectorial in pagina PDF, rasterizate bounded din dreptunghiurile umplute ale fluxului de continut, etapa 9), **libyara** (motorul
+Addon-ul leaga sapte librarii C/C++: **libmagic** (detectia tipului real, etapa 1), **ZXing-C++** (decodarea codurilor din imagini, inclusiv din imaginile gasite in arhive si din imaginile incorporate in PDF-uri, al caror bitmap e reconstruit din dictionarul obiectului, din previzualizarea JPEG a unui container HEIC/AVIF cand exista, si din codurile desenate vectorial in pagina PDF, rasterizate bounded din dreptunghiurile umplute ale fluxului de continut, etapa 9), **libyara** (motorul
 de reguli, etapa 2), **libarchive** (decodarea continutului arhivelor, etapa 3), **qpdf** (analiza
-structurala a PDF-urilor, etapa 4), inclusiv extragerea adreselor din textul vizibil si trecerea lor prin analiza de identitate a gazdei, si **Capstone** (citirea instructiunilor din executabile, etapa 10). libyara, libarchive, qpdf si Capstone sunt compilate din surse si legate
+structurala a PDF-urilor, etapa 4), inclusiv extragerea adreselor din textul vizibil si trecerea lor prin analiza de identitate a gazdei, si **Capstone** (citirea instructiunilor din executabile, etapa 10), plus **libmspack** (decompresia containerelor CAB si CHM, etapa 11). libyara, libarchive, qpdf si Capstone sunt compilate din surse si legate
 static (libyara, qpdf si Capstone nu cer niciun pachet de sistem in plus; libarchive cere un lant de librarii de
 compresie la build). **libmagic** e o librarie de sistem: pe Linux se leaga dinamic la `libmagic1`
 (`magic_load(NULL)` gaseste `/usr/lib/file/magic.mgc`), la build cere `libmagic-dev`. Cand baza
@@ -259,6 +259,18 @@ pozitie, control indirect prin registru, bucla care rescrie memorie (stub de des
 construite pe stiva. Cand dezasamblarea gaseste ceva, punctul orb dispare si in locul lui apare un
 indicator concret; cand nu gaseste nimic, punctul orb ramane, fiindca o necunoscuta nu se inlocuieste
 cu o certitudine falsa. O arhitectura pe care nu o citim e raportata explicit, nu tratata drept curata.
+**libmspack** (feature `mspack`, etapa 11) deschide efectiv continutul containerelor Microsoft. Un CAB
+era pana acum raportat `uncertain` fara niciun indicator, iar la un CHM se puteau citi doar numele
+intrarilor din chunk-urile PMGL, nu si continutul lor comprimat. Acum intrarile sunt decomprimate in
+memorie, printr-o implementare proprie de `mspack_system` care citeste si scrie in buffere, fara sa
+atinga discul cu continut netrusted, iar octetii rezultati trec prin aceleasi verificari de nume si
+aceeasi cautare de adrese ca orice alt continut. Decompresia e plafonata pe intrare, pe numar de
+intrari si pe total, iar cand un plafon taie ceva, raportul o spune. Ca si libmagic si libseccomp,
+libmspack se leaga **dinamic** la libraria de sistem: `libmspack-dev` la build, `libmspack0` la rulare.
+Legatura dinamica nu e o comoditate, ci cerinta licentei LGPL-2.1 sub care e publicata libraria.
+Legaturile sunt generate cu bindgen in `native/mspack-sys`, fiindca structurile libmspack contin `off_t`,
+care are latimi diferite pe Windows si pe Linux; scrise de mana ar fi fost corecte pe o platforma si
+gresite tacut pe cealalta.
 
 Separat de addon, binarul `native/inspector` (etapa 5) foloseste **libseccomp** pentru filtrul de
 syscall-uri. Acesta e singurul care cere `libseccomp-dev` la build si `libseccomp2` la rulare, si numai
@@ -269,7 +281,7 @@ exclusiv in CI; `check:native` include acum si crate-ul de inspectie, altfel ace
 Pe **Linux** (CI si Docker) e suficient apt:
 
 ```bash
-sudo apt-get install -y --no-install-recommends   cmake clang libclang-dev libmagic-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev
+sudo apt-get install -y --no-install-recommends   cmake clang libclang-dev libmagic-dev libmspack-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev
 ```
 
 Pe **Windows** (dezvoltare) sunt necesare CMake, LLVM (pentru `libclang`, folosit de bindgen) si vcpkg:
@@ -279,7 +291,7 @@ winget install Kitware.CMake
 winget install LLVM.LLVM
 git clone --depth 1 https://github.com/microsoft/vcpkg C:\vcpkg
 C:\vcpkg\bootstrap-vcpkg.bat
-C:\vcpkg\vcpkg.exe install zlib bzip2 liblzma zstd lz4 libmagic openssl --triplet x64-windows
+C:\vcpkg\vcpkg.exe install zlib bzip2 liblzma zstd lz4 libmagic libmspack openssl --triplet x64-windows
 Copy-Item C:\vcpkg\installed\x64-windows\lib\z.lib C:\vcpkg\installed\x64-windows\lib\zlib.lib
 ```
 
