@@ -1,18 +1,12 @@
 "use strict";
 
+import { decodeStatusPageResponse } from "../../sources/responseDecoders.js";
 import type { GameConfig } from "../../types.js";
 import type { ChainableEmbed, PresentationLogger } from "./presentationContracts.js";
 import { errorMessage } from "../../shared/errors.js";
 
 interface HttpResponse<T = unknown> {
   data: T;
-}
-
-interface EpicStatusPayload {
-  status?: {
-    description?: string;
-    indicator?: string;
-  };
 }
 
 export type GameServerState = "online" | "maintenance" | "degraded" | "unknown";
@@ -68,7 +62,7 @@ export function createGameStatusEmbeds({ EmbedBuilder, COLORS, logger, httpReq, 
     const checkedAt = new Date();
     try {
       const response = await httpReq("GET", apiUrl);
-      const data = response.data as EpicStatusPayload;
+      const data = decodeStatusPageResponse(response.data);
       const state = classifyIndicator(String(data.status?.indicator || ""));
       return { state, label: labelFor(state), detail: String(data.status?.description || labelFor(state)), checkedAt, statusUrl };
     } catch (err: unknown) {
