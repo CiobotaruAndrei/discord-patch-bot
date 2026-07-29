@@ -35,7 +35,13 @@ test("sursa vendorizata isi pastreaza licenta si originea", () => {
 
   const upstream = readNative(path.join("tlsh-sys", "vendor", "UPSTREAM"));
   assert.match(upstream, /^[0-9a-f]{40}$/m, "commit-ul upstream e fixat, ca sursa vendorizata sa fie verificabila");
-  assert.match(upstream, /github\.com\/trendmicro\/tlsh/, "originea sursei trebuie scrisa, nu presupusa");
+  assert.match(
+    upstream,
+    /^TLSH [0-9.]+, https:\/\/github\.com\/trendmicro\/tlsh$/m,
+    "originea sursei trebuie scrisa intreaga si ancorata: o potrivire libera ar accepta si " +
+      "`https://alt-domeniu.test/github.com/trendmicro/tlsh`, adica exact felul in care o sursa " +
+      "vendorizata ar putea fi inlocuita fara sa se vada"
+  );
 });
 
 test("pragurile de proximitate raman explicite si separate", () => {
