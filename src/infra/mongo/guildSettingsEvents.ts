@@ -1,70 +1,50 @@
-type GuildSettingsChangedListener = (guildId: string) => void;
-type GuildSettingsEventErrorReporter = (guildId: string, error: unknown) => void;
-type GuildSettingsRemotePublisher = (guildId: string) => void;
+"use strict";
 
-interface GuildSettingsEventMetrics {
-  guildSettingsListenerFailures: number;
-}
+import { createGuildSettingsEventBus } from "./guildSettingsEventBus.js";
+import type {
+  GuildSettingsChangedListener,
+  GuildSettingsEventErrorReporter,
+  GuildSettingsEventMetrics,
+  GuildSettingsRemotePublisher
+} from "./guildSettingsEventBus.js";
 
-const listeners = new Set<GuildSettingsChangedListener>();
+const defaultBus = createGuildSettingsEventBus();
 
-let reportListenerError: GuildSettingsEventErrorReporter = () => undefined;
-let remotePublisher: GuildSettingsRemotePublisher | null = null;
-let metricsRef: GuildSettingsEventMetrics | null = null;
-
-function setGuildSettingsEventErrorReporter(reporter: GuildSettingsEventErrorReporter): void {
-  reportListenerError = reporter;
-}
-
-function setGuildSettingsRemotePublisher(publisher: GuildSettingsRemotePublisher | null): void {
-  remotePublisher = publisher;
-}
-
-function attachGuildSettingsEventMetrics(target: GuildSettingsEventMetrics | null): void {
-  metricsRef = target;
-}
-
-function recordListenerFailure(guildId: string, error: unknown): void {
-  if (metricsRef) metricsRef.guildSettingsListenerFailures += 1;
-  try {
-    reportListenerError(guildId, error);
-  } catch (reporterError: unknown) {
-    try {
-      console.error(`Listener GuildSettingsChanged a esuat pentru guild ${guildId}, iar reporterul de erori a aruncat si el`, error, reporterError);
-    } catch {  }
-  }
+function publishGuildSettingsChanged(guildId: string): void {
+  defaultBus.publish(guildId);
 }
 
 function dispatchGuildSettingsChangedLocally(guildId: string): void {
-  for (const listener of listeners) {
-    try {
-      listener(guildId);
-    } catch (error: unknown) {
-      recordListenerFailure(guildId, error);
-    }
-  }
-}
-
-function publishGuildSettingsChanged(guildId: string): void {
-  dispatchGuildSettingsChangedLocally(guildId);
-  if (!remotePublisher) return;
-  try {
-    remotePublisher(guildId);
-  } catch (error: unknown) {
-    recordListenerFailure(guildId, error);
-  }
+  defaultBus.dispatchLocally(guildId);
 }
 
 function subscribeGuildSettingsChanged(listener: GuildSettingsChangedListener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  return defaultBus.subscribe(listener);
+}
+
+function setGuildSettingsEventErrorReporter(reporter: GuildSettingsEventErrorReporter): void {
+  defaultBus.setErrorReporter(reporter);
+}
+
+function setGuildSettingsRemotePublisher(publisher: GuildSettingsRemotePublisher | null): void {
+  defaultBus.setRemotePublisher(publisher);
+}
+
+function attachGuildSettingsEventMetrics(target: GuildSettingsEventMetrics | null): void {
+  defaultBus.attachMetrics(target);
+}
+
+function resetGuildSettingsEventBus(): void {
+  defaultBus.dispose();
 }
 
 export {
+  defaultBus,
   publishGuildSettingsChanged,
   dispatchGuildSettingsChangedLocally,
   subscribeGuildSettingsChanged,
   setGuildSettingsEventErrorReporter,
   setGuildSettingsRemotePublisher,
-  attachGuildSettingsEventMetrics
+  attachGuildSettingsEventMetrics,
+  resetGuildSettingsEventBus
 };
