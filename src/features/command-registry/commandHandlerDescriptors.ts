@@ -40,38 +40,34 @@ import attachBotAddInteractionHandler from "../command-handlers/botAddInteractio
 
 export type CommandHandlerDomain = "routing" | "core" | "configuration" | "notifications" | "game-info" | "youtube" | "admin";
 
-export interface CommandHandlerDescriptor {
+export interface CommandHandlerDescriptor<D extends CommandHandlerDomain = CommandHandlerDomain> {
   id: string;
-  domain: CommandHandlerDomain;
+  domain: D;
   scope: "global" | "guild-only";
   access: "public" | "admin" | "owner" | "mixed";
   help: readonly string[];
   autocomplete: readonly string[];
-  build(context: CommandAppServices): CommandHandler;
+  build(context: CommandDomainDeps[D]): CommandHandler;
 }
 
-export function buildNarrowCommandHandler<Dependencies extends object, Result extends CommandHandler>(
-  factory: (dependencies: Dependencies) => Result,
-  services: Dependencies
-): Result {
-  return factory(services);
-}
+export type AnyCommandHandlerDescriptor = {
+  [D in CommandHandlerDomain]: CommandHandlerDescriptor<D>
+}[CommandHandlerDomain];
 
-export function createCommandHandlerDescriptors(): readonly CommandHandlerDescriptor[] {
+export function createCommandHandlerDescriptors(): readonly AnyCommandHandlerDescriptor[] {
   function define<D extends CommandHandlerDomain>(
     input: { id: string; domain: D; build: (context: CommandDomainDeps[D]) => CommandHandler }
-      & Partial<Pick<CommandHandlerDescriptor, "scope" | "access" | "help" | "autocomplete">>
-  ): CommandHandlerDescriptor {
+      & Partial<Pick<CommandHandlerDescriptor<D>, "scope" | "access" | "help" | "autocomplete">>
+  ): CommandHandlerDescriptor<D> {
     return {
       scope: "guild-only",
       access: input.domain === "admin" ? "admin" : "public",
       help: [input.id],
       autocomplete: [],
-      ...input,
-      build: input.build as CommandHandlerDescriptor["build"]
+      ...input
     };
   }
-  const descriptors: readonly CommandHandlerDescriptor[] = [
+  const descriptors: readonly AnyCommandHandlerDescriptor[] = [
     define({ id: "autocomplete", domain: "routing", scope: "global", help: [], autocomplete: ["slash-options"], build: context => attachAutocompleteInteractionHandler.buildCommandHandler(context) }),
     define({ id: "player-count", domain: "game-info", help: ["player-count", "top active-games"], build: context => attachPlayerCountAnalyticsHandler.buildCommandHandler(context) }),
     define({ id: "game-overview", domain: "game-info", help: ["game overview"], build: context => attachGameOverviewInteractionHandler.buildCommandHandler(context) }),

@@ -27,7 +27,13 @@ test("DI-ul handler-elor e verificat de TypeScript, nu simulat printr-un Proxy p
   const descriptors = fs.readFileSync(path.join(srcRoot, "features", "command-registry", "commandHandlerDescriptors.ts"), "utf8");
   assert.ok(!descriptors.includes("new Proxy"), "buildNarrowCommandHandler nu mai fabrica dependintele printr-un Proxy peste servicii (castul fantoma `{} as Dependencies` ascundea o dependinta lipsa de TypeScript)");
   assert.ok(!/\{\} as Dependencies/.test(descriptors), "fara cast fantoma `{} as Dependencies`");
-  assert.match(descriptors, /services: Dependencies/, "buildNarrowCommandHandler cere ca serviciile sa satisfaca deps-urile ingustate ale factory-ului (TS verifica o dependinta lipsa)");
+  assert.match(
+    descriptors,
+    /build\(context: CommandDomainDeps\[D\]\): CommandHandler;/,
+    "descriptorul e generic pe domeniu, deci `build` cere exact dependintele domeniului lui. Inainte exista " +
+      "`buildNarrowCommandHandler`, care era identitate si doar ascundea un cast la contextul global: " +
+      "ingustarea din `CommandDomainDeps` se pierdea fix la granita unde trebuia verificata"
+  );
 });
 
 test("pregatire migrare commandRegistry: context-urile de handler tipeaza logger canonic (LoggerFunction), nu loose", () => {
