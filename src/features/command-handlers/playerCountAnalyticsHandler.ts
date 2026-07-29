@@ -1,5 +1,10 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { GameConfig, GuildSettings } from "../../types.js";
 import type { PlayerCountHistoryPoint, PlayerCountRecord, PlayerCountSnapshot } from "../player-count/playerCountSnapshotService.js";
 import {
@@ -13,19 +18,7 @@ import { errorDetail } from "../../shared/errors.js";
 
 type Period = "24h" | "7d" | "30d";
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?(): boolean;
-  reply?(payload: unknown): Promise<unknown>;
-  followUp?(payload: unknown): Promise<unknown>;
-  options: {
-    getSubcommand(required?: boolean): string;
-    getString(name: string, required?: boolean): string | null;
-  };
-}
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption>;
 
 interface PlayerCountAnalyticsDeps {
   logger(level: string, context: string, message: string, meta?: unknown): void;

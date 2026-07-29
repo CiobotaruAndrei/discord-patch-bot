@@ -1,5 +1,13 @@
 "use strict";
 
+import type { DiscordReplyPayload } from "../../types.js";
+import type {
+  ChatInputInteraction,
+  StringOption,
+  SubcommandGroupOption,
+  SubcommandOption,
+  UserOption
+} from "./discordInteractionPorts.js";
 import type { GameConfig, InteractionMessage } from "../../types.js";
 import type { BugReportRecord, SaveReportResult, UserComplaintRecord } from "../feedback/reportRepository.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
@@ -22,30 +30,19 @@ interface ModalSubmit {
   deferred?: boolean;
   replied?: boolean;
   fields: { getTextInputValue(id: string): string };
-  deferReply?(payload: unknown): Promise<unknown>;
-  editReply?(payload: unknown): Promise<unknown>;
-  reply?(payload: unknown): Promise<unknown>;
-  followUp?(payload: unknown): Promise<unknown>;
+  deferReply?(payload?: DiscordReplyPayload): Promise<unknown>;
+  editReply?(payload: DiscordReplyPayload): Promise<unknown>;
+  reply?(payload: DiscordReplyPayload): Promise<unknown>;
+  followUp?(payload: DiscordReplyPayload): Promise<unknown>;
 }
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
+type DiscordInteraction = ChatInputInteraction<
+  SubcommandOption & SubcommandGroupOption & StringOption & UserOption<DiscordUser>
+> & {
   user?: DiscordUser | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?(): boolean;
-  reply?(payload: unknown): Promise<unknown>;
-  followUp?(payload: unknown): Promise<unknown>;
   showModal?(modal: unknown): Promise<unknown>;
   awaitModalSubmit?(options: { time: number; filter(interaction: ModalSubmit): boolean }): Promise<ModalSubmit>;
-  options: {
-    getSubcommand(required?: boolean): string;
-    getSubcommandGroup(required?: boolean): string | null;
-    getString(name: string, required?: boolean): string | null;
-    getUser(name: string, required?: boolean): DiscordUser | null;
-  };
-}
+};
 
 interface ReportHandlerDeps {
   logger(level: string, context: string, message: string, meta?: unknown): void;
@@ -97,7 +94,7 @@ async function awaitDescription(interaction: DiscordInteraction, title: string, 
   return description ? { submit, description } : null;
 }
 
-async function replyModal(submit: ModalSubmit, payload: unknown, flags: number): Promise<unknown> {
+async function replyModal(submit: ModalSubmit, payload: DiscordReplyPayload, flags: number): Promise<unknown> {
   if (!submit.deferred && !submit.replied && submit.deferReply) await submit.deferReply({ flags });
   if (submit.editReply) return submit.editReply(payload);
   if (submit.followUp) return submit.followUp({ ...(typeof payload === "object" && payload ? payload : { content: String(payload) }), flags });

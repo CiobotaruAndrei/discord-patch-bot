@@ -1,5 +1,12 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  IntegerOption,
+  PartialInteractionUserRef,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { DiscordReplyPayload, GameConfig, GuildSettings, WatchlistGameSuggestionEntry } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { clampJoinedList } from "../command-presentation/discordListLimit.js";
@@ -16,21 +23,7 @@ type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type RequireGuildAdmin = (interaction: DiscordInteraction) => Promise<boolean>;
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  user?: { id?: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand(): string;
-    getString(name: string, required?: boolean): string | null;
-    getInteger(name: string, required?: boolean): number | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption & IntegerOption> & { user?: PartialInteractionUserRef | null };
 
 interface WatchlistGameSuggestionDeps {
   GuildModel: Parameters<typeof saveWatchlistGameSuggestion>[0];

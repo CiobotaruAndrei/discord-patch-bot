@@ -1,5 +1,8 @@
 "use strict";
 
+import type {
+  BaseChatInputInteraction
+} from "./discordInteractionPorts.js";
 import type { ConfigBackupRecord, GameConfig, GuildConfigurationSettings, GuildOperationalSettings, GuildSettings } from "../../types.js";
 type MongoFilter = Record<string, unknown>;
 import type { CommandHandler } from "../command-registry/commandHandler.js";
@@ -15,15 +18,7 @@ import { errorDetail } from "../../shared/errors.js";
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
+type DiscordInteraction = BaseChatInputInteraction;
 
 interface CountModel {
   countDocuments(filter?: MongoFilter): Promise<number>;

@@ -1,5 +1,11 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  OptionalSubcommandGroupOption,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import { addWatchlistGame, applyGuildConfigUpdate, removeWatchlistGame } from "../guild-config/guildConfigRepository.js";
 import type { DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
@@ -16,20 +22,7 @@ type MongoWriteResult = MongoWriteOutcome;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type GameFilterSurface = "set-games" | "watchlist";
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand(): string;
-    getSubcommandGroup?(required: false): string | null;
-    getString(name: string, required?: boolean): string | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & OptionalSubcommandGroupOption & StringOption>;
 
 type GameFilterInteractionDeps = {
   GuildModel: {

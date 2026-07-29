@@ -1,25 +1,19 @@
 "use strict";
 
+import type {
+  AlwaysReplies,
+  ChatInputInteraction,
+  InteractionUserRef,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { GameConfig, GuildSettings, InteractionMessage } from "../../types.js";
 import type { GameServerStatus } from "../command-presentation/gameStatusEmbeds.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorMessage, errorDetail } from "../../shared/errors.js";
 
-type DiscordInteraction = {
-  commandName?: string;
-  guild?: { id: string } | null;
-  user?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?: () => boolean;
-  reply(payload: unknown): Promise<unknown>;
-  followUp?(payload: unknown): Promise<unknown>;
-  options: {
-    getSubcommand?(required?: boolean): string;
-    getString(name: string): string | null;
-  };
-};
+type DiscordInteraction = ChatInputInteraction<Partial<SubcommandOption> & StringOption> & AlwaysReplies & { user?: InteractionUserRef | null };
 
 type StatusHandlerDeps = {
   logger(level: string, context: string, message: string, meta?: unknown): void;

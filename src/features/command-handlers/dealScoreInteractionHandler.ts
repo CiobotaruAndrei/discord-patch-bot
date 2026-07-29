@@ -1,5 +1,9 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  StringOption
+} from "./discordInteractionPorts.js";
 import type { DealInfo, GameConfig, GuildSettings, PriceValue } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
@@ -14,18 +18,7 @@ import { errorDetail, errorMessage } from "../../shared/errors.js";
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getString(name: string, required?: boolean): string | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
+type DiscordInteraction = ChatInputInteraction<StringOption>;
 
 interface DealScoreDeps {
   logger: Logger;

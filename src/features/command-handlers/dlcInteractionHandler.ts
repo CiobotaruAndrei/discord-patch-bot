@@ -1,5 +1,11 @@
 "use strict";
 
+import type {
+  AlwaysReplies,
+  ChatInputInteraction,
+  InteractionUserRef,
+  StringOption
+} from "./discordInteractionPorts.js";
 import type { CheerioAPI } from "cheerio";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import type { NotificationMode, InteractionMessage } from "../../types.js";
@@ -10,17 +16,7 @@ import { errorMessage, errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
-type DiscordInteraction = {
-  commandName?: string;
-  guild?: { id: string } | null;
-  user?: { id: string };
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?: () => boolean;
-  reply: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-  options: { getString: (name: string) => string | null };
-};
+type DiscordInteraction = ChatInputInteraction<StringOption> & AlwaysReplies & { user?: InteractionUserRef };
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
 type DlcHandlerLogger = (level: string, context: string, message: string, meta?: unknown) => void;

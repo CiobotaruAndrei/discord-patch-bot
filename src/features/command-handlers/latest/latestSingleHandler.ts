@@ -1,16 +1,17 @@
 "use strict";
 
+import type {
+  AlwaysReplies,
+  InteractionGuildRef,
+  StringOption
+} from "../discordInteractionPorts.js";
 import type { EmbeddableUpdate, GameConfig, NormalizedUpdate } from "../../../types.js";
 
 import { errorMessage } from "../../../shared/errors.js";
 
 type NotificationMode = "compact" | "detailed";
 
-interface DiscordInteraction {
-  guild?: { id: string } | null;
-  options: { getString(name: string): string | null };
-  reply: (payload: unknown) => Promise<unknown>;
-}
+type DiscordInteraction = { guild?: InteractionGuildRef | null; options: StringOption } & AlwaysReplies;
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;

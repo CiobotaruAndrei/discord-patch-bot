@@ -9,6 +9,8 @@ function segmentOversizedLine(line: string, maxLength: number): string[] {
   return segments;
 }
 
+import type { DiscordReplyPayload } from "../../types.js";
+
 export function paginateTextLines(lines: readonly string[], maxLength = 1900): string[] {
   const pages: string[] = [];
   let current = "";
@@ -29,8 +31,8 @@ export function paginateTextLines(lines: readonly string[], maxLength = 1900): s
 
 export async function sendTextPages(
   interaction: {
-    reply(payload: unknown): Promise<unknown>;
-    followUp?: (payload: unknown) => Promise<unknown>;
+    reply(payload: DiscordReplyPayload): Promise<unknown>;
+    followUp?(payload: DiscordReplyPayload): Promise<unknown>;
   },
   lines: readonly string[],
   emptyMessage: string,
@@ -45,7 +47,7 @@ export async function sendTextPages(
 }
 
 export async function sendPaginatedEdit(
-  interaction: { followUp?: (payload: unknown) => Promise<unknown> },
+  interaction: { followUp?(payload: DiscordReplyPayload): Promise<unknown> },
   safeEdit: (payload: { content: string; allowedMentions?: unknown }) => Promise<unknown>,
   lines: readonly string[],
   options: { ephemeral?: boolean; emptyMessage?: string; allowedMentions?: unknown } = {}

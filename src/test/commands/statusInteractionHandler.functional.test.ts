@@ -36,10 +36,10 @@ type InteractionRuntime = {
 type StatusDeps = {
   MessageFlags: { Ephemeral: number };
   logger: (level: string, context: string, msg?: string, meta?: unknown) => void;
-  enforceCooldown: (interaction: Record<string, unknown>, command: string) => Promise<boolean>;
-  startCommandLog: (interaction: Record<string, unknown>, command: string) => (status?: string, extra?: unknown) => void;
-  safeDefer: (interaction: Record<string, unknown>) => Promise<void>;
-  safeEdit: (interaction: Record<string, unknown>, payload: unknown) => Promise<unknown>;
+  enforceCooldown: (interaction: object, command: string) => Promise<boolean>;
+  startCommandLog: (interaction: object, command: string) => (status?: string, extra?: unknown) => void;
+  safeDefer: (interaction: object) => Promise<void>;
+  safeEdit: (interaction: object, payload: unknown) => Promise<unknown>;
   findGameAndSuggestion: (text: unknown, games: GameLike[]) => FindGameResult;
   fetchGameStatus: (game: GameLike) => Promise<unknown>;
 };
@@ -52,7 +52,7 @@ function makeBaseDeps(replies: unknown[], logs: Array<{ level: string; context: 
     enforceCooldown: async () => true,
     startCommandLog: () => () => { endCalls++; },
     safeDefer: async () => undefined,
-    safeEdit: async (_interaction: Record<string, unknown>, payload: unknown) => { replies.push(payload); return payload; },
+    safeEdit: async (_interaction: object, payload: unknown) => { replies.push(payload); return payload; },
     findGameAndSuggestion: (text: unknown, games: GameLike[]) => {
       const game = games.find((g) => g.key === String(text || ""));
       return { game: game || null, suggestion: null };

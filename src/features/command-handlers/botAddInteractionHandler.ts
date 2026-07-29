@@ -1,3 +1,8 @@
+import type {
+  AlwaysReplies,
+  BaseChatInputInteraction,
+  StringOption
+} from "./discordInteractionPorts.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import botAddRepository from "../moderation/botAddRepository.js";
 import type { BotAddPermissionRecord } from "../moderation/botAddRepository.js";
@@ -11,16 +16,11 @@ type Guild = {
   channels?: { fetch?: (id: string) => Promise<Channel | null> };
   members?: { fetch?: (id: string) => Promise<RequesterMember | null> };
 };
-type Interaction = {
-  commandName?: string;
+type Interaction = BaseChatInputInteraction<Guild> & AlwaysReplies & {
   customId?: string;
-  guild?: Guild | null;
   user?: { id?: string; username?: string } | null;
-  options?: { getString(name: string, required?: boolean): string | null };
-  isChatInputCommand?: () => boolean;
+  options?: StringOption;
   isButton?: () => boolean;
-  reply(payload: unknown): Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
   update?: (payload: unknown) => Promise<unknown>;
 };
 type Model = Parameters<typeof botAddRepository.getBotAddState>[0];

@@ -1,5 +1,10 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { GuildSettings } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
@@ -10,19 +15,7 @@ import { errorDetail } from "../../shared/errors.js";
 import { applyGuildConfigUpdate, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 import { validateUserText } from "../command-security/userTextPolicy.js";
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?(): boolean;
-  reply?(payload: unknown): Promise<unknown>;
-  followUp?(payload: unknown): Promise<unknown>;
-  options: {
-    getSubcommand(required?: boolean): string;
-    getString(name: string, required?: boolean): string | null;
-  };
-}
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption>;
 
 interface TemplatePreviewDeps {
   logger(level: string, context: string, message: string, meta?: unknown): void;

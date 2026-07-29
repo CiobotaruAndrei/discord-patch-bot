@@ -1,5 +1,9 @@
 "use strict";
 
+import type {
+  InteractionGuildRef,
+  InteractionUserRef
+} from "../discordInteractionPorts.js";
 import type { DealInfo, GuildSettings, InteractionMessage, ValidatedDealInfo } from "../../../types.js";
 
 import { errorMessage } from "../../../shared/errors.js";
@@ -9,10 +13,7 @@ type NotificationMode = "compact" | "detailed";
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 const LIVE_FETCH_NEGATIVE_BACKOFF_MS = 60 * 1000;
 
-interface DiscordInteraction {
-  guild?: { id: string } | null;
-  user?: { id: string };
-}
+type DiscordInteraction = { guild?: InteractionGuildRef | null; user?: InteractionUserRef };
 
 type Logger = (level: string, context: string, msg: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
