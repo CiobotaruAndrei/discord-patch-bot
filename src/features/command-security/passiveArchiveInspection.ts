@@ -288,9 +288,46 @@ function nameIndicators(name: string): string[] {
   return indicators;
 }
 
+const TEXT_LINK_SCAN_BYTES = 256 * 1024;
+
+const STANDARDS_HOSTS = [
+  "schemas.openxmlformats.org",
+  "schemas.microsoft.com",
+  "purl.org",
+  "www.w3.org",
+  "w3.org",
+  "ns.adobe.com",
+  "iptc.org",
+  "xmlns.com",
+  "docs.oasis-open.org",
+  "relaxng.org"
+];
+
+function isStandardsHost(host: string): boolean {
+  return STANDARDS_HOSTS.some(known => host === known || host.endsWith(`.${known}`));
+}
+
+function textLinkIndicators(buffer: Buffer): string[] {
+  const window = buffer.subarray(0, Math.min(buffer.length, TEXT_LINK_SCAN_BYTES));
+  if (!window.includes("http")) return [];
+  const text = window.toString("utf8");
+  const hosts: string[] = [];
+  const pattern = new RegExp("(?:https?|ftp)://([^\\s/?#)\"'>,\\\\]+)", "gi");
+  for (const match of text.matchAll(pattern)) {
+    const raw = match[1].split("@").pop() ?? "";
+    const host = raw.split(":")[0].replace(/\.+$/, "").toLowerCase();
+    if (host.length === 0 || !host.includes(".") || host.length > 253) continue;
+    if (isStandardsHost(host)) continue;
+    if (!hosts.includes(host)) hosts.push(host);
+    if (hosts.length >= 32) break;
+  }
+  return hosts.map(host => `link in textul documentului catre ${host}`);
+}
+
 function contentIndicators(name: string, buffer: Buffer, budget: InspectionBudget): string[] {
   const normalized = name.replaceAll("\\", "/").toLowerCase();
   const indicators: string[] = nameIndicators(name);
+  indicators.push(...textLinkIndicators(buffer));
   if (buffer.length >= 2 && buffer[0] === 0x4d && buffer[1] === 0x5a) indicators.push("executabil PE intern");
   if (buffer.length >= 4 && buffer[0] === 0x7f && buffer.subarray(1, 4).toString("ascii") === "ELF") indicators.push("executabil ELF intern");
   const text = buffer.subarray(0, Math.min(buffer.length, 1_048_576)).toString("latin1");
@@ -702,7 +739,7 @@ export function documentIndicators(buffer: Buffer): string[] {
 export type InspectionMode = "archive" | "document" | "auto";
 
 function documentFinding(buffer: Buffer, budget: InspectionBudget): PassiveArchiveFinding {
-  const indicators = [...new Set([...documentIndicators(buffer), ...pdfStructuralIndicators(buffer, budget)])];
+  const indicators = [...new Set([...documentIndicators(buffer), ...textLinkIndicators(buffer), ...pdfStructuralIndicators(buffer, budget)])];
   return {
     status: "inspected",
     indicators,
