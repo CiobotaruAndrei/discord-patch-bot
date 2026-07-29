@@ -5,7 +5,9 @@ type MongoQueryOptions = Record<string, unknown>;
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
-export type ReplayKind = "update" | "discount" | "youtube" | "future-release";
+import type { NotificationKind } from "./notificationKinds.js";
+
+export type ReplayKind = NotificationKind;
 
 export interface ReplayHistoryEntry {
   kind: ReplayKind;

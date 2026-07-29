@@ -4,7 +4,9 @@ type MongoFilter = Record<string, unknown>;
 type MongoUpdate = Record<string, unknown>;
 type MongoQueryOptions = Record<string, unknown>;
 
-export type OutboxKind = "update" | "discount" | "youtube" | "future-release";
+import type { NotificationKind } from "./notificationKinds.js";
+
+export type OutboxKind = NotificationKind;
 
 export interface OutboxHistoryEntry {
   kind: OutboxKind;
@@ -44,8 +46,9 @@ export interface UpdateOutboxJob extends OutboxJobBase { kind: "update" }
 export interface DiscountOutboxJob extends OutboxJobBase { kind: "discount" }
 export interface YouTubeOutboxJob extends OutboxJobBase { kind: "youtube" }
 export interface FutureReleaseOutboxJob extends OutboxJobBase { kind: "future-release" }
+export interface DlcOutboxJob extends OutboxJobBase { kind: "dlc" }
 
-export type OutboxJob = UpdateOutboxJob | DiscountOutboxJob | YouTubeOutboxJob | FutureReleaseOutboxJob;
+export type OutboxJob = UpdateOutboxJob | DiscountOutboxJob | YouTubeOutboxJob | FutureReleaseOutboxJob | DlcOutboxJob;
 export type OutboxJobOfKind<K extends OutboxKind> = Extract<OutboxJob, { kind: K }>;
 
 export interface OutboxMessagePayload {

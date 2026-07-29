@@ -1,5 +1,7 @@
 import { errorMessage } from "../../shared/errors.js";
 import type { OutboxMessagePayload } from "./outboxTypes.js";
+import { notificationKindForContext, DEFAULT_NOTIFICATION_KIND } from "./notificationKinds.js";
+import type { NotificationKind } from "./notificationKinds.js";
 
 export const DISCORD_PERMANENT_ERROR_CODES = new Set([10003, 10004, 50001, 50013]);
 
@@ -31,7 +33,7 @@ export interface ResolveOutboundChannelArgs {
 }
 
 export interface OutboundHistoryEntry {
-  kind: "update" | "discount" | "youtube" | "future-release";
+  kind: NotificationKind;
   gameKey?: string;
   title?: string;
   link?: string;
@@ -52,7 +54,7 @@ export type ResolveOutboundChannelResult =
   | { abort: true; channel: null }
   | { abort: false; channel: OutboundChannel };
 
-export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: "update" | "discount" | "youtube" | "future-release"; payload: OutboxMessagePayload; recoveryVerify?: boolean; manual?: boolean; history?: OutboundHistoryEntry[]; availableAt?: Date }) => Promise<void>;
+export type EnqueueOutbox = (job: { guildId: string; channelId: string; kind: NotificationKind; payload: OutboxMessagePayload; recoveryVerify?: boolean; manual?: boolean; history?: OutboundHistoryEntry[]; availableAt?: Date }) => Promise<void>;
 
 export type RecordSentHistory = (guildId: string, entries: OutboundHistoryEntry[]) => Promise<void>;
 
@@ -81,7 +83,7 @@ function rateLimitedChannel(channel: { id?: unknown; send: (payload: unknown) =>
   };
 }
 
-function outboxChannel(channelId: string, guildId: string, kind: "update" | "discount" | "youtube" | "future-release", enqueueOutbox: EnqueueOutbox, recoveryVerify?: boolean, manual?: boolean): OutboundChannel {
+function outboxChannel(channelId: string, guildId: string, kind: NotificationKind, enqueueOutbox: EnqueueOutbox, recoveryVerify?: boolean, manual?: boolean): OutboundChannel {
   return {
     id: channelId,
     send: async (payload: OutboxMessagePayload, meta?: OutboundSendMeta) =>
@@ -152,13 +154,7 @@ export function createOutboundChannelResolver({ logger, canSendEmbeds, acquireSe
     }
 
     if (enqueueOutbox && !bypassOutbox) {
-      const kind = context === "CRON_DISCOUNTS"
-        ? "discount"
-        : context === "CRON_YOUTUBE"
-          ? "youtube"
-          : context === "CRON_FUTURE_RELEASE"
-            ? "future-release"
-            : "update";
+      const kind = notificationKindForContext(context) ?? DEFAULT_NOTIFICATION_KIND;
       return { channel: outboxChannel(channelId, String(guild._id), kind, enqueueOutbox, guild.outboxRecoveryVerify, manual), abort: false };
     }
     return { channel: rateLimitedChannel(channel, String(guild._id), acquire, logger, recordSentHistory), abort: false };

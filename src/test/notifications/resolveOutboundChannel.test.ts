@@ -5,6 +5,8 @@ import {
   isPermanentDiscordError,
   transientErrorMessage
 } from "../../features/notifications/outboundChannel.js";
+import { notificationKindForContext } from "../../features/notifications/notificationKinds.js";
+import type { NotificationKind } from "../../features/notifications/notificationKinds.js";
 
 process.env.MONGO_URI ||= "mongodb://localhost:27017/discord-patch-bot-test";
 process.env.DISCORD_TOKEN ||= "test_discord_token";
@@ -345,4 +347,43 @@ test("transientErrorMessage handles strings, errors, and weird inputs", () => {
   assert.equal(transientErrorMessage(null), "null");
   assert.equal(transientErrorMessage(undefined), "undefined");
   assert.equal(transientErrorMessage("plain string"), "plain string");
+});
+
+test("resolveOutboundChannel: notificarile DLC intra in outbox cu propriul tip, nu deghizate in update", async () => {
+  const enqueued: Array<{ kind: string }> = [];
+  const enqueueOutbox = async (job: { guildId: string; channelId: string; kind: NotificationKind; payload: unknown; recoveryVerify?: boolean; manual?: boolean; availableAt?: Date }) => {
+    enqueued.push(job);
+  };
+  const { resolveOutboundChannel } = buildResolver({ canSendEmbeds: () => true, enqueueOutbox });
+  const { fn: disableFn } = makeDisableFnStub();
+  const fakeChannel = { id: "channel-d", isTextBased: () => true, send: async () => ({ id: "msg" }) };
+  const client = makeClient(fakeChannel);
+
+  const result = await resolveOutboundChannel({
+    client,
+    guild: { _id: "guild-d" },
+    channelId: "channel-d",
+    context: "CRON_DLC",
+    disableFn
+  });
+  const channel = result.channel as { send: (payload: unknown) => Promise<unknown> };
+  await channel.send({ embeds: [] });
+
+  assert.equal(enqueued.length, 1);
+  assert.equal(
+    enqueued[0].kind,
+    "dlc",
+    "contextul CRON_DLC cadea in ramura implicita si producea `update`; istoricul, dead-letter-ul si regulile " +
+      "de abonare vedeau apoi un tip gresit, deci un guild care oprise update-urile pierdea si DLC-urile"
+  );
+});
+
+test("un context necunoscut nu mai poate produce tacut un tip valid", () => {
+  assert.equal(notificationKindForContext("CRON_DLC"), "dlc");
+  assert.equal(notificationKindForContext("CRON_UPDATES"), "update");
+  assert.equal(
+    notificationKindForContext("CRON_CEVA_NOU"),
+    undefined,
+    "un cron nou trebuie sa se inregistreze explicit; altfel fallback-ul l-ar clasifica drept update fara sa se vada"
+  );
 });
