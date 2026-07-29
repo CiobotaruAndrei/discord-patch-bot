@@ -1,45 +1,37 @@
 "use strict";
 
-import type { SourceRegistryApi } from "./sourceRegistryFactory.js";
+export interface HttpResponseLike {
+  data: unknown;
+}
 
-type Port<K extends keyof SourceRegistryApi> = Pick<SourceRegistryApi, K>;
+export interface HttpSourcePort {
+  request(method: string, url: string, options?: Record<string, unknown>): Promise<HttpResponseLike>;
+  maxHtmlBytes(): number;
+  maxJsonBytes(): number;
+  fetchConcurrency(): number;
+}
 
-export type HttpSourcePort = Port<
-  | "USER_AGENTS"
-  | "MAX_HTML_BYTES"
-  | "MAX_JSON_BYTES"
-  | "FETCH_CONCURRENCY"
-  | "httpReq"
-  | "fetchWithProxy"
-  | "safeCheerioLoad"
-  | "attachMetrics"
->;
+export interface SteamSourcePort {
+  currentPlayers(appId: string | number): Promise<unknown>;
+  offerEndFromHtml(html: unknown): string | null;
+}
 
-export type SteamSourcePort = Port<
-  | "searchSteamGameByName"
-  | "chooseBestSteamMatch"
-  | "fetchSteamPriceDetails"
-  | "fetchSteamCurrentPlayers"
-  | "fetchSteamLatestUpdateSize"
-  | "extractOfferEndFromHtml"
-  | "extractSteamOfferEndDate"
-  | "levenshtein"
->;
+export interface UpdatesSourcePort {
+  stableUpdateId(title: string, link: string): string;
+}
 
-export type UpdatesSourcePort = Port<
-  "fetchGameUpdate" | "executeFetchWithCircuitBreaker" | "getLatestForAllGames" | "normalizeUpdate" | "stableUpdateId"
->;
+export interface DealsSourcePort {
+  maxDeals(): number;
+  sweepEnrichedCache(): void;
+  enrichedCacheSize(): number;
+}
 
-export type DealsSourcePort = Port<
-  | "MAX_DEALS"
-  | "fetchDeals"
-  | "fetchSteamReviewData"
-  | "enrichDealData"
-  | "dealHash"
-  | "cleanEnrichedCache"
-  | "getEnrichedCacheSize"
-  | "formatPrice"
->;
+export interface SourcePorts {
+  http: HttpSourcePort;
+  steam: SteamSourcePort;
+  updates: UpdatesSourcePort;
+  deals: DealsSourcePort;
+}
 
 export const SOURCE_PORT_NAMES = [
   "HttpSourcePort",
