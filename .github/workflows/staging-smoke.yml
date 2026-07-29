@@ -37,9 +37,15 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: src/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      # Un singur build per job: ambele probe ruleaza pe acelasi dist, prin variantele :prebuilt.
+      - name: Build TypeScript once
+        run: npm run build:ts
 
       # Probele ruleaza independent (if: !cancelled()): daca proba HTTP pica, cea Discord
       # tot ruleaza, ca artifactul sa aiba diagnostic complet; verdictul final pica job-ul
@@ -47,7 +53,7 @@ jobs:
       - name: Run staging smoke probe (health + metrics)
         id: http-probe
         if: ${{ !cancelled() }}
-        run: npm run smoke:staging
+        run: npm run smoke:staging:prebuilt
         env:
           STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
           STAGING_METRICS_TOKEN: ${{ secrets.STAGING_METRICS_TOKEN }}
@@ -56,7 +62,7 @@ jobs:
       - name: Run live Discord smoke (gateway + commands + permissions)
         id: discord-probe
         if: ${{ !cancelled() }}
-        run: npm run smoke:staging:discord
+        run: npm run smoke:staging:discord:prebuilt
         env:
           STAGING_DISCORD_TOKEN: ${{ secrets.STAGING_DISCORD_TOKEN }}
           STAGING_DISCORD_CLIENT_ID: ${{ secrets.STAGING_DISCORD_CLIENT_ID }}
