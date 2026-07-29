@@ -68,3 +68,69 @@ export function decodeFortniteBlogResponse(value: unknown): FortniteBlogResponse
   const parsed = FortniteBlogResponseSchema.safeParse(value);
   return parsed.success ? parsed.data : {};
 }
+
+const SteamReviewSchema = z.object({
+  query_summary: z.object({
+    total_reviews: z.number().optional(),
+    total_positive: z.number().optional()
+  }).optional()
+}).passthrough();
+
+const SteamSpecialItemSchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  name: z.string().optional(),
+  original_price: z.number().optional(),
+  final_price: z.number().optional(),
+  discount_percent: z.number().optional(),
+  header_image: z.string().nullable().optional()
+}).passthrough();
+
+const SteamFeaturedCategoriesSchema = z.object({
+  specials: z.object({ items: z.array(SteamSpecialItemSchema).optional() }).optional()
+}).passthrough();
+
+const MinecraftManifestSchema = z.object({
+  latest: z.object({ release: z.string().optional() }).optional()
+}).passthrough();
+
+const RobloxVersionSchema = z.object({ clientVersionUpload: z.string().optional() }).passthrough();
+
+const SteamNewsItemSchema = z.object({
+  gid: z.unknown().optional(),
+  title: z.string().optional(),
+  url: z.string().optional(),
+  contents: z.string().optional(),
+  tags: z.unknown().optional(),
+  feed_type: z.number().optional(),
+  feedname: z.string().optional(),
+  date: z.unknown().optional()
+}).passthrough();
+
+const SteamNewsSchema = z.object({
+  appnews: z.object({ newsitems: z.array(SteamNewsItemSchema).optional() }).optional()
+}).passthrough();
+
+export function decodeSteamReviewResponse(value: unknown): z.infer<typeof SteamReviewSchema> {
+  const parsed = SteamReviewSchema.safeParse(value);
+  return parsed.success ? parsed.data : {};
+}
+
+export function decodeSteamFeaturedCategories(value: unknown): z.infer<typeof SteamFeaturedCategoriesSchema> {
+  const parsed = SteamFeaturedCategoriesSchema.safeParse(value);
+  return parsed.success ? parsed.data : {};
+}
+
+export function decodeMinecraftManifest(value: unknown): z.infer<typeof MinecraftManifestSchema> {
+  const parsed = MinecraftManifestSchema.safeParse(value);
+  return parsed.success ? parsed.data : {};
+}
+
+export function decodeRobloxVersion(value: unknown): z.infer<typeof RobloxVersionSchema> {
+  const parsed = RobloxVersionSchema.safeParse(value);
+  return parsed.success ? parsed.data : {};
+}
+
+export function decodeSteamNewsResponse(value: unknown): z.infer<typeof SteamNewsSchema> {
+  const parsed = SteamNewsSchema.safeParse(value);
+  return parsed.success ? parsed.data : {};
+}
