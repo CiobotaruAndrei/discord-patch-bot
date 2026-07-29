@@ -1,5 +1,6 @@
 import type * as Mongoose from "mongoose";
 import type { MongoModelEnv } from "./mongoModelEnv.js";
+import { NOTIFICATION_KINDS } from "../../shared/notificationKinds.js";
 
 export interface OutboxSchemasDeps {
   mongoose: typeof Mongoose;
@@ -9,7 +10,7 @@ export interface OutboxSchemasDeps {
 
 export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasDeps) {
   const outboxHistoryEntrySchema = new mongoose.Schema({
-    kind: { type: String, enum: ["update", "discount", "youtube", "future-release"], required: true },
+    kind: { type: String, enum: [...NOTIFICATION_KINDS], required: true },
     gameKey: { type: String, default: "" },
     title: { type: String, default: "" },
     link: { type: String, default: "" },
@@ -19,7 +20,7 @@ export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasD
   const notificationOutboxSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
     channelId: { type: String, required: true },
-    kind: { type: String, enum: ["update", "discount", "youtube", "future-release"], required: true },
+    kind: { type: String, enum: [...NOTIFICATION_KINDS], required: true },
     payload: { type: mongoose.Schema.Types.Mixed, required: true },
     attempts: { type: Number, default: 0 },
     deliveries: { type: Number, default: 0 },
@@ -64,7 +65,7 @@ export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasD
   const NOTIFICATION_HISTORY_TTL_DAYS = env.NOTIFICATION_HISTORY_TTL_DAYS;
   const notificationHistorySchema = new mongoose.Schema({
     guildId: { type: String, required: true },
-    kind: { type: String, enum: ["update", "discount", "youtube", "future-release"], required: true },
+    kind: { type: String, enum: [...NOTIFICATION_KINDS], required: true },
     gameKey: { type: String, default: "" },
     title: { type: String, default: "" },
     link: { type: String, default: "" },
@@ -77,7 +78,7 @@ export function buildOutboxSchemas({ mongoose, ONE_DAY_MS, env }: OutboxSchemasD
   const DEAD_LETTER_REPLAY_TTL_DAYS = env.NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS;
   const deadLetterReplaySchema = new mongoose.Schema({
     guildId: { type: String, required: true },
-    kind: { type: String, enum: ["update", "discount", "youtube", "future-release"], required: true },
+    kind: { type: String, enum: [...NOTIFICATION_KINDS], required: true },
     channelId: { type: String, required: true },
     payload: { type: mongoose.Schema.Types.Mixed, required: true },
     dedupeKey: { type: String, default: "" },

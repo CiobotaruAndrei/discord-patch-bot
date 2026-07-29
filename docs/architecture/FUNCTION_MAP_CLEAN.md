@@ -103,6 +103,13 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Inainte, obiectul comun de metrici circula intreg prin features, iar fiecare loc isi scria singur `metrics.camp = (metrics.camp ?? 0) + 1`. De aici a venit si `securityThreatDeleteFailures`: era incrementat in `securityRuntime`, dar nu exista in `BotMetrics` si nu era expus de `metricsRegistry`, deci fiecare stergere esuata a unui mesaj periculos confirmat se contoriza intr-un camp pe care nu-l vedea nimeni. Contorul e acum declarat, initializat si expus ca `bot_security_threat_delete_failures`.
 - Gardat de `metricRecorderBoundaries.test.ts`: `features`/`sources`/`domain` nu au voie sa scrie direct intr-un camp de metrica, interfetele recorderilor nu au voie sa contina nume de campuri, niciun modul din afara `app/health` nu cere `BotMetrics` intreg, si fiecare contor scris de un recorder trebuie sa apara in expunerea Prometheus.
 
+### `src/shared/notificationKinds.ts`
+
+- Registrul unic al tipurilor de notificare. Fiecare kind (`update`, `discount`, `youtube`, `future-release`, `dlc`) isi declara aici contextul de cron si **poarta de abonament**: campul care spune ca abonamentul e pornit si campul care tine canalul (`youtube` are o poarta „routed", cu rute per canal si cu exceptia trimiterii manuale).
+- Din registru se derivau, dupa aceasta schimbare, toate cele trei locuri care inainte isi tineau propria copie: enum-urile `kind` din schemele Mongo (`infra/mongo/outboxSchemas.ts`), filtrul de abonament al outbox-ului (`outboxSubscriptionFilter`) si decodarea unui kind necunoscut la replay (`notificationKindOr`). Traieste in `shared` fiindca il citesc si `infra`, si `features`.
+- Motivul concret: `dlc` era declarat in registru, dar lipsea din cele patru enum-uri Mongo (deci un job DLC ar fi fost respins la scriere), cadea pe ramura implicita a filtrului (deci se verifica abonamentul de **update-uri**, nu cel de DLC), iar la replay se normaliza la `update`.
+- Gardat de `notificationKindRegistry.test.ts` (fara liste scrise de mana, fara if-uri pe kind, porti de abonament distincte per kind) si de `outboxNotificationKinds.integration.test.ts`, care scrie efectiv fiecare kind intr-un Mongo real.
+
 ## Infra
 
 ### `src/infra/http/` (client compus din module pe responsabilitati)

@@ -6,6 +6,7 @@ type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
 import type { NotificationKind } from "./notificationKinds.js";
+import { notificationKindOr } from "./notificationKinds.js";
 
 export type ReplayKind = NotificationKind;
 
@@ -75,7 +76,7 @@ function normalizeHistory(raw: unknown): ReplayHistoryEntry[] {
   for (const entry of raw) {
     if (!entry || typeof entry !== "object") continue;
     const fields = entry as Record<string, unknown>;
-    const kind: ReplayKind = fields.kind === "discount" ? "discount" : fields.kind === "youtube" ? "youtube" : fields.kind === "future-release" ? "future-release" : "update";
+    const kind: ReplayKind = notificationKindOr(fields.kind);
     out.push({
       kind,
       gameKey: typeof fields.gameKey === "string" ? fields.gameKey : undefined,
