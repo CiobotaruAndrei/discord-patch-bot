@@ -110,6 +110,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Motivul concret: `dlc` era declarat in registru, dar lipsea din cele patru enum-uri Mongo (deci un job DLC ar fi fost respins la scriere), cadea pe ramura implicita a filtrului (deci se verifica abonamentul de **update-uri**, nu cel de DLC), iar la replay se normaliza la `update`.
 - Gardat de `notificationKindRegistry.test.ts` (fara liste scrise de mana, fara if-uri pe kind, porti de abonament distincte per kind) si de `outboxNotificationKinds.integration.test.ts`, care scrie efectiv fiecare kind intr-un Mongo real.
 
+### `src/features/moderation/moderationStore.ts` (fatada) + colectia `guildModeration`
+
+- Fatada citeste intai din colectia dedicata; daca nu gaseste nimic acolo, cade pe documentul `Guild`, copiaza felia de moderare in colectia noua si semnaleaza migrarea. Scrierile care ating campuri de moderare merg in ambele colectii cat timp dureaza tranzitia, deci o revenire la versiunea anterioara nu pierde date.
+- Campurile acoperite sunt exact `MODERATION_FIELDS` (`moderationTimeouts`, `moderationMutes`, `moderationWarnings`, `moderationWarnBanLimit`); orice alta operatie pe `Guild` trece nemodificata prin fatada.
+- Handler-ul de moderare primeste `GuildModel` si `GuildModerationModel` si compune fatada el insusi, deci restul aplicatiei nu isi schimba calea catre `Guild`. Verificat pe Mongo real de `moderationStoreWiring.integration.test.ts`, care include si o proba ca fiecare camp declarat exista in schema dedicata.
+
 ## Infra
 
 ### `src/infra/http/` (client compus din module pe responsabilitati)

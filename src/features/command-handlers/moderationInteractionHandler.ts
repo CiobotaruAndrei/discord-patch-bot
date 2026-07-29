@@ -16,6 +16,8 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
 import moderationRepository, { type ModerationRecord } from "../moderation/moderationRepository.js";
+import type { ModerationGuildModel } from "../moderation/moderationRepository.js";
+import { createModerationStore } from "../moderation/moderationStore.js";
 import { attachmentLabel, validateModerationText, type DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import { sendTextPages } from "../command-presentation/textPagination.js";
 
@@ -52,6 +54,7 @@ type Interaction = ChatInputInteraction<
 };
 type Deps = {
   GuildModel: Parameters<typeof moderationRepository.getModerationState>[0];
+  GuildModerationModel?: ModerationGuildModel;
   MessageFlags: { Ephemeral: number };
   getGuildSettings(guildId: string): Promise<{ warningChannelId?: string | null } | null>;
   safeDefer(interaction: Interaction, ephemeral?: boolean): Promise<void>;
@@ -131,7 +134,12 @@ async function rollbackTimeout(target: Member, record: ModerationRecord | null):
 }
 
 function createModerationInteractionHandler(deps: Deps) {
-  const { GuildModel, MessageFlags, safeDefer, safeEdit } = deps;
+  const { MessageFlags, safeDefer, safeEdit } = deps;
+  const GuildModel = deps.GuildModerationModel
+    ? createModerationStore(deps.GuildModel, deps.GuildModerationModel, guildId => {
+      deps.logger?.("INFO", "MODERATION_STORE", "Starea de moderare a fost mutata in colectia dedicata", { guildId });
+    })
+    : deps.GuildModel;
 
   async function handleLists(interaction: Interaction, command: string, guildId: string): Promise<unknown> {
     const state = await moderationRepository.getModerationState(GuildModel, guildId);
