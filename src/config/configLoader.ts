@@ -1,6 +1,7 @@
 import * as path from "path";
 import { readFileSync } from "node:fs";
 import { validateConfig } from "./configValidator.js";
+import { createGameCatalog } from "./gameCatalog.js";
 import { errorMessage } from "../shared/errors.js";
 import type { BotConfig, ConfigLoadResult, NormalizedGameConfig } from "./configTypes.js";
 
@@ -33,7 +34,7 @@ function loadConfig(configPath = process.env.CONFIG_PATH || "./config.json"): Co
     process.exit(1);
   }
 
-  return { config, games, configPath };
+  return { config, games, catalog: createGameCatalog(games), configPath };
 }
 
 export { loadConfig, resolveConfigPath };

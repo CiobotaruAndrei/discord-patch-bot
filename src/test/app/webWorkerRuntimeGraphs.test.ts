@@ -1,3 +1,4 @@
+import { createGameCatalog } from "../../config/gameCatalog.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { GatewayIntentBits } from "discord.js";
@@ -36,7 +37,7 @@ function makeGraphHarness(role?: BotRole) {
     performance: { now: () => 0 },
     Client: FakeClient,
     GatewayIntentBits,
-    loadConfig: () => ({ config: { games: [] }, games: [], configPath: "test-config.json" }),
+    loadConfig: () => ({ config: { games: [] }, games: [], catalog: createGameCatalog([]), configPath: "test-config.json" }),
     createMetrics,
     createRateLimiter: () => ({ check: () => true, prune: () => undefined, size: 0, retryAfterSeconds: 1 }),
     createHousekeeping: () => { factoryCalls.housekeeping++; return { start: () => undefined, stop: async () => undefined }; },
