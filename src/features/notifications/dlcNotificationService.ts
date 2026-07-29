@@ -8,6 +8,7 @@ import type { NotificationEmbed } from "./notificationTypes.js";
 import { planDlcCandidates, buildDlcEmbed, collectBaselineDlcEntries, type DlcCandidate } from "./dlcNotificationPlanner.js";
 import { sendEmbedBatch } from "./notificationBatchExecutor.js";
 import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
+import { claimIntoBatch } from "./notificationCycle.js";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const CANDIDATE_SAFETY_LIMIT = 1000;
@@ -125,33 +126,30 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
       itemId: `${candidate.gameKey}:${candidate.dlc.dlcKey}`
     });
 
-    const batch: Array<{ candidate: DlcCandidate; embed: NotificationEmbed }> = [];
-    for (const candidate of candidates) {
-      if (batch.length >= MAX_DLCS_PER_CYCLE) break;
-      let claimed = false;
-      try {
-        const claim = await claimSeenDlc(guildId, channel.id, candidate.gameKey, candidate.dlc.dlcKey);
-        if ((claim.matchedCount ?? 0) === 0) continue;
-        claimed = true;
-        batch.push({ candidate, embed: buildDlcEmbed(candidate, DLC_EMBED_COLOR) });
-      } catch (err: unknown) {
-        if (claimed) {
-          await rollbackOrReport(
-            () => rollbackSeenDlc(guildId, candidate.gameKey, candidate.dlc.dlcKey),
-            logger,
-            rollbackContext(candidate),
-            reportRollbackFailure
-          );
-        }
-        if (isPermanentDiscordError(err)) {
-          const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
-          await disableDlcForChannelError(guildId, channel.id, reason).catch(() => null);
-          logger("WARN", "CRON_DLC", `Notificarile DLC oprite pentru guild ${guildId} - cod permanent`, reason);
-          return;
-        }
-        logger("WARN", "CRON_DLC", `Nu am putut revendica DLC ${candidate.dlc.dlcKey} pentru ${candidate.gameKey}`, transientErrorMessage(err));
-      }
-    }
+    const claimed = await claimIntoBatch<DlcCandidate, { candidate: DlcCandidate; embed: NotificationEmbed }>({
+      candidates,
+      limit: MAX_DLCS_PER_CYCLE,
+      context: "CRON_DLC",
+      logger,
+      claim: candidate => claimSeenDlc(guildId, channel.id, candidate.gameKey, candidate.dlc.dlcKey),
+      entryOf: candidate => ({ candidate, embed: buildDlcEmbed(candidate, DLC_EMBED_COLOR) }),
+      rollback: candidate => rollbackOrReport(
+        () => rollbackSeenDlc(guildId, candidate.gameKey, candidate.dlc.dlcKey),
+        logger,
+        rollbackContext(candidate),
+        reportRollbackFailure
+      ),
+      describe: candidate => `DLC ${candidate.dlc.dlcKey} pentru ${candidate.gameKey}`,
+      isPermanentError: isPermanentDiscordError,
+      onPermanentError: async err => {
+        const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
+        await disableDlcForChannelError(guildId, channel.id, reason).catch(() => null);
+        logger("WARN", "CRON_DLC", `Notificarile DLC oprite pentru guild ${guildId} - cod permanent`, reason);
+      },
+      errorMessage: transientErrorMessage
+    });
+    if (claimed.stopped) return;
+    const batch = claimed.batch;
     if (!batch.length) return;
 
     await sendEmbedBatch({
