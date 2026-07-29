@@ -16,6 +16,7 @@ import { createNewAccountAlertDelivery, deliverNewAccountAlert, type NewAccountA
 import { recordChannelLockDivergence, type ChannelLockRecoveryModelLike } from "../command-security/channelLockRecoveryRepository.js";
 import { readLockedChannelPermissionState } from "../command-security/channelLockRecoveryRuntime.js";
 import { randomUUID } from "node:crypto";
+import { setSecurityChannel } from "../command-security/setSecurityChannelUseCase.js";
 
 type AccountAlertClaimFn = (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
 
@@ -242,14 +243,30 @@ function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<Secur
     await target.safeDefer(interaction, true);
     const command = interaction.commandName;
     if (command === "set") {
-      const field = SET_CHANNEL_FIELDS[interaction.options.getSubcommand()];
       const channel = interaction.options.getChannel("canal", false) ?? interaction.options.getChannel("channel", true);
-      if (!field || !channel?.id) return respond(interaction, "Eroare: trebuie selectat un canal valid.");
-      const permissions = await target.checkChannelPermissions(interaction, channel.id);
-      if (!permissions?.viewChannel || !permissions.sendMessages || !permissions.embedLinks) {
-        return respond(interaction, "Eroare: botul are nevoie de View Channel, Send Messages si Embed Links in canalul selectat.");
+      const outcome = await setSecurityChannel(
+        {
+          guildId,
+          field: SET_CHANNEL_FIELDS[interaction.options.getSubcommand()],
+          channelId: channel?.id
+        },
+        {
+          readPermissions: channelId => target.checkChannelPermissions(interaction, channelId),
+          persist: async (id, field, channelId) => {
+            await applyGuildConfigUpdate(target.GuildModel, id, { [field]: channelId });
+          }
+        }
+      );
+
+      if (outcome.kind === "invalid-channel") return respond(interaction, "Eroare: trebuie selectat un canal valid.");
+      if (outcome.kind === "missing-permissions") {
+        return respond(interaction, `Eroare: botul are nevoie de ${outcome.missing.join(", ")} in canalul selectat.`);
       }
-      return update(interaction, field, channel.id);
+      if (outcome.kind === "save-failed") {
+        target.logger?.("WARN", "SECURITY_COMMAND", "Salvarea setarii de securitate a esuat", errorDetail(outcome.error));
+        return respond(interaction, target.formatUserError(outcome.error, "Eroare la salvarea setarii."));
+      }
+      return respond(interaction, `OK: setarea **${outcome.field}** a fost actualizata.`);
     }
     if (command === "start" || command === "stop") {
       const sub = interaction.options.getSubcommand();
