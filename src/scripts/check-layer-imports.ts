@@ -1,3 +1,4 @@
+import ts from "typescript";
 import { pathToFileURL as __pathToFileURL } from "node:url";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -58,8 +59,6 @@ const MONGO_VALUE_IMPORT_ALLOWLIST: readonly string[] = [
   "features/admin-records/operationJournalRuntime.ts"
 ];
 
-const IMPORT_RE = /(?:^|\n)\s*(import|export)\s+(type\s+)?(?:[^;'"]*?\s+from\s+)?["'](\.[^"']+)["']/g;
-const DYNAMIC_IMPORT_RE = /import\(\s*["'](\.[^"']+)["']\s*\)/g;
 
 export function toPosix(relPath: string): string {
   return relPath.split(path.sep).join("/");
@@ -87,13 +86,28 @@ export function extractImports(modulePath: string, source: string): ModuleImport
     seen.add(key);
     imports.push({ from: modulePath, to: target, typeOnly });
   };
-  let match: RegExpExecArray | null;
-  while ((match = IMPORT_RE.exec(source)) !== null) {
-    push(match[3], Boolean(match[2]));
-  }
-  while ((match = DYNAMIC_IMPORT_RE.exec(source)) !== null) {
-    push(match[1], false);
-  }
+
+  const file = ts.createSourceFile(modulePath, source, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      push(node.moduleSpecifier.text, node.importClause?.isTypeOnly === true);
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      push(node.moduleSpecifier.text, node.isTypeOnly);
+    } else if (
+      ts.isCallExpression(node)
+      && node.expression.kind === ts.SyntaxKind.ImportKeyword
+      && node.arguments.length > 0
+      && ts.isStringLiteral(node.arguments[0])
+    ) {
+      push(node.arguments[0].text, false);
+    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) {
+      push(node.argument.literal.text, true);
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(file);
   return imports;
 }
 
