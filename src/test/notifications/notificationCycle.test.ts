@@ -12,7 +12,7 @@ function optiuni(over: Partial<Parameters<typeof claimIntoBatch<Candidat, string
     context: "TEST",
     logger: () => undefined,
     claim: async () => ({ matchedCount: 1 }),
-    entryOf: (candidate: Candidat) => candidate.id,
+    prepare: (candidate: Candidat) => candidate.id,
     rollback: async () => undefined,
     describe: (candidate: Candidat) => candidate.id,
     isPermanentError: () => false,
@@ -68,8 +68,69 @@ test("revendicarea reusita urmata de eroare se da inapoi, ca sa nu ramana marcat
   await claimIntoBatch<Candidat, string>(optiuni({
     candidates: [{ id: "x" }],
     claim: async () => ({ matchedCount: 1 }),
-    entryOf: () => { throw new Error("randare esuata"); },
+    prepare: () => { throw new Error("randare esuata"); },
     rollback: async (candidate: Candidat) => { anulate.push(candidate.id); }
   }));
   assert.deepEqual(anulate, ["x"], "fara rollback, candidatul ar ramane marcat ca vazut fara sa fi fost trimis vreodata");
+});
+
+test("sursa prin pull consuma candidatii pana cand se termina, nu doar dintr-un array", async () => {
+  const coada: Candidat[] = [{ id: "p1" }, { id: "p2" }, { id: "p3" }];
+  const rezultat = await claimIntoBatch<Candidat, string>(optiuni({
+    candidates: undefined,
+    pull: () => coada.shift() ?? null
+  }));
+  assert.deepEqual(rezultat.batch, ["p1", "p2", "p3"]);
+  assert.deepEqual(rezultat.remaining, [], "o sursa prin pull nu raporteaza rest");
+});
+
+test("politica stop opreste ciclul la prima eroare tranzitorie si raporteaza restul", async () => {
+  const tratate: string[] = [];
+  const rezultat = await claimIntoBatch<Candidat, string>(optiuni({
+    candidates: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
+    prepare: (candidate: Candidat) => {
+      if (candidate.id === "b") throw new Error("pregatire esuata");
+      return candidate.id;
+    },
+    onTransientError: (candidate: Candidat) => { tratate.push(candidate.id); },
+    transientPolicy: "stop"
+  }));
+  assert.deepEqual(rezultat.batch, ["a"]);
+  assert.deepEqual(tratate, ["b"], "candidatul cazut e predat politicii de retry, nu pierdut");
+  assert.deepEqual(rezultat.remaining.map(item => item.id), ["c", "d"], "restul se intoarce in coada, nu se arunca");
+  assert.equal(rezultat.stopped, false, "oprirea pe eroare tranzitorie nu e acelasi lucru cu oprirea pe eroare permanenta");
+});
+
+test("politica implicita continua peste eroarea tranzitorie si nu lasa rest", async () => {
+  const rezultat = await claimIntoBatch<Candidat, string>(optiuni({
+    candidates: [{ id: "a" }, { id: "b" }, { id: "c" }],
+    prepare: (candidate: Candidat) => {
+      if (candidate.id === "b") throw new Error("pregatire esuata");
+      return candidate.id;
+    }
+  }));
+  assert.deepEqual(rezultat.batch, ["a", "c"]);
+  assert.deepEqual(rezultat.remaining, []);
+});
+
+test("o eroare permanenta opreste ciclul si nu lasa candidati in rest", async () => {
+  const rezultat = await claimIntoBatch<Candidat, string>(optiuni({
+    candidates: [{ id: "a" }, { id: "b" }, { id: "c" }],
+    prepare: (candidate: Candidat) => {
+      if (candidate.id === "b") throw new Error("permanent");
+      return candidate.id;
+    },
+    isPermanentError: () => true
+  }));
+  assert.equal(rezultat.stopped, true);
+  assert.deepEqual(rezultat.batch, ["a"]);
+  assert.deepEqual(rezultat.remaining, [], "dupa o eroare permanenta canalul e oprit, deci restul nu se mai reprogrameaza");
+});
+
+test("pregatirea asincrona e asteptata inainte de a intra in batch", async () => {
+  const rezultat = await claimIntoBatch<Candidat, string>(optiuni({
+    candidates: [{ id: "a" }],
+    prepare: async (candidate: Candidat) => `${candidate.id}-imbogatit`
+  }));
+  assert.deepEqual(rezultat.batch, ["a-imbogatit"]);
 });

@@ -14,7 +14,7 @@ import { persistGuildCycleState } from "./notificationCycleRepository.js";
 import { planPendingFailure, planRebaselineEntries, requeueFront, takeNextPending } from "./updateNotificationPlanner.js";
 import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
 import { loadNotificationFeed } from "./notificationFeedLoader.js";
-import { matchedDocument } from "../../shared/persistenceOutcome.js";
+import { claimIntoBatch } from "./notificationCycle.js";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
@@ -135,40 +135,49 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     }
 
     const notificationMode: NotificationMode = guild.notificationMode === "compact" ? "compact" : "detailed";
-    const batch: Array<{ gameKey: string; item: PendingUpdate; embed: NotificationEmbed }> = [];
+    type UpdateSelection = { gameKey: string; item: PendingUpdate };
     let lastProcessedGameKey: string | null = guild.lastProcessedGameKey || null;
-    while (batch.length < MAX_UPDATES_PER_CYCLE) {
-      const selection = takeNextPending(pendingByGame, lastProcessedGameKey, rotateAfter);
-      if (!selection) break;
-      const { gameKey, item: next } = selection;
-      lastProcessedGameKey = gameKey;
-      const claim = await claimSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
-      if (!matchedDocument(claim)) continue;
-      const game = resultByGameKey.get(gameKey)?.game || { name: gameKey, key: gameKey };
-      let embed: NotificationEmbed;
-      try {
-        embed = buildUpdateEmbed(game.name, next, notificationMode);
-      } catch (embedErr: unknown) {
-        await rollbackOrReport(
-          () => rollbackSeenUpdate(String(guild._id), gameKey, next.id),
-          logger,
-          { guildId: String(guild._id), kind: "update", itemId: `${gameKey}:${next.id}` },
-          reportRollbackFailure
-        );
-        const embedFailure = planPendingFailure(next, PENDING_UPDATE_MAX_ATTEMPTS);
+
+    const claimed = await claimIntoBatch<UpdateSelection, { gameKey: string; item: PendingUpdate; embed: NotificationEmbed }>({
+      pull: () => {
+        const selection = takeNextPending(pendingByGame, lastProcessedGameKey, rotateAfter);
+        if (!selection) return null;
+        lastProcessedGameKey = selection.gameKey;
+        return { gameKey: selection.gameKey, item: selection.item };
+      },
+      limit: MAX_UPDATES_PER_CYCLE,
+      context: "CRON_UPDATES",
+      logger,
+      claim: selection => claimSeenUpdate(String(guild._id), channel.id, selection.gameKey, selection.item.id),
+      prepare: selection => {
+        const game = resultByGameKey.get(selection.gameKey)?.game || { name: selection.gameKey, key: selection.gameKey };
+        return { gameKey: selection.gameKey, item: selection.item, embed: buildUpdateEmbed(game.name, selection.item, notificationMode) };
+      },
+      rollback: selection => rollbackOrReport(
+        () => rollbackSeenUpdate(String(guild._id), selection.gameKey, selection.item.id),
+        logger,
+        { guildId: String(guild._id), kind: "update", itemId: `${selection.gameKey}:${selection.item.id}` },
+        reportRollbackFailure
+      ),
+      describe: selection => `update-ul ${selection.gameKey}/${selection.item.id}`,
+      isPermanentError: () => false,
+      onPermanentError: async () => undefined,
+      onTransientError: (selection, err) => {
+        const embedFailure = planPendingFailure(selection.item, PENDING_UPDATE_MAX_ATTEMPTS);
         if (embedFailure.action === "requeue") {
-          requeueFront(pendingByGame, gameKey, next);
+          requeueFront(pendingByGame, selection.gameKey, selection.item);
         } else {
           deadLettered.push(buildDeadLetterEntry({
-            kind: "update", itemId: next.id, title: next.title,
-            reason: transientErrorMessage(embedErr), attempts: embedFailure.attempts
+            kind: "update", itemId: selection.item.id, title: selection.item.title,
+            reason: transientErrorMessage(err), attempts: embedFailure.attempts
           }));
         }
-        logger("WARN", "CRON_UPDATES", `buildUpdateEmbed a esuat pentru ${gameKey}/${next.id}; claim-ul a fost dat inapoi`, transientErrorMessage(embedErr));
-        continue;
-      }
-      batch.push({ gameKey, item: next, embed });
-    }
+        logger("WARN", "CRON_UPDATES", `buildUpdateEmbed a esuat pentru ${selection.gameKey}/${selection.item.id}; claim-ul a fost dat inapoi`, transientErrorMessage(err));
+      },
+      transientPolicy: "continue",
+      errorMessage: transientErrorMessage
+    });
+    const batch = claimed.batch;
 
     const notificationRoleId = guild.notificationRoleId;
     const messageTemplate = guild.updateMessageTemplate;
