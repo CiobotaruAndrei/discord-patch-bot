@@ -196,7 +196,15 @@ test("installerele nu mai sunt coercitate cu as unknown as sau as never in regis
   assert.match(cmd, /return Object\.freeze\(\{/, "registrul intoarce direct functiile locale (handleInteraction/buildHelpEmbed) intr-un obiect inghetat, fara scriere inapoi in context");
   const descriptors = fs.readFileSync(path.join(srcRoot, "features", "command-registry", "commandHandlerDescriptors.ts"), "utf8");
   assert.match(descriptors, /interface CommandHandlerDescriptor/, "descriptorii au contract explicit");
-  assert.ok((descriptors.match(/build: context =>/g) || []).length >= 15, "handler-ele sunt declarate prin factory-uri tipate in registrul de descriptori");
+  const descriptorsDir = path.join(srcRoot, "features", "command-registry", "descriptors");
+  const declarate = fs.readdirSync(descriptorsDir)
+    .filter(name => name.endsWith("Descriptors.ts"))
+    .reduce((total, name) => total + (fs.readFileSync(path.join(descriptorsDir, name), "utf8").match(/build: context =>/g) || []).length, 0);
+  assert.ok(
+    declarate >= 15,
+    "handler-ele sunt declarate prin factory-uri tipate; de cand compozitia e impartita pe domenii, ele stau " +
+      `in modulele din descriptors/, nu in fisierul central (gasite ${declarate})`
+  );
   assert.ok(!src.includes("Partial<SourceRegistryApi>"), "arhitectura Partial<SourceRegistryApi> a fost eliminata: compunerea e explicita, verificata integral de tsc (review nou, Major #7)");
   assert.ok(!src.includes("requireSourceValue"), "fara garda runtime pe chei: compilatorul dovedeste ca fiecare camp exista (nu mai exista context progresiv partial)");
   assert.match(src, /function createSourceRegistry\(deps: SourceRuntimeDeps\): SourceRegistryApi/, "sourceRegistry compune explicit din dependente injectate, cu tip de retur inchis SourceRegistryApi");
