@@ -84,6 +84,7 @@ export interface MongoContextLike {
   adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<void>;
   getGuildSettings?: (guildId: string) => Promise<GuildSettings | null>;
   GuildModel?: ModerationGuildModel & GuildConfigWriteModelLike;
+  GuildModerationModel?: ModerationGuildModel;
   GuildAuditLogModel?: GuildAuditLogModelLike;
   NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
   ChannelLockRecoveryModel?: ChannelLockRecoveryModelLike;

@@ -39,7 +39,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     pendingDiscountSchema,
     priceAlertSchema
   } = buildGuildNotificationSchemas({ mongoose, SUPPORTED_CURRENCIES });
-  const { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema, lockedChannelPermissionSchema, botObservationSchema } = buildGuildModerationSchemas({ mongoose });
+  const { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema, lockedChannelPermissionSchema, botObservationSchema, guildModerationStateSchema } = buildGuildModerationSchemas({ mongoose });
   const {
     youtubeChannelSchema,
     youtubeChannelRouteSchema
@@ -171,6 +171,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   guildSchema.post("deleteOne", publishChangedGuild);
 
   const GuildModel = mongoose.model("Guild", guildSchema);
+  const GuildModerationModel = mongoose.model("GuildModeration", guildModerationStateSchema, "guildModeration");
 
   const {
     circuitBreakerSchema,
@@ -246,6 +247,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
 
   return {
     GuildModel,
+    GuildModerationModel,
     GuildAuditLogModel,
     GuildConfigBackupModel,
     GuildSuggestedCommandModel,

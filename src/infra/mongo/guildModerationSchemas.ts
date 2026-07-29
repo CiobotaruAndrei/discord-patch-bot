@@ -67,5 +67,14 @@ export function buildGuildModerationSchemas({ mongoose }: GuildModerationSchemas
     lastBurstAlertAt: { type: Date, default: null }
   }, { _id: false });
 
-  return { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema, lockedChannelPermissionSchema, botObservationSchema };
+  const guildModerationStateSchema = new mongoose.Schema({
+    _id: { type: String, required: true },
+    schemaVersion: { type: Number, default: MODERATION_RECORD_SCHEMA_VERSION },
+    moderationTimeouts: { type: [moderationRecordSchema], default: [] },
+    moderationMutes: { type: [moderationRecordSchema], default: [] },
+    moderationWarnings: { type: [warningRecordSchema], default: [] },
+    moderationWarnBanLimit: { type: Number, default: 0, min: 0 }
+  }, { versionKey: false, timestamps: true });
+
+  return { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema, lockedChannelPermissionSchema, botObservationSchema, guildModerationStateSchema };
 }

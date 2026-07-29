@@ -27,6 +27,7 @@ type MongoRuntimeContext = {
   isTransientMongoError: (err: unknown) => boolean;
   withMongoRetry: <T>(fn: () => Promise<T>, options?: { retries?: number; label?: string }) => Promise<T>;
   GuildModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildModel"];
+  GuildModerationModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildModerationModel"];
   GuildAuditLogModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildAuditLogModel"];
   GuildConfigBackupModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildConfigBackupModel"];
   GuildSuggestedCommandModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSuggestedCommandModel"];
@@ -118,6 +119,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     isTransientMongoError: context.isTransientMongoError,
     withMongoRetry: context.withMongoRetry,
     GuildModel: context.GuildModel,
+    GuildModerationModel: context.GuildModerationModel,
     GuildAuditLogModel: context.GuildAuditLogModel,
     GuildConfigBackupModel: context.GuildConfigBackupModel,
     GuildSuggestedCommandModel: context.GuildSuggestedCommandModel,
