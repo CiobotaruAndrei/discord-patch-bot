@@ -1,5 +1,3 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 
 "use strict";
 
@@ -33,7 +31,7 @@ const {
   reorderByValidPermutation,
   scoreListingCandidate,
   stableUpdateId
-} = require("../../native/fuzzy");
+} = (await import("../../native/fuzzy.js"));
 
 const LISTING_SAMPLE = [
   { href: "https://x.com/news/2024-01-05/intro", text: "Intro article", position: 0 },
