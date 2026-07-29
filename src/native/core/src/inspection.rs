@@ -544,6 +544,44 @@ fn chm_indicators(bytes: &[u8]) -> Vec<String> {
   dedupe(indicators)
 }
 
+const TEXT_LINK_SCAN_BYTES: usize = 256 * 1024;
+
+const STANDARDS_HOSTS: &[&str] = &[
+  "schemas.openxmlformats.org",
+  "schemas.microsoft.com",
+  "purl.org",
+  "www.w3.org",
+  "w3.org",
+  "ns.adobe.com",
+  "iptc.org",
+  "xmlns.com",
+  "docs.oasis-open.org",
+  "relaxng.org"
+];
+
+fn is_standards_host(host: &str) -> bool {
+  STANDARDS_HOSTS.iter().any(|known| host == *known || host.ends_with(&format!(".{known}")))
+}
+
+fn text_link_indicators(bytes: &[u8]) -> Vec<String> {
+  let window = &bytes[..bytes.len().min(TEXT_LINK_SCAN_BYTES)];
+  if !window.windows(4).any(|slice| slice == b"http") {
+    return Vec::new();
+  }
+  let text = String::from_utf8_lossy(window);
+  let mut indicators: Vec<String> = Vec::new();
+  for host in find_url_hosts(&text, &DocumentTextLimits::default()) {
+    if is_standards_host(&host) {
+      continue;
+    }
+    indicators.push(format!("link in textul documentului catre {host}"));
+    for semnal in host_identity_indicators(&host) {
+      indicators.push(format!("{semnal} (gazda din textul documentului)"));
+    }
+  }
+  indicators
+}
+
 fn pdf_text_link_indicators(content: &[u8]) -> Vec<String> {
   let limits = DocumentTextLimits::default();
   let text = extract_pdf_text(content, &limits);
@@ -760,6 +798,7 @@ fn content_indicators(name: &str, bytes: &[u8], budget: &mut Budget) -> Vec<Stri
   }
   indicators.extend(executable_indicators(bytes));
   indicators.extend(visual_indicators(bytes));
+  indicators.extend(text_link_indicators(bytes));
   let text = scan_window(bytes);
   if pdf_action_indicators(text) {
     indicators.push("actiune automata sau script PDF intern".to_string());
@@ -1549,6 +1588,7 @@ fn document_finding(bytes: &[u8], budget: &mut Budget) -> Finding {
   let mut indicators = document_indicators(bytes);
   indicators.extend(executable_indicators(bytes));
   indicators.extend(visual_indicators(bytes));
+  indicators.extend(text_link_indicators(bytes));
   indicators.extend(pdf_structural_indicators(bytes, budget));
   let deep = pdf_deep_indicators(bytes, budget);
   let (uncertain, deep_reason) = match deep {
