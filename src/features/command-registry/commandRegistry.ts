@@ -160,7 +160,7 @@ function buildCommandHandlerList(ctx: ReturnType<typeof createAppServices>): { c
   const descriptors = createCommandHandlerDescriptors();
   const built = descriptors.map(descriptor => ({
     descriptor,
-    handler: descriptor.id === "help" ? helpCommand : descriptor.build(ctx)
+    handler: descriptor.id === "help" ? helpCommand : descriptor.buildFrom(ctx)
   }));
   const commandHandlers: CommandHandler[] = built.map(entry => entry.handler);
   const commandOwners: CommandOwnerCandidate[] = built.map(entry => ({

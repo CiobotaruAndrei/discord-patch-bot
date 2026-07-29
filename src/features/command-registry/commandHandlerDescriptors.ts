@@ -1,6 +1,7 @@
 import type { CommandHandler } from "./commandHandler.js";
 import type { CommandAppServices } from "./commandRegistry.js";
 import type { CommandDomainDeps } from "./commandDomainDeps.js";
+import { selectDomainDeps } from "./commandDomainSelection.js";
 import { coreDescriptors } from "./descriptors/coreDescriptors.js";
 import { adminDescriptors } from "./descriptors/adminDescriptors.js";
 import { notificationsDescriptors } from "./descriptors/notificationsDescriptors.js";
@@ -17,6 +18,7 @@ export interface CommandHandlerDescriptor<D extends CommandHandlerDomain = Comma
   help: readonly string[];
   autocomplete: readonly string[];
   build(context: CommandDomainDeps[D]): CommandHandler;
+  buildFrom(context: CommandDomainDeps[D]): CommandHandler;
 }
 
 export type AnyCommandHandlerDescriptor = {
@@ -33,7 +35,8 @@ export function createCommandHandlerDescriptors(): readonly AnyCommandHandlerDes
       access: input.domain === "admin" ? "admin" : "public",
       help: [input.id],
       autocomplete: [],
-      ...input
+      ...input,
+      buildFrom: (context: CommandDomainDeps[D]) => input.build(selectDomainDeps(input.domain, context))
     };
   }
   const descriptors: readonly AnyCommandHandlerDescriptor[] = [
