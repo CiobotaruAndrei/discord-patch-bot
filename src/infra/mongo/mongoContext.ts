@@ -7,6 +7,7 @@ import { assertNoUndefinedExports } from "../../shared/assertCompleteExports.js"
 export type MongoContextExports = MongoRuntimeContext;
 
 type MongoRuntimeContext = {
+  guildSettingsBus: GuildSettingsEventBus;
   mongoose: typeof import("mongoose");
   crypto: typeof import("node:crypto");
   axios: typeof import("axios").default;
@@ -100,10 +101,12 @@ import attachGuildSettingsModule from "./guildSettings.js";
 import attachAdminAlertsModule from "./adminAlerts.js";
 import attachFetchSnapshotsModule from "./fetchSnapshots.js";
 import attachSourceHealthModule from "./sourceHealth.js";
-import { setGuildSettingsEventErrorReporter } from "./guildSettingsEvents.js";
+import { createGuildSettingsEventBus } from "./guildSettingsEventBus.js";
+import type { GuildSettingsEventBus } from "./guildSettingsEventBus.js";
 
 function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {
   return {
+    guildSettingsBus: context.guildSettingsBus,
     mongoose: context.mongoose,
     crypto: context.crypto,
     axios: context.axios,
@@ -188,11 +191,12 @@ function requireBootEnv(env: RuntimeEnv): RuntimeEnv & { MONGO_URI: string; DISC
 }
 
 function createMongoContext(): MongoRuntimeContext {
+  const guildSettingsBus = createGuildSettingsEventBus();
   const base = { ...runtimeContextModule };
   const withLogging = { ...base, ...attachLoggingModule.buildFrom(base) };
   const withDomain = { ...withLogging, ...attachDomainModule.buildFrom({}) };
   const withEnv = { ...withDomain, ...attachEnvModule.buildFrom(withDomain) };
-  const withUtilities = { ...withEnv, ...attachUtilitiesModule.buildFrom(withEnv) };
+  const withUtilities = { ...withEnv, ...attachUtilitiesModule.buildFrom(withEnv), guildSettingsBus };
   const withModels = { ...withUtilities, ...attachModelsModule.buildFrom(withUtilities) };
   const withLocks = { ...withModels, ...attachLocksModule.buildFrom(withModels) };
   const withMigrations = { ...withLocks, ...attachMigrationsModule.buildFrom(withLocks) };
@@ -201,7 +205,7 @@ function createMongoContext(): MongoRuntimeContext {
   const withAdminAlerts = { ...withGuildSettings, ...attachAdminAlertsModule.buildFrom(withGuildSettings) };
   const withFetchSnapshots = { ...withAdminAlerts, ...attachFetchSnapshotsModule.buildFrom(withAdminAlerts) };
   const withSourceHealth = { ...withFetchSnapshots, ...attachSourceHealthModule.buildFrom(withFetchSnapshots) };
-  setGuildSettingsEventErrorReporter((guildId, error) => {
+  guildSettingsBus.setErrorReporter((guildId, error) => {
     withSourceHealth.logger("WARN", "GUILD_EVENTS", `Listener GuildSettingsChanged a esuat pentru guild ${guildId}`, error);
   });
   return assertNoUndefinedExports(buildMongoContextExports({ ...withSourceHealth, env: requireBootEnv(withSourceHealth.env) }), "mongoContext");

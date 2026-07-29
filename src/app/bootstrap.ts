@@ -66,6 +66,7 @@ function buildAppRuntime(role: BotRole): AppRuntime {
     errorMessage, errorDetail, redis, role,
     mongo: {
       logger, env, parseEnvNumber,
+      guildSettingsBus: mongoContext.guildSettingsBus,
       ...locks,
       waitForMongoReady, cleanGuildCache, getGuildCacheSize,
       ...administration,
