@@ -15,4 +15,22 @@ function roleRunsInteractions(role: BotRole): boolean {
   return role !== "worker";
 }
 
-export { resolveBotRole, roleRunsSchedulers, roleRunsInteractions, BOT_ROLES };
+const INTERACTION_INTENTS = ["Guilds", "GuildMembers", "GuildMessages", "MessageContent", "GuildModeration"] as const;
+const SCHEDULER_ONLY_INTENTS = ["Guilds"] as const;
+
+type GatewayIntentName = (typeof INTERACTION_INTENTS)[number];
+
+function intentNamesForRole(role: BotRole): readonly GatewayIntentName[] {
+  return roleRunsInteractions(role) ? INTERACTION_INTENTS : SCHEDULER_ONLY_INTENTS;
+}
+
+export {
+  resolveBotRole,
+  roleRunsSchedulers,
+  roleRunsInteractions,
+  intentNamesForRole,
+  INTERACTION_INTENTS,
+  SCHEDULER_ONLY_INTENTS,
+  BOT_ROLES
+};
+export type { GatewayIntentName };
