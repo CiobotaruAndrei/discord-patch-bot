@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readInspectionSources } from "./nativeInspectionSources.js";
 
 import fs from "fs";
 import path from "path";
@@ -40,7 +41,7 @@ test("decompresia ramane plafonata, fiindca octetii vin de la un expeditor necun
 });
 
 test("continutul decomprimat ajunge efectiv in raport, nu se opreste in modul", () => {
-  const inspection = readNative(path.join("core", "src", "inspection.rs"));
+  const inspection = readInspectionSources();
   assert.ok(
     inspection.includes("ms_container_indicators"),
     "un decodor care nu e chemat din raport e cod mort care da impresia de acoperire"
