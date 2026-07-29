@@ -85,6 +85,13 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Motivul e ca „zero inseamna esec" era o conventie nescrisa cu trei dialecte: `modifiedCount === 0` (nu s-a schimbat nimic), `matchedCount === 0` (revendicare pierduta) si `!== 0` (care citea un contor absent drept succes, deci esua deschis). Contoarele ramanand optionale in porturi, forma `!== 0` insemna ca un driver care nu raporteaza nimic era interpretat ca reusita; `classifyWrite` trateaza absenta contoarelor drept `missing`, adica esueaza inchis.
 - Gardat de `persistenceOutcomeUsage.test.ts`: niciun modul din `app`/`features`/`domain`/`infra`/`sources` nu are voie sa compare direct un contor de scriere, iar numarul de module care folosesc vocabularul nu are voie sa scada.
 
+### `src/config/gameCatalog.ts` + `src/config/gameCatalogSchema.ts`
+
+- Catalogul static de jocuri e separat de configuratia operationala. `gameCatalogSchema.ts` tine regulile care privesc catalogul ca intreg (chei duplicate, termeni de cautare care se calca intre jocuri, aliasuri duplicate, `articleHrefRegex` care nu compileaza) plus `GAME_CATALOG_SCHEMA_VERSION`; `configValidator.ts` a ramas cu partea operationala, adica `checkIntervalMinutes`, si deleaga jocurile catre `GameCatalogSchema`.
+- `createGameCatalog(games)` construieste un catalog cu indexi pregatiti: `byKey` si `byKeyOrAlias` sunt cautari `Map`, nu scanari liniare care normalizau la fiecare apel numele si toate aliasurile fiecarui joc. Catalogul mai raspunde la `typeOf`, `platformId` (appId-ul Steam, singurul identificator de platforma real), `keys`, `has`, `enabledSubset` si expune `schemaVersion` + `contentVersion`, amprenta continutului.
+- `catalogFor(games)` memoreaza catalogul per lista de jocuri, deci codul existent care primeste `GameConfig[]` capata cautarile indexate fara sa i se schimbe semnatura; `loadConfig` construieste catalogul o singura data si il pune in `ConfigLoadResult.catalog`.
+- `Guild` pastreaza doar chei (`enabledGames: string[]`), nu copii ale definitiilor. Gardat de `gameCatalogSeparation.test.ts`: regulile de catalog nu au voie sa se intoarca in validatorul de config, setarile unui guild nu au voie sa contina campuri care spun de unde se ia continutul (`listingUrl`, `baseUrl`, `articleHrefRegex`), iar cautarea unui joc dupa cheie nu se mai face cu `find` peste array.
+
 ## Infra
 
 ### `src/infra/http/` (client compus din module pe responsabilitati)
