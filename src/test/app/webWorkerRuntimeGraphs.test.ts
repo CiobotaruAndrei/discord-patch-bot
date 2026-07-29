@@ -1,3 +1,4 @@
+import { createGuildSettingsEventBus } from "../../infra/mongo/guildSettingsEventBus.js";
 import { createGameCatalog } from "../../config/gameCatalog.js";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -80,6 +81,7 @@ function makeGraphHarness(role?: BotRole) {
       close: async () => undefined
     },
     mongo: {
+      guildSettingsBus: createGuildSettingsEventBus(),
       logger: () => undefined,
       env: { MONGO_URI: "mongodb://x", MONGO_MAX_POOL_SIZE: 5, PORT: "3000", DISCORD_TOKEN: "t" } as RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string },
       parseEnvNumber: (_n: string, d: number) => d,

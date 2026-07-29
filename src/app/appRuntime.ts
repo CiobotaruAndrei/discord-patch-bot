@@ -175,7 +175,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 
-  const guildInvalidationChannel = createGuildSettingsInvalidationChannel({ redis: deps.redis, logger });
+  const guildInvalidationChannel = createGuildSettingsInvalidationChannel({ redis: deps.redis, logger, bus: mongo.guildSettingsBus });
 
   const shutdownController = createShutdownController({
     lifecycle, logger, env, client, mongoose, httpServer, activeLocks,

@@ -1,5 +1,6 @@
 import type { CacheEntry, GuildSettings, RuntimeEnv } from "../../types.js";
-import { subscribeGuildSettingsChanged } from "./guildSettingsEvents.js";
+import { defaultBus } from "./guildSettingsEvents.js";
+import type { GuildSettingsEventBus } from "./guildSettingsEventBus.js";
 
 interface GuildSettingsModelLike {
   findById(id: string): { lean(): Promise<(GuildSettings & Record<string, unknown>) | null> };
@@ -8,6 +9,7 @@ interface GuildSettingsModelLike {
 interface GuildSettingsContext {
   env: Pick<RuntimeEnv, "GUILD_CACHE_TTL_MS" | "GUILD_CACHE_MAX_SIZE">;
   GuildModel: GuildSettingsModelLike;
+  guildSettingsBus?: GuildSettingsEventBus;
   getGuildSettings?: typeof getGuildSettings;
   invalidateGuildCache?: typeof invalidateGuildCache;
   cleanGuildCache?: typeof cleanGuildCache;
@@ -55,7 +57,15 @@ function invalidateGuildCache(guildId: string): void {
   guildSettingsCache.delete(guildId);
 }
 
-subscribeGuildSettingsChanged(invalidateGuildCache);
+let unsubscribeFromBus: (() => void) | null = null;
+
+function bindGuildSettingsBus(bus: GuildSettingsEventBus): () => void {
+  unsubscribeFromBus?.();
+  unsubscribeFromBus = bus.subscribe(invalidateGuildCache);
+  return unsubscribeFromBus;
+}
+
+bindGuildSettingsBus(defaultBus);
 
 function cleanGuildCache(): void {
   const now = Date.now();
@@ -74,6 +84,7 @@ function buildGuildSettingsFrom(context: GuildSettingsContext) {
     env: context.env,
     GuildModel: context.GuildModel
   };
+  if (context.guildSettingsBus) bindGuildSettingsBus(context.guildSettingsBus);
 
   return {
     getGuildSettings,

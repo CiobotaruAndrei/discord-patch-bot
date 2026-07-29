@@ -1,5 +1,6 @@
 "use strict";
 
+import type { GuildSettingsEventBus } from "../infra/mongo/guildSettingsEventBus.js";
 import type {
   ActiveLocks,
   BotConfig,
@@ -83,6 +84,7 @@ export interface MongoContextLike {
   getGuildCacheSize: () => number;
   adminAlert: (kind: string, title: string, body: string, guildId?: string) => Promise<void>;
   getGuildSettings?: (guildId: string) => Promise<GuildSettings | null>;
+  guildSettingsBus: GuildSettingsEventBus;
   GuildModel?: ModerationGuildModel & GuildConfigWriteModelLike;
   GuildModerationModel?: ModerationGuildModel;
   GuildAuditLogModel?: GuildAuditLogModelLike;

@@ -1,9 +1,7 @@
 import type { LoggerFunction } from "../../types.js";
 import type { RedisRuntime, RedisSubscriberLike } from "./redisClient.js";
-import {
-  dispatchGuildSettingsChangedLocally,
-  setGuildSettingsRemotePublisher
-} from "../mongo/guildSettingsEvents.js";
+import { defaultBus } from "../mongo/guildSettingsEvents.js";
+import type { GuildSettingsEventBus } from "../mongo/guildSettingsEventBus.js";
 import { errorMessage } from "../../shared/errors.js";
 
 const CHANNEL = "guild-settings-changed";
@@ -11,6 +9,7 @@ const CHANNEL = "guild-settings-changed";
 interface GuildSettingsInvalidationChannelDeps {
   redis: RedisRuntime;
   logger: LoggerFunction;
+  bus?: GuildSettingsEventBus;
 }
 
 interface GuildSettingsInvalidationChannel {
@@ -20,6 +19,7 @@ interface GuildSettingsInvalidationChannel {
 
 function createGuildSettingsInvalidationChannel(deps: GuildSettingsInvalidationChannelDeps): GuildSettingsInvalidationChannel {
   const { redis, logger } = deps;
+  const bus = deps.bus ?? defaultBus;
   let subscriber: RedisSubscriberLike | null = null;
 
   async function start(): Promise<void> {
@@ -37,9 +37,9 @@ function createGuildSettingsInvalidationChannel(deps: GuildSettingsInvalidationC
     subscriber.on("error", err => logger("ERROR", "GUILD_EVENTS", "Eroare pe conexiunea de subscribe Redis", errorMessage(err)));
     await subscriber.connect();
     await subscriber.subscribe(CHANNEL, guildId => {
-      dispatchGuildSettingsChangedLocally(guildId);
+      bus.dispatchLocally(guildId);
     });
-    setGuildSettingsRemotePublisher(guildId => {
+    bus.setRemotePublisher(guildId => {
       void publish(CHANNEL, guildId).catch(err =>
         logger("WARN", "GUILD_EVENTS", `Publish invalidare guild ${guildId} a esuat (raman pe TTL)`, errorMessage(err)));
     });
@@ -47,7 +47,7 @@ function createGuildSettingsInvalidationChannel(deps: GuildSettingsInvalidationC
   }
 
   async function stop(): Promise<void> {
-    setGuildSettingsRemotePublisher(null);
+    bus.setRemotePublisher(null);
     if (subscriber && subscriber.isOpen) {
       await subscriber.quit();
     }

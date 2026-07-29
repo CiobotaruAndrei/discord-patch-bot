@@ -3,7 +3,6 @@ import { intentNamesForRole } from "../../shared/botRole.js";
 
 import ________infra_redis_redisMetrics from "../../infra/redis/redisMetrics.js";
 const { attachRedisMetrics } = ________infra_redis_redisMetrics;
-import { attachGuildSettingsEventMetrics } from "../../infra/mongo/guildSettingsEvents.js";
 
 function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   const { Client, GatewayIntentBits, loadConfig, createMetrics, createRateLimiter, scrapers, mongo } = deps;
@@ -12,7 +11,7 @@ function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   const metrics = createMetrics();
   scrapers.attachMetrics(metrics);
   attachRedisMetrics(metrics);
-  attachGuildSettingsEventMetrics(metrics);
+  mongo.guildSettingsBus.attachMetrics(metrics);
   const client = new Client({ intents: intentNamesForRole(env.BOT_ROLE).map(name => GatewayIntentBits[name]) });
   setAdminAlertDiscordClient(client);
   const lifecycle = { isShuttingDown: false };
