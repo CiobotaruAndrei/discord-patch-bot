@@ -18,6 +18,7 @@ mod chm_listing;
 mod code_disassembly;
 mod mspack_container;
 mod similarity_corpus;
+mod similarity_hash;
 mod document_text;
 mod pdf_vector;
 mod visual;
@@ -46,7 +47,11 @@ pub use msi_database::{
 pub use native_archive::{
   decode_native_archive, native_archive_available, NativeArchiveEntry, NativeArchiveOutcome,
 };
-pub use similarity_corpus::{categories, digest_of, known_sample_indicators, hostile_sample_count, lookup_by_digest, LabeledSample, LABELED_CORPUS, LABELED_CORPUS_VERSION};
+pub use similarity_corpus::{categories, fuzzy_sample_count, nearest_fuzzy_sample, similar_sample_indicators, digest_of, known_sample_indicators, hostile_sample_count, lookup_by_digest, LabeledSample, LABELED_CORPUS, LABELED_CORPUS_VERSION};
+pub use similarity_hash::{
+  classify_distance, fuzzy_digest, fuzzy_digest_len, fuzzy_distance, fuzzy_hashing_available, min_fuzzy_input_bytes,
+  FuzzyMatchLimits, Proximity,
+};
 pub use chm_listing::{is_chm, list_chm_entries, ChmListingLimits};
 pub use mspack_container::{
   container_decode_available, decode_ms_container, is_cabinet, is_compiled_help, looks_like_ms_container,

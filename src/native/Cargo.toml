@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "inspector", "mspack-sys"]
+members = ["core", "inspector", "mspack-sys", "tlsh-sys"]
 
 [package]
 name = "discord_patch_bot_core"

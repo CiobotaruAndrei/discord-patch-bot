@@ -26,6 +26,7 @@ export const NATIVE_COMPONENTS: readonly NativeComponent[] = [
   { crate: "capstone", kind: "c-static", vendored: "Capstone 5.x (bundled)", role: "dezasamblarea sectiunii de cod a executabilelor" },
   { crate: "capstone-sys", kind: "c-static", vendored: "Capstone 5.x (bundled)", role: "legaturi FFI pentru Capstone" },
   { crate: "mspack-sys", kind: "c-system", vendored: "libmspack de sistem (0.11)", role: "decompresie CAB si CHM din memorie" },
+  { crate: "tlsh-sys", kind: "cpp-static", vendored: "TLSH 5.0.2 (vendorizat, Apache-2.0)", role: "amprenta fuzzy pentru potrivire aproximativa" },
   { crate: "libseccomp", kind: "c-system", vendored: "libseccomp de sistem", role: "filtru de syscall in procesul izolat" },
   { crate: "libseccomp-sys", kind: "c-system", vendored: "libseccomp de sistem", role: "legaturi FFI pentru libseccomp" },
   { crate: "goblin", kind: "rust", vendored: "-", role: "parsare PE/ELF/Mach-O" },

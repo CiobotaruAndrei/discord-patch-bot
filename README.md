@@ -240,9 +240,10 @@ Pentru operare locala, `npm run doctor:local` verifica intr-un singur flux `.env
 
 ### Dependinte native pentru build-ul addon-ului Rust
 
-Addon-ul leaga sapte librarii C/C++: **libmagic** (detectia tipului real, etapa 1), **ZXing-C++** (decodarea codurilor din imagini, inclusiv din imaginile gasite in arhive si din imaginile incorporate in PDF-uri, al caror bitmap e reconstruit din dictionarul obiectului, din previzualizarea JPEG a unui container HEIC/AVIF cand exista, si din codurile desenate vectorial in pagina PDF, rasterizate bounded din dreptunghiurile umplute ale fluxului de continut, etapa 9), **libyara** (motorul
+Addon-ul leaga opt librarii C/C++: **libmagic** (detectia tipului real, etapa 1), **ZXing-C++** (decodarea codurilor din imagini, inclusiv din imaginile gasite in arhive si din imaginile incorporate in PDF-uri, al caror bitmap e reconstruit din dictionarul obiectului, din previzualizarea JPEG a unui container HEIC/AVIF cand exista, si din codurile desenate vectorial in pagina PDF, rasterizate bounded din dreptunghiurile umplute ale fluxului de continut, etapa 9), **libyara** (motorul
 de reguli, etapa 2), **libarchive** (decodarea continutului arhivelor, etapa 3), **qpdf** (analiza
-structurala a PDF-urilor, etapa 4), inclusiv extragerea adreselor din textul vizibil si trecerea lor prin analiza de identitate a gazdei, si **Capstone** (citirea instructiunilor din executabile, etapa 10), plus **libmspack** (decompresia containerelor CAB si CHM, etapa 11). libyara, libarchive, qpdf si Capstone sunt compilate din surse si legate
+structurala a PDF-urilor, etapa 4), inclusiv extragerea adreselor din textul vizibil si trecerea lor prin analiza de identitate a gazdei, si **Capstone** (citirea instructiunilor din executabile, etapa 10), **libmspack** (decompresia containerelor CAB si CHM, etapa 11) si **TLSH** (potrivirea aproximativa cu mostrele cunoscute, etapa 12). libyara, libarchive, qpdf si Capstone sunt compilate din surse si legate
+structurala a PDF-urilor, etapa 4), inclusiv extragerea adreselor din textul vizibil si trecerea lor prin analiza de identitate a gazdei, ** libyara, libarchive, qpdf si Capstone sunt compilate din surse si legate
 static (libyara, qpdf si Capstone nu cer niciun pachet de sistem in plus; libarchive cere un lant de librarii de
 compresie la build). **libmagic** e o librarie de sistem: pe Linux se leaga dinamic la `libmagic1`
 (`magic_load(NULL)` gaseste `/usr/lib/file/magic.mgc`), la build cere `libmagic-dev`. Cand baza
@@ -271,6 +272,25 @@ Legatura dinamica nu e o comoditate, ci cerinta licentei LGPL-2.1 sub care e pub
 Legaturile sunt generate cu bindgen in `native/mspack-sys`, fiindca structurile libmspack contin `off_t`,
 care are latimi diferite pe Windows si pe Linux; scrise de mana ar fi fost corecte pe o platforma si
 gresite tacut pe cealalta.
+
+**TLSH** (feature `fuzzy`, etapa 12) extinde potrivirea cu corpusul etichetat de la identica la
+apropiata. Cautarea dupa SHA-256 gasea o mostra cunoscuta doar daca fisierul era identic la octet, deci
+orice repachetare o rata. Amprenta TLSH se schimba proportional cu continutul, nu total, iar distanta
+dintre doua amprente e o masura reala de asemanare. Masurat pe mostrele proprii: un octet schimbat da
+distanta 4, saisprezece octeti contigui dau 34, un prefix de 64 de octeti pus in fata da 45, o coada de
+128 de octeti inlocuita da 137, iar o modificare in 64 de puncte raspandite da 160. De aici pragurile:
+sub 30 se raporteaza „foarte apropiat", sub 100 „inrudit", peste nu se raporteaza nimic. Potrivirea
+aproximativa se incearca doar cand cea exacta nu gaseste nimic, deci o mostra identica ramane raportata
+ca identica. Amprentele stau in acelasi index versionat ca cele exacte si sunt recalculate din mostrele
+inghetate la fiecare rulare de teste. TLSH alege ordinea campurilor `Q1ratio`/`Q2ratio` dupa `__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__`, iar
+compilatorul Microsoft nu defineste niciunul dintre macro-uri: ambele devin 0, conditia iese adevarata
+si Windows ar compila ramura big-endian pe o masina little-endian, producand alta amprenta decat Linux
+pentru acelasi continut. Build-ul o declara explicit, dupa endianness-ul tintei. libyara isi vendorizeaza propria copie a TLSH, iar `topval` — singura variabila globala mutabila din
+sursa — se bate cu a noastra la link pe Linux; build-ul o redenumeste la compilare, fara sa modifice
+sursa vendorizata. Pe Windows ciocnirea nu apare, deci linia e pazita de un gate.
+Sursa C++ e vendorizata in `native/tlsh-sys/vendor`, cu licenta si
+commit-ul upstream fixate: TLSH se publica sub Apache sau BSD, deci compilarea statica e curata, si nu
+exista niciun crate care sa lege implementarea de referinta.
 
 Separat de addon, binarul `native/inspector` (etapa 5) foloseste **libseccomp** pentru filtrul de
 syscall-uri. Acesta e singurul care cere `libseccomp-dev` la build si `libseccomp2` la rulare, si numai

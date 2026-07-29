@@ -1,0 +1,8 @@
+[package]
+name = "tlsh-sys"
+version = "0.1.0"
+edition = "2021"
+links = "tlsh"
+
+[build-dependencies]
+cc = "1.3.0"

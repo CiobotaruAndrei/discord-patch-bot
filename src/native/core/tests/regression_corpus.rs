@@ -678,3 +678,105 @@ fn fiecare_esantion_inghetat_exista_in_indexul_etichetat() {
     assert_eq!(gasit.hostile, !sample.benign, "eticheta ostil/benign difera pentru {}", sample.name);
   }
 }
+
+#[test]
+fn amprentele_fuzzy_din_index_sunt_recalculabile_din_mostrele_inghetate() {
+  use discord_patch_bot_logic::{fuzzy_digest, lookup_by_digest, FuzzyMatchLimits};
+
+  let limits = FuzzyMatchLimits::default();
+  let mut verificate = 0;
+  for sample in corpus() {
+    let intrare = lookup_by_digest(sample.digest)
+      .unwrap_or_else(|| panic!("mostra {} lipseste din indexul etichetat", sample.name));
+    let calculata = fuzzy_digest(&sample.bytes, &limits).unwrap_or_default();
+    assert_eq!(
+      calculata, intrare.fuzzy,
+      "amprenta fuzzy a mostrei {} nu mai corespunde continutului ei; un index care se desparte de mostre        raporteaza asemanari cu ceva ce nu mai exista",
+      sample.name
+    );
+    verificate += 1;
+  }
+  assert!(verificate >= 17, "s-au verificat doar {verificate} mostre");
+}
+
+#[test]
+fn o_mostra_ostila_cu_prefix_adaugat_e_tot_recunoscuta() {
+  use discord_patch_bot_logic::{digest_of, lookup_by_digest, similar_sample_indicators};
+
+  let originala = corpus()
+    .into_iter()
+    .find(|sample| sample.name == "arhiva-tar-office-cu-macro")
+    .expect("mostra ostila exista in corpus");
+
+  let mut variata = vec![0x5au8; 64];
+  variata.extend_from_slice(&originala.bytes);
+
+  assert!(
+    lookup_by_digest(&digest_of(&variata)).is_none(),
+    "exact asta e golul pe care il inchide potrivirea aproximativa: 64 de octeti pusi in fata schimba      complet amprenta exacta, iar cautarea dupa SHA-256 nu mai gaseste nimic"
+  );
+
+  let indicatori = similar_sample_indicators(&variata);
+  assert!(
+    indicatori.iter().any(|indicator| indicator.contains("arhiva-tar-office-cu-macro")),
+    "adaugarea de continut inaintea celui real e o evaziune banala; masurat, distanta ramane 45: {indicatori:?}"
+  );
+  assert!(
+    indicatori.iter().any(|indicator| indicator.contains("ostila")),
+    "eticheta mostrei trebuie sa ajunga in raport, nu doar numele ei: {indicatori:?}"
+  );
+}
+
+#[test]
+fn o_schimbare_de_un_octet_e_raportata_ca_foarte_apropiata_nu_doar_inrudita() {
+  use discord_patch_bot_logic::similar_sample_indicators;
+
+  let originala = corpus()
+    .into_iter()
+    .find(|sample| sample.name == "arhiva-tar-office-cu-macro")
+    .expect("mostra ostila exista in corpus");
+
+  let mut variata = originala.bytes.clone();
+  variata[100] ^= 0xff;
+
+  let indicatori = similar_sample_indicators(&variata);
+  assert!(
+    indicatori.iter().any(|indicator| indicator.contains("foarte apropiat")),
+    "un singur octet schimbat da distanta 4; raportul trebuie sa distinga asta de o simpla inrudire: {indicatori:?}"
+  );
+}
+
+#[test]
+fn un_continut_rescris_masiv_nu_mai_e_raportat_ca_ruda() {
+  use discord_patch_bot_logic::similar_sample_indicators;
+
+  let originala = corpus()
+    .into_iter()
+    .find(|sample| sample.name == "arhiva-tar-office-cu-macro")
+    .expect("mostra ostila exista in corpus");
+
+  let mut variata = originala.bytes.clone();
+  let pas = (variata.len() / 64).max(1);
+  for index in (0..variata.len()).step_by(pas) {
+    variata[index] = variata[index].wrapping_add(1);
+  }
+
+  assert!(
+    similar_sample_indicators(&variata).is_empty(),
+    "masurat, distanta e 160; un prag care ar accepta si asta ar lega orice fisier de orice mostra"
+  );
+}
+
+#[test]
+fn un_continut_fara_legatura_cu_corpusul_nu_produce_asemanari_inventate() {
+  use discord_patch_bot_logic::similar_sample_indicators;
+
+  let text = "Salut, asta e un mesaj obisnuit despre actualizari de jocuri. ".repeat(40);
+  assert!(
+    similar_sample_indicators(text.as_bytes()).is_empty(),
+    "un prag prea larg ar transforma orice fisier intr-o ruda a corpusului"
+  );
+}
+
+
+

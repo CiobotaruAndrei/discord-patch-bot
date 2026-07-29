@@ -26,20 +26,25 @@ COPY src/native/inspector/Cargo.toml ./native/inspector/
 # mspack-sys intra intreg, nu doar cu manifestul: build.rs ruleaza bindgen si compileaza shim-ul C,
 # deci fara ele stratul n-ar incalzi nimic din ce costa la crate-ul asta.
 COPY src/native/mspack-sys/Cargo.toml src/native/mspack-sys/build.rs src/native/mspack-sys/shim.c ./native/mspack-sys/
+# tlsh-sys intra cu tot cu vendor/: build.rs compileaza sursa C++ vendorizata, care nu se schimba
+# niciodata singura, deci stratul o compileaza o data si o refoloseste la orice build ulterior.
+COPY src/native/tlsh-sys/Cargo.toml src/native/tlsh-sys/build.rs src/native/tlsh-sys/shim.cpp ./native/tlsh-sys/
+COPY src/native/tlsh-sys/vendor/ ./native/tlsh-sys/vendor/
 # Tripletul e explicit fiindca `napi build` compileaza cu --target, deci scrie in
 # target/<triplet>/release. Un `cargo build` fara --target ar popula target/release, adica alt
 # director, si pre-compilarea n-ar fi refolosita de nimic — ar adauga un build intreg in loc sa scuteasca.
 RUN TARGET="$(rustc -vV | sed -n 's/^host: //p')" \
-  && mkdir -p native/src native/core/src native/inspector/src native/mspack-sys/src \
+  && mkdir -p native/src native/core/src native/inspector/src native/mspack-sys/src native/tlsh-sys/src \
   && printf 'fn main() {}\n' > native/inspector/src/main.rs \
   && : > native/src/lib.rs \
   && : > native/core/src/lib.rs \
   && : > native/inspector/src/lib.rs \
   && : > native/mspack-sys/src/lib.rs \
+  && : > native/tlsh-sys/src/lib.rs \
   && cargo build --release --target "$TARGET" --manifest-path native/Cargo.toml --workspace \
   && cargo clean --release --target "$TARGET" --manifest-path native/Cargo.toml \
-    -p discord_patch_bot_core -p discord_patch_bot_logic -p native-inspector -p mspack-sys \
-  && rm -rf native/src native/core/src native/inspector/src native/mspack-sys/src
+    -p discord_patch_bot_core -p discord_patch_bot_logic -p native-inspector -p mspack-sys -p tlsh-sys \
+  && rm -rf native/src native/core/src native/inspector/src native/mspack-sys/src native/tlsh-sys/src
 
 COPY src/package.json src/package-lock.json ./
 RUN npm ci

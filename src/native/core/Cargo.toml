@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["magic", "msi", "yara", "archive", "qpdf", "executable", "url-identity", "visual", "disassembly", "mspack"]
+default = ["magic", "msi", "yara", "archive", "qpdf", "executable", "url-identity", "visual", "disassembly", "mspack", "fuzzy"]
 magic = ["dep:magic"]
 yara = ["dep:yara"]
 archive = ["dep:libarchive2-sys"]
@@ -15,6 +15,7 @@ url-identity = ["dep:idna", "dep:unicode-security", "dep:publicsuffix"]
 visual = ["dep:zxing-cpp", "dep:image"]
 msi = ["dep:msi"]
 mspack = ["dep:mspack-sys"]
+fuzzy = ["dep:tlsh-sys"]
 
 [dependencies]
 sha2 = "0.11"
@@ -29,6 +30,7 @@ unicode-security = { version = "0.1.2", optional = true }
 publicsuffix = { version = "2.3.0", optional = true }
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"], optional = true }
 msi = { version = "0.10", optional = true }
+tlsh-sys = { path = "../tlsh-sys", optional = true }
 capstone = { version = "0.14", optional = true }
 mspack-sys = { path = "../mspack-sys", optional = true }
 zxing-cpp = { version = "0.5", features = ["bundled"], optional = true }
