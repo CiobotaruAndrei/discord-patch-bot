@@ -1,9 +1,7 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const attachLocks = require("../../infra/mongo/locks").default as
+const attachLocks = (await import("../../infra/mongo/locks.js")).default as
   (target: LocksTarget) => void;
 
 type LockQuery = { _id: string };
