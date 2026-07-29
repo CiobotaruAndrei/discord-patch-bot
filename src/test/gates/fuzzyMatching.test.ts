@@ -64,3 +64,13 @@ test("TLSH este declarat in inventarul de librarii native", async () => {
   assert.equal(declarat.kind, "cpp-static", "e compilata static din sursa vendorizata, nu legata la o librarie de sistem");
   assert.match(declarat.vendored, /TLSH/, "inventarul spune ce librarie se livreaza, nu doar numele crate-ului");
 });
+
+test("simbolul global al TLSH-ului nostru e redenumit, ca sa nu se bata cu cel din YARA", () => {
+  const build = readNative(path.join("tlsh-sys", "build.rs"));
+  assert.ok(
+    build.includes('build.define("topval", "discord_patch_bot_tlsh_topval");'),
+    "libyara isi vendorizeaza propria copie a TLSH, iar `topval` e singura variabila globala mutabila din " +
+      "sursa: fara redenumire, linkerul de pe Linux respinge binarul cu `duplicate symbol`. Pe Windows " +
+      "problema nu apare, deci disparitia liniei ar trece nevazuta local si ar pica abia in CI"
+  );
+});

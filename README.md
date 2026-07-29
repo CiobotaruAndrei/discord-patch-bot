@@ -282,7 +282,10 @@ distanta 4, saisprezece octeti contigui dau 34, un prefix de 64 de octeti pus in
 sub 30 se raporteaza „foarte apropiat", sub 100 „inrudit", peste nu se raporteaza nimic. Potrivirea
 aproximativa se incearca doar cand cea exacta nu gaseste nimic, deci o mostra identica ramane raportata
 ca identica. Amprentele stau in acelasi index versionat ca cele exacte si sunt recalculate din mostrele
-inghetate la fiecare rulare de teste. Sursa C++ e vendorizata in `native/tlsh-sys/vendor`, cu licenta si
+inghetate la fiecare rulare de teste. libyara isi vendorizeaza propria copie a TLSH, iar `topval` — singura variabila globala mutabila din
+sursa — se bate cu a noastra la link pe Linux; build-ul o redenumeste la compilare, fara sa modifice
+sursa vendorizata. Pe Windows ciocnirea nu apare, deci linia e pazita de un gate.
+Sursa C++ e vendorizata in `native/tlsh-sys/vendor`, cu licenta si
 commit-ul upstream fixate: TLSH se publica sub Apache sau BSD, deci compilarea statica e curata, si nu
 exista niciun crate care sa lege implementarea de referinta.
 

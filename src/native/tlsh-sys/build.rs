@@ -7,6 +7,7 @@ fn main() {
 
   let mut build = cc::Build::new();
   build.cpp(true).include(&include).warnings(false);
+  build.define("topval", "discord_patch_bot_tlsh_topval");
   if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
     build.define("WINDOWS", None);
   }
