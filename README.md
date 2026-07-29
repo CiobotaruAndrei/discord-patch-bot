@@ -240,14 +240,25 @@ Pentru operare locala, `npm run doctor:local` verifica intr-un singur flux `.env
 
 ### Dependinte native pentru build-ul addon-ului Rust
 
-Addon-ul leaga cinci librarii C/C++: **libmagic** (detectia tipului real, etapa 1), **ZXing-C++** (decodarea codurilor din imagini, inclusiv din imaginile gasite in arhive si din imaginile incorporate in PDF-uri, al caror bitmap e reconstruit din dictionarul obiectului, din previzualizarea JPEG a unui container HEIC/AVIF cand exista, si din codurile desenate vectorial in pagina PDF, rasterizate bounded din dreptunghiurile umplute ale fluxului de continut, etapa 9), **libyara** (motorul
-de reguli, etapa 2), **libarchive** (decodarea continutului arhivelor, etapa 3) si **qpdf** (analiza
-structurala a PDF-urilor, etapa 4), inclusiv extragerea adreselor din textul vizibil si trecerea lor prin analiza de identitate a gazdei. libyara, libarchive si qpdf sunt compilate din surse si legate
-static (libyara si qpdf nu cer niciun pachet de sistem in plus; libarchive cere un lant de librarii de
+Addon-ul leaga sase librarii C/C++: **libmagic** (detectia tipului real, etapa 1), **ZXing-C++** (decodarea codurilor din imagini, inclusiv din imaginile gasite in arhive si din imaginile incorporate in PDF-uri, al caror bitmap e reconstruit din dictionarul obiectului, din previzualizarea JPEG a unui container HEIC/AVIF cand exista, si din codurile desenate vectorial in pagina PDF, rasterizate bounded din dreptunghiurile umplute ale fluxului de continut, etapa 9), **libyara** (motorul
+de reguli, etapa 2), **libarchive** (decodarea continutului arhivelor, etapa 3), **qpdf** (analiza
+structurala a PDF-urilor, etapa 4), inclusiv extragerea adreselor din textul vizibil si trecerea lor prin analiza de identitate a gazdei, si **Capstone** (citirea instructiunilor din executabile, etapa 10). libyara, libarchive, qpdf si Capstone sunt compilate din surse si legate
+static (libyara, qpdf si Capstone nu cer niciun pachet de sistem in plus; libarchive cere un lant de librarii de
 compresie la build). **libmagic** e o librarie de sistem: pe Linux se leaga dinamic la `libmagic1`
 (`magic_load(NULL)` gaseste `/usr/lib/file/magic.mgc`), la build cere `libmagic-dev`. Cand baza
 `magic.mgc` lipseste, detectorul cade pe un tabel de semnaturi Rust, deci build-ul nu se rupe pe medii
 fara libmagic.
+
+**Capstone** (feature `disassembly`) inchide punctele oarbe pe care analiza structurala a
+executabilelor nu le putea explica. Cand un executabil are cod real dar nicio tabela de importuri,
+`analysis_blind_spots` raporta `cod fara importuri rezolvabile`: stiam ca nu vedem ce apeleaza, nu si
+ce face. Acum sectiunea executabila cea mai mare e dezasamblata bounded (cel mult 4096 instructiuni
+si 256 KB, x86, x86-64, ARM si ARM64) si se cauta sase tipare care nu se vad structural: citirea
+directa a PEB (`fs:[0x30]` / `gs:[0x60]`), `syscall` direct, secventa call/pop de cod independent de
+pozitie, control indirect prin registru, bucla care rescrie memorie (stub de despachetare) si sirurile
+construite pe stiva. Cand dezasamblarea gaseste ceva, punctul orb dispare si in locul lui apare un
+indicator concret; cand nu gaseste nimic, punctul orb ramane, fiindca o necunoscuta nu se inlocuieste
+cu o certitudine falsa. O arhitectura pe care nu o citim e raportata explicit, nu tratata drept curata.
 
 Separat de addon, binarul `native/inspector` (etapa 5) foloseste **libseccomp** pentru filtrul de
 syscall-uri. Acesta e singurul care cere `libseccomp-dev` la build si `libseccomp2` la rulare, si numai

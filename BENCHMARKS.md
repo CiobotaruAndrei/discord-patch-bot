@@ -631,7 +631,6 @@ codul care parseaza continut ostil.
 
 `npm run sbom:native` citeste `native/Cargo.lock` si emite versiunile exacte, tipul legarii si sursa
 C/C++ vendorata:
-
 | Crate | Versiune | Tip | Sursa C/C++ | Rol |
 | --- | --- | --- | --- | --- |
 | `magic` | 0.16.7 | c-system | libmagic de sistem (file 5.x) | detectie tip real + MIME + encoding |
@@ -642,6 +641,8 @@ C/C++ vendorata:
 | `qpdf` | 0.3.5 | cpp-static | qpdf + zlib + libjpeg | structura PDF complexa |
 | `qpdf-sys` | 0.3.5 | cpp-static | qpdf + zlib + libjpeg | legaturi FFI pentru qpdf |
 | `zxing-cpp` | 0.5.2 | cpp-static | ZXing-C++ 2.x (bundled) | decodare coduri QR, DataMatrix, Aztec, PDF417 si 1D |
+| `capstone` | 0.14.0 | c-static | Capstone 5.x (bundled) | dezasamblarea sectiunii de cod a executabilelor |
+| `capstone-sys` | 0.18.0 | c-static | Capstone 5.x (bundled) | legaturi FFI pentru Capstone |
 | `libseccomp` | 0.4.0 | c-system | libseccomp de sistem | filtru de syscall in procesul izolat |
 | `libseccomp-sys` | 0.3.0 | c-system | libseccomp de sistem | legaturi FFI pentru libseccomp |
 | `goblin` | 0.10.7 | rust | - | parsare PE/ELF/Mach-O |

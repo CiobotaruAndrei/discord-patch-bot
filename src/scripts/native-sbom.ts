@@ -23,6 +23,8 @@ export const NATIVE_COMPONENTS: readonly NativeComponent[] = [
   { crate: "qpdf", kind: "cpp-static", vendored: "qpdf + zlib + libjpeg", role: "structura PDF complexa" },
   { crate: "qpdf-sys", kind: "cpp-static", vendored: "qpdf + zlib + libjpeg", role: "legaturi FFI pentru qpdf" },
   { crate: "zxing-cpp", kind: "cpp-static", vendored: "ZXing-C++ 2.x (bundled)", role: "decodare coduri QR, DataMatrix, Aztec, PDF417 si 1D" },
+  { crate: "capstone", kind: "c-static", vendored: "Capstone 5.x (bundled)", role: "dezasamblarea sectiunii de cod a executabilelor" },
+  { crate: "capstone-sys", kind: "c-static", vendored: "Capstone 5.x (bundled)", role: "legaturi FFI pentru Capstone" },
   { crate: "libseccomp", kind: "c-system", vendored: "libseccomp de sistem", role: "filtru de syscall in procesul izolat" },
   { crate: "libseccomp-sys", kind: "c-system", vendored: "libseccomp de sistem", role: "legaturi FFI pentru libseccomp" },
   { crate: "goblin", kind: "rust", vendored: "-", role: "parsare PE/ELF/Mach-O" },
