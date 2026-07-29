@@ -8,6 +8,7 @@ import type { DeadLetterModelLike } from "../notifications/deadLetterRepository.
 import { deleteAdminAccessRule, saveAdminAccessRule } from "../command-security/adminAccessRepository.js";
 import type { AdminCommandAccessConfig } from "../command-security/adminCommandAccessScope.js";
 import { isAdminScopeId, type AdminScopeId } from "../command-security/adminScopeIds.js";
+import { executorsFrom, schemaVersionsFrom, type OperationCodecTable } from "./operationCodec.js";
 
 type JournalLogger = (level: string, context: string, message: string, meta?: unknown) => void;
 
@@ -184,56 +185,67 @@ function requiredDeadLetterModel(model: Pick<DeadLetterModelLike, "deleteMany"> 
 }
 
 export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps): OperationJournal<OperationKindMap> {
-  const executors = {
-    [RESET_CONFIG_KIND]: async (value: unknown, operationId: string): Promise<void> => {
-      const payload = resetPayload(value);
-      if (!payload) throw new Error(`operationJournal: payload invalid pentru operatia '${RESET_CONFIG_KIND}'`);
-      await resetGuildConfigurationWithAudit(
-        deps.GuildModel, deps.GuildAuditLogModel, requiredYoutubeErrorModel(deps.GuildYoutubeErrorModel), requiredDeadLetterModel(deps.GuildDeadLetterModel),
-        payload.guildId, payload.defaultCurrency, payload.audit, operationId
-      );
-      if (deps.NotificationDeadLetterReplayModel) {
-        await deps.NotificationDeadLetterReplayModel.deleteMany({ guildId: payload.guildId });
+  const codecs: OperationCodecTable<OperationKindMap> = {
+    [RESET_CONFIG_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: resetPayload,
+      resourceKey: payload => payload.guildId,
+      execute: async (payload, operationId) => {
+        await resetGuildConfigurationWithAudit(
+          deps.GuildModel, deps.GuildAuditLogModel, requiredYoutubeErrorModel(deps.GuildYoutubeErrorModel), requiredDeadLetterModel(deps.GuildDeadLetterModel),
+          payload.guildId, payload.defaultCurrency, payload.audit, operationId
+        );
+        if (deps.NotificationDeadLetterReplayModel) {
+          await deps.NotificationDeadLetterReplayModel.deleteMany({ guildId: payload.guildId });
+        }
       }
     },
-    [BACKUP_LOAD_KIND]: async (value: unknown, operationId: string): Promise<void> => {
-      const payload = backupLoadPayload(value);
-      if (!payload) throw new Error(`operationJournal: payload invalid pentru operatia '${BACKUP_LOAD_KIND}'`);
-      await loadConfigBackupWithAudit(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, payload.backup, payload.audit, operationId);
+    [BACKUP_LOAD_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: backupLoadPayload,
+      resourceKey: payload => `${payload.guildId}:${payload.backup.name}`,
+      execute: async (payload, operationId) => {
+        await loadConfigBackupWithAudit(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, payload.backup, payload.audit, operationId);
+      }
     },
-    [BACKUP_SAVE_KIND]: async (value: unknown, operationId: string): Promise<void> => {
-      const payload = backupLoadPayload(value);
-      if (!payload) throw new Error(`operationJournal: payload invalid pentru operatia '${BACKUP_SAVE_KIND}'`);
-      await saveConfigBackupRecord(requiredBackupModel(deps.GuildConfigBackupModel), payload.guildId, payload.backup);
-      await recordServerAuditEntry(deps.GuildAuditLogModel, payload.guildId, payload.audit, operationId);
+    [BACKUP_SAVE_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: backupLoadPayload,
+      resourceKey: payload => `${payload.guildId}:${payload.backup.name}`,
+      execute: async (payload, operationId) => {
+        await saveConfigBackupRecord(requiredBackupModel(deps.GuildConfigBackupModel), payload.guildId, payload.backup);
+        await recordServerAuditEntry(deps.GuildAuditLogModel, payload.guildId, payload.audit, operationId);
+      }
     },
-    [BACKUP_DELETE_KIND]: async (value: unknown, operationId: string): Promise<void> => {
-      const payload = backupDeletePayload(value);
-      if (!payload) throw new Error(`operationJournal: payload invalid pentru operatia '${BACKUP_DELETE_KIND}'`);
-      await deleteConfigBackupWithAudit(requiredBackupModel(deps.GuildConfigBackupModel), deps.GuildAuditLogModel, payload.guildId, payload.name, payload.audit, operationId);
+    [BACKUP_DELETE_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: backupDeletePayload,
+      resourceKey: payload => `${payload.guildId}:${payload.name}`,
+      execute: async (payload, operationId) => {
+        await deleteConfigBackupWithAudit(requiredBackupModel(deps.GuildConfigBackupModel), deps.GuildAuditLogModel, payload.guildId, payload.name, payload.audit, operationId);
+      }
     },
-    [ADMIN_ACCESS_SAVE_KIND]: async (value: unknown, operationId: string): Promise<void> => {
-      const payload = adminAccessSavePayload(value);
-      if (!payload) throw new Error(`operationJournal: payload invalid pentru operatia '${ADMIN_ACCESS_SAVE_KIND}'`);
-      await saveAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId });
+    [ADMIN_ACCESS_SAVE_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: adminAccessSavePayload,
+      resourceKey: payload => `${payload.guildId}:${payload.scope}`,
+      execute: async (payload, operationId) => {
+        await saveAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId });
+      }
     },
-    [ADMIN_ACCESS_DELETE_KIND]: async (value: unknown, operationId: string): Promise<void> => {
-      const payload = adminAccessDeletePayload(value);
-      if (!payload) throw new Error(`operationJournal: payload invalid pentru operatia '${ADMIN_ACCESS_DELETE_KIND}'`);
-      await deleteAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId });
+    [ADMIN_ACCESS_DELETE_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: adminAccessDeletePayload,
+      resourceKey: payload => `${payload.guildId}:${payload.scope}`,
+      execute: async (payload, operationId) => {
+        await deleteAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId });
+      }
     }
   };
   return createOperationJournal<OperationKindMap>({
     JournalModel: deps.OperationJournalModel,
     logger: deps.logger,
-    executors,
-    schemaVersions: {
-      [RESET_CONFIG_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION,
-      [BACKUP_LOAD_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION,
-      [BACKUP_SAVE_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION,
-      [BACKUP_DELETE_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION,
-      [ADMIN_ACCESS_SAVE_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION,
-      [ADMIN_ACCESS_DELETE_KIND]: OPERATION_PAYLOAD_SCHEMA_VERSION
-    }
+    executors: executorsFrom(codecs),
+    schemaVersions: schemaVersionsFrom(codecs)
   });
 }
