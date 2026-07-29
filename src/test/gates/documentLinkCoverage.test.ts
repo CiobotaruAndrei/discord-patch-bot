@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readInspectionSources } from "./nativeInspectionSources.js";
 
 import fs from "fs";
 import path from "path";
 
 const srcRoot = process.cwd();
-const inspection = fs.readFileSync(path.join(srcRoot, "native", "core", "src", "inspection.rs"), "utf8");
+const inspection = readInspectionSources();
 
 function corp(numeFunctie: string): string {
   const start = inspection.indexOf(`fn ${numeFunctie}`);

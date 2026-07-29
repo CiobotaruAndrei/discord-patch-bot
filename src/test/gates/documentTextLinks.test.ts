@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readInspectionSources } from "./nativeInspectionSources.js";
 
 import fs from "fs";
 import path from "path";
@@ -11,7 +12,7 @@ function readNative(relative: string): string {
 }
 
 test("textul vizibil al documentelor ajunge la analiza de identitate a gazdei", () => {
-  const inspection = readNative(path.join("src", "inspection.rs"));
+  const inspection = readInspectionSources();
   assert.ok(
     inspection.includes("pdf_text_link_indicators"),
     "un PDF care scrie adresa de phishing in text era raportat curat; calea nu are voie sa dispara"
