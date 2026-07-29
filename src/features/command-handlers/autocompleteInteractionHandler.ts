@@ -1,5 +1,13 @@
 "use strict";
 
+import type {
+  AutocompleteResponder,
+  FocusedOptionReader,
+  InteractionGuildRef,
+  OptionalSubcommandOption,
+  StringOption,
+  SubcommandGroupOption
+} from "./discordInteractionPorts.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import {
   createAutocompleteChoiceBuilders,
@@ -23,17 +31,11 @@ type MaybePromise<T> = T | Promise<T>;
 type FocusedOption = { name?: string; value?: unknown };
 type DiscordInteraction = {
   commandName?: string;
-  guild?: { id: string } | null;
+  guild?: InteractionGuildRef | null;
   isAutocomplete?: () => boolean;
   isChatInputCommand?: () => boolean;
-  options: {
-    getFocused(detailed: true): FocusedOption | null;
-    getSubcommand(required: false): string | null;
-    getSubcommandGroup(required: false): string | null;
-    getString(name: string, required: false): string | null;
-  };
-  respond: (choices: AutocompleteChoice[]) => Promise<unknown>;
-};
+  options: FocusedOptionReader<FocusedOption> & OptionalSubcommandOption & SubcommandGroupOption & StringOption;
+} & AutocompleteResponder<AutocompleteChoice>;
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
 type AutocompleteHandlerDeps = {

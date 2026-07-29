@@ -1,5 +1,13 @@
 "use strict";
 
+import type {
+  AlwaysReplies,
+  ChatInputInteraction,
+  IntegerOption,
+  StringOption,
+  SubcommandGroupOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository.js";
 type MongoFilter = Record<string, unknown>;
 type MongoUpdate = Record<string, unknown>;
@@ -12,21 +20,7 @@ import { errorDetail, errorMessage } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
-type DiscordInteraction = {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommandGroup(required: false): string | null;
-    getSubcommand(): string;
-    getString(name: string): string | null;
-    getInteger(name: string): number | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-};
+type DiscordInteraction = ChatInputInteraction<SubcommandGroupOption & SubcommandOption & StringOption & IntegerOption> & AlwaysReplies;
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
 type GuildModelLike = {

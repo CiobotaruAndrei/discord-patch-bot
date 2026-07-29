@@ -1,5 +1,11 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  NumberOption,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { CurrencyCode, DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome, PriceAlertRule } from "../../types.js";
 import {
   MAX_PRICE_ALERTS_PER_GUILD,
@@ -22,20 +28,7 @@ type InteractionPayload = DiscordReplyPayload;
 type MongoWriteResult = MongoWriteOutcome;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand(): string;
-    getString(name: string, required?: boolean): string | null;
-    getNumber(name: string, required?: boolean): number | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption & NumberOption>;
 
 interface PriceAlertInteractionDeps {
   GuildModel: {

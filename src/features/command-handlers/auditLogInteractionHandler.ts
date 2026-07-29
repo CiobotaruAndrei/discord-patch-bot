@@ -1,5 +1,11 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  IntegerOption,
+  StringOption,
+  SubcommandOption
+} from "./discordInteractionPorts.js";
 import type { BotAuditLogEntry, DiscordReplyPayload, GameConfig, GuildSettings, ServerAuditLogEntry } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
@@ -19,21 +25,7 @@ import { errorDetail } from "../../shared/errors.js";
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
-interface DiscordInteraction {
-  id?: string;
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  options: {
-    getSubcommand(required?: boolean): string;
-    getInteger(name: string, required?: boolean): number | null;
-    getString(name: string, required?: boolean): string | null;
-  };
-  isChatInputCommand?: () => boolean;
-  reply?: (payload: unknown) => Promise<unknown>;
-  followUp?: (payload: unknown) => Promise<unknown>;
-}
+type DiscordInteraction = ChatInputInteraction<SubcommandOption & IntegerOption & StringOption>;
 
 interface AuditLogDeps {
   GuildAuditLogModel: GuildAuditLogModelLike;

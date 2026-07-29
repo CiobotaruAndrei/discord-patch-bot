@@ -1,5 +1,10 @@
 "use strict";
 
+import type {
+  AlwaysReplies,
+  BaseChatInputInteraction,
+  PartialInteractionGuildRef
+} from "./discordInteractionPorts.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import type { CurrencyCode, GameConfig, GuildSettings } from "../../types.js";
@@ -9,15 +14,7 @@ import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
 
 type MaybePromise<T> = T | Promise<T>;
-type DiscordInteraction = {
-  commandName?: string;
-  guild?: { id?: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?: () => boolean;
-  reply: (payload: InteractionPayload) => Promise<unknown>;
-  followUp?: (payload: InteractionPayload) => Promise<unknown>;
-};
+type DiscordInteraction = BaseChatInputInteraction<PartialInteractionGuildRef, InteractionPayload> & AlwaysReplies<InteractionPayload>;
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, endExtra?: Record<string, unknown>) => void;

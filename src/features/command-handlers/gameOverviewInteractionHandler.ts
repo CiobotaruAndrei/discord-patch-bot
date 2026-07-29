@@ -1,5 +1,9 @@
 "use strict";
 
+import type {
+  ChatInputInteraction,
+  StringOption
+} from "./discordInteractionPorts.js";
 import type { CheerioAPI } from "cheerio";
 import type { DealInfo, FetchResult, GameConfig, GuildSettings, PriceValue } from "../../types.js";
 import type { GameServerStatus } from "../command-presentation/gameStatusEmbeds.js";
@@ -9,16 +13,7 @@ import { findBestDeal, scoreDeal } from "./dealScoreInteractionHandler.js";
 import { dlcPageHasAgeGate, parseDlcRows } from "./dlcSteamPage.js";
 import { errorDetail } from "../../shared/errors.js";
 
-interface DiscordInteraction {
-  commandName?: string;
-  guild?: { id: string } | null;
-  deferred?: boolean;
-  replied?: boolean;
-  isChatInputCommand?(): boolean;
-  reply?(payload: unknown): Promise<unknown>;
-  followUp?(payload: unknown): Promise<unknown>;
-  options: { getString(name: string, required?: boolean): string | null };
-}
+type DiscordInteraction = ChatInputInteraction<StringOption>;
 
 interface GameOverviewDeps {
   logger(level: string, context: string, message: string, meta?: unknown): void;

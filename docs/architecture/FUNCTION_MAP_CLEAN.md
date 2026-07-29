@@ -79,6 +79,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Utilitare comune folosite de app, surse, comenzi si job-uri.
 
+### `src/features/command-handlers/discordInteractionPorts.ts`
+
+- Porturile prin care handlerele vad o interactiune Discord. `BaseChatInputInteraction<Guild, Payload>` tine partea comuna (`commandName`, `guild`, `deferred`/`replied`, `reply`/`followUp`), `ChatInputInteraction<Options, Guild, Payload>` adauga `options`, iar citirile de optiuni sunt capabilitati numite si compozabile: `SubcommandOption`, `SubcommandGroupOption`, `StringOption`, `IntegerOption`, `NumberOption`, `BooleanOption`, `RoleOption<Role>`, `UserOption<User>`, `ChannelOption<Channel>`, `AttachmentOption<Attachment>`, `FocusedOptionReader<Focused>` si `AutocompleteResponder<Choice>`. `AlwaysReplies` / `AlwaysFollowsUp` marcheaza handlerele care chiar cer `reply`, nu il primesc optional.
+- Inainte, fiecare handler isi scria propria forma: treizeci si patru de declaratii aproape identice care difereau prin detalii care contau (`guild?: { id: string }` fata de `{ id?: string }`, `reply` optional fata de obligatoriu) si prin `payload: unknown`, adica orice valoare ajungea la Discord fara verificare.
+- Gardat de `discordInteractionPorts.test.ts`: niciun handler nu are voie sa isi rescrie forma inline, `reply`/`followUp` nu au voie sa primeasca `unknown`, iar porturile trebuie sa ramana capabilitati numite.
+
 ## Infra
 
 ### `src/infra/http/` (client compus din module pe responsabilitati)
