@@ -1,5 +1,7 @@
 "use strict";
 
+import { matchedDocument } from "../../shared/persistenceOutcome.js";
+
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
 export type ClaimOutcome = { matchedCount?: number };
@@ -34,7 +36,7 @@ export async function claimIntoBatch<Candidate, Entry>(
     let claimed = false;
     try {
       const outcome = await options.claim(candidate);
-      if ((outcome.matchedCount ?? 0) === 0) continue;
+      if (!matchedDocument(outcome)) continue;
       claimed = true;
       batch.push(options.entryOf(candidate));
     } catch (err: unknown) {

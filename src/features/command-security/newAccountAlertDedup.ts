@@ -1,5 +1,7 @@
 "use strict";
 
+import { modifiedDocuments, updatedDocument } from "../../shared/persistenceOutcome.js";
+
 export interface NewAccountAlertDeliveryModelLike {
   findOneAndUpdate(
     filter: Record<string, object | string | object[]>,
@@ -74,7 +76,7 @@ export function createNewAccountAlertDelivery(
             }
           }
         );
-        return result.modifiedCount === 1;
+        return updatedDocument(result);
       },
       async markDelivered(): Promise<boolean> {
         const result = await model.updateOne(
@@ -84,7 +86,7 @@ export function createNewAccountAlertDelivery(
             $unset: { claimToken: "", leaseUntil: "", sendingAt: "" }
           }
         );
-        return result.modifiedCount === 1;
+        return updatedDocument(result);
       },
       async markSentUnconfirmed(): Promise<boolean> {
         const result = await model.updateOne(
@@ -94,7 +96,7 @@ export function createNewAccountAlertDelivery(
             $unset: { leaseUntil: "", sendingAt: "" }
           }
         );
-        return result.modifiedCount === 1;
+        return updatedDocument(result);
       },
       async release(): Promise<boolean> {
         const result = await model.updateOne(
@@ -104,7 +106,7 @@ export function createNewAccountAlertDelivery(
             $unset: { claimToken: "", sendingAt: "" }
           }
         );
-        return result.modifiedCount === 1;
+        return updatedDocument(result);
       }
     };
   }
@@ -159,7 +161,7 @@ export async function reconcileStuckNewAccountSends(
         $unset: { leaseUntil: "", sendingAt: "" }
       }
     );
-    return result.modifiedCount ?? 0;
+    return modifiedDocuments(result);
   } catch {
     return 0;
   }

@@ -6,6 +6,7 @@ import { errorMessage } from "../../shared/errors.js";
 import ________shared_utilities from "../../shared/utilities.js";
 import { evaluatePlayerCountChange, type PlayerCountChange } from "./playerCountChangeSignal.js";
 import { watchlistGameFilter } from "./playerCountWatchlist.js";
+import { updatedDocument } from "../../shared/persistenceOutcome.js";
 const { mapWithConcurrency } = ________shared_utilities;
 
 export interface PlayerCountSnapshot {
@@ -205,7 +206,7 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
       { $set: set },
       { arrayFilters: [{ "entry.gameKey": game.key, "entry.playerCount": previousCount, "entry.fetchedAt": previousAt }] }
     );
-    return notify && result.modifiedCount !== 0 ? change : null;
+    return notify && updatedDocument(result) ? change : null;
   }
 
   async function notifyPlayerCountChanges(

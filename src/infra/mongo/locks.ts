@@ -3,6 +3,7 @@ type MongoFilter = Record<string, unknown>;
 type MongoUpdate = Record<string, unknown>;
 type MongoQueryOptions = Record<string, unknown>;
 import { errorMessage } from "../../shared/errors.js";
+import { updatedDocument } from "../../shared/persistenceOutcome.js";
 
 type LockLogger = (level: "WARN", context: string, message: string, meta?: unknown) => void;
 
@@ -76,7 +77,7 @@ function buildLocksFrom(context: LocksContext) {
       { _id: `lock_${jobName}`, ownerToken: token },
       { $set: { lockedUntil: expires } }
     );
-    return (res.modifiedCount || 0) > 0;
+    return updatedDocument(res);
   }
 
   async function releaseDbLock(jobName: string, token: LockToken | null): Promise<void> {

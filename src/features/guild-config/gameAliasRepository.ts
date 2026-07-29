@@ -2,6 +2,7 @@
 
 import type { GuildSettings } from "../../types.js";
 import { MAX_ALIASES_PER_GAME, MAX_TOTAL_GAME_ALIASES, gameAliasRecord } from "./gameAliasService.js";
+import { updatedDocument } from "../../shared/persistenceOutcome.js";
 
 export interface GameAliasGuildModelLike {
   findOneAndUpdate(
@@ -76,5 +77,5 @@ export async function removeGameAlias(
     { _id: guildId },
     { $pull: { [`gameAliases.${gameKey}`]: alias } }
   );
-  return { removed: (result.modifiedCount ?? 0) > 0 };
+  return { removed: updatedDocument(result) };
 }

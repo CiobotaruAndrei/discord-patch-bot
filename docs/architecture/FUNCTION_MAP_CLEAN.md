@@ -79,6 +79,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 
 - Utilitare comune folosite de app, surse, comenzi si job-uri.
 
+### `src/shared/persistenceOutcome.ts`
+
+- Vocabularul unic prin care se citeste rezultatul unei scrieri Mongo. `classifyWrite` intoarce un rezultat discriminat — `created` (upsert real), `updated` (document gasit si modificat), `unchanged` (gasit, dar fara schimbare) sau `missing` (nu s-a atins nimic) — iar predicatele `createdDocument`, `updatedDocument`, `changedDocument`, `matchedDocument` si numaratorul `modifiedDocuments` sunt singurele forme folosite in cod.
+- Motivul e ca „zero inseamna esec" era o conventie nescrisa cu trei dialecte: `modifiedCount === 0` (nu s-a schimbat nimic), `matchedCount === 0` (revendicare pierduta) si `!== 0` (care citea un contor absent drept succes, deci esua deschis). Contoarele ramanand optionale in porturi, forma `!== 0` insemna ca un driver care nu raporteaza nimic era interpretat ca reusita; `classifyWrite` trateaza absenta contoarelor drept `missing`, adica esueaza inchis.
+- Gardat de `persistenceOutcomeUsage.test.ts`: niciun modul din `app`/`features`/`domain`/`infra`/`sources` nu are voie sa compare direct un contor de scriere, iar numarul de module care folosesc vocabularul nu are voie sa scada.
+
 ### `src/features/command-handlers/discordInteractionPorts.ts`
 
 - Porturile prin care handlerele vad o interactiune Discord. `BaseChatInputInteraction<Guild, Payload>` tine partea comuna (`commandName`, `guild`, `deferred`/`replied`, `reply`/`followUp`), `ChatInputInteraction<Options, Guild, Payload>` adauga `options`, iar citirile de optiuni sunt capabilitati numite si compozabile: `SubcommandOption`, `SubcommandGroupOption`, `StringOption`, `IntegerOption`, `NumberOption`, `BooleanOption`, `RoleOption<Role>`, `UserOption<User>`, `ChannelOption<Channel>`, `AttachmentOption<Attachment>`, `FocusedOptionReader<Focused>` si `AutocompleteResponder<Choice>`. `AlwaysReplies` / `AlwaysFollowsUp` marcheaza handlerele care chiar cer `reply`, nu il primesc optional.
