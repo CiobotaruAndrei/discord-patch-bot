@@ -48,16 +48,34 @@ jobs:
           tags: discord-patch-bot:scan
           no-cache: ${{ github.event_name == 'schedule' }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # zstd in loc de gzip la exportul de cache. Exportul e al doilea cost al jobului dupa
+          # compilarea librariilor C: masurat, 119s cand stratul de dependinte cargo s-a reconstruit
+          # si 18s cand totul venea din cache. Continutul cache-ului e identic, doar algoritmul de
+          # compresie e altul.
+          cache-to: type=gha,mode=max,compression=zstd
 
-      - name: Trivy vulnerability scan (SARIF)
+      # Doua scanari in loc de trei. Trivy pornea de trei ori pe aceeasi imagine — SARIF, SBOM si
+      # gate — iar fiecare pornire isi descarca din nou baza de vulnerabilitati: masurat, 14-15s de
+      # fiecare data. SARIF-ul si gate-ul folosesc exact aceleasi filtre, deci impart un singur raport
+      # si difera doar prin formatul in care e redat, obtinut local cu `trivy convert`.
+      #
+      # SBOM-ul ramane scanare separata dinadins: `trivy convert` accepta `--severity`, dar NU are
+      # `--ignore-unfixed` (verificat pe 0.72.0). Ca sa iasa dintr-un singur raport ar fi trebuit fie
+      # sa filtram unfixed la scanare, si atunci SBOM-ul ar fi pierdut vulnerabilitatile fara fix, fie
+      # sa reconstruim filtrul intr-o politica Rego. Prima varianta saraceste inventarul, a doua muta
+      # un filtru de securitate intr-un fisier separat care poate devia tacut de la ce cere gate-ul.
+      - name: Trivy scan (fixabile, raport pentru SARIF si gate)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           image-ref: discord-patch-bot:scan
-          format: sarif
-          output: trivy-results.sarif
-          severity: CRITICAL,HIGH
+          format: json
+          output: trivy-fixable.json
           ignore-unfixed: true
+          list-all-pkgs: true
+
+      - name: Converteste raportul in SARIF
+        if: always()
+        run: trivy convert --format sarif --severity CRITICAL,HIGH --output trivy-results.sarif trivy-fixable.json
 
       - name: Upload Trivy SARIF to code scanning
         if: always() && github.event_name != 'pull_request'
@@ -84,10 +102,4 @@ jobs:
           retention-days: 30
 
       - name: Trivy gate (blocheaza pe CRITICAL/HIGH fixabile)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
-        with:
-          image-ref: discord-patch-bot:scan
-          format: table
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: "1"
+        run: trivy convert --format table --severity CRITICAL,HIGH --exit-code 1 trivy-fixable.json
