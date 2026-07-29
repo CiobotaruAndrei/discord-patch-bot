@@ -1,4 +1,5 @@
 import type { NormalizedGameConfig, NormalizedGameSourceFallback } from "./gameConfigSchemas.js";
+import type { GameCatalog } from "./gameCatalog.js";
 
 export type GameType = NormalizedGameConfig["type"];
 
@@ -35,7 +36,9 @@ export interface BotConfig {
 export interface ConfigLoadResult {
   config: BotConfig;
   games: NormalizedGameConfig[];
+  catalog: GameCatalog;
   configPath: string;
 }
 
 export type { NormalizedGameConfig, NormalizedGameSourceFallback } from "./gameConfigSchemas.js";
+export type { GameCatalog } from "./gameCatalog.js";
