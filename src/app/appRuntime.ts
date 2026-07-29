@@ -1,5 +1,6 @@
 "use strict";
 
+import { createMetricRecorders } from "./health/metricRecorders.js";
 import type {
   ActiveLocks,
   BotConfig,
@@ -71,7 +72,8 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   const { logger, env, getGuildCacheSize, activeLocks, releaseDbLock, requestContext, adminAlert } = mongo;
 
   const { client, metrics, lifecycle, rateLimiter } = services;
-  const threatEngineMonitor = createThreatEngineMonitor({ metrics, logger });
+  const recorders = createMetricRecorders(metrics);
+  const threatEngineMonitor = createThreatEngineMonitor({ metrics: recorders.threatEngine, logger });
   const reputationScan = createReputationEngine({
     env,
     httpReq: deps.scrapers.httpReq,
@@ -104,7 +106,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
       reputationScan,
       claimNewAccountAlert: newAccountDelivery?.claim,
       logger,
-      metrics
+      metrics: recorders.security
     })
     : undefined;
   const permissionDelegationRuntime = mongo.GuildAuditLogModel && mongo.GuildModel
@@ -112,7 +114,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
       GuildModel: mongo.GuildModel,
       GuildAuditLogModel: mongo.GuildAuditLogModel,
       adminAlert,
-      metrics
+      metrics: recorders.permissionDelegation
     })
     : undefined;
   const moderationLifecycleRuntime = mongo.GuildModel

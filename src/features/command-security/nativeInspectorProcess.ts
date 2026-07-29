@@ -1,17 +1,11 @@
 "use strict";
 
+import type { InspectorMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import { spawn } from "node:child_process";
 import type { InspectionLimits, InspectionReport } from "./passiveArchiveInspection.js";
 
 export interface InspectorLogger {
   (level: string, context: string, message: string, meta?: unknown): void;
-}
-
-export interface InspectorMetrics {
-  nativeInspectorKills: number;
-  nativeInspectorRestarts: number;
-  nativeInspectorTimeouts: number;
-  nativeInspectorSandboxed: number;
 }
 
 export interface InspectorStream {
@@ -35,7 +29,7 @@ export interface InspectorDeps {
   binaryPath: string;
   spawnProcess?: SpawnInspector;
   logger?: InspectorLogger;
-  metrics?: InspectorMetrics;
+  metrics?: InspectorMetricRecorder;
   requestTimeoutMs?: number;
   maxRestarts?: number;
 }
@@ -240,10 +234,10 @@ export function createNativeInspectorClient(deps: InspectorDeps) {
         clearTimeout(timer);
         sandboxed = state;
         if (state) {
-          if (deps.metrics) deps.metrics.nativeInspectorSandboxed = 1;
+          deps.metrics?.sandboxApplied(true);
         } else {
           log("WARN", "Procesul de inspectie ruleaza FARA filtru de syscall pe aceasta platforma");
-          if (deps.metrics) deps.metrics.nativeInspectorSandboxed = 0;
+          deps.metrics?.sandboxApplied(false);
         }
         resolve(state);
       };
@@ -253,7 +247,7 @@ export function createNativeInspectorClient(deps: InspectorDeps) {
       spawned.on("exit", (code, signal) => {
         clearTimeout(timer);
         if (onBroken) {
-          if (deps.metrics) deps.metrics.nativeInspectorKills += 1;
+          deps.metrics?.processKilled();
           log("ERROR", "Procesul de inspectie a fost oprit in timpul unui job; verdictul ramane neconfirmat", { code, signal });
           const broken = onBroken;
           onFrame = null;
@@ -299,14 +293,14 @@ export function createNativeInspectorClient(deps: InspectorDeps) {
         const current = sandboxed;
         dispose();
         restarts += 1;
-        if (deps.metrics) deps.metrics.nativeInspectorRestarts = restarts;
+        deps.metrics?.processRestarted(restarts);
         if (restarts > maxRestarts) {
           log("ERROR", "Procesul de inspectie a fost repornit prea des; verdictul ramane neconfirmat", { restarts });
         }
         finish({ report: null, sandboxed: current, failure });
       };
       const timer = setTimeout(() => {
-        if (deps.metrics) deps.metrics.nativeInspectorTimeouts += 1;
+        deps.metrics?.scanTimedOut();
         restart(`inspectia a depasit ${requestTimeoutMs} ms`);
       }, requestTimeoutMs);
 

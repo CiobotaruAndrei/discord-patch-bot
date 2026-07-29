@@ -42,6 +42,7 @@ function createMetrics(): BotMetrics {
     guildSettingsListenerFailures: 0,
     securityRuntimeErrors: 0,
     securityThreatsDeleted: 0,
+    securityThreatDeleteFailures: 0,
     securityBotAddsBlocked: 0,
     permissionDelegationsReverted: 0,
     moderationCleanupRuns: 0,

@@ -1,3 +1,5 @@
+import { createMetrics } from "../../app/health/metrics.js";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
@@ -33,7 +35,8 @@ test("un bot fara aprobare exacta este eliminat si auditat", async () => {
   const audits: GuildAuditLogRecord[] = [];
   const kicks: string[] = [];
   const now = Date.parse("2026-07-16T12:00:00.000Z");
-  const metrics = { securityBotAddsBlocked: 0 };
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({
       _id: "guild-1",
@@ -49,7 +52,7 @@ test("un bot fara aprobare exacta este eliminat si auditat", async () => {
     },
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
-    metrics,
+    metrics: recorders.security,
     now: () => now
   });
 
@@ -104,7 +107,8 @@ test("ownerul serverului poate adauga un bot direct, fara aprobare one-time (far
   const kicks: string[] = [];
   let consumeAttempts = 0;
   const now = Date.parse("2026-07-16T12:00:00.000Z");
-  const metrics = { securityBotAddsBlocked: 0 };
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({
       _id: "guild-1",
@@ -124,7 +128,7 @@ test("ownerul serverului poate adauga un bot direct, fara aprobare one-time (far
       updateOne: async () => ({ modifiedCount: 1 })
     },
     GuildAuditLogModel: auditModel(audits),
-    metrics,
+    metrics: recorders.security,
     now: () => now
   });
 
@@ -562,13 +566,14 @@ test("bot neaprobat care NU poate fi eliminat (ierarhie) => incident critic cu t
   const sent: Array<{ content?: string }> = [];
   const audits: GuildAuditLogRecord[] = [];
   const now = Date.parse("2026-07-16T12:00:00.000Z");
-  const metrics = { securityBotAddsBlocked: 0 };
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({ _id: "guild-1", botAddProtectionEnabled: true, botAddAlertChannelId: "security" }),
     client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
-    metrics,
+    metrics: recorders.security,
     now: () => now
   });
 
@@ -667,13 +672,14 @@ test("threat protection inspecteaza mesajele boturilor si fara bot-add protectio
 test("esecul stergerii nu blocheaza alerta si auditul amenintarii confirmate (audit conformitate, #28)", async () => {
   const sent: Array<{ content?: string }> = [];
   const audits: GuildAuditLogRecord[] = [];
-  const metrics = { securityThreatsDeleted: 0, securityThreatDeleteFailures: 0 };
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({ _id: "guild-1", threatProtectionEnabled: true, threatAlertChannelId: "security" }),
     client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
-    metrics,
+    metrics: recorders.security,
     httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a]), headers: { "content-type": "application/octet-stream" }, status: 200 }),
     reputationScan: async () => "malware"
   });
