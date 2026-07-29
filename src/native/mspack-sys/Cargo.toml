@@ -1,0 +1,9 @@
+[package]
+name = "mspack-sys"
+version = "0.1.0"
+edition = "2021"
+links = "mspack"
+
+[build-dependencies]
+bindgen = "0.72.1"
+cc = "1.3.0"

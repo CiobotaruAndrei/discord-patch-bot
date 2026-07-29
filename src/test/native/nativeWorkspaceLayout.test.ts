@@ -40,7 +40,12 @@ test("crate-ul core e pur: fara napi, cu teste unitare", () => {
 test("wrapper-ul N-API e subtire: deleaga la core si nu mai are teste proprii", () => {
   const cargo = read(rootCargoPath);
   assert.match(cargo, /\[workspace\]/, "native/ e workspace");
-  assert.match(cargo, /members = \["core", "inspector"\]/, "core si procesul de inspectie sunt membri ai workspace-ului");
+  assert.match(
+    cargo,
+    /members = \["core", "inspector", "mspack-sys"\]/,
+    "core, procesul de inspectie si crate-ul de legaturi libmspack sunt membri ai workspace-ului; " +
+      "legaturile stau intr-un crate `-sys` separat ca sa apara in Cargo.lock, altfel inventarul de librarii native nu le-ar vedea"
+  );
   assert.match(cargo, /name = "discord_patch_bot_core"/, "numele cdylib-ului ramane neschimbat (fisierul .node si napi config raman valide)");
   assert.match(cargo, /discord_patch_bot_logic = \{ path = "core" \}/, "wrapper-ul depinde de core prin path");
   const lib = read(wrapperLibPath);

@@ -643,6 +643,7 @@ C/C++ vendorata:
 | `zxing-cpp` | 0.5.2 | cpp-static | ZXing-C++ 2.x (bundled) | decodare coduri QR, DataMatrix, Aztec, PDF417 si 1D |
 | `capstone` | 0.14.0 | c-static | Capstone 5.x (bundled) | dezasamblarea sectiunii de cod a executabilelor |
 | `capstone-sys` | 0.18.0 | c-static | Capstone 5.x (bundled) | legaturi FFI pentru Capstone |
+| `mspack-sys` | 0.1.0 | c-system | libmspack de sistem (0.11) | decompresie CAB si CHM din memorie |
 | `libseccomp` | 0.4.0 | c-system | libseccomp de sistem | filtru de syscall in procesul izolat |
 | `libseccomp-sys` | 0.3.0 | c-system | libseccomp de sistem | legaturi FFI pentru libseccomp |
 | `goblin` | 0.10.7 | rust | - | parsare PE/ELF/Mach-O |

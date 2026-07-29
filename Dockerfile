@@ -5,7 +5,7 @@ FROM node:24-bookworm-slim AS build
 WORKDIR /app/src
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates build-essential pkg-config python3 cmake clang libclang-dev libseccomp-dev libmagic-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev \
+  && apt-get install -y --no-install-recommends ca-certificates build-essential pkg-config python3 cmake clang libclang-dev libseccomp-dev libmagic-dev libmspack-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev \
   && rm -rf /var/lib/apt/lists/*
 
 ENV RUSTUP_HOME=/usr/local/rustup \
@@ -23,19 +23,23 @@ RUN rustc --version && cargo --version
 COPY src/native/Cargo.toml src/native/Cargo.lock src/native/build.rs src/native/rust-toolchain.toml ./native/
 COPY src/native/core/Cargo.toml ./native/core/
 COPY src/native/inspector/Cargo.toml ./native/inspector/
+# mspack-sys intra intreg, nu doar cu manifestul: build.rs ruleaza bindgen si compileaza shim-ul C,
+# deci fara ele stratul n-ar incalzi nimic din ce costa la crate-ul asta.
+COPY src/native/mspack-sys/Cargo.toml src/native/mspack-sys/build.rs src/native/mspack-sys/shim.c ./native/mspack-sys/
 # Tripletul e explicit fiindca `napi build` compileaza cu --target, deci scrie in
 # target/<triplet>/release. Un `cargo build` fara --target ar popula target/release, adica alt
 # director, si pre-compilarea n-ar fi refolosita de nimic — ar adauga un build intreg in loc sa scuteasca.
 RUN TARGET="$(rustc -vV | sed -n 's/^host: //p')" \
-  && mkdir -p native/src native/core/src native/inspector/src \
+  && mkdir -p native/src native/core/src native/inspector/src native/mspack-sys/src \
   && printf 'fn main() {}\n' > native/inspector/src/main.rs \
   && : > native/src/lib.rs \
   && : > native/core/src/lib.rs \
   && : > native/inspector/src/lib.rs \
+  && : > native/mspack-sys/src/lib.rs \
   && cargo build --release --target "$TARGET" --manifest-path native/Cargo.toml --workspace \
   && cargo clean --release --target "$TARGET" --manifest-path native/Cargo.toml \
-    -p discord_patch_bot_core -p discord_patch_bot_logic -p native-inspector \
-  && rm -rf native/src native/core/src native/inspector/src
+    -p discord_patch_bot_core -p discord_patch_bot_logic -p native-inspector -p mspack-sys \
+  && rm -rf native/src native/core/src native/inspector/src native/mspack-sys/src
 
 COPY src/package.json src/package-lock.json ./
 RUN npm ci
@@ -53,7 +57,7 @@ ENV NODE_ENV=production
 
 RUN apt-get update \
   && apt-get upgrade -y \
-  && apt-get install -y --no-install-recommends libssl3 libseccomp2 libmagic1 zlib1g libbz2-1.0 liblzma5 libzstd1 liblz4-1 libxml2 libacl1 \
+  && apt-get install -y --no-install-recommends libssl3 libseccomp2 libmagic1 libmspack0 zlib1g libbz2-1.0 liblzma5 libzstd1 liblz4-1 libxml2 libacl1 \
   && rm -rf /var/lib/apt/lists/*
 
 COPY src/package.json src/package-lock.json ./
