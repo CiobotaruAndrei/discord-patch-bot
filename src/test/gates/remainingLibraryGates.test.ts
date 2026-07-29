@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readInspectionSources } from "./nativeInspectionSources.js";
 
 import fs from "fs";
 import path from "path";
@@ -11,7 +12,7 @@ function readNative(...parts: string[]): string {
 }
 
 test("structura unui CHM e citita fara libmspack, iar verdictul ramane neconfirmat", () => {
-  const inspection = readNative("src", "inspection.rs");
+  const inspection = readInspectionSources();
   assert.ok(inspection.includes("chm_indicators"), "listarea CHM nu are voie sa dispara din inspectie");
   const tests = readNative("tests", "chm_and_ocr_gaps.rs");
   assert.ok(
@@ -28,7 +29,7 @@ test("listarea CHM e plafonata, fiindca vine din continut netrusted", () => {
 });
 
 test("gate-ul OCR isi primeste populatia, cu prag impotriva zgomotului", () => {
-  const inspection = readNative("src", "inspection.rs");
+  const inspection = readInspectionSources();
   assert.ok(
     inspection.includes("IMAGE_TEXT_BLIND_SPOT_BYTES"),
     "fara prag, fiecare pictograma ar intra in numaratoare si metrica nu ar mai insemna nimic"

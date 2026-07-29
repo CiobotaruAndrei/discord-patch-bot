@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readInspectionSources } from "./nativeInspectionSources.js";
 
 import fs from "fs";
 import path from "path";
@@ -29,7 +30,7 @@ test("dezasamblarea ramane plafonata, fiindca octetii vin de la un expeditor nec
 });
 
 test("instructiunile citite ajung efectiv in raport si in punctele oarbe", () => {
-  const inspection = readNative(path.join("src", "inspection.rs"));
+  const inspection = readInspectionSources();
   assert.ok(
     /indicators\.extend\(disassembly_indicators\(bytes\)\)/.test(inspection),
     "un modul care nu e chemat din raport e cod mort care da impresia de acoperire"
@@ -41,7 +42,7 @@ test("instructiunile citite ajung efectiv in raport si in punctele oarbe", () =>
 });
 
 test("punctele oarbe pe care dezasamblarea le inchide exista cu exact acelasi text", () => {
-  const inspection = readNative(path.join("src", "inspection.rs"));
+  const inspection = readInspectionSources();
   const executable = readNative(path.join("src", "executable.rs"));
 
   const bloc = inspection.match(/const DISASSEMBLY_EXPLAINED_SPOTS: \[&str; \d+\] =\s*\[([\s\S]*?)\];/);

@@ -101,34 +101,34 @@ fn signature(mime: &'static str, description: &'static str, kind: &'static str) 
 
 fn zip_flavor(bytes: &[u8]) -> Signature {
   let window = &bytes[..bytes.len().min(65_536)];
-  if super::inspection::window_contains(window, b"AndroidManifest.xml") {
+  if crate::inspection_bytes::window_contains(window, b"AndroidManifest.xml") {
     return signature("application/vnd.android.package-archive", "pachet Android APK (container ZIP)", "archive");
   }
-  if super::inspection::window_contains(window, b"word/document.xml") || super::inspection::window_contains(window, b"word/_rels") {
+  if crate::inspection_bytes::window_contains(window, b"word/document.xml") || crate::inspection_bytes::window_contains(window, b"word/_rels") {
     return signature(
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "document Word OOXML (container ZIP)",
       "document"
     );
   }
-  if super::inspection::window_contains(window, b"xl/workbook.xml") || super::inspection::window_contains(window, b"xl/_rels") {
+  if crate::inspection_bytes::window_contains(window, b"xl/workbook.xml") || crate::inspection_bytes::window_contains(window, b"xl/_rels") {
     return signature(
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "registru Excel OOXML (container ZIP)",
       "document"
     );
   }
-  if super::inspection::window_contains(window, b"ppt/presentation.xml") || super::inspection::window_contains(window, b"ppt/_rels") {
+  if crate::inspection_bytes::window_contains(window, b"ppt/presentation.xml") || crate::inspection_bytes::window_contains(window, b"ppt/_rels") {
     return signature(
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       "prezentare PowerPoint OOXML (container ZIP)",
       "document"
     );
   }
-  if super::inspection::window_contains(window, b"META-INF/MANIFEST.MF") {
+  if crate::inspection_bytes::window_contains(window, b"META-INF/MANIFEST.MF") {
     return signature("application/java-archive", "arhiva Java JAR (container ZIP)", "archive");
   }
-  if super::inspection::window_contains(window, b"mimetypeapplication/vnd.oasis.opendocument") {
+  if crate::inspection_bytes::window_contains(window, b"mimetypeapplication/vnd.oasis.opendocument") {
     return signature("application/vnd.oasis.opendocument.text", "document OpenDocument (container ZIP)", "document");
   }
   signature("application/zip", "arhiva ZIP", "archive")
@@ -472,10 +472,10 @@ fn looks_truncated(bytes: &[u8], kind: &str, mime: &str) -> bool {
   }
   if mime == "application/pdf" {
     let tail = &bytes[bytes.len().saturating_sub(2048)..];
-    return !super::inspection::window_contains(tail, b"%%EOF");
+    return !crate::inspection_bytes::window_contains(tail, b"%%EOF");
   }
   if kind == "archive" && mime == "application/zip" {
-    return !super::inspection::window_contains(bytes, b"PK\x05\x06") && bytes.len() < 22;
+    return !crate::inspection_bytes::window_contains(bytes, b"PK\x05\x06") && bytes.len() < 22;
   }
   false
 }
@@ -589,10 +589,10 @@ pub fn inspect_magic(bytes: &[u8], filename: &str, declared_mime: &str) -> Magic
   }
   if detected && bytes.len() > 4 {
     let tail = &bytes[4..bytes.len().min(65_536)];
-    if mime != "application/pdf" && super::inspection::window_contains(tail, b"%PDF-") {
+    if mime != "application/pdf" && crate::inspection_bytes::window_contains(tail, b"%PDF-") {
       mismatch_flags |= MISMATCH_POLYGLOT;
     }
-    if !mime.starts_with("application/vnd.microsoft") && starts_with(bytes, b"PK\x03\x04") && super::inspection::window_contains(&bytes[..bytes.len().min(1024)], b"This program cannot be run in DOS mode") {
+    if !mime.starts_with("application/vnd.microsoft") && starts_with(bytes, b"PK\x03\x04") && crate::inspection_bytes::window_contains(&bytes[..bytes.len().min(1024)], b"This program cannot be run in DOS mode") {
       mismatch_flags |= MISMATCH_POLYGLOT;
     }
   }

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readInspectionSources } from "./nativeInspectionSources.js";
 
 import fs from "fs";
 import path from "path";
@@ -41,7 +42,7 @@ test("golurile inchise raman acoperite: continut imbricat si imagini din PDF", (
     source.includes("un_qr_incorporat_ca_imagine_in_pdf_e_citit_fara_pdfium"),
     "un cod incorporat ca imagine in PDF era invizibil; reconstructia bitmap-ului l-a facut vizibil fara PDFium"
   );
-  const inspection = fs.readFileSync(path.join(srcRoot, "native", "core", "src", "inspection.rs"), "utf8");
+  const inspection = readInspectionSources();
   const nested = inspection.slice(inspection.indexOf("fn content_indicators"));
   assert.ok(
     nested.slice(0, nested.indexOf("\nfn ")).includes("visual_indicators(bytes)"),

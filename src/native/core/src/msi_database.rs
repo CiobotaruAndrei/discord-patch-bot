@@ -114,7 +114,7 @@ fn describe_custom_action(entry: &MsiCustomAction) -> Vec<String> {
 pub fn read_msi_database(bytes: &[u8], limits: &MsiLimits) -> MsiDatabaseOutcome {
   use std::io::Cursor;
 
-  if !super::inspection::is_compound_file_binary(bytes) {
+  if !crate::inspection_ole::is_compound_file_binary(bytes) {
     return MsiDatabaseOutcome::NotMsi;
   }
 

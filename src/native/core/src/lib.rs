@@ -4,6 +4,13 @@ mod executable;
 mod fuzzy;
 mod hashing;
 mod inspection;
+mod inspection_archives;
+mod inspection_budgets;
+mod inspection_bytes;
+mod inspection_indicators;
+mod inspection_ole;
+mod inspection_pdf;
+mod inspection_verdict;
 mod native_archive;
 mod magic;
 mod msi_database;
@@ -60,10 +67,12 @@ pub use mspack_container::{
 pub use document_text::{extract_pdf_text, find_url_hosts, DocumentTextLimits};
 pub use executable::analysis_blind_spots;
 pub use inspection::{container_signature, uninspectable_format};
-pub use inspection::{
-  decode_msi_stream_name, document_indicators, has_obfuscated_pdf_action_name, inspect_compound_file_binary,
-  inspect_untrusted_content, InspectionLimits, InspectionReport,
-};
+pub use inspection::inspect_untrusted_content;
+pub use inspection_budgets::InspectionLimits;
+pub use inspection_indicators::document_indicators;
+pub use inspection_ole::{decode_msi_stream_name, inspect_compound_file_binary};
+pub use inspection_pdf::has_obfuscated_pdf_action_name;
+pub use inspection_verdict::InspectionReport;
 pub use pdf_structure::{
   count_revisions, inspect_pdf_structure, needs_structural_escalation, qpdf_available,
   PdfStructureLimits, PdfStructureOutcome, PdfStructureReport,
