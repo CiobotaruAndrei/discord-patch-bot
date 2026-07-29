@@ -630,8 +630,7 @@ propriile componente — libyara, libarchive si qpdf sunt invizibile in raportul
 codul care parseaza continut ostil.
 
 `npm run sbom:native` citeste `native/Cargo.lock` si emite versiunile exacte, tipul legarii si sursa
-C/C++ vendorata:
-| Crate | Versiune | Tip | Sursa C/C++ | Rol |
+C/C++ vendorata:| Crate | Versiune | Tip | Sursa C/C++ | Rol |
 | --- | --- | --- | --- | --- |
 | `magic` | 0.16.7 | c-system | libmagic de sistem (file 5.x) | detectie tip real + MIME + encoding |
 | `magic-sys` | 0.3.0 | c-system | libmagic de sistem (file 5.x) | legaturi FFI pentru libmagic |
@@ -644,6 +643,7 @@ C/C++ vendorata:
 | `capstone` | 0.14.0 | c-static | Capstone 5.x (bundled) | dezasamblarea sectiunii de cod a executabilelor |
 | `capstone-sys` | 0.18.0 | c-static | Capstone 5.x (bundled) | legaturi FFI pentru Capstone |
 | `mspack-sys` | 0.1.0 | c-system | libmspack de sistem (0.11) | decompresie CAB si CHM din memorie |
+| `tlsh-sys` | 0.1.0 | cpp-static | TLSH 5.0.2 (vendorizat, Apache-2.0) | amprenta fuzzy pentru potrivire aproximativa |
 | `libseccomp` | 0.4.0 | c-system | libseccomp de sistem | filtru de syscall in procesul izolat |
 | `libseccomp-sys` | 0.3.0 | c-system | libseccomp de sistem | legaturi FFI pentru libseccomp |
 | `goblin` | 0.10.7 | rust | - | parsare PE/ELF/Mach-O |
