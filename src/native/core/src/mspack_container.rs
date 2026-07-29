@@ -86,7 +86,7 @@ mod engine {
     if self_.is_null() || filename.is_null() {
       return ptr::null_mut();
     }
-    let input = *filename == INPUT_NAME[0] as c_char;
+    let input = CStr::from_ptr(filename).to_bytes().first() == INPUT_NAME.first();
     let handle = Box::new(MemoryFile { owner: self_ as *mut MemorySystem, input, position: 0 });
     Box::into_raw(handle) as *mut ffi::mspack_file
   }
@@ -146,17 +146,21 @@ mod engine {
     let handle = &mut *(file as *mut MemoryFile);
     let owner = &*handle.owner;
     let length = if handle.input { owner.input_len } else { owner.output.len() };
-    let base = match mode as u32 {
-      ffi::MSPACK_SYS_SEEK_START => 0i64,
-      ffi::MSPACK_SYS_SEEK_CUR => handle.position as i64,
-      ffi::MSPACK_SYS_SEEK_END => length as i64,
+    let base: ffi::off_t = match mode as u32 {
+      ffi::MSPACK_SYS_SEEK_START => 0,
+      ffi::MSPACK_SYS_SEEK_CUR => handle.position as ffi::off_t,
+      ffi::MSPACK_SYS_SEEK_END => length as ffi::off_t,
       _ => return -1,
     };
-    let Some(target) = base.checked_add(offset as i64) else { return -1 };
-    if target < 0 || target > length as i64 {
+    let Some(target) = base.checked_add(offset) else { return -1 };
+    if target < 0 {
       return -1;
     }
-    handle.position = target as usize;
+    let target = target as usize;
+    if target > length {
+      return -1;
+    }
+    handle.position = target;
     0
   }
 

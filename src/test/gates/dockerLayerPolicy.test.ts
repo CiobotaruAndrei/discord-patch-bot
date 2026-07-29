@@ -156,3 +156,23 @@ test("in acelasi stage, un COPY din context nu se ingusteaza dupa unul mai larg"
       `un COPY mai ingust de dupa inseamna ca un pas scump asteapta degeaba dupa surse care nu-l privesc: ${violations.join(" | ")}`
   );
 });
+
+test("stratul de pre-compilare a dependintelor acopera fiecare membru al workspace-ului", () => {
+  const workspace = fs.readFileSync(path.join(process.cwd(), "native", "Cargo.toml"), "utf8");
+  const declarati = workspace.match(/members\s*=\s*\[([^\]]*)\]/);
+  assert.ok(declarati, "workspace-ul native trebuie sa declare explicit membrii");
+
+  const membri = [...declarati[1].matchAll(/"([^"]+)"/g)].map(match => match[1]);
+  assert.ok(membri.length > 0, "o lista goala ar face verificarea asta fara efect");
+
+  const dockerfile = fs.readFileSync(path.join(process.cwd(), "..", "Dockerfile"), "utf8");
+  const lipsa = membri.filter(membru => !dockerfile.includes(`native/${membru}/Cargo.toml`));
+
+  assert.deepEqual(
+    lipsa,
+    [],
+    "stratul care pre-compileaza dependintele Rust construieste `--workspace`, deci cargo cere manifestul " +
+      "fiecarui membru; unul lipsa opreste build-ul imaginii cu `failed to load manifest`, iar asta se vede " +
+      `abia in CI, dupa push. Membri fara COPY in Dockerfile: ${lipsa.join(", ")}`
+  );
+});
