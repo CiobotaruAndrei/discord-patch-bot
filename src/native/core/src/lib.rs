@@ -15,6 +15,7 @@ mod types;
 mod updates;
 mod url_identity;
 mod chm_listing;
+mod code_disassembly;
 mod similarity_corpus;
 mod document_text;
 mod pdf_vector;
@@ -23,9 +24,13 @@ mod yara_rules;
 
 pub use autocomplete::build_autocomplete_choices;
 pub use deals::{deal_passes_filters, dedupe_and_rank_deals, DealCandidateData};
+pub use code_disassembly::{
+  code_indicators, disassemble_code, disassembly_available, DecodedInstruction, DisassemblyLimits,
+  DisassemblyOutcome, DisassemblyReport,
+};
 pub use executable::{
-  analyze_executable, executable_analysis_available, looks_like_executable, shannon_entropy,
-  ExecutableLimits, ExecutableOutcome, ExecutableReport, ExecutableSection,
+  analyze_executable, executable_analysis_available, locate_code_region, looks_like_executable, shannon_entropy,
+  CodeRegion, ExecutableLimits, ExecutableOutcome, ExecutableReport, ExecutableSection,
 };
 pub use fuzzy::find_game_keys;
 pub use hashing::{deal_hash, normalize_deal_state, stable_update_id};

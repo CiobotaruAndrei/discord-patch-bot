@@ -33,6 +33,13 @@ pub struct ExecutableLimits {
   pub max_entropy_bytes: usize,
 }
 
+pub struct CodeRegion {
+  pub architecture: String,
+  pub offset: usize,
+  pub size: usize,
+  pub address: u64,
+}
+
 impl Default for ExecutableLimits {
   fn default() -> Self {
     Self { max_sections: 64, max_libraries: 64, max_entropy_bytes: 1024 * 1024 }
@@ -386,6 +393,47 @@ mod engine {
       Err(detail) => ExecutableOutcome::Failed(detail),
     }
   }
+
+  fn region(bytes: &[u8], architecture: String, offset: u64, size: u64, address: u64) -> Option<CodeRegion> {
+    let start = offset as usize;
+    if start >= bytes.len() || size == 0 {
+      return None;
+    }
+    let length = (size as usize).min(bytes.len() - start);
+    (length > 0).then_some(CodeRegion { architecture, offset: start, size: length, address })
+  }
+
+  pub fn locate(bytes: &[u8], limits: &ExecutableLimits) -> Option<CodeRegion> {
+    if is_pe(bytes) {
+      let pe = goblin::pe::PE::parse(bytes).ok()?;
+      let architecture = describe_machine(pe.header.coff_header.machine);
+      let section = pe
+        .sections
+        .iter()
+        .take(limits.max_sections)
+        .filter(|section| section.characteristics & 0x2000_0000 != 0)
+        .max_by_key(|section| section.size_of_raw_data)?;
+      region(
+        bytes,
+        architecture,
+        u64::from(section.pointer_to_raw_data),
+        u64::from(section.size_of_raw_data),
+        pe.image_base + u64::from(section.virtual_address),
+      )
+    } else if is_elf(bytes) {
+      let elf = goblin::elf::Elf::parse(bytes).ok()?;
+      let architecture = describe_elf_machine(elf.header.e_machine);
+      let header = elf
+        .section_headers
+        .iter()
+        .take(limits.max_sections)
+        .filter(|header| header.sh_flags & 0x4 != 0 && header.sh_type != 8)
+        .max_by_key(|header| header.sh_size)?;
+      region(bytes, architecture, header.sh_offset, header.sh_size, header.sh_addr)
+    } else {
+      None
+    }
+  }
 }
 
 #[cfg(not(feature = "executable"))]
@@ -400,14 +448,25 @@ mod engine {
       "analiza executabilelor nu este compilata in acest build (feature `executable` dezactivat)".to_string(),
     )
   }
+
+  pub fn locate(_bytes: &[u8], _limits: &ExecutableLimits) -> Option<CodeRegion> {
+    None
+  }
 }
 
 pub fn analyze_executable(bytes: &[u8], limits: &ExecutableLimits) -> ExecutableOutcome {
   engine::analyze(bytes, limits)
 }
 
+pub fn locate_code_region(bytes: &[u8], limits: &ExecutableLimits) -> Option<CodeRegion> {
+  if !looks_like_executable(bytes) {
+    return None;
+  }
+  engine::locate(bytes, limits)
+}
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use super::*;
 
   #[test]
@@ -456,7 +515,7 @@ mod tests {
   }
 
   #[cfg(feature = "executable")]
-  fn minimal_pe(section_name: &str, section_payload: &[u8], characteristics: u32) -> Vec<u8> {
+  pub(crate) fn minimal_pe(section_name: &str, section_payload: &[u8], characteristics: u32) -> Vec<u8> {
     let mut out = vec![0u8; 0x80];
     out[0] = 0x4d;
     out[1] = 0x5a;
