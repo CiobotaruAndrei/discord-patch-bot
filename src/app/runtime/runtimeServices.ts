@@ -1,4 +1,5 @@
 import type { AppRuntimeDeps, RuntimeServices } from "../appRuntimeContracts.js";
+import { intentNamesForRole } from "../../shared/botRole.js";
 
 import ________infra_redis_redisMetrics from "../../infra/redis/redisMetrics.js";
 const { attachRedisMetrics } = ________infra_redis_redisMetrics;
@@ -12,13 +13,7 @@ function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   scrapers.attachMetrics(metrics);
   attachRedisMetrics(metrics);
   attachGuildSettingsEventMetrics(metrics);
-  const client = new Client({ intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildModeration
-  ] });
+  const client = new Client({ intents: intentNamesForRole(env.BOT_ROLE).map(name => GatewayIntentBits[name]) });
   setAdminAlertDiscordClient(client);
   const lifecycle = { isShuttingDown: false };
   const rateLimiter = createRateLimiter(env, metrics);
