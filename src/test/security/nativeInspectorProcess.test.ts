@@ -5,13 +5,15 @@ import { EventEmitter } from "node:events";
 import {
   createNativeInspectorClient,
   encodeRequest,
-  type InspectorMetrics,
   type SpawnInspector
 } from "../../features/command-security/nativeInspectorProcess.js";
 import { DEFAULT_INSPECTION_LIMITS } from "../../features/command-security/passiveArchiveInspection.js";
+import { createMetrics } from "../../app/health/metrics.js";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
+import type { BotMetrics } from "../../app/health/metricsTypes.js";
 
-function metrics(): InspectorMetrics {
-  return { nativeInspectorKills: 0, nativeInspectorRestarts: 0, nativeInspectorTimeouts: 0, nativeInspectorSandboxed: 0 };
+function metrics(): BotMetrics {
+  return createMetrics();
 }
 
 function encodeText(value: string): Buffer {
@@ -62,7 +64,7 @@ function clientWith(child: FakeChild, overrides: Record<string, unknown> = {}) {
   const client = createNativeInspectorClient({
     binaryPath: "native-inspector",
     spawnProcess,
-    metrics: collected,
+    metrics: createMetricRecorders(collected).inspector,
     requestTimeoutMs: 80,
     ...overrides
   });
@@ -153,7 +155,7 @@ test("lipsa filtrului de syscall este raportata explicit, nu tacuta", async () =
   const client = createNativeInspectorClient({
     binaryPath: "native-inspector",
     spawnProcess,
-    metrics: collected,
+    metrics: createMetricRecorders(collected).inspector,
     requestTimeoutMs: 80,
     logger: (level, _context, message) => { logs.push(`${level}:${message}`); }
   });

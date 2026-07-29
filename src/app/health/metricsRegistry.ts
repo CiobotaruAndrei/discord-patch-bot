@@ -122,6 +122,7 @@ function renderPrometheusMetrics(input: MetricsSnapshotInput): string {
   pushMetric(lines, seenMetricNames, "bot_channel_lock_recovery_failures", "counter", "Channel lock/unlock divergence recovery failed runs", metrics.channelLockRecoveryFailures ?? 0);
   pushMetric(lines, seenMetricNames, "bot_channel_lock_recoveries_converged", "counter", "Channel lock/unlock divergences restored and closed", metrics.channelLockRecoveriesConverged ?? 0);
   pushMetric(lines, seenMetricNames, "bot_security_threats_deleted", "counter", "Confirmed dangerous messages deleted", metrics.securityThreatsDeleted ?? 0);
+  pushMetric(lines, seenMetricNames, "bot_security_threat_delete_failures", "counter", "Failed deletions of confirmed dangerous messages", metrics.securityThreatDeleteFailures ?? 0);
   pushMetric(lines, seenMetricNames, "bot_security_bot_adds_blocked", "counter", "Unauthorized bot additions blocked", metrics.securityBotAddsBlocked ?? 0);
   pushMetric(lines, seenMetricNames, "bot_permission_delegations_reverted", "counter", "Unauthorized protected permission grants reverted", metrics.permissionDelegationsReverted ?? 0);
   const commandNames = Array.from(new Set([...Object.keys(metrics.commandRuns), ...Object.keys(metrics.commandErrors)])).sort();

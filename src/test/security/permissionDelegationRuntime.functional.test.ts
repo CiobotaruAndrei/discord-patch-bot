@@ -1,3 +1,5 @@
+import { createMetrics } from "../../app/health/metrics.js";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
@@ -105,12 +107,13 @@ test("restaurarea la roleUpdate elimina DOAR permisiunile protejate adaugate; sc
       restored.push({ value, reason });
     }
   };
-  const metrics = { permissionDelegationsReverted: 0 };
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
   const runtime = createPermissionDelegationRuntime({
     wait: async () => undefined,
     GuildAuditLogModel: auditModel(audits),
     adminAlert: async (_kind, _title, body) => { alerts.push(body); },
-    metrics,
+    metrics: recorders.permissionDelegation,
     now: () => now
   });
 
@@ -231,12 +234,13 @@ test("un rol NOU creat cu permisiuni sensibile de un non-owner pierde DOAR cele 
       };
     }
   };
-  const metrics = { permissionDelegationsReverted: 0 };
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
   const runtime = createPermissionDelegationRuntime({
     wait: async () => undefined,
     GuildAuditLogModel: auditModel(audits),
     adminAlert: async (_kind, _title, body) => { alerts.push(body); },
-    metrics,
+    metrics: recorders.permissionDelegation,
     now: () => now
   });
 
@@ -329,12 +333,13 @@ test("channelUpdate: un overwrite care acorda Manage Webhooks e restaurat la sta
       };
     }
   };
-  const metrics = { permissionDelegationsReverted: 0 };
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
   const runtime = createPermissionDelegationRuntime({
     wait: async () => undefined,
     GuildAuditLogModel: auditModel(audits),
     adminAlert: async (_kind, _title, body) => { alerts.push(body); },
-    metrics,
+    metrics: recorders.permissionDelegation,
     now: () => now
   });
 

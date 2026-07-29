@@ -1,5 +1,6 @@
 "use strict";
 
+import type { SecurityMetricRecorder } from "../../app/health/metricRecorders.js";
 import { AuditLogEvent, UserFlags } from "discord.js";
 import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import botAddRepository from "../moderation/botAddRepository.js";
@@ -50,12 +51,6 @@ type MessageEvent = {
   delete?(): Promise<unknown>;
 };
 type GuildModel = Parameters<typeof botAddRepository.getBotAddState>[0] & BotObservationModelLike;
-type RuntimeMetrics = {
-  securityThreatsDeleted?: number;
-  securityThreatDeleteFailures?: number;
-  securityBotAddsBlocked?: number;
-};
-
 export type SecurityRuntimeDeps = {
   getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;
   client: SecurityClient;
@@ -65,7 +60,7 @@ export type SecurityRuntimeDeps = {
   reputationScan?: Parameters<typeof createThreatInspectionService>[0]["reputationScan"];
   claimNewAccountAlert?: (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
   logger?: (level: string, context: string, message: string, meta?: unknown) => void;
-  metrics?: RuntimeMetrics;
+  metrics?: SecurityMetricRecorder;
   now?: () => number;
   wait?: (ms: number) => Promise<void>;
 };
@@ -120,17 +115,17 @@ function attachments(message: MessageEvent): DirectAttachment[] {
   return message.attachments ? [...message.attachments.values()] : [];
 }
 
-async function deleteThreatMessage(message: MessageEvent, metrics: RuntimeMetrics | undefined): Promise<string> {
+async function deleteThreatMessage(message: MessageEvent, metrics: SecurityMetricRecorder | undefined): Promise<string> {
   if (typeof message.delete !== "function") {
-    if (metrics) metrics.securityThreatDeleteFailures = (metrics.securityThreatDeleteFailures ?? 0) + 1;
+    metrics?.threatDeleteFailed();
     return "mesaj nesters: lipseste permisiunea sau operatia de stergere";
   }
   try {
     await message.delete();
-    if (metrics) metrics.securityThreatsDeleted = (metrics.securityThreatsDeleted ?? 0) + 1;
+    metrics?.threatDeleted();
     return "mesaj sters";
   } catch (error: unknown) {
-    if (metrics) metrics.securityThreatDeleteFailures = (metrics.securityThreatDeleteFailures ?? 0) + 1;
+    metrics?.threatDeleteFailed();
     const reason = error instanceof Error ? error.message : "eroare Discord necunoscuta";
     return `mesaj nesters: ${reason}`;
   }
@@ -229,7 +224,7 @@ export function createSecurityRuntime(deps: SecurityRuntimeDeps) {
         });
         return;
       }
-      deps.metrics && (deps.metrics.securityBotAddsBlocked = (deps.metrics.securityBotAddsBlocked ?? 0) + 1);
+      deps.metrics?.botAddBlocked();
       await channel.send({
         content: `${owner.prefix}:shield: Bot neaprobat eliminat. Bot: ${tag} (${botId}). Solicitant audit: ${requesterId ? `<@${requesterId}>` : "nedetectat dupa reincercari"}.`,
         allowedMentions: owner.allowedMentions

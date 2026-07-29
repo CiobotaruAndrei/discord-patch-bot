@@ -39,6 +39,7 @@ export interface BotMetrics {
   guildSettingsListenerFailures: number;
   securityRuntimeErrors?: number;
   securityThreatsDeleted?: number;
+  securityThreatDeleteFailures?: number;
   securityBotAddsBlocked?: number;
   permissionDelegationsReverted?: number;
   moderationCleanupRuns?: number;

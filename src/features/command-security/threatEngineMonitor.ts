@@ -1,20 +1,12 @@
 "use strict";
 
+import type { ThreatEngineMetricRecorder } from "../../app/health/metricRecorders.js";
 import type { ReputationEngineDetails } from "./reputationEngine.js";
-
-type MonitorMetrics = {
-  threatEngineScans?: number;
-  threatEngineFailures?: Record<string, number>;
-  threatEngineVersionChanges?: number;
-  threatEngineLastScanAt?: number;
-  threatEngineVersion?: string;
-  threatEngineDatabaseVersion?: string;
-};
 
 type MonitorLogger = (level: string, context: string, message: string, meta?: unknown) => void;
 
 export interface ThreatEngineMonitorDeps {
-  metrics: MonitorMetrics;
+  metrics: ThreatEngineMetricRecorder;
   logger?: MonitorLogger;
   now?: () => number;
 }
@@ -32,29 +24,22 @@ export function createThreatEngineMonitor(deps: ThreatEngineMonitorDeps): Threat
 
   return {
     onDetails(details: ReputationEngineDetails): void {
-      metrics.threatEngineScans = (metrics.threatEngineScans ?? 0) + 1;
-      metrics.threatEngineLastScanAt = now();
-      const previousEngine = metrics.threatEngineVersion ?? "";
-      const previousDatabase = metrics.threatEngineDatabaseVersion ?? "";
+      metrics.scanned(now());
+      const { engine: previousEngine, database: previousDatabase } = metrics.knownVersions();
       const engineChanged = details.engineVersion !== "" && details.engineVersion !== previousEngine;
       const databaseChanged = details.databaseVersion !== "" && details.databaseVersion !== previousDatabase;
       if (engineChanged || databaseChanged) {
         const firstObservation = previousEngine === "" && previousDatabase === "";
-        if (!firstObservation) {
-          metrics.threatEngineVersionChanges = (metrics.threatEngineVersionChanges ?? 0) + 1;
-        }
+        if (!firstObservation) metrics.versionChanged();
         logger?.("INFO", "THREAT_REPUTATION", "Versiunea motorului de reputatie/antivirus observata s-a schimbat", {
           engineVersion: { from: previousEngine || null, to: details.engineVersion || previousEngine || null },
           databaseVersion: { from: previousDatabase || null, to: details.databaseVersion || previousDatabase || null }
         });
       }
-      if (details.engineVersion !== "") metrics.threatEngineVersion = details.engineVersion;
-      if (details.databaseVersion !== "") metrics.threatEngineDatabaseVersion = details.databaseVersion;
+      metrics.versionsObserved({ engine: details.engineVersion, database: details.databaseVersion });
     },
     onFailure(reason: string): void {
-      const failures = metrics.threatEngineFailures ?? {};
-      failures[reason] = (failures[reason] ?? 0) + 1;
-      metrics.threatEngineFailures = failures;
+      metrics.probeFailed(reason);
     }
   };
 }

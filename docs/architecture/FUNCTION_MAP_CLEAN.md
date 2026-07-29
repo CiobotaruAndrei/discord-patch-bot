@@ -91,6 +91,12 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Inainte, fiecare handler isi scria propria forma: treizeci si patru de declaratii aproape identice care difereau prin detalii care contau (`guild?: { id: string }` fata de `{ id?: string }`, `reply` optional fata de obligatoriu) si prin `payload: unknown`, adica orice valoare ajungea la Discord fara verificare.
 - Gardat de `discordInteractionPorts.test.ts`: niciun handler nu are voie sa isi rescrie forma inline, `reply`/`followUp` nu au voie sa primeasca `unknown`, iar porturile trebuie sa ramana capabilitati numite.
 
+### `src/app/health/metricRecorders.ts`
+
+- Registrul central de recorderi de metrici. `createMetricRecorders(metrics)` leaga un singur magazin de contoare (`BotMetrics`) de recorderi pe domeniu: `security`, `inspector`, `threatEngine`, `permissionDelegation`, `http`, `redis`, `cron`. Fiecare recorder expune verbe (`threatDeleted()`, `processKilled()`, `probeFailed(reason)`, `reverted(count)`), nu campuri, deci un feature nu mai cunoaste numele contorului si nici forma intregului obiect de metrici.
+- Inainte, obiectul comun de metrici circula intreg prin features, iar fiecare loc isi scria singur `metrics.camp = (metrics.camp ?? 0) + 1`. De aici a venit si `securityThreatDeleteFailures`: era incrementat in `securityRuntime`, dar nu exista in `BotMetrics` si nu era expus de `metricsRegistry`, deci fiecare stergere esuata a unui mesaj periculos confirmat se contoriza intr-un camp pe care nu-l vedea nimeni. Contorul e acum declarat, initializat si expus ca `bot_security_threat_delete_failures`.
+- Gardat de `metricRecorderBoundaries.test.ts`: `features`/`sources`/`domain` nu au voie sa scrie direct intr-un camp de metrica, interfetele recorderilor nu au voie sa contina nume de campuri, niciun modul din afara `app/health` nu cere `BotMetrics` intreg, si fiecare contor scris de un recorder trebuie sa apara in expunerea Prometheus.
+
 ## Infra
 
 ### `src/infra/http/` (client compus din module pe responsabilitati)

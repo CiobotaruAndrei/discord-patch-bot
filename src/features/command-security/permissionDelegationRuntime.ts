@@ -1,5 +1,6 @@
 "use strict";
 
+import type { PermissionDelegationMetricRecorder } from "../../app/health/metricRecorders.js";
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import {
@@ -61,7 +62,7 @@ export interface PermissionDelegationRuntimeDeps {
   GuildModel?: BotObservationModelLike;
   GuildAuditLogModel: GuildAuditLogModelLike;
   adminAlert(kind: string, title: string, body: string, guildId?: string): Promise<unknown>;
-  metrics?: DelegationMetrics;
+  metrics?: PermissionDelegationMetricRecorder;
   now?: () => number;
   wait?: (ms: number) => Promise<void>;
 }
@@ -204,7 +205,7 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
     if (!stillGranted.length) return;
     markProcessed(match);
     await next.setPermissions(currentBits & ~protectedMask(stillGranted), "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile");
-    deps.metrics && (deps.metrics.permissionDelegationsReverted = (deps.metrics.permissionDelegationsReverted ?? 0) + 1);
+    deps.metrics?.reverted();
     await recordServerAuditEntry(deps.GuildAuditLogModel, next.guild.id, {
       userId: actorId ?? "",
       action: "protected-role-permissions-reverted",
@@ -235,7 +236,7 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
     for (const role of addedProtected) {
       await next.roles.remove(role.id, "Protectie anti-delegare: numai ownerul poate acorda roluri sensibile");
     }
-    deps.metrics && (deps.metrics.permissionDelegationsReverted = (deps.metrics.permissionDelegationsReverted ?? 0) + addedProtected.length);
+    deps.metrics?.reverted(addedProtected.length);
     await recordServerAuditEntry(deps.GuildAuditLogModel, next.guild.id, {
       userId: actorId ?? "",
       action: "protected-member-roles-reverted",
@@ -279,7 +280,7 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
     if (!stillGranted.length) return;
     markProcessed(match);
     await role.setPermissions(currentBits & ~protectedMask(stillGranted), "Protectie anti-delegare: numai ownerul poate crea roluri cu permisiuni sensibile");
-    deps.metrics && (deps.metrics.permissionDelegationsReverted = (deps.metrics.permissionDelegationsReverted ?? 0) + 1);
+    deps.metrics?.reverted();
     await recordServerAuditEntry(deps.GuildAuditLogModel, role.guild.id, {
       userId: actorId ?? "",
       action: "protected-role-create-reverted",
@@ -326,7 +327,7 @@ export function createPermissionDelegationRuntime(deps: PermissionDelegationRunt
       }
       await edit(overwrite.id, restore, { reason: "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile prin overwrite de canal" });
     }
-    deps.metrics && (deps.metrics.permissionDelegationsReverted = (deps.metrics.permissionDelegationsReverted ?? 0) + violations.length);
+    deps.metrics?.reverted(violations.length);
     await recordServerAuditEntry(deps.GuildAuditLogModel, guild.id, {
       userId: actorId ?? "",
       action: "protected-channel-overwrite-reverted",

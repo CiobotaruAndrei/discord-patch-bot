@@ -1,10 +1,11 @@
+import { createMetrics } from "../../app/health/metrics.js";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createThreatEngineMonitor } from "../../features/command-security/threatEngineMonitor.js";
 import type { ReputationEngineDetails } from "../../features/command-security/reputationEngine.js";
 
-type MonitorMetrics = Parameters<typeof createThreatEngineMonitor>[0]["metrics"];
 
 function details(overrides: Partial<ReputationEngineDetails> = {}): ReputationEngineDetails {
   return {
@@ -19,9 +20,10 @@ function details(overrides: Partial<ReputationEngineDetails> = {}): ReputationEn
 }
 
 test("fiecare raspuns reusit incrementeaza scanarile si actualizeaza momentul ultimei scanari", () => {
-  const metrics: MonitorMetrics = {};
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
   let clock = 1_000;
-  const monitor = createThreatEngineMonitor({ metrics, now: () => clock });
+  const monitor = createThreatEngineMonitor({ metrics: recorders.threatEngine, now: () => clock });
 
   monitor.onDetails(details());
   clock = 5_000;
@@ -32,9 +34,10 @@ test("fiecare raspuns reusit incrementeaza scanarile si actualizeaza momentul ul
 });
 
 test("prima observare a versiunilor le retine fara sa numere o schimbare", () => {
-  const metrics: MonitorMetrics = {};
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
   const logs: unknown[] = [];
-  const monitor = createThreatEngineMonitor({ metrics, logger: (...entry) => { logs.push(entry); }, now: () => 0 });
+  const monitor = createThreatEngineMonitor({ metrics: recorders.threatEngine, logger: (...entry) => { logs.push(entry); }, now: () => 0 });
 
   monitor.onDetails(details());
 
@@ -45,10 +48,11 @@ test("prima observare a versiunilor le retine fara sa numere o schimbare", () =>
 });
 
 test("o schimbare reala de versiune dupa prima observare e numarata si logata cu vechi si nou", () => {
-  const metrics: MonitorMetrics = {};
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
   const logs: { meta?: unknown }[] = [];
   const monitor = createThreatEngineMonitor({
-    metrics,
+    metrics: recorders.threatEngine,
     logger: (_level, _context, _message, meta) => { logs.push({ meta }); },
     now: () => 0
   });
@@ -69,8 +73,9 @@ test("o schimbare reala de versiune dupa prima observare e numarata si logata cu
 });
 
 test("un raspuns fara metadate de versiune nu sterge versiunile deja observate", () => {
-  const metrics: MonitorMetrics = {};
-  const monitor = createThreatEngineMonitor({ metrics, now: () => 0 });
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
+  const monitor = createThreatEngineMonitor({ metrics: recorders.threatEngine, now: () => 0 });
 
   monitor.onDetails(details());
   monitor.onDetails(details({ engineVersion: "", databaseVersion: "" }));
@@ -81,8 +86,9 @@ test("un raspuns fara metadate de versiune nu sterge versiunile deja observate",
 });
 
 test("esecurile se numara separat pe motiv, fara sa se amestece", () => {
-  const metrics: MonitorMetrics = {};
-  const monitor = createThreatEngineMonitor({ metrics, now: () => 0 });
+  const metrics = createMetrics();
+  const recorders = createMetricRecorders(metrics);
+  const monitor = createThreatEngineMonitor({ metrics: recorders.threatEngine, now: () => 0 });
 
   monitor.onFailure("transport");
   monitor.onFailure("transport");
