@@ -1,5 +1,6 @@
 import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types.js";
 import { selectLatestSteamPatchNoteIndex } from "../../native/fuzzy.js";
+import { decodeSteamNewsResponse } from "../responseDecoders.js";
 
 interface SteamNewsItem {
   gid?: unknown;
@@ -12,13 +13,6 @@ interface SteamNewsItem {
   date?: unknown;
 }
 
-interface SteamNewsResponse {
-  appnews?: {
-    newsitems?: SteamNewsItem[];
-  };
-}
-
-
 interface SteamUpdatesDeps {
   conditionalGet: <T>(url: string, parse: (data: unknown) => T | Promise<T>, options?: HttpRequestOptions) => Promise<T>;
   normalizeUpdate: (data: PatchUpdate) => NormalizedUpdate;
@@ -30,7 +24,7 @@ function createSteamUpdates(deps: SteamUpdatesDeps) {
     const { conditionalGet, normalizeUpdate, cleanText } = deps;
     const url = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${game.appId}&count=50&format=json`;
     return conditionalGet(url, (raw) => {
-      const data = raw as SteamNewsResponse;
+      const data = decodeSteamNewsResponse(raw);
       const newsitems = data.appnews?.newsitems || [];
       const latestIndex = selectLatestSteamPatchNoteIndex(newsitems);
       if (latestIndex < 0) throw new Error("Lipsă patch notes Steam valabile.");

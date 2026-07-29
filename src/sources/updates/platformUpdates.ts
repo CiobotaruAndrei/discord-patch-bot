@@ -3,19 +3,8 @@ import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } fr
 import { errorMessage } from "../../shared/errors.js";
 import type { HttpReq, RssParserLike } from "./updateHelpers.js";
 import { decodeFortniteBlogResponse, type FortnitePost } from "../responseDecoders.js";
+import { decodeMinecraftManifest, decodeRobloxVersion } from "../responseDecoders.js";
 
-
-
-interface MinecraftVersionManifest {
-  latest?: {
-    release?: string;
-  };
-}
-
-
-interface RobloxVersionResponse {
-  clientVersionUpload?: string;
-}
 
 
 interface PlatformUpdatesDeps {
@@ -104,7 +93,7 @@ function createPlatformUpdates(deps: PlatformUpdatesDeps) {
   async function fetchMinecraftUpdate(): Promise<NormalizedUpdate> {
     const { normalizeUpdate } = deps;
     return conditionalGetFromMirrors(MINECRAFT_MANIFEST_MIRRORS, (raw) => {
-      const manifest = raw as MinecraftVersionManifest;
+      const manifest = decodeMinecraftManifest(raw);
       const v = manifest.latest?.release;
       if (!v) throw new Error("Lipsă versiune JSON");
       return normalizeUpdate({
@@ -120,7 +109,7 @@ function createPlatformUpdates(deps: PlatformUpdatesDeps) {
   async function fetchRobloxUpdate(): Promise<NormalizedUpdate> {
     const { normalizeUpdate } = deps;
     return conditionalGetFromMirrors(ROBLOX_CLIENT_VERSION_MIRRORS, (raw) => {
-      const versionInfo = raw as RobloxVersionResponse;
+      const versionInfo = decodeRobloxVersion(raw);
       const v = versionInfo.clientVersionUpload;
       if (!v) throw new Error("Lipsă versiune API");
       return normalizeUpdate({
