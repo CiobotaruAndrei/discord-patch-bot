@@ -1,5 +1,6 @@
 import type { LoggerFunction, MongoWriteOutcome, YouTubeChannelSubscription, YouTubeVideo } from "../../types.js";
 import { clearYoutubeErrors, recordYoutubeError, type YoutubeErrorModelLike } from "./youtubeErrorsRepository.js";
+import { matchedDocument } from "../../shared/persistenceOutcome.js";
 
 interface MongoWriteResult extends MongoWriteOutcome {
   upsertedCount?: number;
@@ -167,7 +168,7 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
         }
       }
     );
-    if ((result.matchedCount ?? 0) > 0) {
+    if (matchedDocument(result)) {
       await recordYoutubeError(GuildYoutubeErrorModel, guildId, {
         channelId: "",
         channelName: "Canal Discord notificari",
@@ -196,7 +197,7 @@ export function createYouTubeRepository(deps: YouTubeRepositoryDeps) {
         }
       }
     );
-    if ((result.matchedCount ?? 0) > 0) {
+    if (matchedDocument(result)) {
       await recordYoutubeError(GuildYoutubeErrorModel, guildId, {
         channelId: "",
         channelName: "Ruta Discord YouTube",

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { changedDocument } from "../../shared/persistenceOutcome.js";
 
 type JournalLogger = (level: string, context: string, message: string, meta?: unknown) => void;
 
@@ -169,7 +170,7 @@ function createOperationJournal<KindMap extends Record<string, unknown> = Record
         $set: { status, lastError, lockedBy: null, lockedUntil: null, updatedAt: now() }
       }
     );
-    if ((result.modifiedCount ?? result.matchedCount ?? 0) === 0) {
+    if (!changedDocument(result)) {
       throw new Error(`operationJournal: lease pierdut inainte de finalizarea operatiei '${entry._id}'`);
     }
   }
@@ -220,7 +221,7 @@ function createOperationJournal<KindMap extends Record<string, unknown> = Record
         leaseGuard(entry),
         { $set: { lockedUntil: new Date(at.getTime() + leaseMs), updatedAt: at } }
       ).then(result => {
-        if ((result.modifiedCount ?? result.matchedCount ?? 0) === 0) leaseLost = true;
+        if (!changedDocument(result)) leaseLost = true;
         heartbeatInFlight = false;
       }).catch(() => {
         leaseLost = true;

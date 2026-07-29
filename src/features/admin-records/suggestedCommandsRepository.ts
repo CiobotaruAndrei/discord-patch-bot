@@ -2,6 +2,7 @@
 
 import type { MongoWriteOutcome, ServerAuditLogEntry, SuggestedCommandEntry } from "../../types.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository.js";
+import { createdDocument } from "../../shared/persistenceOutcome.js";
 
 export interface GuildSuggestedCommandRecord {
   guildId: string;
@@ -55,7 +56,7 @@ export async function saveSuggestedCommand(
     { $setOnInsert: { description: record.description, createdBy: record.createdBy, createdAt: record.createdAt } },
     { upsert: true }
   );
-  const added = (result.upsertedCount ?? 0) > 0;
+  const added = createdDocument(result);
   if (added) {
     const overflow = await model.find({ guildId }).sort({ createdAt: -1 }).skip(MAX_SUGGESTED_COMMANDS).limit(MAX_SUGGESTED_COMMANDS).lean();
     if (overflow.length > 0) {

@@ -96,7 +96,8 @@ test("notification queues keep the duplicate-prevention guardrails", () => {
   expectAll(commandsSource, [
     defines("claimSeenUpdate"),
     /GuildSeenUpdateModel/,
-    /upsertedCount/,
+    /upsert: true/,
+    /createdDocument/,
     /updateId/,
     defines("rollbackSeenUpdate"),
     /rollbackSeenUpdate/,

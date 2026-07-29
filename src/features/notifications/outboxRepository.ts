@@ -1,6 +1,7 @@
 "use strict";
 
 import type { EnqueueOutboxJobInput, OutboxJob, OutboxLeaseToken, OutboxRuntimeDeps } from "./outboxTypes.js";
+import { modifiedDocuments } from "../../shared/persistenceOutcome.js";
 
 export function createOutboxRepository({ NotificationOutboxModel, NotificationOutboxSentModel, withMongoRetry }: Omit<OutboxRuntimeDeps, "logger">) {
   async function alreadySent(dedupeKey: string): Promise<boolean> {
@@ -85,7 +86,7 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
         $unset: { lockedUntil: "", lockedBy: "" }
       }
     );
-    return res?.modifiedCount ?? 0;
+    return modifiedDocuments(res);
   }
 
   async function markDeliveryAccepted(lease: OutboxLeaseToken, now: Date): Promise<number> {
@@ -93,7 +94,7 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
       leaseGuard(lease),
       { $set: { status: "delivered-pending", deliveryAcceptedAt: now, statusChangedAt: now } }
     );
-    return res?.modifiedCount ?? 0;
+    return modifiedDocuments(res);
   }
 
   async function scheduleRetry(lease: OutboxLeaseToken, attempts: number, availableAt: Date): Promise<number> {
@@ -104,7 +105,7 @@ export function createOutboxRepository({ NotificationOutboxModel, NotificationOu
         $unset: { lockedUntil: "", lockedBy: "" }
       }
     );
-    return res?.modifiedCount ?? 0;
+    return modifiedDocuments(res);
   }
 
   async function oldestJobAgeMs(now: Date): Promise<number> {

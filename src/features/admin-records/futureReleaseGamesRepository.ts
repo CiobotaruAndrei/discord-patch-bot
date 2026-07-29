@@ -1,6 +1,7 @@
 "use strict";
 
 import type { FutureReleaseGameEntry, GuildSettings, MongoWriteOutcome } from "../../types.js";
+import { updatedDocument } from "../../shared/persistenceOutcome.js";
 
 type MongoWriteResult = MongoWriteOutcome;
 
@@ -89,7 +90,7 @@ export async function deleteFutureReleaseGame(GuildModel: GuildModelLike, guildI
     { _id: guildId },
     { $pull: { futureReleaseGames: { gameName: normalized } } }
   );
-  return (result.modifiedCount ?? 0) > 0;
+  return updatedDocument(result);
 }
 
 export async function startFutureReleaseNotifications(
@@ -193,7 +194,7 @@ export async function persistFutureReleaseState(
       }
     }]
   );
-  return (result.modifiedCount ?? 0) > 0;
+  return updatedDocument(result);
 }
 
 export async function finishFutureReleaseInitialization(
@@ -210,7 +211,7 @@ export async function finishFutureReleaseInitialization(
     },
     { $set: { futureReleaseInitializing: false } }
   );
-  return (result.modifiedCount ?? 0) > 0;
+  return updatedDocument(result);
 }
 
 export async function disableFutureReleaseForChannelError(

@@ -1,4 +1,5 @@
 import type { GameConfig, PriceAlertRule } from "../../types.js";
+import { modifiedDocuments } from "../../shared/persistenceOutcome.js";
 
 export interface PriceAlertGuildModelLike {
   updateOne(
@@ -97,5 +98,5 @@ export async function removePriceAlertsForGame(
     { _id: guildId },
     { $pull: { priceAlerts: { gameKey } } }
   );
-  return result.modifiedCount ?? 0;
+  return modifiedDocuments(result);
 }

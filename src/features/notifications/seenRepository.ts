@@ -6,6 +6,7 @@ interface GuildModelLike {
 }
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
 import type { MongoWriteOutcome, PriceAlertRule } from "../../types.js";
+import { createdDocument } from "../../shared/persistenceOutcome.js";
 type MongoFilter = Record<string, unknown>;
 type MongoUpdate = Record<string, unknown>;
 type MongoProjection = Record<string, unknown>;
@@ -83,7 +84,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
       { $setOnInsert: { guildId, gameKey, updateId, seenAt: new Date() } },
       { upsert: true }
     ), { label: "claimSeenUpdate:seen" });
-    return { matchedCount: (res.upsertedCount ?? 0) > 0 ? 1 : 0 };
+    return { matchedCount: createdDocument(res) ? 1 : 0 };
   }
 
   async function rollbackSeenUpdate(guildId: string, gameKey: string, updateId: string): Promise<MongoWriteResult> {
@@ -144,7 +145,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
       { $setOnInsert: { guildId, dealHash: hash, seenAt: new Date() } },
       { upsert: true }
     ), { label: "claimSeenDiscount:seen" });
-    return { matchedCount: (res.upsertedCount ?? 0) > 0 ? 1 : 0 };
+    return { matchedCount: createdDocument(res) ? 1 : 0 };
   }
 
   async function rollbackSeenDiscount(guildId: string, hash: string): Promise<MongoWriteResult> {
@@ -219,7 +220,7 @@ export function createSeenRepository(deps: SeenRepositoryDeps): SeenRepository {
       { $setOnInsert: { guildId, gameKey, dlcKey, seenAt: new Date() } },
       { upsert: true }
     ), { label: "claimSeenDlc:seen" });
-    return { matchedCount: (res.upsertedCount ?? 0) > 0 ? 1 : 0 };
+    return { matchedCount: createdDocument(res) ? 1 : 0 };
   }
 
   async function seedSeenDlcs(guildId: string, entries: Array<{ gameKey: string; dlcKey: string }>): Promise<void> {
