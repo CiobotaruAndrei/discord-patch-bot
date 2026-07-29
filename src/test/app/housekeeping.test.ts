@@ -21,8 +21,8 @@ test("housekeeping start is idempotent", async () => {
   try {
     const housekeeping = createHousekeeping({
       commands: { cleanCache() {} },
-      cleanGuildCache() {},
-      scrapers: { cleanEnrichedCache() {} },
+      guildConfig: { sweepExpired() {} },
+      deals: { sweepEnrichedCache() {} },
       rateLimiter: { prune() {} },
       logger() {},
       env: { HOUSEKEEPING_INTERVAL_MS: 1000 },

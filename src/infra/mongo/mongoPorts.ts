@@ -1,34 +1,67 @@
 "use strict";
 
-import type { MongoContextExports } from "./mongoContext.js";
+export interface WriteAcknowledgement {
+  matchedCount?: number;
+  modifiedCount?: number;
+  upsertedCount?: number;
+}
 
-type Port<K extends keyof MongoContextExports> = Pick<MongoContextExports, K>;
+export interface DocumentCollection {
+  updateOne(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown> | readonly Record<string, unknown>[],
+    options?: Record<string, unknown>
+  ): Promise<unknown>;
+  countDocuments(filter: Record<string, unknown>): Promise<number>;
+}
 
-export type GuildConfigStore = Port<
-  "GuildModel" | "getGuildSettings" | "invalidateGuildCache" | "cleanGuildCache" | "getGuildCacheSize"
->;
+export interface GuildConfigStore {
+  guilds: DocumentCollection;
+  readSettings(guildId: string): Promise<unknown>;
+  invalidate(guildId: string): void;
+  sweepExpired(): void;
+  cachedCount(): number;
+}
 
-export type NotificationStore = Port<
-  | "NotificationOutboxModel"
-  | "NotificationOutboxSentModel"
-  | "NotificationHistoryModel"
-  | "GuildDeadLetterModel"
-  | "NotificationDeadLetterReplayModel"
-  | "GuildSeenDiscountModel"
-  | "GuildSeenUpdateModel"
-  | "GuildSeenDlcModel"
-  | "GuildSeenYoutubeModel"
->;
+export interface NotificationStore {
+  outbox: DocumentCollection;
+  outboxSent: DocumentCollection;
+  history: DocumentCollection;
+  deadLetters: DocumentCollection;
+  deadLetterReplays: DocumentCollection;
+  seenDiscounts: DocumentCollection;
+  seenUpdates: DocumentCollection;
+  seenDlcs: DocumentCollection;
+  seenYoutube: DocumentCollection;
+}
 
-export type SecurityStore = Port<
-  "NewAccountAlertDeliveryModel" | "ChannelLockRecoveryModel" | "GuildYoutubeErrorModel"
->;
+export interface SecurityStore {
+  newAccountAlerts: DocumentCollection;
+  channelLockRecoveries: DocumentCollection;
+  youtubeErrors: DocumentCollection;
+}
 
-export type AuditStore = Port<
-  "GuildAuditLogModel" | "GuildConfigBackupModel" | "GuildSuggestedCommandModel"
->;
+export interface AuditStore {
+  auditLog: DocumentCollection;
+  configBackups: DocumentCollection;
+  suggestedCommands: DocumentCollection;
+}
 
-export type OperationStore = Port<"OperationJournalModel" | "JobLockModel" | "acquireDbLock" | "renewDbLock" | "releaseDbLock">;
+export interface OperationStore {
+  journal: DocumentCollection;
+  jobLocks: DocumentCollection;
+  acquire(jobName: string, ttlMs?: number): Promise<string | null>;
+  renew(jobName: string, token: string, ttlMs?: number): Promise<boolean>;
+  release(jobName: string, token: string): Promise<void>;
+}
+
+export interface MongoPorts {
+  guildConfig: GuildConfigStore;
+  notifications: NotificationStore;
+  security: SecurityStore;
+  audit: AuditStore;
+  operations: OperationStore;
+}
 
 export const MONGO_PORT_NAMES = [
   "GuildConfigStore",

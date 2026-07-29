@@ -1,3 +1,5 @@
+import type { GuildConfigStore } from "../../infra/mongo/mongoPorts.js";
+import type { DealsSourcePort } from "../../sources/sourceRegistryPorts.js";
 import type { RuntimeEnv } from "../../types.js";
 import type { RateLimiter } from "../health/rateLimit.js";
 import { createScheduledTaskRunner } from "./scheduledTaskRunner.js";
@@ -20,8 +22,8 @@ interface HousekeepingController {
 
 interface CreateHousekeepingDeps {
   commands: HousekeepingCommands;
-  cleanGuildCache(): unknown;
-  scrapers: HousekeepingScrapers;
+  guildConfig: Pick<GuildConfigStore, "sweepExpired">;
+  deals: Pick<DealsSourcePort, "sweepEnrichedCache">;
   rateLimiter: Pick<RateLimiter, "prune">;
   logger: HousekeepingLogger;
   env: Pick<RuntimeEnv, "HOUSEKEEPING_INTERVAL_MS">;
@@ -30,8 +32,8 @@ interface CreateHousekeepingDeps {
 
 function createHousekeeping({
   commands,
-  cleanGuildCache,
-  scrapers,
+  guildConfig,
+  deals,
   rateLimiter,
   logger,
   env,
@@ -41,8 +43,8 @@ function createHousekeeping({
     intervalMs: env.HOUSEKEEPING_INTERVAL_MS,
     task: () => {
       try { commands.cleanCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanCache eroare", errorMessage(e)); }
-      try { cleanGuildCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanGuildCache eroare", errorMessage(e)); }
-      try { scrapers.cleanEnrichedCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "cleanEnrichedCache eroare", errorMessage(e)); }
+      try { guildConfig.sweepExpired(); } catch (e) { logger("WARN", "HOUSEKEEPING", "sweepExpired eroare", errorMessage(e)); }
+      try { deals.sweepEnrichedCache(); } catch (e) { logger("WARN", "HOUSEKEEPING", "sweepEnrichedCache eroare", errorMessage(e)); }
       try { rateLimiter.prune(); } catch (e) { logger("WARN", "HOUSEKEEPING", "pruneRateLimitMap eroare", errorMessage(e)); }
     }
   });

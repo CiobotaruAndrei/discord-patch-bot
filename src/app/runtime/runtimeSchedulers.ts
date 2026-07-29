@@ -19,7 +19,7 @@ function createSchedulers(deps: AppRuntimeDeps, services: RuntimeServices): Sche
     drainLimit: outboxDrainLimit, perJobBudgetMs: outboxPerJobBudgetMs
   });
   const housekeeping = createHousekeeping({
-    commands, cleanGuildCache, scrapers, rateLimiter, logger, env, errorMessage
+    commands, guildConfig: { sweepExpired: cleanGuildCache }, deals: { sweepEnrichedCache: () => scrapers.cleanEnrichedCache() }, rateLimiter, logger, env, errorMessage
   });
   return { cronController, outboxWorker, outboxEnabled, housekeeping };
 }

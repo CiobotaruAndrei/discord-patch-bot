@@ -1,54 +1,70 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 
 import { SOURCE_PORT_NAMES } from "../../sources/sourceRegistryPorts.js";
-import type { DealsSourcePort, HttpSourcePort, SteamSourcePort, UpdatesSourcePort } from "../../sources/sourceRegistryPorts.js";
-import type { SourceRegistryApi } from "../../sources/sourceRegistryFactory.js";
+import { createSourcePorts } from "../../sources/sourcePortAdapters.js";
 
-type IsStrictSubset<Port> = keyof Port extends keyof SourceRegistryApi
-  ? keyof SourceRegistryApi extends keyof Port ? false : true
-  : false;
+const srcRoot = process.cwd();
 
-const httpIsSubset: IsStrictSubset<HttpSourcePort> extends true ? true : never = true;
-const steamIsSubset: IsStrictSubset<SteamSourcePort> extends true ? true : never = true;
-const updatesIsSubset: IsStrictSubset<UpdatesSourcePort> extends true ? true : never = true;
-const dealsIsSubset: IsStrictSubset<DealsSourcePort> extends true ? true : never = true;
+function read(relative: string): string {
+  return fs.readFileSync(path.join(srcRoot, relative), "utf8");
+}
 
-test("fiecare port de sursa e un subset strict al registrului, verificat de compilator", () => {
-  for (const [nume, verificat] of [
-    ["HttpSourcePort", httpIsSubset],
-    ["SteamSourcePort", steamIsSubset],
-    ["UpdatesSourcePort", updatesIsSubset],
-    ["DealsSourcePort", dealsIsSubset]
-  ] as const) {
-    assert.equal(verificat, true, `${nume} trebuie sa fie mai ingust decat registrul intreg, altfel nu separa nimic`);
+function asRegistry(stub: Record<string, unknown>): Record<string, unknown> & Parameters<typeof createSourcePorts>[0] {
+  return stub as Record<string, unknown> & Parameters<typeof createSourcePorts>[0];
+}
+
+test("porturile de surse sunt interfete independente de registrul concret", () => {
+  const ports = read("sources/sourceRegistryPorts.ts");
+  assert.ok(
+    !ports.includes("SourceRegistryApi") && !ports.includes("sourceRegistryFactory.js"),
+    "portul nu se mai taie din API-ul concret al registrului"
+  );
+  assert.ok(!/Pick</.test(ports));
+  for (const name of SOURCE_PORT_NAMES) {
+    assert.match(ports, new RegExp(`^export interface ${name} \\{`, "m"), `${name} e declarat ca interfata proprie`);
   }
 });
 
-test("porturile se taie din registru, nu se redeclara", () => {
-  const text = fs.readFileSync(path.join(process.cwd(), "sources", "sourceRegistryPorts.ts"), "utf8");
-  assert.match(
-    text,
-    /type Port<K extends keyof SourceRegistryApi> = Pick<SourceRegistryApi, K>;/,
-    "o functie redenumita in registru trebuie sa rupa portul la compilare; redeclarate de mana, cele doua ar putea devia"
-  );
-  assert.ok(!text.includes("=> "), "porturile nu isi descriu propriile semnaturi; doar selecteaza din contractul existent");
+test("adaptorul traduce numele registrului in operatiile portului", async () => {
+  const calls: string[] = [];
+  const ports = createSourcePorts(asRegistry({
+    httpReq: async (method: string, url: string) => { calls.push(`${method} ${url}`); return { data: null }; },
+    MAX_HTML_BYTES: 111,
+    MAX_JSON_BYTES: 222,
+    FETCH_CONCURRENCY: 3,
+    fetchSteamCurrentPlayers: async (appId: string | number) => { calls.push(`players:${appId}`); return null; },
+    extractOfferEndFromHtml: () => "2026-01-01",
+    stableUpdateId: (title: string, link: string) => `${title}|${link}`,
+    MAX_DEALS: 50,
+    cleanEnrichedCache: () => { calls.push("sweep"); },
+    getEnrichedCacheSize: () => 9
+  }));
+
+  await ports.http.request("GET", "https://example.test");
+  assert.equal(ports.http.maxHtmlBytes(), 111);
+  assert.equal(ports.http.maxJsonBytes(), 222);
+  assert.equal(ports.http.fetchConcurrency(), 3);
+  await ports.steam.currentPlayers("730");
+  assert.equal(ports.steam.offerEndFromHtml("<html>"), "2026-01-01");
+  assert.equal(ports.updates.stableUpdateId("t", "l"), "t|l");
+  assert.equal(ports.deals.maxDeals(), 50);
+  ports.deals.sweepEnrichedCache();
+  assert.equal(ports.deals.enrichedCacheSize(), 9);
+
+  assert.deepEqual(calls, ["GET https://example.test", "players:730", "sweep"]);
 });
 
-test("un consumator de deals nu vede functiile de update si invers", () => {
-  const text = fs.readFileSync(path.join(process.cwd(), "sources", "sourceRegistryPorts.ts"), "utf8");
-  const deals = text.slice(text.indexOf("export type DealsSourcePort"));
-  const updates = text.slice(text.indexOf("export type UpdatesSourcePort"), text.indexOf("export type DealsSourcePort"));
-
-  assert.ok(!deals.includes("fetchGameUpdate"), "domeniul de reduceri nu are ce cauta in fetch-ul de update-uri");
-  assert.ok(!updates.includes("fetchDeals"), "domeniul de update-uri nu are ce cauta in fetch-ul de reduceri");
+test("portul de oferte are un consumator real in curatarea periodica", () => {
+  const housekeeping = read("app/scheduler/housekeeping.ts");
+  assert.match(housekeeping, /DealsSourcePort/);
 });
 
-test("lista de porturi ramane aliniata cu tipurile exportate", () => {
-  const text = fs.readFileSync(path.join(process.cwd(), "sources", "sourceRegistryPorts.ts"), "utf8");
-  const exportate = [...text.matchAll(/^export type (\w+Port) =/gm)].map(match => match[1]).sort();
-  assert.deepEqual(exportate, [...SOURCE_PORT_NAMES].sort(), "un port nou trebuie trecut si in lista");
+test("lista de porturi si interfetele exportate raman aliniate", () => {
+  const ports = read("sources/sourceRegistryPorts.ts");
+  const exported = [...ports.matchAll(/^export interface (\w+Port) \{/gm)].map(match => match[1]).sort();
+  assert.deepEqual(exported, [...SOURCE_PORT_NAMES].sort());
 });
