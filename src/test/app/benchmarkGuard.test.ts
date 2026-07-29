@@ -201,8 +201,9 @@ test("CI si package.json ruleaza guard-ul de benchmark", () => {
   const srcRoot = process.cwd();
   const repoRoot = path.resolve(srcRoot, "..");
   const ci = fs.readFileSync(path.join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
-  assert.match(ci, /benchmarkGuard\.js/, "ci.yml ruleaza guard-ul dupa build");
+  assert.match(ci, /npm run benchmark:guard:prebuilt/, "ci.yml ruleaza guard-ul dupa build, fara sa reconstruiasca");
   assert.match(ci, /BENCH_GUARD_REQUIRE_NATIVE: "true"/, "ci.yml cere nativul (gate strict, fara skip cand build-ul Rust a rulat inainte)");
   const pkg = JSON.parse(fs.readFileSync(path.join(srcRoot, "package.json"), "utf8"));
   assert.equal(typeof pkg.scripts["benchmark:guard"], "string", "exista scriptul npm benchmark:guard");
+  assert.match(pkg.scripts["benchmark:guard:prebuilt"], /benchmarkGuard\.js/, "varianta prebuilt tine calea reala catre guard");
 });

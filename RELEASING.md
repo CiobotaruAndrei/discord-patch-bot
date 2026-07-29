@@ -63,7 +63,7 @@ Smoke`, nu doar declarat.
    obligatorie.
 5. Workflow-ul verifica gate-ul (`smoke_confirmed`) **si** artifactul de staging smoke (inclusiv
    check-ul `send` reusit in proba Discord — fara proba reala de trimitere release-ul e blocat), ruleaza CI +
-   audit pe tag si **canary-ul live de surse** (`npm run canary:sources`, fail-closed pe API-urile
+   audit pe tag si **canary-ul live de surse** (`npm run canary:sources:prebuilt`, pe dist-ul construit deja de `check:full`, fail-closed pe API-urile
    fiabile) pe codul exact al tag-ului. Imaginea Docker se construieste **local**, trece prin gate-ul
    **Trivy blocant** (CRITICAL/HIGH fixabile, `exit-code 1`) pe imaginea exacta, si abia apoi se
    publica pe GHCR (`docker tag` + `docker push` pe bytes-ii scanati, fara rebuild). La final se

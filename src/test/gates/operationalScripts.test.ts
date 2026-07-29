@@ -14,8 +14,10 @@ function scriptValue(name: string): string {
 }
 
 test("scripturile operationale compileaza o singura data si ruleaza gate-urile direct", () => {
-  assert.equal(scriptValue("check:quick"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-config.js");
-  assert.equal(scriptValue("lint"), "npm run build:ts && node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-nul-bytes.js && node dist/scripts/check-no-weakening-types.js");
+  assert.equal(scriptValue("check:quick"), "npm run build:ts && npm run check:quick:prebuilt");
+  assert.equal(scriptValue("check:quick:prebuilt"), "node dist/scripts/check-syntax.js && node dist/scripts/check-config.js");
+  assert.equal(scriptValue("lint"), "npm run build:ts && npm run lint:prebuilt");
+  assert.equal(scriptValue("lint:prebuilt"), "node dist/scripts/check-syntax.js && node dist/scripts/check-no-comments.js && node dist/scripts/check-no-nul-bytes.js && node dist/scripts/check-no-weakening-types.js");
   const checkScript = scriptValue("check");
   assert.equal(checkScript.startsWith("node scripts/run-parallel.ts build:ts build:rust && "), true);
   assert.equal(checkScript.includes("npm run typecheck"), false);
@@ -37,15 +39,15 @@ test("scripturile locale incarca .env si separa rolurile web si worker", () => {
   assert.equal(scriptValue("dev"), "npm run build && npm run start:local");
   assert.equal(scriptValue("start:web"), "node dist/app/web.js");
   assert.equal(scriptValue("start:web:local"), "node --env-file=.env dist/app/web.js");
-  assert.equal(scriptValue("check:env:local"), "npm run build:ts && node --env-file=.env dist/scripts/check-env.js");
-  assert.equal(scriptValue("check:redis:local"), "npm run build:ts && node --env-file=.env dist/scripts/check-redis.js");
-  assert.equal(scriptValue("check:mongo:local"), "npm run build:ts && node --env-file=.env dist/scripts/check-mongo.js");
-  assert.equal(scriptValue("doctor:local"), "npm run build:ts && node --env-file=.env dist/scripts/check-env.js && node --env-file=.env dist/scripts/check-config.js && node --env-file=.env dist/scripts/check-mongo.js && node --env-file=.env dist/scripts/check-redis.js");
+  assert.equal(scriptValue("check:env:local:prebuilt"), "node --env-file=.env dist/scripts/check-env.js");
+  assert.equal(scriptValue("check:redis:local:prebuilt"), "node --env-file=.env dist/scripts/check-redis.js");
+  assert.equal(scriptValue("check:mongo:local:prebuilt"), "node --env-file=.env dist/scripts/check-mongo.js");
+  assert.equal(scriptValue("doctor:local:prebuilt"), "node --env-file=.env dist/scripts/check-env.js && node --env-file=.env dist/scripts/check-config.js && node --env-file=.env dist/scripts/check-mongo.js && node --env-file=.env dist/scripts/check-redis.js");
 });
 
 test("exportul brut al guild-urilor este explicit", () => {
-  assert.equal(scriptValue("db:export:guilds"), "npm run build:ts && node dist/scripts/export-guild-configs.js");
-  assert.equal(scriptValue("db:export:guilds:raw"), "npm run build:ts && node dist/scripts/export-guild-configs.js --raw");
+  assert.equal(scriptValue("db:export:guilds:prebuilt"), "node dist/scripts/export-guild-configs.js");
+  assert.equal(scriptValue("db:export:guilds:raw:prebuilt"), "node dist/scripts/export-guild-configs.js --raw");
 });
 
 test("entrypoint-ul web porneste exclusiv rolul web", () => {

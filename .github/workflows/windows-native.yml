@@ -115,4 +115,4 @@ jobs:
           npm run build:ts
           Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" native\
           node -e "import('./dist/native/fuzzy.js').then(m => { if (!m.isRustFuzzyAvailable()) { console.error('addonul nativ nu s-a incarcat pe Windows'); process.exit(1); } console.log('addon nativ incarcat pe Windows'); })"
-          node dist/scripts/run-gates.js
+          npm run check:gates:prebuilt

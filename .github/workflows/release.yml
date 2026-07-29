@@ -197,7 +197,7 @@ jobs:
           DISCORD_TOKEN: release_check_token
           DISCORD_CLIENT_ID: release_check_client_id
           METRICS_PUBLIC: "true"
-        run: npm run canary:sources
+        run: npm run canary:sources:prebuilt
 
       - name: Extract release notes
         working-directory: src
