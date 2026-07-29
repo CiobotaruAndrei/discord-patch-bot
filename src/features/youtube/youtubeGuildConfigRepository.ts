@@ -2,6 +2,7 @@
 
 import type { MongoWriteOutcome, YouTubeChannelSubscription } from "../../types.js";
 import { MAX_YOUTUBE_ROUTE_DESTINATIONS, YOUTUBE_TITLE_WORD_LIMIT } from "./youtubeDeliveryPolicy.js";
+import { updatedDocument } from "../../shared/persistenceOutcome.js";
 
 type MongoWriteResult = MongoWriteOutcome;
 
@@ -125,7 +126,7 @@ export async function removeYouTubeChannelSubscription(
     { _id: guildId },
     { $pull: { youtubeChannels: { channelId }, youtubeChannelRoutes: { channelId } } }
   );
-  return (result.modifiedCount ?? 0) > 0;
+  return updatedDocument(result);
 }
 
 export async function setYouTubeNotificationChannel(GuildModel: YouTubeConfigGuildModel, guildId: string, channelId: string): Promise<void> {

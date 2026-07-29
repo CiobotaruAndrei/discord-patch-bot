@@ -3,6 +3,7 @@
 import type { DealInfo, GuildSettings, MongoWriteOutcome, PriceAlertRule, PriceValue } from "../../types.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
 import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
+import { matchedDocument } from "../../shared/persistenceOutcome.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type MongoWriteResult = MongoWriteOutcome;
@@ -178,7 +179,7 @@ export function createPriceAlertService(deps: PriceAlertServiceDeps) {
         }
       }
     );
-    return (result.matchedCount ?? 0) > 0 ? triggeredAt : null;
+    return matchedDocument(result) ? triggeredAt : null;
   }
 
   async function processGuildPriceAlerts(

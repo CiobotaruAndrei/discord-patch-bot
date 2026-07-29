@@ -7,6 +7,7 @@ import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 
 import { errorDetail } from "../../shared/errors.js";
 import { findGameByKey } from "../../config/gameCatalog.js";
+import { updatedDocument } from "../../shared/persistenceOutcome.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -92,7 +93,7 @@ function createGameFilterInteractionHandlers(deps: GameFilterInteractionDeps) {
         const result = await removeWatchlistGame(GuildModel, guildId, gameKey);
         const displayName = game ? game.name : String(gameKey);
         const note = game ? "" : " *(cheie nu mai exista in config — am curatat-o)*";
-        if (result.modifiedCount === 0) {
+        if (!updatedDocument(result)) {
           return safeEdit(interaction, `Info: **${displayName}** nu era in watchlist, nimic de scos.`);
         }
         return safeEdit(interaction, `OK: **${displayName}** scos din watchlist.${note}`);

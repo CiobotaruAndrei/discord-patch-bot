@@ -2,6 +2,7 @@
 
 import { errorMessage } from "../../shared/errors.js";
 import { HASH_VERSION } from "../../native/fuzzy.js";
+import { matchedDocument } from "../../shared/persistenceOutcome.js";
 
 export type SubscriptionWriteResult = { matchedCount?: number };
 
@@ -117,7 +118,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       },
       OP_UPDATE_OPTS
     );
-    return result.matchedCount !== 0;
+    return matchedDocument(result);
   }
 
   async function rollbackActivation(kind: SubscriptionModuleKind, guildId: string, channelId: string, activationId: string, error: unknown): Promise<void> {
@@ -203,7 +204,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
         },
         OP_UPDATE_OPTS
       );
-      return result.matchedCount !== 0 ? { status: "activated" } : { status: "superseded" };
+      return matchedDocument(result) ? { status: "activated" } : { status: "superseded" };
     } catch (error: unknown) {
       await GuildModel.updateOne(
         { _id: guildId, playerCountActivationId: activationId },

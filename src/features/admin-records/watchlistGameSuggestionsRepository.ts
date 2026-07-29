@@ -2,6 +2,7 @@
 
 import type { GuildSettings, MongoWriteOutcome, ServerAuditLogEntry, WatchlistGameSuggestionEntry } from "../../types.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository.js";
+import { matchedDocument } from "../../shared/persistenceOutcome.js";
 
 type MongoWriteResult = MongoWriteOutcome;
 
@@ -80,7 +81,7 @@ export async function deleteWatchlistGameSuggestion(
     { _id: guildId, "watchlistGameSuggestions.gameName": normalized },
     { $pull: { watchlistGameSuggestions: { gameName: normalized } } }
   );
-  const deleted = (result.matchedCount ?? 0) > 0;
+  const deleted = matchedDocument(result);
   if (deleted) await recordServerAuditEntry(GuildAuditLogModel, guildId, audit);
   return deleted;
 }

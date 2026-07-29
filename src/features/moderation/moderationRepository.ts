@@ -1,5 +1,7 @@
 "use strict";
 
+import type { WriteCounts } from "../../shared/persistenceOutcome.js";
+
 export type ModerationRecord = {
   schemaVersion?: number;
   userId: string;
@@ -32,11 +34,11 @@ export type ModerationGuildModel = {
     filter: Record<string, unknown>,
     update: Record<string, unknown> | readonly Record<string, unknown>[],
     options?: Record<string, unknown>
-  ): Promise<object | null | undefined>;
+  ): Promise<WriteCounts | null | undefined>;
   updateMany?(
     filter: Record<string, unknown>,
     update: Record<string, unknown> | readonly Record<string, unknown>[]
-  ): Promise<object | null | undefined>;
+  ): Promise<WriteCounts | null | undefined>;
 };
 
 export type GuildModerationState = {

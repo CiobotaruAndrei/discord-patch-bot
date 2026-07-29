@@ -13,6 +13,7 @@ import { persistGuildCycleState } from "./notificationCycleRepository.js";
 import { buildDealsHashIndex, planDiscountFailure, planPendingDiscounts } from "./discountNotificationPlanner.js";
 import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
 import { loadNotificationFeed } from "./notificationFeedLoader.js";
+import { matchedDocument } from "../../shared/persistenceOutcome.js";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
@@ -175,7 +176,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       let claimed = false;
       try {
         const claim = await claimSeenDiscount(String(guild._id), channel.id, item.hash);
-        if ((claim.matchedCount ?? 0) === 0) continue;
+        if (!matchedDocument(claim)) continue;
         claimed = true;
         const snapshot = item.snapshot;
         if (!snapshot) throw new Error(`PendingDiscount ${item.hash} fara snapshot valid`);

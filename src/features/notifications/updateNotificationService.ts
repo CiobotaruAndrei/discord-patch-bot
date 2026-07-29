@@ -14,6 +14,7 @@ import { persistGuildCycleState } from "./notificationCycleRepository.js";
 import { planPendingFailure, planRebaselineEntries, requeueFront, takeNextPending } from "./updateNotificationPlanner.js";
 import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
 import { loadNotificationFeed } from "./notificationFeedLoader.js";
+import { matchedDocument } from "../../shared/persistenceOutcome.js";
 
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
@@ -142,7 +143,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       const { gameKey, item: next } = selection;
       lastProcessedGameKey = gameKey;
       const claim = await claimSeenUpdate(String(guild._id), channel.id, gameKey, next.id);
-      if ((claim.matchedCount ?? 0) === 0) continue;
+      if (!matchedDocument(claim)) continue;
       const game = resultByGameKey.get(gameKey)?.game || { name: gameKey, key: gameKey };
       let embed: NotificationEmbed;
       try {

@@ -1,6 +1,7 @@
 "use strict";
 
 import type { ModerationGuildModel } from "../moderation/moderationRepository.js";
+import { updatedDocument } from "../../shared/persistenceOutcome.js";
 
 export interface BotObservationEvent {
   key: string;
@@ -44,12 +45,6 @@ const BURST_WINDOW_MS = 60_000;
 const BURST_THRESHOLD = 5;
 const MAX_EVENTS = 64;
 
-function modifiedCount(result: object | null | undefined): number {
-  if (!result) return 0;
-  const value = Reflect.get(result, "modifiedCount");
-  return typeof value === "number" ? value : 0;
-}
-
 async function resolveDocument(value: ReturnType<ModerationGuildModel["findOne"]>): Promise<object | null> {
   const lean = Reflect.get(value, "lean");
   if (typeof lean === "function") return Promise.resolve(lean.call(value));
@@ -78,7 +73,7 @@ export async function startBotObservation(
     { $set: Object.fromEntries(Object.entries(reset).map(([key, value]) => [`botObservations.$[entry].${key}`, value])) },
     { arrayFilters: [{ "entry.botId": input.botId }] }
   );
-  if (modifiedCount(existing) > 0) return;
+  if (updatedDocument(existing)) return;
   await model.updateOne(
     { _id: guildId, botObservations: { $not: { $elemMatch: { botId: input.botId } } } },
     { $push: { botObservations: { botId: input.botId, ...reset } } }
@@ -137,7 +132,7 @@ export async function recordBotObservationEvent(
   if (!observation || observation.observeUntil.getTime() <= event.at.getTime()) {
     return { observed: false, duplicate: false, recentCount: 0, burstStarted: false };
   }
-  if (modifiedCount(inserted) === 0) {
+  if (!updatedDocument(inserted)) {
     return { observed: true, duplicate: true, recentCount: 0, burstStarted: false };
   }
   const cutoff = event.at.getTime() - BURST_WINDOW_MS;
@@ -163,7 +158,7 @@ export async function recordBotObservationEvent(
     observed: true,
     duplicate: false,
     recentCount,
-    burstStarted: modifiedCount(claimed) > 0
+    burstStarted: updatedDocument(claimed)
   };
 }
 
