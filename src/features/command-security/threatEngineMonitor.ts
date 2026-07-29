@@ -1,6 +1,6 @@
 "use strict";
 
-import type { ThreatEngineMetricRecorder } from "../../app/health/metricRecorders.js";
+import type { ThreatEngineMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import type { ReputationEngineDetails } from "./reputationEngine.js";
 
 type MonitorLogger = (level: string, context: string, message: string, meta?: unknown) => void;

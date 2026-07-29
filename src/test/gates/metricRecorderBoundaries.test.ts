@@ -6,6 +6,7 @@ import path from "node:path";
 
 const srcRoot = process.cwd();
 const RECORDERS = "app/health/metricRecorders.ts";
+const PORTS = "shared/metricRecorderPorts.ts";
 const OWNS_THE_STORE: readonly string[] = [
   "app/health/metrics.ts",
   "app/health/metricsTypes.ts",
@@ -34,20 +35,33 @@ function sourceFiles(...layers: string[]): string[] {
 test("registrul de recorderi acopera fiecare domeniu care contorizeaza ceva", () => {
   const recorders = fs.readFileSync(path.join(srcRoot, RECORDERS), "utf8");
   for (const domain of ["security", "inspector", "threatEngine", "permissionDelegation", "http", "redis", "cron"]) {
-    assert.match(recorders, new RegExp(`^  ${domain}: `, "m"), `registrul expune recorderul ${domain}`);
+    assert.match(recorders, new RegExp(`^\\s+${domain}: \\{`, "m"), `registrul expune recorderul ${domain}`);
   }
   assert.match(recorders, /export function createMetricRecorders/);
 });
 
-test("recorderele au verbe, nu campuri: niciun nume de metrica nu apare in interfete", () => {
-  const recorders = fs.readFileSync(path.join(srcRoot, RECORDERS), "utf8");
-  const interfaceBlock = recorders.slice(0, recorders.indexOf("export function createMetricRecorders"));
+test("recorderele au verbe, nu campuri: niciun nume de metrica nu apare in porturi", () => {
+  const ports = fs.readFileSync(path.join(srcRoot, PORTS), "utf8");
   for (const field of ["securityThreatsDeleted", "nativeInspectorKills", "threatEngineScans", "fetchSuccess", "redisCacheHit", "cronRuns"]) {
     assert.ok(
-      !interfaceBlock.includes(field),
-      `${field} e numele campului din magazin; interfata recorderului trebuie sa vorbeasca in verbe, nu in campuri`
+      !ports.includes(field),
+      `${field} e numele campului din magazin; portul recorderului trebuie sa vorbeasca in verbe, nu in campuri`
     );
   }
+  assert.ok(!ports.includes("BotMetrics"), "portul nu cunoaste forma magazinului de contoare");
+});
+
+test("porturile de recorder traiesc in shared, ca features sa nu depinda de composition root", () => {
+  const ports = fs.readFileSync(path.join(srcRoot, PORTS), "utf8");
+  for (const port of ["SecurityMetricRecorder", "InspectorMetricRecorder", "ThreatEngineMetricRecorder", "PermissionDelegationMetricRecorder", "MetricRecorders"]) {
+    assert.match(ports, new RegExp(`^export interface ${port}\\b`, "m"), `portul ${port} e declarat in shared`);
+  }
+  const offenders: string[] = [];
+  for (const file of sourceFiles("features", "sources", "domain", "infra")) {
+    const relative = path.relative(srcRoot, file).split(path.sep).join("/");
+    if (fs.readFileSync(file, "utf8").includes("app/health/metricRecorders.js")) offenders.push(relative);
+  }
+  assert.deepEqual(offenders, [], `${offenders.join(", ")} importa implementarea din app; portul e in shared`);
 });
 
 test("features si sources nu mai scriu direct in contoarele partajate", () => {

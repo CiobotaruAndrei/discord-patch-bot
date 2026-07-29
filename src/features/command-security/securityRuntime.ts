@@ -1,6 +1,6 @@
 "use strict";
 
-import type { SecurityMetricRecorder } from "../../app/health/metricRecorders.js";
+import type { SecurityMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import { AuditLogEvent, UserFlags } from "discord.js";
 import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import botAddRepository from "../moderation/botAddRepository.js";

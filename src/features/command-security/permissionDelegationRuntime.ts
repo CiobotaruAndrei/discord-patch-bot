@@ -1,6 +1,6 @@
 "use strict";
 
-import type { PermissionDelegationMetricRecorder } from "../../app/health/metricRecorders.js";
+import type { PermissionDelegationMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import {

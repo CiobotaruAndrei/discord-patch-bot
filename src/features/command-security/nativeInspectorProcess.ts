@@ -1,6 +1,6 @@
 "use strict";
 
-import type { InspectorMetricRecorder } from "../../app/health/metricRecorders.js";
+import type { InspectorMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import { spawn } from "node:child_process";
 import type { InspectionLimits, InspectionReport } from "./passiveArchiveInspection.js";
 
