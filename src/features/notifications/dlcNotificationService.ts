@@ -132,7 +132,7 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
       context: "CRON_DLC",
       logger,
       claim: candidate => claimSeenDlc(guildId, channel.id, candidate.gameKey, candidate.dlc.dlcKey),
-      entryOf: candidate => ({ candidate, embed: buildDlcEmbed(candidate, DLC_EMBED_COLOR) }),
+      prepare: candidate => ({ candidate, embed: buildDlcEmbed(candidate, DLC_EMBED_COLOR) }),
       rollback: candidate => rollbackOrReport(
         () => rollbackSeenDlc(guildId, candidate.gameKey, candidate.dlc.dlcKey),
         logger,
@@ -157,7 +157,7 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
       batch,
       embedOf: entry => entry.embed,
       historyEntryFor: entry => ({
-        kind: "update" as const,
+        kind: "dlc" as const,
         gameKey: entry.candidate.gameKey,
         title: `DLC nou: ${entry.candidate.dlc.name}`,
         link: entry.candidate.appId ? `https://store.steampowered.com/app/${entry.candidate.appId}` : "",
