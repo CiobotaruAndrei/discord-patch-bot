@@ -4,6 +4,8 @@ import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, DealI
 import type { OperationJournalDoc } from "./operationJournal.js";
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports.js";
 
+export type MongoContextExports = MongoRuntimeContext;
+
 type MongoRuntimeContext = {
   mongoose: typeof import("mongoose");
   crypto: typeof import("node:crypto");
