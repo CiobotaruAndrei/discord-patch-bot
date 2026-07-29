@@ -2,7 +2,9 @@
 
 export const NOTIFICATION_DEAD_LETTER_LIMIT = 50;
 
-export type DeadLetterKind = "update" | "discount" | "youtube" | "future-release";
+import type { NotificationKind } from "./notificationKinds.js";
+
+export type DeadLetterKind = NotificationKind;
 
 export interface DeadLetterEntry {
   kind: DeadLetterKind;

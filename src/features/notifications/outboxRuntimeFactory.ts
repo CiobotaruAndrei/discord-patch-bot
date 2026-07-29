@@ -16,11 +16,12 @@ import { buildDeadLetterEntry, deadLetterTitleFromPayload } from "./deadLetter.j
 import { recordDeadLetters } from "./deadLetterRepository.js";
 import { createDeadLetterReplayRepository } from "./deadLetterReplayRepository.js";
 import { createDefaultDiscordSendLimiter } from "./discordRateLimiter.js";
+import type { NotificationKind } from "./notificationKinds.js";
 
 export const OUTBOX_MAX_ATTEMPTS = 5;
 export const OUTBOX_BACKOFF_MS = 60_000;
 
-export interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: "update" | "discount" | "youtube" | "future-release"; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; manual?: boolean; history?: OutboxHistoryEntry[]; }
+export interface OutboxJobShape { _id?: unknown; guildId: string; channelId: string; kind: NotificationKind; payload: unknown; attempts?: number; deliveries?: number; dedupeKey?: string; recoveryVerify?: boolean; manual?: boolean; history?: OutboxHistoryEntry[]; }
 
 export function outboxSubscriptionFilter(job: OutboxJobShape): Record<string, unknown> {
   if (job.kind === "discount") return { _id: job.guildId, discountsSubscribed: true, discountChannelId: job.channelId };
