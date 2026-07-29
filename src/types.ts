@@ -127,11 +127,6 @@ export interface ParseEnvNumberLimits {
   max?: number;
 }
 
-export interface RequestContextStore {
-  requestId?: string;
-  abortSignal?: AbortSignal | null;
-}
-
 export interface CurrencyConfig {
   cc: string;
   symbol: string;
@@ -144,68 +139,11 @@ export interface LifecycleState {
   isShuttingDown: boolean;
 }
 
-export interface PaginationButtonInteraction {
-  user: { id: string };
-  customId: string;
-  reply(payload: unknown): Promise<unknown>;
-  deferUpdate(): Promise<unknown>;
-}
-
-export interface ComponentCollector {
-  on(event: "collect", listener: (button: PaginationButtonInteraction) => unknown): this;
-  on(event: "end", listener: () => unknown): this;
-  stop(reason?: string): void;
-}
-
-export interface InteractionMessage {
-  editable?: boolean;
-  edit(payload: unknown): Promise<unknown>;
-  createMessageComponentCollector(options: unknown): ComponentCollector;
-}
-
 export interface SystemTimes {
   all: number;
   single: number;
   reduceri: number;
   [key: string]: number;
-}
-
-export interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
-export interface CommandRuntimeCache {
-  updates: CacheEntry<FetchResult[] | null>;
-  dealsByCurrency: Map<string, CacheEntry<DealInfo[]>>;
-  single: Map<string, CacheEntry<NormalizedUpdate | null>>;
-  dlc: Map<string, CacheEntry<DlcCacheEntry>>;
-}
-
-export interface CommandCacheSizes {
-  single: number;
-  dlc: number;
-  updatesValid: boolean;
-  dealsCurrenciesValid: number;
-  userCooldowns: number;
-}
-
-export interface CooldownResult {
-  allowed: boolean;
-  remainingMs?: number;
-}
-
-export interface HttpRequestOptions {
-  timeout?: number;
-  headers?: Record<string, string>;
-  data?: unknown;
-  responseType?: "arraybuffer" | "json" | "text";
-  largeJson?: boolean;
-  maxContentLength?: number;
-  maxBodyLength?: number;
-  signal?: AbortSignal;
-  acceptNotModified?: boolean;
-  [key: string]: unknown;
 }
 
 export interface ConcurrentRunResult<T> {
@@ -216,3 +154,19 @@ export interface ConcurrentRunResult<T> {
     error: unknown;
   }>;
 }
+
+export type {
+  CacheEntry,
+  CommandCacheSizes,
+  CommandRuntimeCache
+} from "./features/command-cache/commandCacheTypes.js";
+export type { CooldownResult } from "./features/command-cache/cooldownTypes.js";
+export type { HttpRequestOptions } from "./sources/httpRequestTypes.js";
+
+export type {
+  ComponentCollector,
+  InteractionMessage,
+  PaginationButtonInteraction
+} from "./features/command-presentation/paginationTypes.js";
+
+export type { RequestContextStore } from "./shared/requestContextTypes.js";
