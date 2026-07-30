@@ -1,6 +1,7 @@
 import { createRequire as __createRequire } from "node:module";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
+import { stubRuntimePorts } from "./runtimePortStubs.js";
 import assert from "node:assert/strict";
 
 const { createSchedulers } = require("../../app/appRuntime") as {
@@ -12,6 +13,7 @@ interface OutboxWorkerOpts { isPaused: () => Promise<boolean> }
 function buildDeps(getOutboxPaused: unknown, outboxEnabled = false) {
   let capturedIsPaused: (() => Promise<boolean>) | undefined;
   const deps = {
+    ports: stubRuntimePorts(),
     mongoose: {}, performance: { now: () => 0 }, crypto: {},
     createCronController: () => ({ scheduleNextCron() { }, runCronCycle: async () => { }, stop() { }, getHealthSnapshot() { return {}; } }),
     createOutboxWorker: (opts: OutboxWorkerOpts) => { capturedIsPaused = opts.isPaused; return { start() { }, stop() { } }; },

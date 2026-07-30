@@ -1,5 +1,7 @@
 import mongoContext from "../infra/mongo/mongoContext.js";
 import { composeMongoContextBundles } from "../infra/mongo/mongoContextBundles.js";
+import { createMongoPorts } from "../infra/mongo/mongoPortAdapters.js";
+import { createSourcePorts } from "../sources/sourcePortAdapters.js";
 import { createRedisRuntime } from "../infra/redis/redisClient.js";
 import { createRedisCache } from "../infra/redis/redisCache.js";
 import { createSourceRegistry } from "../sources/sourceRegistryFactory.js";
@@ -30,5 +32,7 @@ const commandRuntimeInput: CommandRuntimeInput = {
 };
 
 const mongoContextBundles = composeMongoContextBundles(mongoContext);
+const mongoPorts = createMongoPorts(mongoContext);
+const sourcePorts = createSourcePorts(sourceRegistry);
 
-export { redisRuntime, redisCache, sourceRuntimeDeps, sourceRegistry, commandRuntimeInput, mongoContextBundles };
+export { redisRuntime, redisCache, sourceRuntimeDeps, sourceRegistry, commandRuntimeInput, mongoContextBundles, mongoPorts, sourcePorts };

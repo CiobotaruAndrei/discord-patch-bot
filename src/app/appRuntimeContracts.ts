@@ -11,6 +11,8 @@ import type { CommandCacheSizes } from "../features/command-cache/commandCacheTy
 import type { DealInfo, FetchResult } from "../sources/sourceTypes.js";
 import type { CreateCronControllerDeps } from "./scheduler/cron.js";
 import type { CreateHousekeepingDeps, HousekeepingController } from "./scheduler/housekeeping.js";
+import type { MongoPorts } from "../infra/mongo/mongoPorts.js";
+import type { SourcePorts } from "../sources/sourceRegistryPorts.js";
 import type { CreateOutboxWorkerDeps, OutboxDrainResult, OutboxWorker } from "./scheduler/outboxWorker.js";
 import type { CreateHttpServerDeps } from "./health/httpServer.js";
 import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "./lifecycle/events.js";
@@ -118,6 +120,11 @@ export interface DiscordClientLike extends LifecycleEventClient {
   isReady(): boolean;
 }
 
+export interface RuntimePorts {
+  mongo: MongoPorts;
+  sources: SourcePorts;
+}
+
 export interface AppRuntimeDeps {
   mongoose: MongooseLike;
   crypto: CryptoLike;
@@ -128,6 +135,7 @@ export interface AppRuntimeDeps {
   createMetrics: () => BotMetrics;
   createRateLimiter: (env: RuntimeEnv, metrics: BotMetrics) => RateLimiter;
   createHousekeeping: (opts: CreateHousekeepingDeps) => HousekeepingController;
+  ports: RuntimePorts;
   createCronController: (opts: CreateCronControllerDeps) => CronController;
   createOutboxWorker: (opts: CreateOutboxWorkerDeps) => OutboxWorker;
   createHttpServer: (opts: CreateHttpServerDeps) => HttpServerLike;

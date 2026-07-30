@@ -1,4 +1,5 @@
 import { createGuildSettingsEventBus } from "../../infra/mongo/guildSettingsEventBus.js";
+import { stubRuntimePorts } from "./runtimePortStubs.js";
 import { createGameCatalog } from "../../config/gameCatalog.js";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -57,6 +58,7 @@ function makeGraphHarness(role?: BotRole) {
   };
 
   const deps: AppRuntimeDeps = {
+    ports: stubRuntimePorts(),
     mongoose: {
       connect: async () => undefined,
       connection: { readyState: 1, close: async () => undefined, on: () => undefined }
