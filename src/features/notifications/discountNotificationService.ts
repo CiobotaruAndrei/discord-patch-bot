@@ -11,13 +11,15 @@ import type { DeadLetterModelLike } from "./deadLetterRepository.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
 import { HASH_VERSION } from "../../native/fuzzy.js";
 
-import { sendEmbedBatch } from "./notificationBatchExecutor.js";
 import { persistGuildCycleState } from "./notificationCycleRepository.js";
 import { buildDealsHashIndex, planDiscountFailure, planPendingDiscounts } from "./discountNotificationPlanner.js";
-import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
+import type { ReportRollbackFailure } from "./rollbackReporter.js";
 import { loadNotificationFeed } from "./notificationFeedLoader.js";
-import { claimIntoBatch } from "./notificationCycle.js";
+import { runGuildNotificationCycle, type NotificationCycleEnvironment } from "./notificationCycle.js";
+import { cronContextFor, subscriptionFilterFor, type NotificationKind } from "../../shared/notificationKinds.js";
 
+const NOTIFICATION_KIND: NotificationKind = "discount";
+const CRON_CONTEXT = cronContextFor(NOTIFICATION_KIND);
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
@@ -112,6 +114,12 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     GUILD_PROCESS_CONCURRENCY
   } = deps;
 
+  const cycleEnvironment: NotificationCycleEnvironment = {
+    logger, isPermanentDiscordError, transientErrorMessage, sleepIfPositive, reportRollbackFailure,
+    maxEmbedsPerMessage: DISCORD_EMBEDS_PER_MESSAGE,
+    sendDelayMs: DISCORD_SEND_DELAY_MS
+  };
+
   const dealsHashIndexCache = new WeakMap<DealInfo[], ReturnType<typeof buildDealsHashIndex>>();
 
   function getDealsHashIndex(deals: DealInfo[]) {
@@ -127,7 +135,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       client,
       guild,
       channelId: guild.discountChannelId,
-      context: "CRON_DISCOUNTS",
+      context: CRON_CONTEXT,
       disableFn: disableDiscountsForChannelError
     });
     if (abort) return;
@@ -137,7 +145,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
     if (Number(guild.seenHashVersionDiscounts) !== HASH_VERSION) {
       if (orderedHashes.length) await seedSeenDiscounts(String(guild._id), orderedHashes);
       await setSeenHashVersion(String(guild._id), "seenHashVersionDiscounts", HASH_VERSION);
-      logger("INFO", "CRON_DISCOUNTS", `Re-baseline dedup reduceri pentru guild ${guild._id} (hashVersion -> ${HASH_VERSION}); ciclul curent nu trimite notificari`);
+      logger("INFO", CRON_CONTEXT, `Re-baseline dedup reduceri pentru guild ${guild._id} (hashVersion -> ${HASH_VERSION}); ciclul curent nu trimite notificari`);
       return;
     }
 
@@ -157,93 +165,60 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       validateSnapshot: validatePendingDiscountSnapshot
     });
 
-    const remaining: PendingDiscount[] = [];
+    const claimRetries: PendingDiscount[] = [];
+    const sendRetries: PendingDiscount[] = [];
     const deadLettered: DeadLetterEntry[] = [];
     const currency = guild.currency || DEFAULT_CURRENCY;
     const notificationMode: NotificationMode = guild.notificationMode === "compact" ? "compact" : "detailed";
 
-    function retryOrDeadLetter(item: PendingDiscount, err: unknown): void {
+    function retryOrDeadLetter(item: PendingDiscount, err: unknown, retries: PendingDiscount[]): void {
       const failure = planDiscountFailure(item, PENDING_DISCOUNT_MAX_ATTEMPTS);
-      if (failure.action === "requeue") remaining.push(failure.retry);
+      if (failure.action === "requeue") retries.push(failure.retry);
       else deadLettered.push(buildDeadLetterEntry({
-        kind: "discount", itemId: item.hash, title: item.snapshot?.title,
+        kind: NOTIFICATION_KIND, itemId: item.hash, title: item.snapshot?.title,
         reason: transientErrorMessage(err), attempts: failure.attempts
       }));
     }
 
-    const claimed = await claimIntoBatch<PendingDiscount, { item: PendingDiscount; embed: NotificationEmbed }>({
-      candidates: pending.filter(item => Boolean(item)),
+    await runGuildNotificationCycle<PendingDiscount>(cycleEnvironment, {
+      kind: NOTIFICATION_KIND,
+      guildId: String(guild._id),
+      channel,
       limit: MAX_DEALS_PER_CYCLE,
-      context: "CRON_DISCOUNTS",
-      logger,
+      candidates: pending.filter(item => Boolean(item)),
+      identify: item => ({
+        itemId: item.hash,
+        describe: `reducerea ${item.hash}`,
+        history: {
+          title: item.snapshot?.title || "",
+          link: item.snapshot?.url || item.snapshot?.link || "",
+          itemId: item.hash
+        }
+      }),
       claim: item => claimSeenDiscount(String(guild._id), channel.id, item.hash),
-      prepare: async item => {
+      buildEmbed: async item => {
         const snapshot = item.snapshot;
         if (!snapshot) throw new Error(`PendingDiscount ${item.hash} fara snapshot valid`);
-        const dealToSend = await enrichDealData(snapshot, currency);
-        return { item, embed: buildDealEmbed(dealToSend, notificationMode, currency) };
+        return buildDealEmbed(await enrichDealData(snapshot, currency), notificationMode, currency);
       },
-      rollback: item => rollbackOrReport(
-        () => rollbackSeenDiscount(String(guild._id), item.hash),
-        logger,
-        { guildId: String(guild._id), kind: "discount", itemId: item.hash },
-        reportRollbackFailure
-      ),
-      describe: item => `reducerea ${item.hash}`,
-      isPermanentError: isPermanentDiscordError,
-      onPermanentError: async err => {
-        const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
-        await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);
-        logger("WARN", "CRON_DISCOUNTS", `Disable discounts pentru guild ${guild._id} - cod permanent`, reason);
+      releaseClaim: item => rollbackSeenDiscount(String(guild._id), item.hash),
+      disableChannel: reason => disableDiscountsForChannelError(String(guild._id), channel.id, reason),
+      onClaimFailure: (item, err) => { retryOrDeadLetter(item, err, claimRetries); },
+      onSendFailure: (failed, err) => {
+        for (const item of failed) retryOrDeadLetter(item, err, sendRetries);
       },
-      onTransientError: (item, err) => { retryOrDeadLetter(item, err); },
       transientPolicy: "stop",
-      errorMessage: transientErrorMessage
-    });
-    const batch = claimed.batch;
-    remaining.push(...claimed.remaining);
-
-    const discountRoleId = guild.discountRoleId;
-    const messageTemplate = guild.discountMessageTemplate;
-    await sendEmbedBatch({
-      channel,
-      batch,
-      embedOf: entry => entry.embed,
-      historyEntryFor: entry => {
-        const snapshot = entry.item.snapshot;
-        return {
-          kind: "discount" as const,
-          title: snapshot?.title || "",
-          link: snapshot?.url || snapshot?.link || "",
-          itemId: entry.item.hash
-        };
-      },
-      messageTemplate,
-      roleId: discountRoleId,
-      maxEmbedsPerMessage: DISCORD_EMBEDS_PER_MESSAGE,
-      sendDelayMs: DISCORD_SEND_DELAY_MS,
-      sleepIfPositive,
-      isPermanentDiscordError,
-      transientErrorMessage,
-      rollbackEntry: entry => rollbackSeenDiscount(String(guild._id), entry.item.hash),
-      rollbackFailureContext: entry => ({ guildId: String(guild._id), kind: "discount", itemId: entry.item.hash }),
-      reportRollbackFailure,
-      logger,
-      onPermanentError: async reason => {
-        await disableDiscountsForChannelError(String(guild._id), channel.id, reason).catch(() => null);
-        logger("WARN", "CRON_DISCOUNTS", `Disable discounts pentru guild ${guild._id} - cod permanent`, reason);
-      },
-      onTransientFailure: (failed, err) => {
-        for (const entry of failed) retryOrDeadLetter(entry.item, err);
-        logger("WARN", "CRON_DISCOUNTS", "Nu am putut trimite reduceri", transientErrorMessage(err));
+      messageTemplate: guild.discountMessageTemplate,
+      roleId: guild.discountRoleId,
+      persist: async outcome => {
+        const pendingOut = [...claimRetries, ...outcome.unclaimed, ...sendRetries];
+        await persistGuildCycleState(
+          GuildModel, GuildDeadLetterModel, String(guild._id),
+          subscriptionFilterFor({ kind: NOTIFICATION_KIND, guildId: String(guild._id), channelId: channel.id }),
+          { pendingDiscounts: pendingOut.slice(-PENDING_DISCOUNTS_LIMIT) }, deadLettered
+        );
       }
     });
-
-    await persistGuildCycleState(
-      GuildModel, GuildDeadLetterModel, String(guild._id),
-      { _id: guild._id, discountsSubscribed: true, discountChannelId: channel.id },
-      { pendingDiscounts: remaining.slice(-PENDING_DISCOUNTS_LIMIT) }, deadLettered
-    );
   }
 
   async function checkForDiscounts(client: NotificationDiscordClient, shouldAbort: (() => boolean) | null = null): Promise<void> {
@@ -272,7 +247,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
           loadSnapshot: loadFetchSnapshot,
           maxSnapshotAgeMs: SNAPSHOT_FALLBACK_MAX_AGE_MS,
           invalidSnapshotItemPolicy: "reject-snapshot",
-          onFallback: error => logger("WARN", "CRON_DISCOUNTS", `Fetch reduceri esuat pentru ${cur}; folosesc snapshot-ul recent din event store`, transientErrorMessage(error))
+          onFallback: error => logger("WARN", CRON_CONTEXT, `Fetch reduceri esuat pentru ${cur}; folosesc snapshot-ul recent din event store`, transientErrorMessage(error))
         }));
       }
       return dealsPromises.get(cur) as Promise<DealInfo[]>;
@@ -299,7 +274,7 @@ export function createDiscountNotificationService(deps: DiscountNotificationServ
       await processGuildPriceAlerts(client, guild, dealsByCurrency);
     }, {
       errorLogger: (guild, err) =>
-        logger("WARN", "CRON_DISCOUNTS", `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
+        logger("WARN", CRON_CONTEXT, `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
     });
     if (dispatch.processed === 0 && dispatch.errors.length > 0) {
       throw new Error(`Reducerile au esuat pentru toate cele ${dispatch.errors.length} guild-uri abonate (fetch sau procesare): ${transientErrorMessage(dispatch.errors[0]?.error)}`);

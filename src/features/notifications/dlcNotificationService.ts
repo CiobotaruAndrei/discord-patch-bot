@@ -7,10 +7,12 @@ import type { GameDlc, DlcSourceDeps, FetchGameDlcsOutcome } from "../command-ha
 import { currencyToSteamCountry } from "../command-handlers/dlcSourceService.js";
 import type { NotificationEmbed } from "./notificationTypes.js";
 import { planDlcCandidates, buildDlcEmbed, collectBaselineDlcEntries, type DlcCandidate } from "./dlcNotificationPlanner.js";
-import { sendEmbedBatch } from "./notificationBatchExecutor.js";
-import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
-import { claimIntoBatch } from "./notificationCycle.js";
+import type { ReportRollbackFailure } from "./rollbackReporter.js";
+import { runGuildNotificationCycle, type NotificationCycleEnvironment } from "./notificationCycle.js";
+import { cronContextFor, type NotificationKind } from "../../shared/notificationKinds.js";
 
+const NOTIFICATION_KIND: NotificationKind = "dlc";
+const CRON_CONTEXT = cronContextFor(NOTIFICATION_KIND);
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const CANDIDATE_SAFETY_LIMIT = 1000;
 
@@ -79,6 +81,12 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
   } = deps;
 
+  const cycleEnvironment: NotificationCycleEnvironment = {
+    logger, isPermanentDiscordError, transientErrorMessage, sleepIfPositive, reportRollbackFailure,
+    maxEmbedsPerMessage: DISCORD_EMBEDS_PER_MESSAGE,
+    sendDelayMs: DISCORD_SEND_DELAY_MS
+  };
+
   async function fetchAllGameDlcs(games: GameConfig[], options?: { shouldAbort?: (() => boolean) | null; requireAll?: boolean }): Promise<Map<string, GameDlc[]>> {
     const dlcsByGame = new Map<string, GameDlc[]>();
     const fetchable = games.filter(game => Boolean(game && game.key && game.appId != null && String(game.appId).trim()));
@@ -92,12 +100,12 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
         if (outcome.dlcs.length) dlcsByGame.set(String(game.key), outcome.dlcs);
       } else {
         failures.push(`${game.key}:${outcome.status}`);
-        logger("WARN", "CRON_DLC", `Sursa DLC pentru ${game.key} a raspuns cu status ${outcome.status}`);
+        logger("WARN", CRON_CONTEXT, `Sursa DLC pentru ${game.key} a raspuns cu status ${outcome.status}`);
       }
     }, {
       errorLogger: (game, err) => {
         failures.push(`${game.key}:error`);
-        logger("WARN", "CRON_DLC", `Eroare la preluarea DLC pentru ${game.key}`, transientErrorMessage(err));
+        logger("WARN", CRON_CONTEXT, `Eroare la preluarea DLC pentru ${game.key}`, transientErrorMessage(err));
       }
     });
     if (options?.requireAll && failures.length > 0) {
@@ -112,7 +120,7 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
       client,
       guild,
       channelId: guild.dlcChannelId,
-      context: "CRON_DLC",
+      context: CRON_CONTEXT,
       disableFn: disableDlcForChannelError
     });
     if (resolved.abort) return;
@@ -121,67 +129,26 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
     const candidates = planDlcCandidates(games, dlcsByGame, CANDIDATE_SAFETY_LIMIT);
     if (!candidates.length) return;
 
-    const rollbackContext = (candidate: DlcCandidate) => ({
+    await runGuildNotificationCycle<DlcCandidate>(cycleEnvironment, {
+      kind: NOTIFICATION_KIND,
       guildId,
-      kind: "dlc",
-      itemId: `${candidate.gameKey}:${candidate.dlc.dlcKey}`
-    });
-
-    const claimed = await claimIntoBatch<DlcCandidate, { candidate: DlcCandidate; embed: NotificationEmbed }>({
-      candidates,
-      limit: MAX_DLCS_PER_CYCLE,
-      context: "CRON_DLC",
-      logger,
-      claim: candidate => claimSeenDlc(guildId, channel.id, candidate.gameKey, candidate.dlc.dlcKey),
-      prepare: candidate => ({ candidate, embed: buildDlcEmbed(candidate, DLC_EMBED_COLOR) }),
-      rollback: candidate => rollbackOrReport(
-        () => rollbackSeenDlc(guildId, candidate.gameKey, candidate.dlc.dlcKey),
-        logger,
-        rollbackContext(candidate),
-        reportRollbackFailure
-      ),
-      describe: candidate => `DLC ${candidate.dlc.dlcKey} pentru ${candidate.gameKey}`,
-      isPermanentError: isPermanentDiscordError,
-      onPermanentError: async err => {
-        const reason = `Discord cod ${(err as { code?: unknown }).code}: ${transientErrorMessage(err)}`;
-        await disableDlcForChannelError(guildId, channel.id, reason).catch(() => null);
-        logger("WARN", "CRON_DLC", `Notificarile DLC oprite pentru guild ${guildId} - cod permanent`, reason);
-      },
-      errorMessage: transientErrorMessage
-    });
-    if (claimed.stopped) return;
-    const batch = claimed.batch;
-    if (!batch.length) return;
-
-    await sendEmbedBatch({
       channel,
-      batch,
-      embedOf: entry => entry.embed,
-      historyEntryFor: entry => ({
-        kind: "dlc" as const,
-        gameKey: entry.candidate.gameKey,
-        title: `DLC nou: ${entry.candidate.dlc.name}`,
-        link: entry.candidate.appId ? `https://store.steampowered.com/app/${entry.candidate.appId}` : "",
-        itemId: `${entry.candidate.gameKey}:${entry.candidate.dlc.dlcKey}`
+      limit: MAX_DLCS_PER_CYCLE,
+      candidates,
+      identify: candidate => ({
+        itemId: `${candidate.gameKey}:${candidate.dlc.dlcKey}`,
+        describe: `DLC ${candidate.dlc.dlcKey} pentru ${candidate.gameKey}`,
+        history: {
+          gameKey: candidate.gameKey,
+          title: `DLC nou: ${candidate.dlc.name}`,
+          link: candidate.appId ? `https://store.steampowered.com/app/${candidate.appId}` : "",
+          itemId: `${candidate.gameKey}:${candidate.dlc.dlcKey}`
+        }
       }),
-      messageTemplate: null,
-      roleId: null,
-      maxEmbedsPerMessage: DISCORD_EMBEDS_PER_MESSAGE,
-      sendDelayMs: DISCORD_SEND_DELAY_MS,
-      sleepIfPositive,
-      isPermanentDiscordError,
-      transientErrorMessage,
-      rollbackEntry: entry => rollbackSeenDlc(guildId, entry.candidate.gameKey, entry.candidate.dlc.dlcKey),
-      rollbackFailureContext: entry => rollbackContext(entry.candidate),
-      reportRollbackFailure,
-      logger,
-      onPermanentError: async reason => {
-        await disableDlcForChannelError(guildId, channel.id, reason).catch(() => null);
-        logger("WARN", "CRON_DLC", `Notificarile DLC oprite pentru guild ${guildId} - cod permanent`, reason);
-      },
-      onTransientFailure: (_failed, err) => {
-        logger("WARN", "CRON_DLC", "Nu am putut trimite notificarile DLC", transientErrorMessage(err));
-      }
+      claim: candidate => claimSeenDlc(guildId, channel.id, candidate.gameKey, candidate.dlc.dlcKey),
+      buildEmbed: candidate => buildDlcEmbed(candidate, DLC_EMBED_COLOR),
+      releaseClaim: candidate => rollbackSeenDlc(guildId, candidate.gameKey, candidate.dlc.dlcKey),
+      disableChannel: reason => disableDlcForChannelError(guildId, channel.id, reason)
     });
   }
 
@@ -201,7 +168,7 @@ export function createDlcNotificationService(deps: DlcNotificationServiceDeps): 
       if (shouldAbort?.()) return;
       await processGuildDlcs(client, guild, games, dlcsByGame);
     }, {
-      errorLogger: (guild, err) => logger("WARN", "CRON_DLC", `Eroare la procesarea guild-ului ${guild._id}`, transientErrorMessage(err))
+      errorLogger: (guild, err) => logger("WARN", CRON_CONTEXT, `Eroare la procesarea guild-ului ${guild._id}`, transientErrorMessage(err))
     });
   }
 

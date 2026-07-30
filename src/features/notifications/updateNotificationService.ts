@@ -9,13 +9,15 @@ import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
 import type { DeadLetterModelLike } from "./deadLetterRepository.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
 import { HASH_VERSION } from "../../native/fuzzy.js";
-import { sendEmbedBatch } from "./notificationBatchExecutor.js";
 import { persistGuildCycleState } from "./notificationCycleRepository.js";
 import { planPendingFailure, planRebaselineEntries, requeueFront, takeNextPending } from "./updateNotificationPlanner.js";
-import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
+import type { ReportRollbackFailure } from "./rollbackReporter.js";
 import { loadNotificationFeed } from "./notificationFeedLoader.js";
-import { claimIntoBatch } from "./notificationCycle.js";
+import { runGuildNotificationCycle, type NotificationCycleEnvironment } from "./notificationCycle.js";
+import { cronContextFor, subscriptionFilterFor, type NotificationKind } from "../../shared/notificationKinds.js";
 
+const NOTIFICATION_KIND: NotificationKind = "update";
+const CRON_CONTEXT = cronContextFor(NOTIFICATION_KIND);
 const DISCORD_EMBEDS_PER_MESSAGE = 10;
 const SNAPSHOT_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
@@ -105,6 +107,12 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     DISCORD_SEND_DELAY_MS, GUILD_PROCESS_CONCURRENCY
   } = deps;
 
+  const cycleEnvironment: NotificationCycleEnvironment = {
+    logger, isPermanentDiscordError, transientErrorMessage, sleepIfPositive, reportRollbackFailure,
+    maxEmbedsPerMessage: DISCORD_EMBEDS_PER_MESSAGE,
+    sendDelayMs: DISCORD_SEND_DELAY_MS
+  };
+
   async function processGuildUpdates(
     client: NotificationDiscordClient,
     guild: GuildSettingsDoc,
@@ -114,7 +122,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       client,
       guild,
       channelId: guild.notificationChannelId,
-      context: "CRON_UPDATES",
+      context: CRON_CONTEXT,
       disableFn: disableUpdatesForChannelError
     });
     if (abort) return;
@@ -130,7 +138,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       const entries = planRebaselineEntries(resultByGameKey);
       if (entries.length) await seedSeenUpdates(String(guild._id), entries);
       await setSeenHashVersion(String(guild._id), "seenHashVersionUpdates", HASH_VERSION);
-      logger("INFO", "CRON_UPDATES", `Re-baseline dedup update-uri pentru guild ${guild._id} (hashVersion -> ${HASH_VERSION}); ciclul curent nu trimite notificari`);
+      logger("INFO", CRON_CONTEXT, `Re-baseline dedup update-uri pentru guild ${guild._id} (hashVersion -> ${HASH_VERSION}); ciclul curent nu trimite notificari`);
       return;
     }
 
@@ -138,100 +146,66 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
     type UpdateSelection = { gameKey: string; item: PendingUpdate };
     let lastProcessedGameKey: string | null = guild.lastProcessedGameKey || null;
 
-    const claimed = await claimIntoBatch<UpdateSelection, { gameKey: string; item: PendingUpdate; embed: NotificationEmbed }>({
+    function requeueOrDeadLetter(selection: UpdateSelection, err: unknown): void {
+      const failure = planPendingFailure(selection.item, PENDING_UPDATE_MAX_ATTEMPTS);
+      if (failure.action === "requeue") {
+        requeueFront(pendingByGame, selection.gameKey, selection.item);
+      } else {
+        deadLettered.push(buildDeadLetterEntry({
+          kind: NOTIFICATION_KIND, itemId: selection.item.id, title: selection.item.title,
+          reason: transientErrorMessage(err), attempts: failure.attempts
+        }));
+      }
+    }
+
+    await runGuildNotificationCycle<UpdateSelection>(cycleEnvironment, {
+      kind: NOTIFICATION_KIND,
+      guildId: String(guild._id),
+      channel,
+      limit: MAX_UPDATES_PER_CYCLE,
       pull: () => {
         const selection = takeNextPending(pendingByGame, lastProcessedGameKey, rotateAfter);
         if (!selection) return null;
         lastProcessedGameKey = selection.gameKey;
         return { gameKey: selection.gameKey, item: selection.item };
       },
-      limit: MAX_UPDATES_PER_CYCLE,
-      context: "CRON_UPDATES",
-      logger,
-      claim: selection => claimSeenUpdate(String(guild._id), channel.id, selection.gameKey, selection.item.id),
-      prepare: selection => {
-        const game = resultByGameKey.get(selection.gameKey)?.game || { name: selection.gameKey, key: selection.gameKey };
-        return { gameKey: selection.gameKey, item: selection.item, embed: buildUpdateEmbed(game.name, selection.item, notificationMode) };
-      },
-      rollback: selection => rollbackOrReport(
-        () => rollbackSeenUpdate(String(guild._id), selection.gameKey, selection.item.id),
-        logger,
-        { guildId: String(guild._id), kind: "update", itemId: `${selection.gameKey}:${selection.item.id}` },
-        reportRollbackFailure
-      ),
-      describe: selection => `update-ul ${selection.gameKey}/${selection.item.id}`,
-      isPermanentError: () => false,
-      onPermanentError: async () => undefined,
-      onTransientError: (selection, err) => {
-        const embedFailure = planPendingFailure(selection.item, PENDING_UPDATE_MAX_ATTEMPTS);
-        if (embedFailure.action === "requeue") {
-          requeueFront(pendingByGame, selection.gameKey, selection.item);
-        } else {
-          deadLettered.push(buildDeadLetterEntry({
-            kind: "update", itemId: selection.item.id, title: selection.item.title,
-            reason: transientErrorMessage(err), attempts: embedFailure.attempts
-          }));
+      identify: selection => ({
+        itemId: `${selection.gameKey}:${selection.item.id}`,
+        describe: `update-ul ${selection.gameKey}/${selection.item.id}`,
+        history: {
+          gameKey: selection.gameKey,
+          title: selection.item.title || "",
+          link: selection.item.link || "",
+          itemId: selection.item.id
         }
-        logger("WARN", "CRON_UPDATES", `buildUpdateEmbed a esuat pentru ${selection.gameKey}/${selection.item.id}; claim-ul a fost dat inapoi`, transientErrorMessage(err));
-      },
-      transientPolicy: "continue",
-      errorMessage: transientErrorMessage
-    });
-    const batch = claimed.batch;
-
-    const notificationRoleId = guild.notificationRoleId;
-    const messageTemplate = guild.updateMessageTemplate;
-    await sendEmbedBatch({
-      channel,
-      batch,
-      embedOf: entry => entry.embed,
-      historyEntryFor: entry => ({
-        kind: "update" as const,
-        gameKey: entry.gameKey,
-        title: entry.item.title || "",
-        link: entry.item.link || "",
-        itemId: entry.item.id
       }),
-      messageTemplate,
-      roleId: notificationRoleId,
-      maxEmbedsPerMessage: DISCORD_EMBEDS_PER_MESSAGE,
-      sendDelayMs: DISCORD_SEND_DELAY_MS,
-      sleepIfPositive,
-      isPermanentDiscordError,
-      transientErrorMessage,
-      rollbackEntry: entry => rollbackSeenUpdate(String(guild._id), entry.gameKey, entry.item.id),
-      rollbackFailureContext: entry => ({ guildId: String(guild._id), kind: "update", itemId: `${entry.gameKey}:${entry.item.id}` }),
-      reportRollbackFailure,
-      logger,
-      onPermanentError: async reason => {
-        await disableUpdatesForChannelError(String(guild._id), channel.id, reason).catch(() => null);
-        logger("WARN", "CRON_UPDATES", `Disable updates pentru guild ${guild._id} - cod permanent`, reason);
+      claim: selection => claimSeenUpdate(String(guild._id), channel.id, selection.gameKey, selection.item.id),
+      buildEmbed: selection => {
+        const game = resultByGameKey.get(selection.gameKey)?.game || { name: selection.gameKey, key: selection.gameKey };
+        return buildUpdateEmbed(game.name, selection.item, notificationMode);
       },
-      onTransientFailure: (failed, err) => {
-        for (let j = failed.length - 1; j >= 0; j--) {
-          const entry = failed[j];
-          const sendFailure = planPendingFailure(entry.item, PENDING_UPDATE_MAX_ATTEMPTS);
-          if (sendFailure.action === "requeue") {
-            requeueFront(pendingByGame, entry.gameKey, entry.item);
-          } else {
-            deadLettered.push(buildDeadLetterEntry({
-              kind: "update", itemId: entry.item.id, title: entry.item.title,
-              reason: transientErrorMessage(err), attempts: sendFailure.attempts
-            }));
-          }
-        }
-        logger("WARN", "CRON_UPDATES", `Nu am putut trimite update-uri pentru guild ${guild._id}`, transientErrorMessage(err));
+      releaseClaim: selection => rollbackSeenUpdate(String(guild._id), selection.gameKey, selection.item.id),
+      disableChannel: reason => disableUpdatesForChannelError(String(guild._id), channel.id, reason),
+      claimFailureIsPermanent: () => false,
+      onClaimFailure: (selection, err) => {
+        requeueOrDeadLetter(selection, err);
+        logger("WARN", CRON_CONTEXT, `buildUpdateEmbed a esuat pentru ${selection.gameKey}/${selection.item.id}; claim-ul a fost dat inapoi`, transientErrorMessage(err));
+      },
+      onSendFailure: (failed, err) => {
+        for (let j = failed.length - 1; j >= 0; j--) requeueOrDeadLetter(failed[j], err);
+      },
+      messageTemplate: guild.updateMessageTemplate,
+      roleId: guild.notificationRoleId,
+      persist: async () => {
+        const setDoc: Record<string, unknown> = { pendingUpdates: mapToObject(pendingByGame) };
+        if (lastProcessedGameKey) setDoc.lastProcessedGameKey = lastProcessedGameKey;
+        await persistGuildCycleState(
+          GuildModel, GuildDeadLetterModel, String(guild._id),
+          subscriptionFilterFor({ kind: NOTIFICATION_KIND, guildId: String(guild._id), channelId: channel.id }),
+          setDoc, deadLettered
+        );
       }
     });
-
-    const pendingObject = mapToObject(pendingByGame);
-    const setDoc: Record<string, unknown> = { pendingUpdates: pendingObject };
-    if (lastProcessedGameKey) setDoc.lastProcessedGameKey = lastProcessedGameKey;
-    await persistGuildCycleState(
-      GuildModel, GuildDeadLetterModel, String(guild._id),
-      { _id: guild._id, subscribed: true, notificationChannelId: channel.id },
-      setDoc, deadLettered
-    );
   }
 
   function buildOptimizedGameList<G extends { key: string }>(
@@ -263,7 +237,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
 
     const optimizedGames = buildOptimizedGameList(games, guilds);
     if (optimizedGames.length < games.length) {
-      logger("INFO", "CRON_UPDATES", `Lista optimizata: ${optimizedGames.length}/${games.length} jocuri folosite de guild-uri`);
+      logger("INFO", CRON_CONTEXT, `Lista optimizata: ${optimizedGames.length}/${games.length} jocuri folosite de guild-uri`);
     }
 
     const isValidFetchResult = (item: unknown): item is UpdateFetchResult => validateUpdateFetchSnapshot(item);
@@ -288,7 +262,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       loadSnapshot: loadFetchSnapshot,
       maxSnapshotAgeMs: SNAPSHOT_FALLBACK_MAX_AGE_MS,
       invalidSnapshotItemPolicy: "reject-snapshot",
-      onFallback: error => logger("WARN", "CRON_UPDATES", "Fetch esuat; folosesc snapshot-ul recent din event store pentru dispatch", transientErrorMessage(error)),
+      onFallback: error => logger("WARN", CRON_CONTEXT, "Fetch esuat; folosesc snapshot-ul recent din event store pentru dispatch", transientErrorMessage(error)),
       createUnavailableError: error => new Error(`Nu am putut prelua update-urile si nu exista snapshot de rezerva proaspat: ${transientErrorMessage(error)}`)
     });
     if (shouldAbort?.()) return;
@@ -297,7 +271,7 @@ export function createUpdateNotificationService(deps: UpdateNotificationServiceD
       if (!shouldAbort?.()) await processGuildUpdates(client, guild, latestResults);
     }, {
       errorLogger: (guild, err) =>
-        logger("WARN", "CRON_UPDATES", `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
+        logger("WARN", CRON_CONTEXT, `Eroare procesare guild ${guild._id}`, transientErrorMessage(err))
     });
     if (dispatch.processed === 0 && dispatch.errors.length > 0) {
       throw new Error(`Procesarea update-urilor a esuat pentru toate cele ${dispatch.errors.length} guild-uri abonate: ${transientErrorMessage(dispatch.errors[0]?.error)}`);
