@@ -14,7 +14,8 @@ const MIGRATED_GATES: readonly string[] = [
   "commandInstallerTargetContracts.test.ts",
   "mongoPorts.test.ts",
   "roleCompositionRoots.test.ts",
-  "guildDocumentSplit.test.ts"
+  "guildDocumentSplit.test.ts",
+  "securityHandlerLayering.test.ts"
 ];
 
 function read(file: string): string {
