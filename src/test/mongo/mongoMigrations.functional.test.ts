@@ -17,6 +17,7 @@ interface GuildDoc {
   youtubeErrors?: Array<Record<string, unknown>>;
   notificationDeadLetter?: Array<Record<string, unknown>>;
   moderationWarnBanLimit?: number;
+  youtubeNotificationsEnabled?: boolean;
   moderationTimeouts?: Array<Record<string, unknown>>;
 }
 
@@ -57,6 +58,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
   const guilds: GuildDoc[] = [{
     _id: "guild-1",
     moderationWarnBanLimit: 3,
+    youtubeNotificationsEnabled: true,
     moderationTimeouts: [{ userId: "u9", appliedAt: new Date("2025-05-01T00:00:00.000Z") }],
     seenDiscounts: Array.from({ length: 520 }, (_, index) => `deal-${index}`),
     seen: { cs2: ["u-1", "u-2"], dota: ["u-3"] },
@@ -139,6 +141,15 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       if (filter && "$or" in filter) {
         const clauses = Array.isArray(filter.$or) ? (filter.$or as Array<Record<string, unknown>>) : [];
         const clauseFields = clauses.flatMap(clause => Object.keys(clause));
+        if (clauseFields.some(field => field.startsWith("youtube"))) {
+          const matching = guilds.filter(guild => Array.isArray(guild.youtubeErrors) || guild.youtubeNotificationsEnabled !== undefined);
+          return {
+            async toArray() { return matching.map(guild => ({ _id: guild._id, youtubeNotificationsEnabled: guild.youtubeNotificationsEnabled })); },
+            async *[Symbol.asyncIterator]() {
+              for (const guild of matching) yield { _id: guild._id, youtubeNotificationsEnabled: guild.youtubeNotificationsEnabled };
+            }
+          };
+        }
         if (clauseFields.some(field => field.startsWith("moderation"))) {
           const matching = guilds.filter(guild => guild.moderationWarnBanLimit !== undefined || Array.isArray(guild.moderationTimeouts));
           return {
@@ -241,6 +252,13 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       return { upsertedCount: ops.length };
     }
   };
+  const youtubeStateUpdates: Array<{ filter: Record<string, unknown>; update: Record<string, unknown> }> = [];
+  const guildYoutubeStateCollection = {
+    async updateOne(filter: Record<string, unknown>, update: Record<string, unknown>) {
+      youtubeStateUpdates.push({ filter, update });
+      return { matchedCount: 1, modifiedCount: 1, upsertedCount: 0 };
+    }
+  };
   const moderationUpdates: Array<{ filter: Record<string, unknown>; update: Record<string, unknown> }> = [];
   const guildModerationCollection = {
     async updateOne(filter: Record<string, unknown>, update: Record<string, unknown>) {
@@ -269,6 +287,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       if (name === "guildYoutubeErrors") return fakeCollection(guildYoutubeErrorCollection);
       if (name === "guildDeadLetters") return fakeCollection(guildDeadLetterCollection);
       if (name === "guildModeration") return fakeCollection(guildModerationCollection);
+      if (name === "guildYoutubeState") return fakeCollection(guildYoutubeStateCollection);
       if (name === "notificationOutbox") return fakeCollection([]);
       throw new Error(`Unexpected collection ${name}`);
     }
@@ -288,7 +307,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     throw new Error("attachMigrations trebuie sa ataseze runMigrations + ALL_MIGRATIONS");
   }
   const runtime = Object.assign(context, { runMigrations, ALL_MIGRATIONS });
-  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps, auditBulkOps, backupBulkOps, suggestedBulkOps, youtubeErrorBulkOps, deadLetterBulkOps, moderationUpdates };
+  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps, auditBulkOps, backupBulkOps, suggestedBulkOps, youtubeErrorBulkOps, deadLetterBulkOps, moderationUpdates, youtubeStateUpdates };
 }
 
 const ALL_MIGRATION_IDS = REGISTRY_MIGRATIONS.map(migration => migration.id);
@@ -366,6 +385,7 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#11")));
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#12")));
   assert.equal(fixture.moderationUpdates.length, 1, "m14 muta felia de moderare in colectia dedicata");
+  assert.equal(fixture.youtubeStateUpdates.length, 1, "m15 copiaza felia YouTube in colectia dedicata");
   assert.equal(fixture.guilds[0].moderationWarnBanLimit, undefined, "m14 scoate campurile de moderare de pe documentul guild");
 });
 

@@ -342,6 +342,7 @@ setat ESTE sincronizarea. Inventarul declarat curent:
 | `guildSeenUpdates` | `{ guildId, gameKey, updateId }` | unique | dedup per-guild al update-urilor deja trimise |
 | `guildSeenYoutube` | `{ guildId, channelId, videoId }` | unique | claim si dedup atomic per-guild pentru videoclipurile YouTube |
 | `guildSeenDlc` | `{ guildId, gameKey, dlcKey }` | unique | claim si dedup atomic per-guild al DLC-urilor deja notificate (baseline seed la `/start dlc`) |
+| `guildYoutubeState` | `{ youtubeNotificationsEnabled, youtubeNotificationChannelId }` | — | enumerarea guild-urilor cu monitorizarea YouTube activa, dupa scoaterea starii YouTube din documentul `guilds` |
 | `guildSecurity` | `{ threatProtectionEnabled, threatAlertChannelId }` | — | enumerarea guild-urilor cu protectia de amenintari activa, dupa scoaterea starii de securitate din documentul `guilds` |
 | `guildSecurity` | `{ botAddProtectionEnabled, botAddAlertChannelId }` | — | enumerarea guild-urilor cu protectia la adaugarea de bot-uri activa |
 | `guildSecurity` | `{ newAccountAlertsEnabled, newAccountAlertChannelId }` | — | enumerarea guild-urilor cu alertele de cont nou active |
