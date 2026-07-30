@@ -64,11 +64,14 @@ export function normalize(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+export function parseModule(label: string, text: string): ModuleQuery {
+  return { relativePath: label, source: ts.createSourceFile(label, text, ts.ScriptTarget.Latest, true) };
+}
+
 export function loadModule(...segments: readonly string[]): ModuleQuery {
   const absolute = path.join(srcRoot, ...segments);
   const relativePath = path.relative(srcRoot, absolute).split(path.sep).join("/");
-  const source = ts.createSourceFile(relativePath, fs.readFileSync(absolute, "utf8"), ts.ScriptTarget.Latest, true);
-  return { relativePath, source };
+  return parseModule(relativePath, fs.readFileSync(absolute, "utf8"));
 }
 
 export function loadModulesIn(directory: readonly string[], filter: (name: string) => boolean): ModuleQuery[] {

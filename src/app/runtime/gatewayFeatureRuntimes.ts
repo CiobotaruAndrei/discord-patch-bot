@@ -1,0 +1,110 @@
+import { createSecurityRuntime } from "../../features/command-security/securityRuntime.js";
+import { createReputationEngine } from "../../features/command-security/reputationEngine.js";
+import { createPermissionDelegationRuntime } from "../../features/command-security/permissionDelegationRuntime.js";
+import { createServerEventLogRuntime } from "../../features/command-security/serverEventLogRuntime.js";
+import { observeConfirmedBotAction } from "../../features/command-security/botObservationRepository.js";
+import { createNewAccountAlertDelivery, reconcileStuckNewAccountSends } from "../../features/command-security/newAccountAlertDedup.js";
+import { loadYaraRuleset } from "../../features/command-security/yaraRuleset.js";
+
+import type { BotMetrics } from "../health/metricsTypes.js";
+import type { MetricRecorders } from "../../shared/metricRecorderPorts.js";
+import type {
+  PermissionDelegationGatewayRuntime,
+  SecurityGatewayRuntime,
+  ServerEventLogGatewayRuntime
+} from "../lifecycle/lifecycleContracts.js";
+import type { MongoContextLike, RuntimeServices, ScraperRuntime } from "../appRuntimeContracts.js";
+
+export type GatewayFeatureRuntimes = {
+  readonly securityRuntime?: SecurityGatewayRuntime;
+  readonly permissionDelegationRuntime?: PermissionDelegationGatewayRuntime;
+  readonly serverEventLogRuntime?: ServerEventLogGatewayRuntime;
+};
+
+export type GatewayFeatureInput = {
+  readonly mongo: MongoContextLike;
+  readonly client: RuntimeServices["client"];
+  readonly metrics: BotMetrics;
+  readonly recorders: MetricRecorders;
+  readonly scrapers: ScraperRuntime;
+  readonly crypto: { randomBytes(size: number): Buffer };
+  readonly onThreatDetails: Parameters<typeof createReputationEngine>[0]["onDetails"];
+  readonly onThreatFailure: Parameters<typeof createReputationEngine>[0]["onFailure"];
+};
+
+function markGatewayFeaturesInactive(metrics: BotMetrics): void {
+  metrics.yaraRulesLoaded = 0;
+  metrics.yaraEngineAvailable = 0;
+  metrics.threatReputationEngineConfigured = 0;
+}
+
+export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): GatewayFeatureRuntimes {
+  const { mongo, client, metrics, recorders, scrapers, crypto } = input;
+  const { logger, env, adminAlert } = mongo;
+
+  const reputationScan = createReputationEngine({
+    env,
+    httpReq: scrapers.httpReq,
+    logger,
+    onDetails: input.onThreatDetails,
+    onFailure: input.onThreatFailure
+  }) ?? undefined;
+  metrics.threatReputationEngineConfigured = reputationScan ? 1 : 0;
+
+  const yaraRuleset = loadYaraRuleset(env.YARA_RULES_PATH, logger);
+  metrics.yaraRulesLoaded = yaraRuleset.loaded ? yaraRuleset.ruleCount : 0;
+  metrics.yaraEngineAvailable = yaraRuleset.available ? 1 : 0;
+
+  const newAccountAlertModel = mongo.NewAccountAlertDeliveryModel;
+  const newAccountDelivery = newAccountAlertModel
+    ? createNewAccountAlertDelivery(newAccountAlertModel, () => crypto.randomBytes(16).toString("hex"))
+    : null;
+  if (newAccountAlertModel) {
+    void reconcileStuckNewAccountSends(newAccountAlertModel).then(closed => {
+      if (closed > 0) {
+        logger("WARN", "NEW_ACCOUNT_ALERT", "Alerte de cont nou ramase in starea de trimitere au fost inchise la pornire ca sent-unconfirmed; NU au fost retrimise", { closed });
+      }
+    });
+  }
+
+  const securityRuntime = mongo.GuildModel && mongo.GuildAuditLogModel
+    ? createSecurityRuntime({
+      getGuildSettings: mongo.getGuildSettings ?? (async () => null),
+      client,
+      GuildModel: mongo.GuildModel,
+      GuildAuditLogModel: mongo.GuildAuditLogModel,
+      httpReq: scrapers.httpReq,
+      reputationScan,
+      claimNewAccountAlert: newAccountDelivery?.claim,
+      logger,
+      metrics: recorders.security
+    })
+    : undefined;
+
+  const permissionDelegationRuntime = mongo.GuildAuditLogModel && mongo.GuildModel
+    ? createPermissionDelegationRuntime({
+      GuildModel: mongo.GuildModel,
+      GuildAuditLogModel: mongo.GuildAuditLogModel,
+      adminAlert,
+      metrics: recorders.permissionDelegation
+    })
+    : undefined;
+
+  const observationModel = mongo.GuildModel;
+  const serverEventLogRuntime = mongo.GuildAuditLogModel
+    ? createServerEventLogRuntime({
+      GuildAuditLogModel: mongo.GuildAuditLogModel,
+      logger,
+      observeBotAction: observationModel
+        ? (guildId, actorId, auditEntryId, kind, at) => observeConfirmedBotAction(observationModel, adminAlert, guildId, actorId, auditEntryId, kind, at)
+        : undefined
+    })
+    : undefined;
+
+  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime };
+}
+
+export function createInactiveGatewayFeatureRuntimes(metrics: BotMetrics): GatewayFeatureRuntimes {
+  markGatewayFeaturesInactive(metrics);
+  return {};
+}

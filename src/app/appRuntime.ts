@@ -45,108 +45,29 @@ import { createRuntimeServices } from "./runtime/runtimeServices.js";
 import { createSchedulers } from "./runtime/runtimeSchedulers.js";
 import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from "./runtime/bootSequence.js";
 import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSettingsInvalidationChannel.js";
-import { createSecurityRuntime } from "../features/command-security/securityRuntime.js";
-import { createReputationEngine } from "../features/command-security/reputationEngine.js";
 import { createThreatEngineMonitor } from "../features/command-security/threatEngineMonitor.js";
-import { createPermissionDelegationRuntime } from "../features/command-security/permissionDelegationRuntime.js";
 import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
-import { createServerEventLogRuntime } from "../features/command-security/serverEventLogRuntime.js";
-import { observeConfirmedBotAction } from "../features/command-security/botObservationRepository.js";
-import { createModerationCleanupTask } from "./scheduler/moderationCleanupTask.js";
-import { createChannelLockRecoveryTask } from "./scheduler/channelLockRecoveryTask.js";
-import { createChannelLockRecoveryRuntime } from "../features/command-security/channelLockRecoveryRuntime.js";
-import { setLockedChannelPermissionState } from "../features/guild-config/guildConfigRepository.js";
-import { roleRunsSchedulers } from "../shared/botRole.js";
-import { loadYaraRuleset } from "../features/command-security/yaraRuleset.js";
-import { createNewAccountAlertDelivery, reconcileStuckNewAccountSends } from "../features/command-security/newAccountAlertDedup.js";
+import { roleRunsInteractions, roleRunsSchedulers } from "../shared/botRole.js";
+import { createGatewayFeatureRuntimes, createInactiveGatewayFeatureRuntimes } from "./runtime/gatewayFeatureRuntimes.js";
+import { createIdleSchedulerFeatureTasks, createSchedulerFeatureTasks } from "./runtime/schedulerFeatureTasks.js";
+import type { GatewayFeatureRuntimes } from "./runtime/gatewayFeatureRuntimes.js";
+import type { SchedulerFeatureTasks } from "./runtime/schedulerFeatureTasks.js";
 
-function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, schedulers: Schedulers | null): AppRuntime {
+type ModerationLifecycle = ReturnType<typeof createModerationLifecycleRuntime>;
+
+type RuntimeComposition = {
+  readonly gateway: GatewayFeatureRuntimes;
+  readonly tasks: SchedulerFeatureTasks;
+  readonly schedulers: Schedulers | null;
+  readonly moderationLifecycleRuntime?: ModerationLifecycle;
+};
+
+function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, composition: RuntimeComposition): AppRuntime {
   const { createHttpServer, registerDiscordEvents, registerMongoEvents, createShutdownController, errorMessage, errorDetail, mongoose, crypto, mongo } = deps;
   const { logger, env, getGuildCacheSize, activeLocks, releaseDbLock, requestContext, adminAlert } = mongo;
+  const { gateway, tasks, schedulers, moderationLifecycleRuntime } = composition;
 
   const { client, metrics, lifecycle, rateLimiter } = services;
-  const recorders = createMetricRecorders(metrics);
-  const threatEngineMonitor = createThreatEngineMonitor({ metrics: recorders.threatEngine, logger });
-  const reputationScan = createReputationEngine({
-    env,
-    httpReq: deps.scrapers.httpReq,
-    logger,
-    onDetails: threatEngineMonitor.onDetails,
-    onFailure: threatEngineMonitor.onFailure
-  }) ?? undefined;
-  const yaraRuleset = loadYaraRuleset(env.YARA_RULES_PATH, logger);
-  metrics.yaraRulesLoaded = yaraRuleset.loaded ? yaraRuleset.ruleCount : 0;
-  metrics.yaraEngineAvailable = yaraRuleset.available ? 1 : 0;
-  const newAccountDelivery = mongo.NewAccountAlertDeliveryModel
-    ? createNewAccountAlertDelivery(mongo.NewAccountAlertDeliveryModel, () => crypto.randomBytes(16).toString("hex"))
-    : null;
-  const newAccountAlertModel = mongo.NewAccountAlertDeliveryModel;
-  if (newAccountAlertModel) {
-    void reconcileStuckNewAccountSends(newAccountAlertModel).then(closed => {
-      if (closed > 0) {
-        logger("WARN", "NEW_ACCOUNT_ALERT", "Alerte de cont nou ramase in starea de trimitere au fost inchise la pornire ca sent-unconfirmed; NU au fost retrimise", { closed });
-      }
-    });
-  }
-  metrics.threatReputationEngineConfigured = reputationScan ? 1 : 0;
-  const securityRuntime = mongo.GuildModel && mongo.GuildAuditLogModel
-    ? createSecurityRuntime({
-      getGuildSettings: mongo.getGuildSettings ?? (async () => null),
-      client,
-      GuildModel: mongo.GuildModel,
-      GuildAuditLogModel: mongo.GuildAuditLogModel,
-      httpReq: deps.scrapers.httpReq,
-      reputationScan,
-      claimNewAccountAlert: newAccountDelivery?.claim,
-      logger,
-      metrics: recorders.security
-    })
-    : undefined;
-  const permissionDelegationRuntime = mongo.GuildAuditLogModel && mongo.GuildModel
-    ? createPermissionDelegationRuntime({
-      GuildModel: mongo.GuildModel,
-      GuildAuditLogModel: mongo.GuildAuditLogModel,
-      adminAlert,
-      metrics: recorders.permissionDelegation
-    })
-    : undefined;
-  const moderationLifecycleRuntime = mongo.GuildModel
-    ? createModerationLifecycleRuntime(mongo.GuildModel, logger)
-    : undefined;
-  const observationModel = mongo.GuildModel;
-  const serverEventLogRuntime = mongo.GuildAuditLogModel
-    ? createServerEventLogRuntime({
-      GuildAuditLogModel: mongo.GuildAuditLogModel,
-      logger,
-      observeBotAction: observationModel
-        ? (guildId, actorId, auditEntryId, kind, at) => observeConfirmedBotAction(observationModel, adminAlert, guildId, actorId, auditEntryId, kind, at)
-        : undefined
-    })
-    : undefined;
-  const moderationCleanup = schedulers && moderationLifecycleRuntime
-    ? createModerationCleanupTask({
-      cleanupExpired: async () => {
-        await moderationLifecycleRuntime.cleanupExpired();
-        await moderationLifecycleRuntime.reconcileClient(client);
-      },
-      metrics, logger, adminAlert, errorMessage, errorDetail
-    })
-    : null;
-
-  const lockRecoveryModel = mongo.ChannelLockRecoveryModel;
-  const lockRecoveryGuildModel = mongo.GuildModel;
-  const channelLockRecovery = schedulers && lockRecoveryModel && lockRecoveryGuildModel
-    ? createChannelLockRecoveryTask({
-      runRecoveryCycle: () => createChannelLockRecoveryRuntime({
-        RecoveryModel: lockRecoveryModel,
-        fetchChannel: async (_guildId, channelId) => (await Promise.resolve(client.channels?.fetch(channelId))) ?? null,
-        persistState: (guildId, channelId, previous, locked) =>
-          setLockedChannelPermissionState(lockRecoveryGuildModel, guildId, channelId, previous, locked),
-        logger
-      }).runRecoveryCycle(),
-      metrics, logger, adminAlert, errorMessage, errorDetail
-    })
-    : null;
 
   const httpServer = createHttpServer({
     mongoose, crypto, env, client, metrics, logger, commands: deps.commands,
@@ -161,10 +82,10 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
     scheduleNextCron: schedulers?.cronController.scheduleNextCron,
     startOutboxWorker: schedulers?.outboxEnabled === true ? schedulers.outboxWorker.start : undefined,
     role: deps.role,
-    securityRuntime,
-    permissionDelegationRuntime,
+    securityRuntime: gateway.securityRuntime,
+    permissionDelegationRuntime: gateway.permissionDelegationRuntime,
     moderationLifecycleRuntime,
-    serverEventLogRuntime
+    serverEventLogRuntime: gateway.serverEventLogRuntime
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 
@@ -174,8 +95,8 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
     lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
     releaseDbLock, cronController: schedulers?.cronController, outboxWorker: schedulers?.outboxWorker, housekeeping: schedulers?.housekeeping, adminAlert,
     redis: deps.redis, guildInvalidationChannel, stopOperationJournalRecovery: deps.stopOperationJournalRecovery,
-    stopModerationCleanup: moderationCleanup ? moderationCleanup.stop : undefined,
-    stopChannelLockRecovery: channelLockRecovery ? channelLockRecovery.stop : undefined,
+    stopModerationCleanup: tasks.moderationCleanup ? tasks.moderationCleanup.stop : undefined,
+    stopChannelLockRecovery: tasks.channelLockRecovery ? tasks.channelLockRecovery.stop : undefined,
     errorMessage, errorDetail
   });
 
@@ -189,8 +110,8 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   async function start(): Promise<void> {
     await bootStart();
     await moderationLifecycleRuntime?.reconcileClient(client);
-    moderationCleanup?.start();
-    channelLockRecovery?.start();
+    tasks.moderationCleanup?.start();
+    tasks.channelLockRecovery?.start();
   }
 
   return {
@@ -204,16 +125,61 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, sch
   };
 }
 
+function composeGatewayFeatures(deps: AppRuntimeDeps, services: RuntimeServices): GatewayFeatureRuntimes {
+  const recorders = createMetricRecorders(services.metrics);
+  const threatEngineMonitor = createThreatEngineMonitor({ metrics: recorders.threatEngine, logger: deps.mongo.logger });
+  return createGatewayFeatureRuntimes({
+    mongo: deps.mongo,
+    client: services.client,
+    metrics: services.metrics,
+    recorders,
+    scrapers: deps.scrapers,
+    crypto: deps.crypto,
+    onThreatDetails: threatEngineMonitor.onDetails,
+    onThreatFailure: threatEngineMonitor.onFailure
+  });
+}
+
+function composeModerationLifecycle(deps: AppRuntimeDeps): ModerationLifecycle | undefined {
+  return deps.mongo.GuildModel ? createModerationLifecycleRuntime(deps.mongo.GuildModel, deps.mongo.logger) : undefined;
+}
+
+function composeSchedulerTasks(
+  deps: AppRuntimeDeps,
+  services: RuntimeServices,
+  moderationLifecycleRuntime: ModerationLifecycle | undefined
+): SchedulerFeatureTasks {
+  return createSchedulerFeatureTasks({
+    mongo: deps.mongo,
+    client: services.client,
+    metrics: services.metrics,
+    moderationLifecycleRuntime,
+    errorMessage: deps.errorMessage,
+    errorDetail: deps.errorDetail
+  });
+}
+
 function createWebRuntime(deps: Omit<AppRuntimeDeps, "role">): AppRuntime {
   const webDeps: AppRuntimeDeps = { ...deps, role: "web" };
   const services = createRuntimeServices(webDeps);
-  return assembleAppRuntime(webDeps, services, null);
+  return assembleAppRuntime(webDeps, services, {
+    gateway: composeGatewayFeatures(webDeps, services),
+    tasks: createIdleSchedulerFeatureTasks(),
+    schedulers: null,
+    moderationLifecycleRuntime: composeModerationLifecycle(webDeps)
+  });
 }
 
 function createWorkerRuntime(deps: Omit<AppRuntimeDeps, "role">): AppRuntime {
   const workerDeps: AppRuntimeDeps = { ...deps, role: "worker" };
   const services = createRuntimeServices(workerDeps);
-  return assembleAppRuntime(workerDeps, services, createSchedulers(workerDeps, services));
+  const moderationLifecycleRuntime = composeModerationLifecycle(workerDeps);
+  return assembleAppRuntime(workerDeps, services, {
+    gateway: createInactiveGatewayFeatureRuntimes(services.metrics),
+    tasks: composeSchedulerTasks(workerDeps, services, moderationLifecycleRuntime),
+    schedulers: createSchedulers(workerDeps, services),
+    moderationLifecycleRuntime
+  });
 }
 
 function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
@@ -221,9 +187,15 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   if (role === "web") return createWebRuntime(deps);
   if (role === "worker") return createWorkerRuntime(deps);
   const services = createRuntimeServices(deps);
-  const schedulers = roleRunsSchedulers(role) ? createSchedulers(deps, services) : null;
-  return assembleAppRuntime(deps, services, schedulers);
+  const runsInteractions = roleRunsInteractions(role);
+  const runsSchedulers = roleRunsSchedulers(role);
+  const moderationLifecycleRuntime = composeModerationLifecycle(deps);
+  return assembleAppRuntime(deps, services, {
+    gateway: runsInteractions ? composeGatewayFeatures(deps, services) : createInactiveGatewayFeatureRuntimes(services.metrics),
+    tasks: runsSchedulers ? composeSchedulerTasks(deps, services, moderationLifecycleRuntime) : createIdleSchedulerFeatureTasks(),
+    schedulers: runsSchedulers ? createSchedulers(deps, services) : null,
+    moderationLifecycleRuntime
+  });
 }
 
 export { createAppRuntime, createWebRuntime, createWorkerRuntime, createRuntimeServices, createSchedulers, connectMongoWithRetry, hydrateStartupCaches, createBootSequence };
-
