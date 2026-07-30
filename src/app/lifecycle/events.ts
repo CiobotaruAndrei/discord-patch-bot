@@ -3,6 +3,7 @@ import type { GameConfig } from "../../config/configTypes.js";
 import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { BotMetrics } from "../health/metricsTypes.js";
 import type { LifecycleDiscordChannel, LifecycleDiscordDeletedChannel, LifecycleDiscordGuild, LifecycleDiscordGuildMember, LifecycleDiscordInteraction, LifecycleDiscordMessage, LifecycleDiscordRole, LifecycleEventClient } from "./lifecycleContracts.js";
+import type { ModerationLifecycleGatewayRuntime, PermissionDelegationGatewayRuntime, SecurityGatewayRuntime, ServerEventLogGatewayRuntime } from "./lifecycleContracts.js";
 import { createGuildOnboarding } from "./guildOnboarding.js";
 import { roleRunsSchedulers, roleRunsInteractions } from "../../shared/botRole.js";
 
@@ -40,33 +41,10 @@ interface RegisterDiscordEventsDeps {
   scheduleNextCron?: () => void;
   startOutboxWorker?: () => void;
   role?: BotRole;
-  securityRuntime?: {
-    handleGuildMemberAdd(member: LifecycleDiscordGuildMember): Promise<void>;
-    handleMessageCreate(message: LifecycleDiscordMessage): Promise<void>;
-    handleChannelDelete(channel: LifecycleDiscordDeletedChannel): Promise<void>;
-  };
-  permissionDelegationRuntime?: {
-    handleRoleUpdate(previous: LifecycleDiscordRole, next: LifecycleDiscordRole): Promise<void>;
-    handleGuildMemberUpdate(previous: LifecycleDiscordGuildMember, next: LifecycleDiscordGuildMember): Promise<void>;
-    handleRoleCreate(role: LifecycleDiscordRole): Promise<void>;
-    handleChannelUpdate(previous: LifecycleDiscordDeletedChannel, next: LifecycleDiscordDeletedChannel): Promise<void>;
-    handleWebhookUpdate(channel: LifecycleDiscordDeletedChannel): Promise<void>;
-  };
-  moderationLifecycleRuntime?: {
-    cleanupExpired(): Promise<void>;
-    handleGuildMemberRemove(member: LifecycleDiscordGuildMember): Promise<void>;
-  };
-  serverEventLogRuntime?: {
-    handleGuildMemberAdd(member: LifecycleDiscordGuildMember): Promise<void>;
-    handleChannelCreate(channel: LifecycleDiscordDeletedChannel): Promise<void>;
-    handleChannelDelete(channel: LifecycleDiscordDeletedChannel): Promise<void>;
-    handleRoleCreate(role: LifecycleDiscordRole): Promise<void>;
-    handleRoleDelete(role: LifecycleDiscordRole): Promise<void>;
-    handleGuildBanAdd(ban: LifecycleDiscordGuildMember): Promise<void>;
-    handleGuildBanRemove(ban: LifecycleDiscordGuildMember): Promise<void>;
-    handleGuildMemberRemove(member: LifecycleDiscordGuildMember): Promise<void>;
-    handleGuildMemberTimeout(previous: LifecycleDiscordGuildMember, next: LifecycleDiscordGuildMember): Promise<void>;
-  };
+  securityRuntime?: SecurityGatewayRuntime;
+  permissionDelegationRuntime?: PermissionDelegationGatewayRuntime;
+  moderationLifecycleRuntime?: ModerationLifecycleGatewayRuntime;
+  serverEventLogRuntime?: ServerEventLogGatewayRuntime;
 }
 
 interface MongoConnectionLike {

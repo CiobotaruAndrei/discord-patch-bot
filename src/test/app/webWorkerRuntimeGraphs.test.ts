@@ -17,6 +17,7 @@ process.env.DISCORD_CLIENT_ID ||= "test_discord_client_id";
 
 function makeGraphHarness(role?: BotRole) {
   const factoryCalls = { cron: 0, outbox: 0, housekeeping: 0, httpServer: 0 };
+  const modelCalls = { newAccountReconcile: 0 };
   let eventsOpts: RegisterDiscordEventsDeps | undefined;
   let shutdownOpts: Parameters<AppRuntimeDeps["createShutdownController"]>[0] | undefined;
 
@@ -29,6 +30,31 @@ function makeGraphHarness(role?: BotRole) {
     once = () => undefined;
     on = () => undefined;
   }
+
+  type EmptyQuery = {
+    sort(spec: Record<string, number>): EmptyQuery;
+    skip(count: number): EmptyQuery;
+    limit(count: number): EmptyQuery;
+    lean(): Promise<never[]>;
+  };
+  const emptyQuery: EmptyQuery = {
+    sort: () => emptyQuery,
+    skip: () => emptyQuery,
+    limit: () => emptyQuery,
+    lean: async () => []
+  };
+  const fakeModel = {
+    find: () => emptyQuery,
+    findOne: () => ({ lean: async () => null }),
+    findOneAndUpdate: async () => null,
+    updateOne: async () => ({ matchedCount: 0, modifiedCount: 0, upsertedCount: 0 }),
+    updateMany: async () => ({ matchedCount: 0, modifiedCount: 0 }),
+    deleteOne: async () => ({ deletedCount: 0 }),
+    deleteMany: async () => ({ deletedCount: 0 }),
+    countDocuments: async () => 0,
+    create: async () => ({}),
+    exists: async () => null
+  };
 
   const deps: AppRuntimeDeps = {
     mongoose: {
@@ -83,6 +109,14 @@ function makeGraphHarness(role?: BotRole) {
     },
     mongo: {
       guildSettingsBus: createGuildSettingsEventBus(),
+      GuildModel: fakeModel,
+      GuildAuditLogModel: fakeModel,
+      ChannelLockRecoveryModel: fakeModel,
+      NewAccountAlertDeliveryModel: {
+        ...fakeModel,
+        updateMany: async () => { modelCalls.newAccountReconcile++; return { matchedCount: 0, modifiedCount: 0 }; }
+      },
+      getGuildSettings: async () => null,
       logger: () => undefined,
       env: { MONGO_URI: "mongodb://x", MONGO_MAX_POOL_SIZE: 5, PORT: "3000", DISCORD_TOKEN: "t" } as RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string },
       parseEnvNumber: (_n: string, d: number) => d,
@@ -123,7 +157,7 @@ function makeGraphHarness(role?: BotRole) {
     ...(role === undefined ? {} : { role })
   };
   return {
-    deps, factoryCalls,
+    deps, factoryCalls, modelCalls,
     getEventsOpts: () => eventsOpts!,
     getShutdownOpts: () => shutdownOpts!
   };
@@ -194,4 +228,77 @@ test("shutdown-ul real functioneaza fara subgraful de schedulere (graful web se 
   });
   await assert.doesNotReject(async () => controller.shutdown("SIGTERM", 0), "shutdown fara cron/outbox/housekeeping nu arunca");
   assert.ok(logs.some(message => message.includes("SIGTERM")), "shutdown-ul a rulat efectiv");
+});
+
+test("web construieste feature-urile de gateway; worker NU le construieste deloc", () => {
+  const web = makeGraphHarness();
+  createWebRuntime(web.deps);
+  const webEvents = web.getEventsOpts();
+  assert.notEqual(webEvents.securityRuntime, undefined, "web reacționeaza la guildMemberAdd/messageCreate, deci are runtime de securitate");
+  assert.notEqual(webEvents.permissionDelegationRuntime, undefined, "web reacționeaza la roleUpdate, deci are runtime de delegare");
+  assert.notEqual(webEvents.serverEventLogRuntime, undefined, "web reacționeaza la evenimentele de server, deci are jurnal de evenimente");
+
+  const worker = makeGraphHarness();
+  createWorkerRuntime(worker.deps);
+  const workerEvents = worker.getEventsOpts();
+  assert.equal(
+    workerEvents.securityRuntime,
+    undefined,
+    "worker-ul primeste doar intent-ul Guilds: fara GuildMembers/MessageContent, runtime-ul de securitate nu poate fi apelat niciodata"
+  );
+  assert.equal(workerEvents.permissionDelegationRuntime, undefined, "fara intent-ul GuildModeration, delegarea de permisiuni e cod mort pe worker");
+  assert.equal(workerEvents.serverEventLogRuntime, undefined, "fara intent-urile de moderare, jurnalul de evenimente e cod mort pe worker");
+});
+
+test("worker-ul nu incarca YARA si nu raporteaza un motor pe care nu il foloseste", () => {
+  const web = makeGraphHarness();
+  const webApp = createWebRuntime(web.deps);
+  assert.equal(typeof webApp.metrics.yaraEngineAvailable, "number", "web raporteaza starea reala a motorului YARA");
+
+  const worker = makeGraphHarness();
+  const workerApp = createWorkerRuntime(worker.deps);
+  assert.equal(workerApp.metrics.yaraRulesLoaded, 0, "worker-ul nu citeste reguli YARA de pe disc");
+  assert.equal(workerApp.metrics.yaraEngineAvailable, 0, "un worker fara scanare de continut nu are motor YARA activ");
+  assert.equal(workerApp.metrics.threatReputationEngineConfigured, 0, "motorul de reputatie serveste doar cai de interactiune");
+});
+
+test("reconcilierea alertelor de cont nou ruleaza doar unde alertele se trimit", async () => {
+  const web = makeGraphHarness();
+  createWebRuntime(web.deps);
+  await Promise.resolve();
+  assert.equal(web.modelCalls.newAccountReconcile, 1, "web reconciliaza trimiterile blocate la pornire");
+
+  const worker = makeGraphHarness();
+  createWorkerRuntime(worker.deps);
+  await Promise.resolve();
+  assert.equal(
+    worker.modelCalls.newAccountReconcile,
+    0,
+    "doua procese care reconciliaza aceeasi colectie la pornire se calca reciproc; worker-ul nu trimite alerte de cont nou, deci nu reconciliaza"
+  );
+});
+
+test("task-urile de fundal apartin rolului cu schedulere, nu celui cu interactiuni", () => {
+  const web = makeGraphHarness();
+  createWebRuntime(web.deps);
+  const webShutdown = web.getShutdownOpts();
+  assert.equal(webShutdown.stopModerationCleanup, undefined, "web nu porneste curatarea periodica a sanctiunilor, deci nu are ce opri");
+  assert.equal(webShutdown.stopChannelLockRecovery, undefined, "web nu porneste recuperarea lacatelor de canal");
+
+  const worker = makeGraphHarness();
+  createWorkerRuntime(worker.deps);
+  const workerShutdown = worker.getShutdownOpts();
+  assert.equal(typeof workerShutdown.stopModerationCleanup, "function", "worker-ul opreste curatarea periodica pe care a pornit-o");
+  assert.equal(typeof workerShutdown.stopChannelLockRecovery, "function", "worker-ul opreste recuperarea lacatelor pe care a pornit-o");
+});
+
+test("rolul 'all' pastreaza comportamentul dinainte: ambele jumatati sunt construite", async () => {
+  const combined = makeGraphHarness();
+  const app = createAppRuntime(combined.deps);
+  await Promise.resolve();
+  const events = combined.getEventsOpts();
+  assert.notEqual(events.securityRuntime, undefined, "'all' ruleaza si interactiunile");
+  assert.equal(typeof combined.getShutdownOpts().stopModerationCleanup, "function", "'all' ruleaza si schedulerele");
+  assert.equal(combined.modelCalls.newAccountReconcile, 1, "'all' reconciliaza o singura data");
+  assert.notEqual(app.cronController, null);
 });

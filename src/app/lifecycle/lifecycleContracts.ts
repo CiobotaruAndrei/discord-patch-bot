@@ -71,3 +71,34 @@ export interface LifecycleEventClient {
   on(event: "error" | "shardError", listener: (err: unknown) => unknown): unknown;
   on(event: "warn", listener: (message: string) => unknown): unknown;
 }
+
+export interface SecurityGatewayRuntime {
+  handleGuildMemberAdd(member: LifecycleDiscordGuildMember): Promise<void>;
+  handleMessageCreate(message: LifecycleDiscordMessage): Promise<void>;
+  handleChannelDelete(channel: LifecycleDiscordDeletedChannel): Promise<void>;
+}
+
+export interface PermissionDelegationGatewayRuntime {
+  handleRoleUpdate(previous: LifecycleDiscordRole, next: LifecycleDiscordRole): Promise<void>;
+  handleGuildMemberUpdate(previous: LifecycleDiscordGuildMember, next: LifecycleDiscordGuildMember): Promise<void>;
+  handleRoleCreate(role: LifecycleDiscordRole): Promise<void>;
+  handleChannelUpdate(previous: LifecycleDiscordDeletedChannel, next: LifecycleDiscordDeletedChannel): Promise<void>;
+  handleWebhookUpdate(channel: LifecycleDiscordDeletedChannel): Promise<void>;
+}
+
+export interface ModerationLifecycleGatewayRuntime {
+  cleanupExpired(): Promise<void>;
+  handleGuildMemberRemove(member: LifecycleDiscordGuildMember): Promise<void>;
+}
+
+export interface ServerEventLogGatewayRuntime {
+  handleGuildMemberAdd(member: LifecycleDiscordGuildMember): Promise<void>;
+  handleChannelCreate(channel: LifecycleDiscordDeletedChannel): Promise<void>;
+  handleChannelDelete(channel: LifecycleDiscordDeletedChannel): Promise<void>;
+  handleRoleCreate(role: LifecycleDiscordRole): Promise<void>;
+  handleRoleDelete(role: LifecycleDiscordRole): Promise<void>;
+  handleGuildBanAdd(ban: LifecycleDiscordGuildMember): Promise<void>;
+  handleGuildBanRemove(ban: LifecycleDiscordGuildMember): Promise<void>;
+  handleGuildMemberRemove(member: LifecycleDiscordGuildMember): Promise<void>;
+  handleGuildMemberTimeout(previous: LifecycleDiscordGuildMember, next: LifecycleDiscordGuildMember): Promise<void>;
+}
