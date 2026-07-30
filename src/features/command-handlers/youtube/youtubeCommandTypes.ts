@@ -10,7 +10,9 @@ import type {
   SubcommandGroupOption,
   SubcommandOption
 } from "../discordInteractionPorts.js";
-import type { GuildSettings, LoggerFunction, YouTubeVideo } from "../../../types.js";
+import type { LoggerFunction } from "../../../types.js";
+import type { GuildSettings } from "../../guild-config/guildSettingsTypes.js";
+import type { YouTubeVideo } from "../../youtube/youtubeTypes.js";
 import type { NotificationDiscordClient } from "../../notifications/outboundChannel.js";
 import type { ResolvedYouTubeChannel } from "../../youtube/youtubeSource.js";
 import type { PreparedVideo, ManualVideoBatch } from "../../youtube/youtubeNotificationService.js";

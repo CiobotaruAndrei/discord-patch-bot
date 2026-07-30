@@ -1,6 +1,6 @@
 import { load as cheerioLoad } from "cheerio";
 import type { NotificationDiscordClient, OutboxDiscordClient } from "../features/notifications/outboundChannel.js";
-import type { DealInfo, NormalizedUpdate } from "../types.js";
+import type { DealInfo, NormalizedUpdate } from "../sources/sourceTypes.js";
 import type { GuildDoc } from "../infra/mongo/modelTypes.js";
 import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
 

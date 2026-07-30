@@ -1,6 +1,6 @@
 "use strict";
 
-import type { DealInfo, NormalizedUpdate, PatchUpdate } from "../../types.js";
+import type { DealInfo, NormalizedUpdate, PatchUpdate } from "../../sources/sourceTypes.js";
 import {
   cleanText as rustCleanText,
   dealHash as rustDealHash,

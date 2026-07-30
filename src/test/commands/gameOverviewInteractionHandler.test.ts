@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import overviewHandler from "../../features/command-handlers/gameOverviewInteractionHandler.js";
-import type { GameConfig, PriceValue } from "../../types.js";
+import type { PriceValue } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 
 test("game overview pastreaza rezultatele utile cand sursele independente esueaza", async () => {
   const edits: unknown[] = [];

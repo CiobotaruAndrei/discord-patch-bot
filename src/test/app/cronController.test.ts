@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createCronController, computeCronDelay } from "../../app/scheduler/cron.js";
-import type { RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import { fakeTimer } from "../fakeTimer.js";
 
 test("computeCronDelay: fara jitter intoarce exact intervalul", () => {

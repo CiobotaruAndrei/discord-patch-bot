@@ -6,7 +6,8 @@ import { GatewayIntentBits } from "discord.js";
 import { createAppRuntime, createWebRuntime, createWorkerRuntime } from "../../app/appRuntime.js";
 import type { AppRuntimeDeps } from "../../app/appRuntime.js";
 import { createShutdownController } from "../../app/lifecycle/shutdown.js";
-import type { RuntimeEnv, BotRole } from "../../types.js";
+import type { BotRole } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { RegisterDiscordEventsDeps } from "../../app/lifecycle/events.js";
 import { createMetrics } from "../../app/health/metrics.js";
 

@@ -1,6 +1,7 @@
 "use strict";
 
-import type { ComponentCollector, InteractionMessage, NotificationMode } from "../../types.js";
+import type { ComponentCollector, InteractionMessage } from "./paginationTypes.js";
+import type { NotificationMode } from "../notifications/notificationTypes.js";
 import type { ActionRowComponent, ButtonComponent, PresentationLogger } from "./presentationContracts.js";
 import { errorMessage } from "../../shared/errors.js";
 

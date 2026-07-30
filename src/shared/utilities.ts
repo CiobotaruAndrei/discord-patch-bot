@@ -1,12 +1,6 @@
 import type { Mongoose } from "mongoose";
-import type {
-  ConcurrentRunResult,
-  DealInfo,
-  LoggerFunction,
-  MaybePromise,
-  RuntimeEnv,
-  ValidatedDealInfo
-} from "../types.js";
+import type { ConcurrentRunResult, DealInfo, LoggerFunction, MaybePromise, ValidatedDealInfo } from "../types.js";
+import type { RuntimeEnv } from "../config/runtimeEnvTypes.js";
 import { errorMessage } from "./errors.js";
 
 interface ConcurrentRunOptions<T> {

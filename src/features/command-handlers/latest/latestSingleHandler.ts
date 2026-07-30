@@ -5,7 +5,8 @@ import type {
   InteractionGuildRef,
   StringOption
 } from "../discordInteractionPorts.js";
-import type { EmbeddableUpdate, GameConfig, NormalizedUpdate } from "../../../types.js";
+import type { GameConfig } from "../../../config/configTypes.js";
+import type { EmbeddableUpdate, NormalizedUpdate } from "../../../sources/sourceTypes.js";
 
 import { errorMessage } from "../../../shared/errors.js";
 

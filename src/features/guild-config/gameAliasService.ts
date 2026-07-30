@@ -1,6 +1,7 @@
 "use strict";
 
-import type { GameConfig, GuildSettings } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "./guildSettingsTypes.js";
 
 export const MAX_ALIASES_PER_GAME = 25;
 export const MAX_TOTAL_GAME_ALIASES = 200;

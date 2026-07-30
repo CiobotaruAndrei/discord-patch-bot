@@ -116,11 +116,7 @@ export type ParseEnvNumber = (name: string, defaultValue: number, limits?: Parse
 export type LockToken = string;
 export type ActiveLocks = Map<string, LockToken>;
 
-export interface MongoWriteOutcome {
-  matchedCount?: number;
-  modifiedCount?: number;
-  upsertedCount?: number;
-}
+export type { WriteCounts as MongoWriteOutcome } from "./shared/persistenceOutcome.js";
 
 export interface ParseEnvNumberLimits {
   min?: number;

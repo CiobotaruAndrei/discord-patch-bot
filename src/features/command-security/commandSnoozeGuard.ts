@@ -1,6 +1,8 @@
 "use strict";
 
-import type { GameConfig, GuildSettings, LoggerFunction } from "../../types.js";
+import type { LoggerFunction } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 
 import {
   buildInteractionCommandPath,

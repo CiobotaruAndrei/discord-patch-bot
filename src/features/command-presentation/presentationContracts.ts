@@ -1,6 +1,6 @@
 "use strict";
 
-import type { InteractionMessage } from "../../types.js";
+import type { InteractionMessage } from "./paginationTypes.js";
 
 export type PresentationLogger = (level: string, context: string, message: string, meta?: unknown) => void;
 export type CommandLogEnd = (status?: string, endExtra?: Record<string, unknown>) => void;

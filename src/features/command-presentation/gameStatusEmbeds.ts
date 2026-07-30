@@ -1,7 +1,7 @@
 "use strict";
 
 import { decodeStatusPageResponse } from "../../sources/responseDecoders.js";
-import type { GameConfig } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import type { ChainableEmbed, PresentationLogger } from "./presentationContracts.js";
 import { errorMessage } from "../../shared/errors.js";
 

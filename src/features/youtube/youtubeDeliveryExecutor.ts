@@ -1,6 +1,7 @@
 "use strict";
 
-import type { GuildSettings, LoggerFunction } from "../../types.js";
+import type { LoggerFunction } from "../../types.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "../notifications/outboundChannel.js";
 import { renderYouTubeMessageTemplate, youtubeDestinationIds } from "./youtubeDeliveryPolicy.js";
 import { buildYouTubeEmbed, packYouTubeDeliveries, type PreparedVideo } from "./youtubeDeliveryPlanner.js";

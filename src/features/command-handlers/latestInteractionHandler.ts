@@ -7,7 +7,7 @@ import type {
   SubcommandOption
 } from "./discordInteractionPorts.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
-import type { GameConfig } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import type { LatestUpdatesHandlerDeps } from "./latest/latestUpdatesHandler.js";
 import type { LatestDealsHandlerDeps } from "./latest/latestDealsHandler.js";

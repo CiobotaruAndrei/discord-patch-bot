@@ -1,6 +1,7 @@
 "use strict";
 
-import type { ConfigBackupRecord, GuildConfigurationSettings, GuildSettings } from "../../types.js";
+import type { ConfigBackupRecord } from "../admin-records/adminRecordsTypes.js";
+import type { GuildConfigurationSettings, GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 import { CONFIG_BACKUP_KEYS } from "../admin-records/configBackupRepository.js";
 import type { BackupResourceRestorePlan } from "../admin-records/backupResourceRestorePlan.js";

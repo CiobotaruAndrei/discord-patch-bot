@@ -6,7 +6,7 @@ import {
   exportFileName,
   resolveGuildExportMode
 } from "../../scripts/export-guild-configs.js";
-import type { GuildSettings } from "../../types.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
 
 const guild: GuildSettings = {
   _id: "guild-1",

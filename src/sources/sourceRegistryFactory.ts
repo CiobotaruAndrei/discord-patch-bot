@@ -1,7 +1,9 @@
 "use strict";
 
 import type { CheerioAPI } from "cheerio";
-import type { CurrencyCode, DealInfo, NormalizedUpdate, PatchUpdate, PriceValue, HttpRequestOptions } from "../types.js";
+import type { CurrencyCode, PriceValue } from "../types.js";
+import type { HttpRequestOptions } from "./httpRequestTypes.js";
+import type { DealInfo, NormalizedUpdate, PatchUpdate } from "./sourceTypes.js";
 import type { HttpMetricsRef } from "../infra/http/httpMetrics.js";
 import type { DealsApi, SteamSourceApi, UpdatesApi } from "./sourceApis.js";
 import type { SourceRuntimeDeps } from "./runtime.js";

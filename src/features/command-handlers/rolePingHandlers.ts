@@ -7,7 +7,8 @@ import type {
   SubcommandOption
 } from "./discordInteractionPorts.js";
 import { applyGuildConfigUpdate } from "../guild-config/guildConfigRepository.js";
-import type { DiscordReplyPayload, GameConfig, MongoWriteOutcome } from "../../types.js";
+import type { DiscordReplyPayload, MongoWriteOutcome } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 

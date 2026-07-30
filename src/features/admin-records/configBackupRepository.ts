@@ -1,6 +1,8 @@
 "use strict";
 
-import type { ConfigBackupRecord, GuildConfigurationSettings, GuildSettings, MongoWriteOutcome, ServerAuditLogEntry } from "../../types.js";
+import type { MongoWriteOutcome } from "../../types.js";
+import type { ConfigBackupRecord, ServerAuditLogEntry } from "./adminRecordsTypes.js";
+import type { GuildConfigurationSettings, GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository.js";
 
 type MongoWriteResult = MongoWriteOutcome;

@@ -16,7 +16,9 @@ import {
   chooseBestSteamMatchIndexFallback,
   dedupeAndRankDealsIndexFallback
 } from "../native/fuzzy.js";
-import type { DealInfo, GameConfig, GuildSettings } from "../types.js";
+import type { GameConfig } from "../config/configTypes.js";
+import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.js";
+import type { DealInfo } from "../sources/sourceTypes.js";
 import { strictEnvInt } from "./benchmarkEnv.js";
 
 const SAMPLE_PAIRS: Array<[string, string]> = [

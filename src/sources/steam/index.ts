@@ -1,12 +1,8 @@
 import { requestOptionsFor } from "../sourcePolicies.js";
 import type { CheerioAPI } from "cheerio";
-import type {
-  CurrencyCode,
-  CurrencyConfig,
-  HttpRequestOptions,
-  LoggerFunction,
-  SteamSearchItem
-} from "../../types.js";
+import type { CurrencyCode, CurrencyConfig, LoggerFunction } from "../../types.js";
+import type { HttpRequestOptions } from "../httpRequestTypes.js";
+import type { SteamSearchItem } from "../sourceTypes.js";
 import { chooseBestSteamMatchIndex, levenshtein } from "../../native/fuzzy.js";
 import type { SteamSourceApi, ChooseBestSteamMatchOptions, SteamAppDetailsSummary, SteamCurrentPlayersSummary, SteamLatestUpdateSizeSummary } from "../sourceApis.js";
 import { errorMessage } from "../../shared/errors.js";

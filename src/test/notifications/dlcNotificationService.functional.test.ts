@@ -4,7 +4,8 @@ import * as cheerio from "cheerio";
 
 import { createDlcNotificationService } from "../../features/notifications/dlcNotificationService.js";
 import type { DlcNotificationServiceDeps } from "../../features/notifications/dlcNotificationService.js";
-import type { GameConfig, MongoWriteOutcome } from "../../types.js";
+import type { MongoWriteOutcome } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import type { NotificationDiscordClient } from "../../features/notifications/outboundChannel.js";
 import type { FetchGameDlcsOutcome } from "../../features/command-handlers/dlcSourceService.js";
 

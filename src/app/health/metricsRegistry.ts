@@ -1,4 +1,5 @@
-import type { BotMetrics, CommandCacheSizes } from "../../types.js";
+import type { BotMetrics } from "./metricsTypes.js";
+import type { CommandCacheSizes } from "../../features/command-cache/commandCacheTypes.js";
 import { getNativeFallbackTotals, NATIVE_FALLBACK_FUNCTIONS } from "../../native/fuzzy.js";
 import { getAnalysisBlindSpotTotals, getUninspectableFormatTotals } from "../../features/command-security/coverageGapMetrics.js";
 

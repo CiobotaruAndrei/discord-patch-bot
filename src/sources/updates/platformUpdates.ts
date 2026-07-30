@@ -1,5 +1,7 @@
 import { requestOptionsFor, SOURCE_POLICIES } from "../sourcePolicies.js";
-import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { HttpRequestOptions } from "../httpRequestTypes.js";
+import type { NormalizedUpdate, PatchUpdate } from "../sourceTypes.js";
 import { errorMessage } from "../../shared/errors.js";
 import type { HttpReq, RssParserLike } from "./updateHelpers.js";
 import { decodeFortniteBlogResponse, type FortnitePost } from "../responseDecoders.js";

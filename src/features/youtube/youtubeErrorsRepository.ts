@@ -1,6 +1,6 @@
 "use strict";
 
-import type { YouTubeErrorEntry } from "../../types.js";
+import type { YouTubeErrorEntry } from "./youtubeTypes.js";
 
 export interface GuildYoutubeErrorRecord {
   _id?: unknown;

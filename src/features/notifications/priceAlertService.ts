@@ -1,6 +1,9 @@
 "use strict";
 
-import type { DealInfo, GuildSettings, MongoWriteOutcome, PriceAlertRule, PriceValue } from "../../types.js";
+import type { MongoWriteOutcome, PriceValue } from "../../types.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { PriceAlertRule } from "./notificationTypes.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
 import { rollbackOrReport, type ReportRollbackFailure } from "./rollbackReporter.js";
 import { matchedDocument } from "../../shared/persistenceOutcome.js";

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createFutureReleaseNotificationService } from "../../features/notifications/futureReleaseNotificationService.js";
-import type { FutureReleaseGameEntry } from "../../types.js";
+import type { FutureReleaseGameEntry } from "../../features/admin-records/adminRecordsTypes.js";
 
 const NOW = new Date("2026-07-18T00:00:00.000Z");
 

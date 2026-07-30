@@ -1,9 +1,5 @@
-import type {
-  CurrencyConfig,
-  DealInfo,
-  FetchDealsOptions,
-  LoggerFunction
-} from "../../types.js";
+import type { CurrencyConfig, LoggerFunction } from "../../types.js";
+import type { DealInfo, FetchDealsOptions } from "../sourceTypes.js";
 import type { DealsApi } from "../sourceApis.js";
 import type { DealCurrencyCode, HttpReq, TrackInflight, WithInflightTimeout } from "./dealHelpers.js";
 import { dedupeAndRankDeals } from "./dealHelpers.js";

@@ -1,6 +1,7 @@
 "use strict";
 
-import type { GuildSettings, YouTubeFilters } from "../../../types.js";
+import type { GuildSettings } from "../../guild-config/guildSettingsTypes.js";
+import type { YouTubeFilters } from "../../youtube/youtubeTypes.js";
 import type { InteractionPayload } from "./youtubeCommandTypes.js";
 import { paginateTextLines } from "../../command-presentation/textPagination.js";
 

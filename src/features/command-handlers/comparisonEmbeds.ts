@@ -1,6 +1,6 @@
 "use strict";
 
-import type { SteamReviewData } from "../../types.js";
+import type { SteamReviewData } from "../../sources/sourceTypes.js";
 import type { SteamAppDetailsSummary } from "../../sources/sourceApis.js";
 import type { ReviewTrendAnalysis } from "../game-info/reviewTrendAnalysis.js";
 import {

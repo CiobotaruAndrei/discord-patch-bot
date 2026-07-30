@@ -10,7 +10,10 @@ import type {
   SubcommandOption
 } from "./discordInteractionPorts.js";
 import type { CheerioAPI } from "cheerio";
-import type { DealInfo, GameConfig, GuildSettings, PriceValue, SteamReviewData } from "../../types.js";
+import type { PriceValue } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { DealInfo, SteamReviewData } from "../../sources/sourceTypes.js";
 import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary, SteamLatestUpdateSizeSummary } from "../../sources/sourceApis.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import type { DiscordEmbed } from "./gameInfoEmbeds.js";

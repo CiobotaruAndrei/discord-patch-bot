@@ -5,7 +5,8 @@ interface GuildModelLike {
   exists(filter: Record<string, unknown>): Promise<{ _id: unknown } | null>;
 }
 type WithMongoRetry = <T>(fn: () => Promise<T>, opts?: { label?: string; retries?: number }) => Promise<T>;
-import type { MongoWriteOutcome, PriceAlertRule } from "../../types.js";
+import type { MongoWriteOutcome } from "../../types.js";
+import type { PriceAlertRule } from "./notificationTypes.js";
 import { createdDocument } from "../../shared/persistenceOutcome.js";
 type MongoFilter = Record<string, unknown>;
 type MongoUpdate = Record<string, unknown>;

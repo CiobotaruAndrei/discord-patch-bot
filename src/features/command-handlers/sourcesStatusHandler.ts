@@ -8,7 +8,7 @@ import type {
 } from "./discordInteractionPorts.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
-import type { GameConfig } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import { summarizeSourceHealth, type SourceHealthDoc } from "../../sources/sourceHealth.js";
 import {
   buildSourcesStatusEmbed,

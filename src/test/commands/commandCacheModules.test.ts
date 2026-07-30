@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import { createRuntimeLimits, COLORS } from "../../features/command-cache/runtimeLimits.js";
 import { createUserCooldowns } from "../../features/command-cache/userCooldowns.js";
 import { createCommandCaches, evictLRU } from "../../features/command-cache/commandCaches.js";

@@ -11,7 +11,8 @@ const httpServerEnvStaysNarrow: [HttpServerEnvKeys] extends ["METRICS_PUBLIC" | 
 test("contract compile-time: httpServer primeste doar campurile env de metrics-auth (Pick), nu tot RuntimeEnv (review nou, Medium #10)", () => {
   assert.equal(httpServerEnvStaysNarrow, true, "env-ul serverului HTTP e ingustat la METRICS_PUBLIC/METRICS_TOKEN/isProd; daca cineva il re-largeste la RuntimeEnv, asertarea de tip de mai sus pica la compilare");
 });
-import type { CommandCacheSizes, RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
+import type { CommandCacheSizes } from "../../features/command-cache/commandCacheTypes.js";
 
 interface ResponseSnapshot { status: number; body: string }
 

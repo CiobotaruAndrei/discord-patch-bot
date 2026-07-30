@@ -1,7 +1,7 @@
 "use strict";
 
 import type { AxiosResponse } from "axios";
-import type { HttpRequestOptions } from "../../types.js";
+import type { HttpRequestOptions } from "../../sources/httpRequestTypes.js";
 
 export interface ProxyClientDeps {
   proxyTemplates: readonly string[];

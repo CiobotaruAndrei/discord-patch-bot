@@ -1,6 +1,6 @@
 "use strict";
 
-import type { InteractionMessage } from "../../types.js";
+import type { InteractionMessage } from "./paginationTypes.js";
 import type { CommandLogEnd, DeferEditInteraction, LoggableInteraction, PresentationLogger } from "./presentationContracts.js";
 import { errorMessage } from "../../shared/errors.js";
 

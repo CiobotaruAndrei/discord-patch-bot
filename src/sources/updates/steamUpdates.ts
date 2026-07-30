@@ -1,4 +1,6 @@
-import type { GameConfig, HttpRequestOptions, NormalizedUpdate, PatchUpdate } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { HttpRequestOptions } from "../httpRequestTypes.js";
+import type { NormalizedUpdate, PatchUpdate } from "../sourceTypes.js";
 import { selectLatestSteamPatchNoteIndex } from "../../native/fuzzy.js";
 import { decodeSteamNewsResponse } from "../responseDecoders.js";
 

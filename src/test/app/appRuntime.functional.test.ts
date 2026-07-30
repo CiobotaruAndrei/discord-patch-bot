@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { GatewayIntentBits } from "discord.js";
 import { createAppRuntime, connectMongoWithRetry, hydrateStartupCaches } from "../../app/appRuntime.js";
 import type { AppRuntimeDeps } from "../../app/appRuntime.js";
-import type { RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { CreateOutboxWorkerDeps } from "../../app/scheduler/outboxWorker.js";
 import type { RegisterDiscordEventsDeps } from "../../app/lifecycle/events.js";
 import { createMetrics } from "../../app/health/metrics.js";

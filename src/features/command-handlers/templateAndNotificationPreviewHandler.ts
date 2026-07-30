@@ -5,7 +5,7 @@ import type {
   StringOption,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { GuildSettings } from "../../types.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { buildNotificationContent } from "../notifications/notificationTemplate.js";

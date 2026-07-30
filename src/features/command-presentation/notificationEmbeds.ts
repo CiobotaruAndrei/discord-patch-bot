@@ -1,6 +1,7 @@
 "use strict";
 
-import type { DealInfo, EmbeddableUpdate, NotificationMode } from "../../types.js";
+import type { NotificationMode } from "../notifications/notificationTypes.js";
+import type { DealInfo, EmbeddableUpdate } from "../../sources/sourceTypes.js";
 import type { ChainableEmbed } from "./presentationContracts.js";
 
 export interface NotificationEmbedsDeps {

@@ -4,7 +4,10 @@ import type {
   ChatInputInteraction,
   StringOption
 } from "./discordInteractionPorts.js";
-import type { DealInfo, GameConfig, GuildSettings, PriceValue } from "../../types.js";
+import type { PriceValue } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import {

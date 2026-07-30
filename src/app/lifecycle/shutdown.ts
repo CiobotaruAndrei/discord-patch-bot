@@ -1,4 +1,6 @@
-import type { ActiveLocks, CronController, LifecycleState, RuntimeEnv } from "../../types.js";
+import type { ActiveLocks, LifecycleState } from "../../types.js";
+import type { CronController } from "../scheduler/schedulerTypes.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 
 type ShutdownLogger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createDiscountNotificationService } from "../../features/notifications/discountNotificationService.js";
 import { makeDiscountDeps, noopDiscordClient } from "../notificationServiceTestKit.js";
 import type { DiscountGuild, DiscountDeals } from "../notificationServiceTestKit.js";
-import type { DealInfo } from "../../types.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 
 test("DiscountService: trimite reduceri noi care nu sunt in seenDiscounts", async () => {
   const { deps, sentPayloads, claims } = makeDiscountDeps();

@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CheerioAPI } from "cheerio";
-import type { DealInfo, FetchDealsOptions, HttpRequestOptions } from "../../types.js";
+import type { HttpRequestOptions } from "../../sources/httpRequestTypes.js";
+import type { DealInfo, FetchDealsOptions } from "../../sources/sourceTypes.js";
 import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../sources/sourceApis.js";
 
 process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/itest-source-api";

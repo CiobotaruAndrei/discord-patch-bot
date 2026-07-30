@@ -1,4 +1,6 @@
-import type { AbortPredicate, FetchResult, GameConfig } from "../../types.js";
+import type { AbortPredicate } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { FetchResult } from "../sourceTypes.js";
 import { errorMessage } from "../../shared/errors.js";
 import { sourceConcurrencyGroup } from "./updateHelpers.js";
 import { buildCoalesceSignature } from "./coalesceSignature.js";

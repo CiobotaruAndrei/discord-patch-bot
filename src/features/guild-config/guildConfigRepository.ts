@@ -1,6 +1,7 @@
 "use strict";
 
-import type { CurrencyCode, MongoWriteOutcome, ServerAuditLogEntry } from "../../types.js";
+import type { CurrencyCode, MongoWriteOutcome } from "../../types.js";
+import type { ServerAuditLogEntry } from "../admin-records/adminRecordsTypes.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import { buildResetConfiguration } from "./guildConfigDefaults.js";
 import { clearYoutubeErrors, type YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";

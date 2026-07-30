@@ -7,7 +7,10 @@ import type {
   StringOption,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { DealInfo, DiscordReplyPayload, FetchResult, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types.js";
+import type { DiscordReplyPayload, MongoWriteOutcome } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { DealInfo, FetchResult } from "../../sources/sourceTypes.js";
 
 export type SubscriptionLogger = (level: string, context: string, message: string, meta?: unknown) => void;
 export type MongoWriteResult = MongoWriteOutcome;

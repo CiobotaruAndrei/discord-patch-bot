@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { YouTubeChannelSubscription } from "../../types.js";
+import type { YouTubeChannelSubscription } from "../../features/youtube/youtubeTypes.js";
 import {
   MAX_YOUTUBE_CHANNELS,
   addYouTubeChannelSubscription,

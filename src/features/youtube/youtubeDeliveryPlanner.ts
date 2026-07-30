@@ -1,6 +1,6 @@
 "use strict";
 
-import type { YouTubeChannelSubscription, YouTubeVideo, YouTubeVideoMetadata } from "../../types.js";
+import type { YouTubeChannelSubscription, YouTubeVideo, YouTubeVideoMetadata } from "./youtubeTypes.js";
 import { embedCharCost } from "../../shared/discordEmbedChunks.js";
 import { YOUTUBE_BATCH_SIZE, renderYouTubeMessageTemplate } from "./youtubeDeliveryPolicy.js";
 

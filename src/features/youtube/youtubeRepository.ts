@@ -1,4 +1,5 @@
-import type { LoggerFunction, MongoWriteOutcome, YouTubeChannelSubscription, YouTubeVideo } from "../../types.js";
+import type { LoggerFunction, MongoWriteOutcome } from "../../types.js";
+import type { YouTubeChannelSubscription, YouTubeVideo } from "./youtubeTypes.js";
 import { clearYoutubeErrors, recordYoutubeError, type YoutubeErrorModelLike } from "./youtubeErrorsRepository.js";
 import { matchedDocument } from "../../shared/persistenceOutcome.js";
 

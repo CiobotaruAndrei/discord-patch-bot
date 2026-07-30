@@ -1,6 +1,6 @@
 "use strict";
 
-import type { YouTubeChannelSubscription } from "../../../types.js";
+import type { YouTubeChannelSubscription } from "../../youtube/youtubeTypes.js";
 import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes.js";
 import { isRecentYouTubeVideo } from "../../youtube/youtubeDeliveryPolicy.js";
 import {

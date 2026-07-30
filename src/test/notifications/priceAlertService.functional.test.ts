@@ -7,7 +7,8 @@ import {
   dealMatchesPriceAlert,
   numericPrice
 } from "../../features/notifications/priceAlertService.js";
-import type { GuildSettings, PriceAlertRule } from "../../types.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
+import type { PriceAlertRule } from "../../features/notifications/notificationTypes.js";
 import { makeNotificationDiscordClient } from "../typedTestBuilders.js";
 
 const alert: PriceAlertRule = {

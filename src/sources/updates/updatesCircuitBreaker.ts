@@ -1,4 +1,5 @@
-import type { FetchResult, GameConfig, NormalizedUpdate } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { FetchResult, NormalizedUpdate } from "../sourceTypes.js";
 import { errorMessage } from "../../shared/errors.js";
 import { classifySourceError } from "../sourceOutcome.js";
 import type { CircuitBreakerDoc, UpdatesDeps } from "./updatesContracts.js";

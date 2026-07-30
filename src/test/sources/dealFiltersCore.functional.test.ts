@@ -8,7 +8,8 @@ import {
   rotateAfter,
   toEntries
 } from "../../domain/deals/filtersCore.js";
-import type { DealInfo, GuildSettings } from "../../types.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 
 const baseDeal: DealInfo = {
   id: "deal-1",

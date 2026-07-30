@@ -7,7 +7,9 @@ import type {
   StringOption,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { DiscordReplyPayload, GameConfig, GuildSettings } from "../../types.js";
+import type { DiscordReplyPayload } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import {
   buildConfigSnapshot,

@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { FutureReleaseGameEntry, GuildSettings } from "../../types.js";
+import type { FutureReleaseGameEntry } from "../../features/admin-records/adminRecordsTypes.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
 
 import installFutureRelease from "../../features/command-handlers/futureReleaseInteractionHandler.js";
 

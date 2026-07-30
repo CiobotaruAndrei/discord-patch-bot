@@ -1,6 +1,6 @@
 import type { GuildConfigStore } from "../../infra/mongo/mongoPorts.js";
 import type { DealsSourcePort } from "../../sources/sourceRegistryPorts.js";
-import type { RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { RateLimiter } from "../health/rateLimit.js";
 import { createScheduledTaskRunner } from "./scheduledTaskRunner.js";
 

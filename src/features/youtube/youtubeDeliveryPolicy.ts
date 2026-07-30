@@ -1,8 +1,5 @@
-import type {
-  GuildSettings,
-  YouTubeChannelSubscription,
-  YouTubeVideo
-} from "../../types.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { YouTubeChannelSubscription, YouTubeVideo } from "./youtubeTypes.js";
 import { validateUserText } from "../command-security/userTextPolicy.js";
 
 export const DEFAULT_YOUTUBE_MESSAGE_TEMPLATE = "Videoclip nou de la {channel}: {title}\n{url}";

@@ -5,7 +5,8 @@ import type {
   StringOption,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { GameConfig, GuildSettings } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { PlayerCountHistoryPoint, PlayerCountRecord, PlayerCountSnapshot } from "../player-count/playerCountSnapshotService.js";
 import {
   calculatePlayerCountStats,

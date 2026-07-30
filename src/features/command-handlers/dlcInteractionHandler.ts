@@ -8,7 +8,8 @@ import type {
 } from "./discordInteractionPorts.js";
 import type { CheerioAPI } from "cheerio";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
-import type { NotificationMode, InteractionMessage } from "../../types.js";
+import type { InteractionMessage } from "../command-presentation/paginationTypes.js";
+import type { NotificationMode } from "../notifications/notificationTypes.js";
 import { dlcPageHasAgeGate, dlcPageLooksLikeStorePage, parseDlcRows } from "./dlcSteamPage.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 

@@ -1,6 +1,9 @@
 "use strict";
 
-import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, DealInfo, GuildSettings, LoggerFunction, PriceValue, RuntimeEnv, SystemTimes, ValidatedDealInfo } from "../../types.js";
+import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, LoggerFunction, PriceValue, SystemTimes } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
+import type { DealInfo, ValidatedDealInfo } from "../../sources/sourceTypes.js";
 import type { OperationJournalDoc } from "./operationJournal.js";
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports.js";
 

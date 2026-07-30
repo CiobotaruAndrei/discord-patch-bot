@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { buildCoalesceSignature } from "../../sources/updates/coalesceSignature.js";
-import type { GameConfig } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 
 function game(over: Partial<GameConfig>): GameConfig {
   return { key: "cs2", name: "Counter-Strike 2", ...over };

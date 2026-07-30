@@ -1,4 +1,4 @@
-import type { GameConfig, GameSourceFallback } from "../../types.js";
+import type { GameConfig, GameSourceFallback } from "../../config/configTypes.js";
 
 function fallbackSignature(fallback: GameSourceFallback): Record<string, unknown> {
   return {

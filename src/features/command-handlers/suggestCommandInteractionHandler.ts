@@ -7,7 +7,9 @@ import type {
   StringOption,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { DiscordReplyPayload, GameConfig, SuggestedCommandEntry } from "../../types.js";
+import type { DiscordReplyPayload } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { SuggestedCommandEntry } from "../admin-records/adminRecordsTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { paginateTextLines } from "../command-presentation/textPagination.js";
 import { deleteSuggestedCommand, listSuggestedCommands, saveSuggestedCommand, MAX_SUGGESTED_COMMANDS, type SuggestedCommandModelLike } from "../admin-records/suggestedCommandsRepository.js";

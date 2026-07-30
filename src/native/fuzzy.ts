@@ -1,4 +1,6 @@
-import type { DealInfo, GameConfig, GuildSettings } from "../types.js";
+import type { GameConfig } from "../config/configTypes.js";
+import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.js";
+import type { DealInfo } from "../sources/sourceTypes.js";
 import type { NativeAutocompleteChoice, NativeFuzzyModule } from "./fuzzyNativeBridge.js";
 import {
   ensureNativeFuzzy,

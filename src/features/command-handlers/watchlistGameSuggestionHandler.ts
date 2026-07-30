@@ -7,7 +7,10 @@ import type {
   StringOption,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { DiscordReplyPayload, GameConfig, GuildSettings, WatchlistGameSuggestionEntry } from "../../types.js";
+import type { DiscordReplyPayload } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { WatchlistGameSuggestionEntry } from "../admin-records/adminRecordsTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { clampJoinedList } from "../command-presentation/discordListLimit.js";
 import { deleteWatchlistGameSuggestion, listWatchlistGameSuggestions, saveWatchlistGameSuggestion } from "../admin-records/watchlistGameSuggestionsRepository.js";

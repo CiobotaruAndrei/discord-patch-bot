@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { GuildSettings } from "../../types.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
 import type { GuildConfigBackupRecord } from "../../features/admin-records/configBackupRepository.js";
 
 import installMaintenance from "../../features/command-handlers/maintenanceInteractionHandler.js";

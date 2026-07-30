@@ -4,7 +4,7 @@ import type {
   AlwaysReplies,
   BaseChatInputInteraction
 } from "./discordInteractionPorts.js";
-import type { GameConfig } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 
 import { errorDetail } from "../../shared/errors.js";

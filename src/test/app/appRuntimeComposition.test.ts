@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { connectMongoWithRetry, hydrateStartupCaches } from "../../app/appRuntime.js";
-import type { DealInfo, FetchResult } from "../../types.js";
+import type { DealInfo, FetchResult } from "../../sources/sourceTypes.js";
 
 test("composition root transmite configuratia Mongo catre faza de conectare", async () => {
   const calls: Array<{ uri: string; maxPoolSize?: number }> = [];

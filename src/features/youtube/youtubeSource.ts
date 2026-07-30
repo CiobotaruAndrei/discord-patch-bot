@@ -1,7 +1,8 @@
 import { requestOptionsFor } from "../../sources/sourcePolicies.js";
 import Parser from "rss-parser";
 import type { CheerioAPI } from "cheerio";
-import type { HttpRequestOptions, YouTubeFilters, YouTubeVideo, YouTubeVideoMetadata } from "../../types.js";
+import type { YouTubeFilters, YouTubeVideo, YouTubeVideoMetadata } from "./youtubeTypes.js";
+import type { HttpRequestOptions } from "../../sources/httpRequestTypes.js";
 
 type HttpReq = (
   method: string,

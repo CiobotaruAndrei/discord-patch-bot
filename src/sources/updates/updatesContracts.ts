@@ -1,13 +1,8 @@
 import type { CheerioAPI } from "cheerio";
-import type {
-  BotMetrics,
-  FetchResult,
-  GameConfig,
-  HttpRequestOptions,
-  LoggerFunction,
-  NormalizedUpdate,
-  PatchUpdate
-} from "../../types.js";
+import type { BotMetrics, LoggerFunction } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { HttpRequestOptions } from "../httpRequestTypes.js";
+import type { FetchResult, NormalizedUpdate, PatchUpdate } from "../sourceTypes.js";
 import type { UpdatesApi } from "../sourceApis.js";
 import type { HttpReq, RssParserLike, RunConcurrent, SchemaDriftErrorClass, TrackInflight, WithInflightTimeout } from "./updateHelpers.js";
 import type { CircuitBreakerStore } from "./circuitBreakerStore.js";
