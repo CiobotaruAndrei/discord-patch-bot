@@ -1,4 +1,4 @@
-import type { OperationJournalDoc, OperationJournalModelLike } from "../infra/mongo/operationJournal.js";
+import type { OperationJournalDoc, OperationJournalModelLike } from "../shared/operationJournalEngine.js";
 
 function clone(doc: OperationJournalDoc | null): OperationJournalDoc | null {
   return doc ? { ...doc } : null;

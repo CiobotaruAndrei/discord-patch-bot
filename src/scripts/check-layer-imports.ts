@@ -27,36 +27,28 @@ export interface LayerReport {
 
 const RUNTIME_LAYERS: readonly Layer[] = ["app", "features", "domain", "infra", "sources", "shared"];
 
-const FORBIDDEN_LAYER_EDGES: ReadonlyArray<{ from: Layer; to: Layer; rule: string; allowlist: readonly string[] }> = [
+const FORBIDDEN_LAYER_EDGES: ReadonlyArray<{ from: Layer; to: Layer; rule: string }> = [
   {
     from: "infra", to: "app",
-    rule: "infra nu depinde de app (compositia se face in bootstrap, nu invers)",
-    allowlist: []
+    rule: "infra nu depinde de app (compositia se face in bootstrap, nu invers)"
   },
   {
     from: "sources", to: "app",
-    rule: "sources nu depinde de composition root (review nou, Major #8)",
-    allowlist: []
+    rule: "sources nu depinde de composition root (review nou, Major #8)"
   },
   {
     from: "features", to: "app",
-    rule: "features nu depind de composition root: instantele Redis/sources/mongo se injecteaza din bootstrap (review nou, Mare #1)",
-    allowlist: []
+    rule: "features nu depind de composition root: instantele Redis/sources/mongo se injecteaza din bootstrap (review nou, Mare #1)"
   },
-  { from: "domain", to: "app", rule: "domain e pur: fara dependinte spre app", allowlist: [] },
-  { from: "domain", to: "features", rule: "domain e pur: fara dependinte spre features", allowlist: [] },
-  { from: "domain", to: "infra", rule: "domain e pur: fara dependinte spre infra", allowlist: [] },
-  { from: "domain", to: "sources", rule: "domain e pur: fara dependinte spre sources", allowlist: [] },
-  { from: "shared", to: "app", rule: "shared e frunza: fara dependinte spre app", allowlist: [] },
-  { from: "shared", to: "features", rule: "shared e frunza: fara dependinte spre features", allowlist: [] },
-  { from: "shared", to: "infra", rule: "shared e frunza: fara dependinte spre infra", allowlist: [] },
-  { from: "shared", to: "sources", rule: "shared e frunza: fara dependinte spre sources", allowlist: [] },
-  { from: "shared", to: "domain", rule: "shared e frunza: fara dependinte spre domain", allowlist: [] }
-];
-
-const MONGO_VALUE_IMPORT_ALLOWLIST: readonly string[] = [
-  "features/command-runtime/commandRuntimeDependencies.ts",
-  "features/admin-records/operationJournalRuntime.ts"
+  { from: "domain", to: "app", rule: "domain e pur: fara dependinte spre app" },
+  { from: "domain", to: "features", rule: "domain e pur: fara dependinte spre features" },
+  { from: "domain", to: "infra", rule: "domain e pur: fara dependinte spre infra" },
+  { from: "domain", to: "sources", rule: "domain e pur: fara dependinte spre sources" },
+  { from: "shared", to: "app", rule: "shared e frunza: fara dependinte spre app" },
+  { from: "shared", to: "features", rule: "shared e frunza: fara dependinte spre features" },
+  { from: "shared", to: "infra", rule: "shared e frunza: fara dependinte spre infra" },
+  { from: "shared", to: "sources", rule: "shared e frunza: fara dependinte spre sources" },
+  { from: "shared", to: "domain", rule: "shared e frunza: fara dependinte spre domain" }
 ];
 
 
@@ -143,14 +135,12 @@ export function findLayerViolations(imports: readonly ModuleImport[]): LayerViol
     if (!fromLayer || !toLayer) continue;
     for (const edge of FORBIDDEN_LAYER_EDGES) {
       if (fromLayer !== edge.from || toLayer !== edge.to) continue;
-      if (edge.allowlist.includes(moduleImport.from)) continue;
       violations.push({ rule: edge.rule, from: moduleImport.from, to: moduleImport.to });
     }
     if (
       fromLayer === "features"
       && !moduleImport.typeOnly
       && moduleImport.to.startsWith("infra/mongo/")
-      && !MONGO_VALUE_IMPORT_ALLOWLIST.includes(moduleImport.from)
     ) {
       violations.push({
         rule: "features acceseaza Mongo doar prin repositories/DI, nu prin importuri de valori din infra/mongo (importurile de tip raman permise)",

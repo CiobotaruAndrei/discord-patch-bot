@@ -42,7 +42,7 @@ test("infra -> app si sources -> app sunt interzise, cu exceptia allowlist-ului 
     { from: "features/command-runtime/commandRuntimeDependencies.ts", to: "app/runtimeComposition.ts", typeOnly: false }
   ]);
   assert.deepEqual(violations.map(violation => violation.from), ["infra/redis/altNou.ts", "infra/redis/redisCacheContext.ts", "sources/sourceRegistry.ts", "sources/steam/steamNou.ts", "features/command-runtime/commandRuntimeDependencies.ts"],
-    "allowlist-urile infra->app, sources->app si features->app sunt GOALE dupa rezolvarea Major #1/#8: ORICE import features/infra/sources -> app pica (instantele se injecteaza din bootstrap)");
+    "muchiile infra->app, sources->app si features->app nu au nicio derogare: ORICE import features/infra/sources -> app pica (instantele se injecteaza din bootstrap)");
 });
 
 test("domain si shared raman pure: orice dependinta spre straturile impure pica", () => {
@@ -59,8 +59,11 @@ test("features acceseaza Mongo doar prin repositories/DI: importul de VALORI din
     { from: "features/command-handlers/vreunHandler.ts", to: "infra/mongo/models.ts", typeOnly: false },
     { from: "features/command-runtime/commandRuntimeDependencies.ts", to: "infra/mongo/mongoContext.ts", typeOnly: false }
   ]);
-  assert.deepEqual(violations.map(violation => violation.from), ["features/command-handlers/vreunHandler.ts"],
-    "tipurile sunt contracte (permise), valorile doar prin allowlist-ul de wiring cunoscut");
+  assert.deepEqual(
+    violations.map(violation => violation.from),
+    ["features/command-handlers/vreunHandler.ts", "features/command-runtime/commandRuntimeDependencies.ts"],
+    "tipurile sunt contracte (permise), valorile pica pentru orice fisier: nu mai exista allowlist de wiring"
+  );
 });
 
 test("ciclurile de importuri runtime sunt detectate; muchiile type-only nu creeaza cicluri", () => {

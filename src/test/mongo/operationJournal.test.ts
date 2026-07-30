@@ -4,7 +4,7 @@ import {
   createOperationJournal,
   OperationAlreadyRunningError,
   type OperationJournalDoc
-} from "../../infra/mongo/operationJournal.js";
+} from "../../shared/operationJournalEngine.js";
 import type { OperationKindMap, ResetConfigPayload, BackupDeletePayload } from "../../features/admin-records/operationJournalRuntime.js";
 
 const resetKindIsTyped: [OperationKindMap["reset-config"]] extends [ResetConfigPayload]

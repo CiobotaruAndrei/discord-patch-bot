@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { changedDocument } from "../../shared/persistenceOutcome.js";
+import { changedDocument } from "./persistenceOutcome.js";
 
 type JournalLogger = (level: string, context: string, message: string, meta?: unknown) => void;
 
