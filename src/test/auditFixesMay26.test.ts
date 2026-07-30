@@ -1,3 +1,4 @@
+import { findGameKeys } from "../native/fuzzy.js";
 import { createRequire as __createRequire } from "node:module";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
@@ -79,7 +80,6 @@ test("sources/updates: fetchListingBasedUpdate arunca plain Error (nu SchemaDrif
 });
 
 test("native/fuzzy: findGameKeys cu input mixed-emoji nu crash", () => {
-  const { findGameKeys } = require("../native/fuzzy") as typeof import("../native/fuzzy.js");
   const games = [
     { key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] },
     { key: "fortnite", name: "Fortnite", aliases: [] }
@@ -89,7 +89,6 @@ test("native/fuzzy: findGameKeys cu input mixed-emoji nu crash", () => {
 });
 
 test("native/fuzzy: findGameKeys trunchiaza input multi-codepoint (emoji) determinist", () => {
-  const { findGameKeys } = require("../native/fuzzy") as typeof import("../native/fuzzy.js");
   const games = [{ key: "cs2", name: "Counter-Strike 2", aliases: ["cs"] }];
   const longEmoji = "\u{1F600}".repeat(40) + "cs2";
   const first = findGameKeys(longEmoji, games, 10);

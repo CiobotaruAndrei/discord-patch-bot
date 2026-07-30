@@ -1,10 +1,8 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import { SlashCommandBuilder, PermissionsBitField, Routes, REST } from "discord.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
 import attachSlashCommands from "../../features/command-definitions/slashCommandDefinitions.js";
-import { SlashCommandBuilder } from "discord.js";
 import type { CurrencyRegistry } from "../../types.js";
 import { PRICE_ALERT_MAX_THRESHOLD, PRICE_ALERT_MIN_THRESHOLD } from "../../features/notifications/priceAlertRepository.js";
 
@@ -60,7 +58,6 @@ function makeContext(devGuildId?: string) {
 }
 
 test("createSlashCommandDefinitions accepta builder-ul discord.js REAL fara cast (tip dep corect, nu Like scris de mana)", () => {
-  const { SlashCommandBuilder, PermissionsBitField, Routes, REST } = require("discord.js") as typeof import("discord.js");
   const defs = attachSlashCommands.createSlashCommandDefinitions({
     SlashCommandBuilder,
     PermissionsBitField,
@@ -74,7 +71,6 @@ test("createSlashCommandDefinitions accepta builder-ul discord.js REAL fara cast
 });
 
 test("anti-drift: pragul optiunii price din /add price-alert coincide cu politica din handler (audit #12)", () => {
-  const { SlashCommandBuilder, PermissionsBitField, Routes, REST } = require("discord.js") as typeof import("discord.js");
   const defs = attachSlashCommands.createSlashCommandDefinitions({
     SlashCommandBuilder,
     PermissionsBitField,
@@ -93,7 +89,6 @@ test("anti-drift: pragul optiunii price din /add price-alert coincide cu politic
 });
 
 test("comenzile administrative (inclusiv /health) cer Administrator; cele publice raman deschise", () => {
-  const { SlashCommandBuilder, PermissionsBitField, Routes, REST } = require("discord.js") as typeof import("discord.js");
   const defs = attachSlashCommands.createSlashCommandDefinitions({
     SlashCommandBuilder,
     PermissionsBitField,

@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { createRequire as __createRequire } from "node:module";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
@@ -62,8 +64,6 @@ test("policy sensitive: cu allowlist configurat, doar userii din lista trec pe c
 });
 
 test("policy: modulul e pur — fara dependinte de discord.js sau de interaction", () => {
-  const fs = require("fs") as typeof import("fs");
-  const path = require("path") as typeof import("path");
   const source = fs.readFileSync(path.join(process.cwd(), "features", "command-security", "adminAccessPolicy.ts"), "utf8");
   assert.ok(!source.includes("discord.js"), "fara import discord.js");
   assert.ok(!/[Ii]nteraction/.test(source), "fara tipuri de interaction — motorul primeste doar fapte");

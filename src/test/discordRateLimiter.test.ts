@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { createRequire as __createRequire } from "node:module";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
@@ -69,8 +71,6 @@ test("discordRateLimiter: fara singleton legacy si fara citire process.env (conf
   const mod = require("../features/notifications/discordRateLimiter") as Record<string, unknown>;
   assert.equal(mod.defaultDiscordSendLimiter, undefined, "singleton-ul eager defaultDiscordSendLimiter a fost eliminat (nu mai citeste process.env la import)");
   assert.equal(typeof mod.createDefaultDiscordSendLimiter, "function", "configurarea se face exclusiv prin createDefaultDiscordSendLimiter(env)");
-  const fs = require("fs") as typeof import("fs");
-  const path = require("path") as typeof import("path");
   const source = fs.readFileSync(path.join(process.cwd(), "features", "notifications", "discordRateLimiter.ts"), "utf8");
   assert.equal(/process\.env/.test(source), false, "modulul nu mai contine nicio citire process.env");
 });
