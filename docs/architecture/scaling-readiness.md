@@ -12,16 +12,22 @@ Nu introducem inca o coada (BullMQ). In schimb, folosim conexiunea Redis optiona
 
 Detalii complete in [`redis.md`](redis.md). Cand va aparea nevoia de joburi asincrone reale (retry-uri, esalonare, prioritati), abia atunci se evalueaza o coada — pana atunci, cache-ul acopera cazul concret fara complexitatea unei cozi.
 
-## 2. In loc de worker separat — logica de job deja izolata in servicii testabile (GATA structural)
+## 2. Worker separat — EXISTA, ca rol optional (`BOT_ROLE`)
 
-Nu pornim un proces worker separat si nu schimbam deployment-ul (`Dockerfile` ramane `node dist/app/main.js`). Logica de job este deja **extrasa in servicii testabile injectate**, care ruleaza in acelasi proces:
+Aceasta sectiune spunea pana acum ca „nu pornim un proces worker separat". Nu mai e adevarat: rolurile exista, sunt documentate in `README.md` si au entry-point propriu (`npm run start:worker`). Implicit botul ruleaza in continuare ca **un singur proces** (`BOT_ROLE=all`), deci deployment-ul minim nu s-a schimbat, dar impartirea in `web` + `worker` e o optiune reala, nu un plan.
+
+Ce ruleaza fiecare rol: `web` trateaza interactiunile Discord si feature-urile de gateway (securitate, delegare de permisiuni, jurnal de evenimente, YARA); `worker` ruleaza job-urile de fundal (cron, drenare outbox, housekeeping, curatarea sanctiunilor, recuperarea lacatelor de canal). Intent-urile se deriva din rol, iar de la review-ul „radacini de compunere pe rol" fiecare rol isi construieste doar jumatatea lui: un worker nu mai instantiaza runtime-urile de gateway si nu mai citeste regulile YARA de pe disc.
+
+Serviciile de job erau deja izolate si injectate, iar asta a facut impartirea posibila fara sa se rescrie logica:
 
 - `src/app/scheduler/cron.ts` + `cronJobRunner.ts` — ciclul cron (update-uri/reduceri/YouTube), cu deps injectate.
 - `src/app/scheduler/outboxWorker.ts` — drenarea outbox-ului (rate limit, retry/backoff, dead-letter).
 - `src/app/scheduler/housekeeping.ts` — curatarea cache-urilor.
 - `src/features/player-count/playerCountSnapshotService.ts` — refresh-ul snapshot-urilor player-count.
 
-Aceste servicii primesc dependentele prin factory (`create...`), deci sunt testabile fara proces separat si fara Discord/Mongo real. **Pentru a le muta pe viitor intr-un worker** ar trebui doar sa se extraga bucla de programare/executie (cine le porneste — `appRuntime`) intr-un entry-point separat, reutilizand aceleasi servicii; logica de job nu s-ar rescrie. Nu facem asta acum: nu exista inca volumul care sa justifice un proces in plus.
+Aceste servicii primesc dependentele prin factory (`create...`), deci sunt testabile fara proces separat si fara Discord/Mongo real — exact proprietatea care a permis extragerea buclei de programare intr-un entry-point separat fara sa se atinga logica de job.
+
+**Ce ramane amanat**: coordonarea intre mai multe instante ale ACELUIASI rol (mai multi workeri in paralel) se bazeaza in continuare doar pe lock-urile din Mongo, nu pe o coada; iar `web` si `worker` nu au inca deployment-uri separate documentate (Dockerfile, health check-uri, scalare independenta). Pana la volumul care sa le ceara, `BOT_ROLE=all` ramane implicit.
 
 ## 3. In loc de dashboard nou — observabilitate deja expusa (GATA)
 
@@ -56,7 +62,7 @@ Candidati teoretici de extras in viitor, **daca** vreodata ar fi nevoie: `source
 | Pas amanat | Ce facem in loc | Stare |
 |---|---|---|
 | BullMQ (coada) | cache Redis intr-un feature real (player-count) | gata |
-| Worker separat | servicii de job testabile, in acelasi proces | gata structural |
+| Worker separat | rol `BOT_ROLE=worker` cu entry-point propriu si compunere separata | exista (implicit ramane `all`) |
 | Dashboard | metrici `/metrics` + `monitoring/` Grafana/Prometheus | gata |
 | Sharding | readiness note + pragul de declansare | amanat |
 | Microservicii | boundaries documentate, monolit pastrat | amanat |

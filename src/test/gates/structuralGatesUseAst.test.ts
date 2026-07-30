@@ -18,6 +18,8 @@ const MIGRATED_GATES: readonly string[] = [
   "securityHandlerLayering.test.ts"
 ];
 
+const DOC_ONLY_GATES: readonly string[] = ["docsClaimsMatchCode.test.ts"];
+
 function read(file: string): string {
   return fs.readFileSync(path.join(gatesDir, file), "utf8");
 }
@@ -126,8 +128,30 @@ test("migrarea de la text la AST poate doar sa avanseze", () => {
   }
 });
 
+test("un gate declarat ca citind doar documentatie chiar citeste doar documentatie", async () => {
+  const { loadModule, calls } = await import("./sourceStructureQueries.js");
+  for (const gate of DOC_ONLY_GATES) {
+    const query = loadModule("test", "gates", gate);
+    const docConstants = new Set(
+      calls(query)
+        .filter(call => call.callee.endsWith("path.join") && call.args.some(argument => argument.includes('"docs"')))
+        .map(call => call.args.join(","))
+    );
+    assert.ok(docConstants.size > 0, `${gate}: caile citite sunt construite sub docs/`);
+    const reads = calls(query).filter(call => call.callee.endsWith("readFileSync"));
+    assert.ok(reads.length > 0, `${gate}: chiar citeste fisiere`);
+    for (const read of reads) {
+      assert.ok(
+        !read.args[0].includes(".ts"),
+        `${gate}: un gate de documentatie nu citeste sursa TypeScript ca text; pentru cod foloseste interogarile AST`
+      );
+    }
+  }
+});
+
 test("gate-urile care inca citesc text sunt numarate, ca restul migrarii sa nu se piarda", () => {
   const remaining = gateFiles().filter(gate => {
+    if (DOC_ONLY_GATES.includes(gate)) return false;
     const source = read(gate);
     return source.includes("readFileSync") && /\.ts"|\.ts'|"\.ts|endsWith\("\.ts"\)/.test(source);
   });
