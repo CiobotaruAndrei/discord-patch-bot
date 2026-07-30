@@ -83,7 +83,7 @@ export interface AdminAccessDeletePayload {
 }
 
 interface ReplayPayloadModelLike {
-  deleteMany(filter: Record<string, unknown>): Promise<unknown>;
+  deleteMany(filter: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
 }
 
 export interface OperationJournalRuntimeDeps {
@@ -196,11 +196,10 @@ export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps)
       execute: async (payload, operationId) => {
         await resetGuildConfigurationWithAudit(
           deps.GuildModel, deps.GuildAuditLogModel, requiredYoutubeErrorModel(deps.GuildYoutubeErrorModel), requiredDeadLetterModel(deps.GuildDeadLetterModel),
-          payload.guildId, payload.defaultCurrency, payload.audit, operationId, deps.transactionRunner
+          payload.guildId, payload.defaultCurrency, payload.audit, operationId, deps.transactionRunner,
+          deps.NotificationDeadLetterReplayModel
         );
-        if (deps.NotificationDeadLetterReplayModel) {
-          await deps.NotificationDeadLetterReplayModel.deleteMany({ guildId: payload.guildId });
-        }
+
       }
     },
     [BACKUP_LOAD_KIND]: {
@@ -208,7 +207,7 @@ export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps)
       decode: backupLoadPayload,
       resourceKey: payload => `${payload.guildId}:${payload.backup.name}`,
       execute: async (payload, operationId) => {
-        await loadConfigBackupWithAudit(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, payload.backup, payload.audit, operationId);
+        await loadConfigBackupWithAudit(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, payload.backup, payload.audit, operationId, deps.transactionRunner);
       }
     },
     [BACKUP_SAVE_KIND]: {
@@ -233,7 +232,7 @@ export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps)
       decode: adminAccessSavePayload,
       resourceKey: payload => `${payload.guildId}:${payload.scope}`,
       execute: async (payload, operationId) => {
-        await saveAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId });
+        await saveAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId }, deps.transactionRunner);
       }
     },
     [ADMIN_ACCESS_DELETE_KIND]: {
@@ -241,7 +240,7 @@ export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps)
       decode: adminAccessDeletePayload,
       resourceKey: payload => `${payload.guildId}:${payload.scope}`,
       execute: async (payload, operationId) => {
-        await deleteAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId });
+        await deleteAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId }, deps.transactionRunner);
       }
     }
   };

@@ -1,6 +1,7 @@
 "use strict";
 
 import type { MongoWriteOutcome } from "../../types.js";
+import { sequentialRunner, type TransactionRunner } from "../../shared/transactionPort.js";
 import type { ConfigBackupRecord, ServerAuditLogEntry } from "./adminRecordsTypes.js";
 import type { GuildConfigurationSettings, GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository.js";
@@ -257,10 +258,15 @@ export async function loadConfigBackupWithAudit(
   guildId: string,
   backup: ConfigBackupRecord,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">,
-  operationId?: string
+  operationId?: string,
+  runner?: TransactionRunner
 ): Promise<void> {
-  await GuildModel.updateOne({ _id: guildId }, buildConfigRestoreUpdate(backup), { upsert: true });
-  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId);
+  const run = runner ?? sequentialRunner;
+  await run.atomic("backup-load", async session => {
+    const options = session ? { session } : undefined;
+    await GuildModel.updateOne({ _id: guildId }, buildConfigRestoreUpdate(backup), { upsert: true, ...(options ?? {}) });
+    await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId, options);
+  });
 }
 
 export async function deleteConfigBackup(model: Pick<ConfigBackupModelLike, "deleteOne">, guildId: string, name: string): Promise<boolean> {
