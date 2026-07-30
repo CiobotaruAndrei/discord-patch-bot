@@ -19,7 +19,7 @@ import {
   type ConfigBackupModelLike
 } from "../admin-records/configBackupRepository.js";
 import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
-import type { OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
+import type { OperationJournalModelLike } from "../../shared/operationJournalEngine.js";
 import type { GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 import {
   BACKUP_DELETE_KIND,

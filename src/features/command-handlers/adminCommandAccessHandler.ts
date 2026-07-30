@@ -14,7 +14,7 @@ import { handledCommandError } from "../command-security/commandOutcome.js";
 import { loadAdminAccessDoc } from "../command-security/adminAccessRepository.js";
 import { sendPaginatedEditFlags } from "../command-presentation/textPagination.js";
 import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
-import type { OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
+import type { OperationJournalModelLike } from "../../shared/operationJournalEngine.js";
 import {
   ADMIN_ACCESS_DELETE_KIND,
   ADMIN_ACCESS_SAVE_KIND,

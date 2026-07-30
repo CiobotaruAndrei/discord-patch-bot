@@ -16,7 +16,7 @@ import { setAdminAlertChannel } from "../guild-config/guildConfigRepository.js";
 import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import type { YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
 import type { DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
-import type { OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
+import type { OperationJournalModelLike } from "../../shared/operationJournalEngine.js";
 import { createOperationJournalRuntime, journalResourceVersion, OPERATION_PAYLOAD_SCHEMA_VERSION, RESET_CONFIG_KIND } from "../admin-records/operationJournalRuntime.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";

@@ -4,7 +4,7 @@ import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, Logge
 import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
 import type { DealInfo, ValidatedDealInfo } from "../../sources/sourceTypes.js";
-import type { OperationJournalDoc } from "./operationJournal.js";
+import type { OperationJournalDoc } from "../../shared/operationJournalEngine.js";
 import { assertNoUndefinedExports } from "../../shared/assertCompleteExports.js";
 
 export type MongoContextExports = MongoRuntimeContext;
