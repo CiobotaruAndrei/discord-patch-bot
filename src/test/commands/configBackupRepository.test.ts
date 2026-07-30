@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createGuildSettingsEventBus } from "../../infra/mongo/guildSettingsEventBus.js";
 import assert from "node:assert/strict";
 
 import type { CurrencyRegistry } from "../../types.js";
@@ -32,6 +33,7 @@ function guildSchemaTopLevelFields(): Set<string> {
     SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} } as CurrencyRegistry,
     DEFAULT_CURRENCY: "EUR",
     ONE_DAY_MS: 86_400_000,
+    guildSettingsBus: createGuildSettingsEventBus(),
     env: {
       GUILD_SEEN_DISCOUNT_TTL_DAYS: 60,
       GUILD_AUDIT_LOG_TTL_DAYS: 180,

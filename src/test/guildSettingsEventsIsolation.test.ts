@@ -1,14 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  publishGuildSettingsChanged,
-  subscribeGuildSettingsChanged,
-  setGuildSettingsEventErrorReporter,
-  setGuildSettingsRemotePublisher,
-  attachGuildSettingsEventMetrics
-} from "../infra/mongo/guildSettingsEvents.js";
+import { createGuildSettingsEventBus } from "../infra/mongo/guildSettingsEventBus.js";
+import type { GuildSettingsChangedListener, GuildSettingsEventErrorReporter, GuildSettingsEventMetrics, GuildSettingsRemotePublisher } from "../infra/mongo/guildSettingsEventBus.js";
 
-test("un listener care arunca nu blocheaza publish-ul si nu opreste ceilalti listeneri", () => {
+let bus = createGuildSettingsEventBus();
+
+function freshBus(): void {
+  bus.dispose();
+  bus = createGuildSettingsEventBus();
+}
+
+const publishGuildSettingsChanged = (guildId: string): void => bus.publish(guildId);
+const subscribeGuildSettingsChanged = (listener: GuildSettingsChangedListener): (() => void) => bus.subscribe(listener);
+const setGuildSettingsEventErrorReporter = (reporter: GuildSettingsEventErrorReporter): void => bus.setErrorReporter(reporter);
+const setGuildSettingsRemotePublisher = (publisher: GuildSettingsRemotePublisher | null): void => bus.setRemotePublisher(publisher);
+const attachGuildSettingsEventMetrics = (target: GuildSettingsEventMetrics | null): void => bus.attachMetrics(target);
+
+test("fiecare test isi ia magistrala lui: un listener care arunca nu blocheaza publish-ul si nu opreste ceilalti listeneri", () => {
   const seen: string[] = [];
   const reported: Array<{ guildId: string; error: unknown }> = [];
   setGuildSettingsEventErrorReporter((guildId, error) => reported.push({ guildId, error }));

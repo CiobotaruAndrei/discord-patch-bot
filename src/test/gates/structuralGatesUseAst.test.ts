@@ -16,7 +16,8 @@ const MIGRATED_GATES: readonly string[] = [
   "roleCompositionRoots.test.ts",
   "guildDocumentSplit.test.ts",
   "securityHandlerLayering.test.ts",
-  "portsHaveProductionConsumers.test.ts"
+  "portsHaveProductionConsumers.test.ts",
+  "guildSettingsBusOwnership.test.ts"
 ];
 
 const DOC_ONLY_GATES: readonly string[] = ["docsClaimsMatchCode.test.ts"];

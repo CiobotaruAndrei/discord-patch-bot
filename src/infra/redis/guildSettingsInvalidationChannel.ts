@@ -1,6 +1,5 @@
 import type { LoggerFunction } from "../../types.js";
 import type { RedisRuntime, RedisSubscriberLike } from "./redisClient.js";
-import { defaultBus } from "../mongo/guildSettingsEvents.js";
 import type { GuildSettingsEventBus } from "../mongo/guildSettingsEventBus.js";
 import { errorMessage } from "../../shared/errors.js";
 
@@ -9,7 +8,7 @@ const CHANNEL = "guild-settings-changed";
 interface GuildSettingsInvalidationChannelDeps {
   redis: RedisRuntime;
   logger: LoggerFunction;
-  bus?: GuildSettingsEventBus;
+  bus: GuildSettingsEventBus;
 }
 
 interface GuildSettingsInvalidationChannel {
@@ -19,7 +18,7 @@ interface GuildSettingsInvalidationChannel {
 
 function createGuildSettingsInvalidationChannel(deps: GuildSettingsInvalidationChannelDeps): GuildSettingsInvalidationChannel {
   const { redis, logger } = deps;
-  const bus = deps.bus ?? defaultBus;
+  const bus = deps.bus;
   let subscriber: RedisSubscriberLike | null = null;
 
   async function start(): Promise<void> {
