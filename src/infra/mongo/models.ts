@@ -17,7 +17,6 @@ import { buildConfigBackupSchemas } from "./configBackupSchemas.js";
 import { buildSuggestedCommandSchemas } from "./suggestedCommandSchemas.js";
 import { buildYoutubeErrorLogSchemas } from "./youtubeErrorLogSchemas.js";
 import { buildDeadLetterLogSchemas } from "./deadLetterLogSchemas.js";
-import { defaultBus } from "./guildSettingsEvents.js";
 import type { GuildSettingsEventBus } from "./guildSettingsEventBus.js";
 
 export function guildChangePublisher(bus: GuildSettingsEventBus) {
@@ -27,7 +26,6 @@ export function guildChangePublisher(bus: GuildSettingsEventBus) {
   };
 }
 
-export const publishChangedGuild = guildChangePublisher(defaultBus);
 
 export interface MongoModelsContext {
   mongoose: typeof Mongoose;
@@ -35,7 +33,7 @@ export interface MongoModelsContext {
   DEFAULT_CURRENCY: CurrencyCode;
   ONE_DAY_MS: number;
   env: MongoModelEnv;
-  guildSettingsBus?: GuildSettingsEventBus;
+  guildSettingsBus: GuildSettingsEventBus;
   [key: string]: unknown;
 }
 
@@ -174,7 +172,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   guildSchema.index({ dlcSubscribed: 1, dlcChannelId: 1 }, { background: true });
   guildSchema.index({ playerCountSubscribed: 1, playerCountChannelId: 1 }, { background: true });
 
-  const publishChange = guildChangePublisher(context.guildSettingsBus ?? defaultBus);
+  const publishChange = guildChangePublisher(context.guildSettingsBus);
   guildSchema.post("updateOne", publishChange);
   guildSchema.post("findOneAndUpdate", publishChange);
   guildSchema.post("deleteOne", publishChange);

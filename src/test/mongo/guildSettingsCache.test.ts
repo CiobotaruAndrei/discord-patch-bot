@@ -1,14 +1,20 @@
 import test from "node:test";
+import { createGuildSettingsEventBus } from "../../infra/mongo/guildSettingsEventBus.js";
 import assert from "node:assert/strict";
 import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
-import { publishGuildSettingsChanged, subscribeGuildSettingsChanged } from "../../infra/mongo/guildSettingsEvents.js";
-import { publishChangedGuild } from "../../infra/mongo/models.js";
+import { guildChangePublisher } from "../../infra/mongo/models.js";
+import type { GuildSettingsChangedListener } from "../../infra/mongo/guildSettingsEventBus.js";
+
+const cacheBus = createGuildSettingsEventBus();
+const publishGuildSettingsChanged = (guildId: string): void => cacheBus.publish(guildId);
+const subscribeGuildSettingsChanged = (listener: GuildSettingsChangedListener): (() => void) => cacheBus.subscribe(listener);
+const publishChangedGuild = guildChangePublisher(cacheBus);
 
 import attachGuildSettings from "../../infra/mongo/guildSettings.js";
 
 test("hook-ul post-query al schemei guild publica GuildSettingsChanged dupa commit, doar pentru _id-uri de guild reale (review nou, Mediu #16)", () => {
   const published: string[] = [];
-  const unsubscribe = subscribeGuildSettingsChanged(guildId => { published.push(guildId); });
+  const unsubscribe = subscribeGuildSettingsChanged((guildId: string) => { published.push(guildId); });
   try {
     publishChangedGuild.call({ getFilter: () => ({ _id: "guild-hook-1" }) });
     publishChangedGuild.call({ getFilter: () => ({ _id: { $in: ["a", "b"] } }) });
@@ -27,6 +33,7 @@ type GuildSettingsRuntime = {
 
 function makeContext(maxSize: number, fetchedIds: string[]): Parameters<typeof attachGuildSettings>[0] & Partial<GuildSettingsRuntime> {
   return {
+    guildSettingsBus: createGuildSettingsEventBus(),
     env: {
       GUILD_CACHE_TTL_MS: 60_000,
       GUILD_CACHE_MAX_SIZE: maxSize
@@ -104,8 +111,25 @@ test("GuildSettingsChanged invalideaza intrarea si forteaza recitirea din Mongo"
   context.invalidateGuildCache(guildId);
   await context.getGuildSettings(guildId);
   await context.getGuildSettings(guildId);
+  target.guildSettingsBus.publish(guildId);
+  await context.getGuildSettings(guildId);
+  assert.equal(fetched.filter(id => id === guildId).length, 2, "invalidarea vine pe magistrala injectata in context");
+});
+
+test("o publicare pe alta magistrala nu invalideaza cache-ul acestui context", async () => {
+  const fetched: string[] = [];
+  const target = makeContext(3, fetched);
+  const context = asGuildSettingsRuntime(target);
+  attachGuildSettings(context);
+  const guildId = "isolated-guild";
+  context.invalidateGuildCache(guildId);
+  await context.getGuildSettings(guildId);
   publishGuildSettingsChanged(guildId);
   await context.getGuildSettings(guildId);
-  assert.equal(fetched.filter(id => id === guildId).length, 2);
+  assert.equal(
+    fetched.filter(id => id === guildId).length,
+    1,
+    "cat timp exista un singleton, orice runtime din proces invalida cache-ul oricarui alt runtime"
+  );
 });
 

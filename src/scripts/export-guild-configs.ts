@@ -1,4 +1,5 @@
 import { pathToFileURL as __pathToFileURL } from "node:url";
+import { createGuildSettingsEventBus } from "../infra/mongo/guildSettingsEventBus.js";
 "use strict";
 
 import { buildConfigSnapshot } from "../features/admin-records/configBackupRepository.js";
@@ -64,6 +65,7 @@ async function main(): Promise<void> {
       },
       DEFAULT_CURRENCY: "USD",
       ONE_DAY_MS: 86_400_000,
+      guildSettingsBus: createGuildSettingsEventBus(),
       env: { GUILD_SEEN_DISCOUNT_TTL_DAYS: 60, GUILD_AUDIT_LOG_TTL_DAYS: 180, NOTIFICATION_OUTBOX_SENT_TTL_HOURS: 24, NOTIFICATION_HISTORY_TTL_DAYS: 30, FEEDBACK_REPORT_TTL_DAYS: 90, NOTIFICATION_DEAD_LETTER_REPLAY_TTL_DAYS: 7 }
     });
     const GuildModel = models.GuildModel as { find(filter: Record<string, unknown>): { lean(): Promise<GuildSettings[]> } };

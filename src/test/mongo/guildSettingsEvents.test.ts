@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publishGuildSettingsChanged, subscribeGuildSettingsChanged } from "../../infra/mongo/guildSettingsEvents.js";
+import { createGuildSettingsEventBus } from "../../infra/mongo/guildSettingsEventBus.js";
+import type { GuildSettingsChangedListener } from "../../infra/mongo/guildSettingsEventBus.js";
+
+const bus = createGuildSettingsEventBus();
+const publishGuildSettingsChanged = (guildId: string): void => bus.publish(guildId);
+const subscribeGuildSettingsChanged = (listener: GuildSettingsChangedListener): (() => void) => bus.subscribe(listener);
 
 test("guild settings changed notifica toti abonatii cu guild-ul scris", () => {
   const calls: string[] = [];

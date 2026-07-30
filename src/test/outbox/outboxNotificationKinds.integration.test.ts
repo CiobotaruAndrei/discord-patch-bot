@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createGuildSettingsEventBus } from "../../infra/mongo/guildSettingsEventBus.js";
 import assert from "node:assert/strict";
 
 import mongoose from "mongoose";
@@ -32,6 +33,7 @@ function buildModels(): BuiltModels {
   if (builtModels) return builtModels;
   const target: Record<string, unknown> = {
     mongoose,
+    guildSettingsBus: createGuildSettingsEventBus(),
     SUPPORTED_CURRENCIES: { USD: {} },
     DEFAULT_CURRENCY: "USD",
     ONE_DAY_MS: 86_400_000,

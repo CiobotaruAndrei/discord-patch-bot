@@ -1,64 +1,102 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import fs from "node:fs";
-import path from "node:path";
-
 import { createGuildSettingsEventBus } from "../../infra/mongo/guildSettingsEventBus.js";
 import { guildChangePublisher } from "../../infra/mongo/models.js";
 
-const srcRoot = process.cwd();
+import { loadModule, calls, allMembers, importedModules, functionNames } from "./sourceStructureQueries.js";
+import type { ModuleQuery } from "./sourceStructureQueries.js";
 
-function read(relative: string): string {
-  return fs.readFileSync(path.join(srcRoot, relative), "utf8");
-}
+const mongoContext = loadModule("infra", "mongo", "mongoContext.ts");
+const models = loadModule("infra", "mongo", "models.ts");
+const guildSettings = loadModule("infra", "mongo", "guildSettings.ts");
+const invalidationChannel = loadModule("infra", "redis", "guildSettingsInvalidationChannel.ts");
+const appRuntime = loadModule("app", "appRuntime.ts");
+const runtimeServices = loadModule("app", "runtime", "runtimeServices.ts");
 
-test("contextul Mongo isi creeaza propria magistrala si o expune, nu se bazeaza pe una de modul", () => {
-  const context = read("infra/mongo/mongoContext.ts");
-  assert.match(context, /const guildSettingsBus = createGuildSettingsEventBus\(\);/);
-  assert.match(context, /guildSettingsBus: context\.guildSettingsBus,/, "magistrala e exportata pe context, ca sa poata fi injectata mai departe");
-  assert.match(context, /guildSettingsBus\.setErrorReporter\(/, "reporterul de erori se leaga de instanta detinuta, nu global");
+const CONSUMERS: ReadonlyArray<readonly [ModuleQuery, string]> = [
+  [models, "guildSettingsBus"],
+  [guildSettings, "guildSettingsBus"],
+  [invalidationChannel, "bus"]
+];
+
+test("contextul Mongo isi creeaza propria magistrala si o expune", () => {
+  const built = calls(mongoContext).map(call => call.callee);
+  assert.ok(built.includes("createGuildSettingsEventBus"), "contextul isi creeaza instanta");
   assert.ok(
-    !/setGuildSettingsEventErrorReporter/.test(context),
-    "contextul nu mai trece prin functia globala de configurare"
+    built.includes("guildSettingsBus.setErrorReporter"),
+    "reporterul de erori se leaga de instanta detinuta, nu global"
   );
 });
 
-test("consumatorii primesc magistrala prin injectie, cu instanta implicita doar ca punte", () => {
-  for (const [file, hook] of [
-    ["infra/mongo/models.ts", "context.guildSettingsBus"],
-    ["infra/mongo/guildSettings.ts", "context.guildSettingsBus"],
-    ["infra/redis/guildSettingsInvalidationChannel.ts", "deps.bus"]
-  ] as const) {
-    const source = read(file);
-    assert.ok(source.includes(hook), `${file} citeste magistrala injectata (${hook})`);
+test("niciun modul nu mai creeaza o magistrala la incarcare", () => {
+  for (const query of [models, guildSettings, invalidationChannel]) {
+    const created = calls(query).filter(call => call.callee === "createGuildSettingsEventBus");
+    assert.deepEqual(
+      created,
+      [],
+      `${query.relativePath}: o instanta creata la nivel de modul traieste cat procesul, se aboneaza singura ` +
+        "la incarcare si nu poate fi inchisa; magistrala vine prin injectie"
+    );
   }
 });
 
-test("compunerea aplicatiei trece magistrala detinuta de context catre canalul Redis si catre metrici", () => {
-  const runtime = read("app/appRuntime.ts");
-  assert.match(runtime, /bus: mongo\.guildSettingsBus/, "canalul Redis primeste magistrala contextului");
-  const services = read("app/runtime/runtimeServices.ts");
-  assert.match(services, /mongo\.guildSettingsBus\.attachMetrics\(metrics\)/, "metricile se leaga de aceeasi instanta");
+test("modulul de singleton a disparut cu totul, nu doar consumatorii lui", () => {
+  assert.throws(
+    () => loadModule("infra", "mongo", "guildSettingsEvents.ts"),
+    "guildSettingsEvents.ts expunea o instanta de modul plus opt functii care o configurau global; a fost sters, " +
+      "nu doar ocolit — altfel ar fi ramas o cale prin care cineva reintroduce singletonul"
+  );
 });
 
-test("doua magistrale nu isi vad abonatii, iar publicarea prin hook-ul de schema ajunge doar la a ei", () => {
-  const primaraEvenimente: string[] = [];
-  const secundaraEvenimente: string[] = [];
+test("magistrala e obligatorie in contractele consumatorilor, nu optionala", () => {
+  for (const [query, field] of CONSUMERS) {
+    const declared = allMembers(query).filter(member => member.name === field);
+    assert.ok(declared.length > 0, `${query.relativePath}: contractul declara ${field}`);
+    for (const member of declared) {
+      assert.equal(
+        member.optional,
+        false,
+        `${query.relativePath}: ${field} optional inseamna ca cineva poate omite magistrala si sa cada tacut pe alta`
+      );
+    }
+  }
+});
+
+test("compunerea aplicatiei paseaza magistrala contextului mai departe", () => {
+  const wired = calls(appRuntime).find(call => call.callee === "createGuildSettingsInvalidationChannel");
+  assert.ok(wired?.args[0]?.includes("bus: mongo.guildSettingsBus"), "canalul Redis primeste magistrala contextului");
+  assert.ok(
+    calls(runtimeServices).some(call => call.callee === "mongo.guildSettingsBus.attachMetrics"),
+    "metricile se leaga de aceeasi instanta"
+  );
+  for (const query of [appRuntime, runtimeServices, models, guildSettings, invalidationChannel]) {
+    assert.ok(
+      !importedModules(query).some(module => module.includes("guildSettingsEvents")),
+      `${query.relativePath} nu mai atinge modulul de singleton`
+    );
+  }
+});
+
+test("publisher-ul de schimbari e o fabrica peste magistrala primita", () => {
+  assert.ok(functionNames(models).includes("guildChangePublisher"), "publisher-ul e o fabrica, nu o valoare de modul");
   const primara = createGuildSettingsEventBus();
   const secundara = createGuildSettingsEventBus();
-  primara.subscribe(guildId => primaraEvenimente.push(guildId));
-  secundara.subscribe(guildId => secundaraEvenimente.push(guildId));
+  const primareEvenimente: string[] = [];
+  const secundareEvenimente: string[] = [];
+  primara.subscribe(guildId => primareEvenimente.push(guildId));
+  secundara.subscribe(guildId => secundareEvenimente.push(guildId));
 
   const publish = guildChangePublisher(primara);
   publish.call({ getFilter: () => ({ _id: "g1" }) });
 
-  assert.deepEqual(primaraEvenimente, ["g1"]);
-  assert.deepEqual(secundaraEvenimente, [], "un test care lasa un abonat in urma nu mai polueaza alta magistrala");
+  assert.deepEqual(primareEvenimente, ["g1"]);
+  assert.deepEqual(secundareEvenimente, [], "un test care lasa un abonat in urma nu mai polueaza alta magistrala");
 
   primara.dispose();
   publish.call({ getFilter: () => ({ _id: "g2" }) });
-  assert.deepEqual(primaraEvenimente, ["g1"], "dupa dispose, magistrala nu mai livreaza");
+  assert.deepEqual(primareEvenimente, ["g1"], "dupa dispose, magistrala nu mai livreaza");
+  secundara.dispose();
 });
 
 test("hook-ul de schema ignora filtrele fara identificator de guild", () => {

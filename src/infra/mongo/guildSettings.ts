@@ -1,7 +1,6 @@
 import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { CacheEntry } from "../../features/command-cache/commandCacheTypes.js";
 import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
-import { defaultBus } from "./guildSettingsEvents.js";
 import type { GuildSettingsEventBus } from "./guildSettingsEventBus.js";
 
 interface GuildSettingsModelLike {
@@ -11,7 +10,7 @@ interface GuildSettingsModelLike {
 interface GuildSettingsContext {
   env: Pick<RuntimeEnv, "GUILD_CACHE_TTL_MS" | "GUILD_CACHE_MAX_SIZE">;
   GuildModel: GuildSettingsModelLike;
-  guildSettingsBus?: GuildSettingsEventBus;
+  guildSettingsBus: GuildSettingsEventBus;
   getGuildSettings?: typeof getGuildSettings;
   invalidateGuildCache?: typeof invalidateGuildCache;
   cleanGuildCache?: typeof cleanGuildCache;
@@ -67,8 +66,6 @@ function bindGuildSettingsBus(bus: GuildSettingsEventBus): () => void {
   return unsubscribeFromBus;
 }
 
-bindGuildSettingsBus(defaultBus);
-
 function cleanGuildCache(): void {
   const now = Date.now();
   for (const [key, value] of guildSettingsCache.entries()) {
@@ -86,7 +83,7 @@ function buildGuildSettingsFrom(context: GuildSettingsContext) {
     env: context.env,
     GuildModel: context.GuildModel
   };
-  if (context.guildSettingsBus) bindGuildSettingsBus(context.guildSettingsBus);
+  bindGuildSettingsBus(context.guildSettingsBus);
 
   return {
     getGuildSettings,

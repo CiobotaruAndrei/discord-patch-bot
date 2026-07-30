@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createGuildSettingsEventBus } from "../../infra/mongo/guildSettingsEventBus.js";
 import assert from "node:assert/strict";
 import { createOutboxRuntime } from "../../features/notifications/notificationOutbox.js";
 import type { OutboxJob } from "../../features/notifications/notificationOutbox.js";
@@ -16,6 +17,7 @@ function getModels(): { outbox: SweepTestModel; sent: SweepTestModel } {
   try {
     const target: Record<string, unknown> = {
       mongoose,
+      guildSettingsBus: createGuildSettingsEventBus(),
       SUPPORTED_CURRENCIES: { USD: {} },
       DEFAULT_CURRENCY: "USD",
       ONE_DAY_MS: 86_400_000,

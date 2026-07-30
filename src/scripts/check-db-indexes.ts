@@ -1,4 +1,5 @@
 import { pathToFileURL as __pathToFileURL } from "node:url";
+import { createGuildSettingsEventBus } from "../infra/mongo/guildSettingsEventBus.js";
 "use strict";
 
 import type { MongoModelsContext } from "../infra/mongo/models.js";
@@ -46,6 +47,7 @@ export function collectDeclaredIndexes(mongoose: typeof Mongoose, attachMongoMod
       },
       DEFAULT_CURRENCY: "USD",
       ONE_DAY_MS: 86_400_000,
+      guildSettingsBus: createGuildSettingsEventBus(),
       env: {
         GUILD_SEEN_DISCOUNT_TTL_DAYS: 60,
         GUILD_AUDIT_LOG_TTL_DAYS: 180,
