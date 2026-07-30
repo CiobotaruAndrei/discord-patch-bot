@@ -1,6 +1,7 @@
 "use strict";
 
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import { sequentialRunner, type TransactionRunner } from "../../shared/transactionPort.js";
 import type { ServerAuditLogEntry } from "../admin-records/adminRecordsTypes.js";
 import type { AdminCommandAccessConfig } from "./adminCommandAccessScope.js";
 import type { AdminScopeId } from "./adminScopeIds.js";
@@ -35,7 +36,8 @@ export async function saveAdminAccessRule(
     legacyKeys: readonly string[];
     audit: Omit<ServerAuditLogEntry, "serverId" | "at">;
     operationId?: string;
-  }
+  },
+  runner?: TransactionRunner
 ): Promise<void> {
   const { scope, access, legacyKeys, audit, operationId } = input;
   const ruleUpdate: Record<string, unknown> = scope === "global"
@@ -46,8 +48,12 @@ export async function saveAdminAccessRule(
           $unset: Object.fromEntries(legacyKeys.map(key => [`adminCommandAccessByCommand.${key}`, ""]))
         }
       : { $set: { [`adminCommandAccessByCommand.${scope}`]: access } };
-  await GuildModel.updateOne({ _id: guildId }, ruleUpdate, { upsert: true });
-  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId);
+  const run = runner ?? sequentialRunner;
+  await run.atomic("admin-access-save", async session => {
+    const options = session ? { session } : undefined;
+    await GuildModel.updateOne({ _id: guildId }, ruleUpdate, { upsert: true, ...(options ?? {}) });
+    await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId, options);
+  });
 }
 
 export async function deleteAdminAccessRule(
@@ -59,12 +65,17 @@ export async function deleteAdminAccessRule(
     lookupKeys: readonly string[];
     audit: Omit<ServerAuditLogEntry, "serverId" | "at">;
     operationId?: string;
-  }
+  },
+  runner?: TransactionRunner
 ): Promise<void> {
   const { scope, lookupKeys, audit, operationId } = input;
   const ruleUpdate: Record<string, unknown> = scope === "global"
     ? { $set: { adminCommandAccess: null } }
     : { $unset: Object.fromEntries(lookupKeys.map(key => [`adminCommandAccessByCommand.${key}`, ""])) };
-  await GuildModel.updateOne({ _id: guildId }, ruleUpdate, { upsert: true });
-  await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId);
+  const run = runner ?? sequentialRunner;
+  await run.atomic("admin-access-delete", async session => {
+    const options = session ? { session } : undefined;
+    await GuildModel.updateOne({ _id: guildId }, ruleUpdate, { upsert: true, ...(options ?? {}) });
+    await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId, options);
+  });
 }

@@ -95,6 +95,10 @@ export async function setLockedChannelPermissionState(
   return GuildModel.updateOne({ _id: guildId }, update, { upsert: true });
 }
 
+export interface ReplayPayloadCleanup {
+  deleteMany(filter: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
+}
+
 export async function resetGuildConfigurationWithAudit(
   GuildModel: GuildConfigWriteModelLike,
   GuildAuditLogModel: Pick<GuildAuditLogModelLike, "create" | "updateOne">,
@@ -104,7 +108,8 @@ export async function resetGuildConfigurationWithAudit(
   defaultCurrency: CurrencyCode,
   audit: Omit<ServerAuditLogEntry, "serverId" | "at">,
   operationId: string,
-  runner?: TransactionRunner
+  runner?: TransactionRunner,
+  NotificationDeadLetterReplayModel?: ReplayPayloadCleanup
 ): Promise<void> {
   const run = runner ?? sequentialRunner;
   await run.atomic("reset-config", async session => {
@@ -117,6 +122,9 @@ export async function resetGuildConfigurationWithAudit(
     await recordServerAuditEntry(GuildAuditLogModel, guildId, audit, operationId, options);
     await clearYoutubeErrors(GuildYoutubeErrorModel, guildId, options);
     await clearDeadLetters(GuildDeadLetterModel, guildId, options);
+    if (NotificationDeadLetterReplayModel) {
+      await NotificationDeadLetterReplayModel.deleteMany({ guildId }, options);
+    }
   });
 }
 

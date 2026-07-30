@@ -118,7 +118,7 @@ export async function recordServerAuditEntry(
     await model.updateOne(
       { operationId },
       { $setOnInsert: document },
-      { upsert: true }
+      { upsert: true, ...(options ?? {}) }
     );
     return;
   }
