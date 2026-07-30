@@ -15,7 +15,8 @@ const MIGRATED_GATES: readonly string[] = [
   "mongoPorts.test.ts",
   "roleCompositionRoots.test.ts",
   "guildDocumentSplit.test.ts",
-  "securityHandlerLayering.test.ts"
+  "securityHandlerLayering.test.ts",
+  "portsHaveProductionConsumers.test.ts"
 ];
 
 const DOC_ONLY_GATES: readonly string[] = ["docsClaimsMatchCode.test.ts"];

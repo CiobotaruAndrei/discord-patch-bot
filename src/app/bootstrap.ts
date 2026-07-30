@@ -27,7 +27,7 @@ const {
   requestContext, getOutboxPaused
 } = mongoContext;
 import commandRegistryFactories from "../features/command-registry/commandRegistry.js";
-import { sourceRegistry as scrapers, commandRuntimeInput, mongoContextBundles } from "./runtimeComposition.js";
+import { sourceRegistry as scrapers, commandRuntimeInput, mongoContextBundles, mongoPorts, sourcePorts } from "./runtimeComposition.js";
 import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
 import { createDeferredTransactionRunner } from "../infra/mongo/transactionRunner.js";
 import { createScheduledTaskRunner } from "./scheduler/scheduledTaskRunner.js";
@@ -60,6 +60,7 @@ const commands = commandRegistryFactories.createCommandRegistry(commandRuntimeIn
 function buildAppRuntime(role: BotRole): AppRuntime {
   return createAppRuntime({
     mongoose, crypto, performance, Client, GatewayIntentBits,
+    ports: { mongo: mongoPorts, sources: sourcePorts },
     loadConfig, createMetrics, createRateLimiter, createHousekeeping,
     createCronController, createOutboxWorker, createHttpServer,
     registerDiscordEvents, registerMongoEvents, createShutdownController,

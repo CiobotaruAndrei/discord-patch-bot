@@ -1,4 +1,5 @@
 import { createGuildSettingsEventBus } from "../../infra/mongo/guildSettingsEventBus.js";
+import { stubRuntimePorts } from "./runtimePortStubs.js";
 import { createGameCatalog } from "../../config/gameCatalog.js";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -36,6 +37,7 @@ function makeDeps(overrides: { updatesFetchedAt?: Date } = {}) {
   }
 
   const deps: AppRuntimeDeps = {
+    ports: stubRuntimePorts(),
     mongoose: {
       connect: async () => { order.push("connect"); },
       connection: { readyState: 1, close: async () => undefined, on: () => undefined }

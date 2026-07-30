@@ -1,6 +1,7 @@
 import { createRequire as __createRequire } from "node:module";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
+import { stubRuntimePorts } from "../app/runtimePortStubs.js";
 import assert from "node:assert/strict";
 import { createOutboxWorker } from "../../app/scheduler/outboxWorker.js";
 
@@ -84,6 +85,7 @@ test("P2.3: NOTIFICATION_OUTBOX_ENABLED=true -> scheduler activeaza worker-ul si
   const { getOutboxPaused, setOutboxPaused } = realState();
   let capturedIsPaused: (() => Promise<boolean>) | undefined;
   const deps = {
+    ports: stubRuntimePorts(),
     mongoose: {}, performance: { now: () => 0 }, crypto: {},
     createCronController: () => ({ scheduleNextCron() { }, runCronCycle: async () => { }, stop() { }, getHealthSnapshot() { return {}; } }),
     createOutboxWorker: (opts: { isPaused: () => Promise<boolean> }) => { capturedIsPaused = opts.isPaused; return { start() { }, stop() { } }; },
