@@ -1,3 +1,4 @@
+import { handledCommandError } from "../../features/command-security/commandOutcome.js";
 import { createRequire as __createRequire } from "node:module";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
@@ -338,7 +339,6 @@ test("guard: handler care intoarce handledCommandError e auditat ca 'Command err
       handleAdminProtectedCommand: (interaction: TestInteraction, games: TestGame[], next?: (interaction: TestInteraction, games: TestGame[]) => Promise<unknown>) => Promise<unknown>;
     };
   };
-  const { handledCommandError } = require("../../features/command-security/commandOutcome") as typeof import("../../features/command-security/commandOutcome.js");
 
   const audits: string[] = [];
   const target = {

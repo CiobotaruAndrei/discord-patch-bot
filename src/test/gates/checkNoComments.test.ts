@@ -1,3 +1,4 @@
+import path from "node:path";
 import { createRequire as __createRequire } from "node:module";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
@@ -79,7 +80,6 @@ test("findCommentsRust: cod Rust curat -> niciun comentariu", () => {
 });
 
 test("isAllowed: zero exceptii -> orice comentariu e respins", () => {
-  const path = require("path") as typeof import("path");
   assert.equal(checker.ALLOWED_COMMENTS.length, 0, "allowlist-ul de comentarii este gol (zero exceptii)");
   assert.equal(checker.isAllowed(path.normalize("app/scheduler/cron.ts"), "// orice"), false);
   assert.equal(checker.isAllowed(path.normalize("features/notifications/index.ts"), "// orice"), false);

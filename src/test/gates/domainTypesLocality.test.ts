@@ -1,5 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -123,8 +123,6 @@ test("tipurile de domeniu re-exportate prin agregatorul types.ts sunt identice c
 });
 
 test("modulele de domeniu detin definitiile (nu agregatorul types.ts): config/health/scheduler", () => {
-  const fs = require("fs") as typeof import("fs");
-  const path = require("path") as typeof import("path");
   const srcRoot = process.cwd();
   const read = (rel: string): string => fs.readFileSync(path.join(srcRoot, rel), "utf8");
 
@@ -150,8 +148,6 @@ test("modulele de domeniu detin definitiile (nu agregatorul types.ts): config/he
 });
 
 test("DealInfo este un tip INCHIS (fara index signature) — normalizarea sursa->consum e completa (R12 #3, runda 10)", () => {
-  const fs = require("fs") as typeof import("fs");
-  const path = require("path") as typeof import("path");
   const sourceTypes = fs.readFileSync(path.join(process.cwd(), "sources/sourceTypes.ts"), "utf8");
   const dealBlock = sourceTypes.slice(
     sourceTypes.indexOf("export interface DealInfo {"),

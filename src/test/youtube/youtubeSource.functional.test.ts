@@ -1,14 +1,9 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import { createYouTubeSource, parseLengthSeconds, videoPassesYouTubeFilters } from "../../features/youtube/youtubeSource.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { load as cheerioLoad } from "cheerio";
 
-const {
-  createYouTubeSource,
-  parseLengthSeconds,
-  videoPassesYouTubeFilters
-} = require("../../features/youtube/youtubeSource") as typeof import("../../features/youtube/youtubeSource.js");
+
 
 const channelId = "UC1234567890123456789012";
 const feedXml = `<?xml version="1.0" encoding="UTF-8"?>
