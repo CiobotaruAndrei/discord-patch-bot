@@ -17,6 +17,7 @@ import type { NotificationDiscordClient } from "../../notifications/outboundChan
 import type { ResolvedYouTubeChannel } from "../../youtube/youtubeSource.js";
 import type { PreparedVideo, ManualVideoBatch } from "../../youtube/youtubeNotificationService.js";
 import type { YouTubeConfigGuildModel } from "../../youtube/youtubeGuildConfigRepository.js";
+import type { YoutubeStateModel } from "../../youtube/youtubeStateStore.js";
 import type { YoutubeErrorModelLike } from "../../youtube/youtubeErrorsRepository.js";
 
 export type InteractionPayload = string | { content?: string; embeds?: object[]; flags?: number };
@@ -40,6 +41,7 @@ export interface ChannelPermissions {
 
 export interface YouTubeInteractionDeps {
   GuildModel: YouTubeConfigGuildModel;
+  GuildYoutubeStateModel?: YoutubeStateModel;
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "find" | "countDocuments">;
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   resolveYouTubeChannel(input: string): Promise<ResolvedYouTubeChannel>;

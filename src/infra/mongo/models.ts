@@ -6,6 +6,7 @@ import type { MongoModelEnv } from "./mongoModelEnv.js";
 import { buildGuildNotificationSchemas } from "./guildNotificationSchemas.js";
 import { buildGuildModerationSchemas } from "./guildModerationSchemas.js";
 import { buildGuildSecuritySchemas } from "./guildSecuritySchemas.js";
+import { buildGuildYoutubeStateSchemas } from "./guildYoutubeStateSchemas.js";
 import { buildGuildYoutubeSchemas } from "./guildYoutubeSchemas.js";
 import { buildGuildAdminRecordSchemas } from "./guildAdminRecordSchemas.js";
 import { buildOperationalSchemas } from "./operationalSchemas.js";
@@ -186,6 +187,9 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   });
   const GuildSecurityModel = mongoose.model("GuildSecurity", guildSecurityStateSchema, "guildSecurity");
 
+  const { guildYoutubeStateSchema } = buildGuildYoutubeStateSchemas({ mongoose, youtubeChannelSchema, youtubeChannelRouteSchema });
+  const GuildYoutubeStateModel = mongoose.model("GuildYoutubeState", guildYoutubeStateSchema, "guildYoutubeState");
+
   const {
     circuitBreakerSchema,
     systemSchema,
@@ -262,6 +266,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     GuildModel,
     GuildModerationModel,
     GuildSecurityModel,
+    GuildYoutubeStateModel,
     GuildAuditLogModel,
     GuildConfigBackupModel,
     GuildSuggestedCommandModel,

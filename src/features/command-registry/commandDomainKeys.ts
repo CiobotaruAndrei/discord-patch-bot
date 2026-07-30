@@ -197,6 +197,7 @@ export const CORE_KEYS: DomainKeys<"core"> = [
 ];
 
 export const YOUTUBE_KEYS: DomainKeys<"youtube"> = [
+  "GuildYoutubeStateModel",
   "GuildModel",
   "GuildYoutubeErrorModel",
   "MessageFlags",
