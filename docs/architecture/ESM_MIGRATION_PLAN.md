@@ -2,8 +2,15 @@
 
 Acest document pastreaza runbook-ul autoritar folosit pentru migrarea
 codebase-ului de la CommonJS (`export =` / `require()`) la module ECMAScript.
-Migrarea este completa; sectiunile de plan si dry-run de mai jos raman context
-istoric pentru deciziile luate.
+Codul de productie este integral ESM (`NodeNext` + `"type": "module"`), si asta
+nu mai are exceptii. Ce NU e terminat, si documentul spunea pana acum ca ar fi:
+**incarcarea modulelor in teste**. Au ramas 44 de fisiere din `src/test` care isi
+incarca modulele prin `createRequire`, fiindca acolo `import` chiar schimba tipul si
+scoate la iveala forme scrise de mana care nu se potrivesc cu modulul real.
+Numarul are un plafon descrescator in `testModuleLoading.test.ts` si doua reguli
+care blocheaza formele deja sigure (built-in-uri Node si `require(x) as typeof
+import(x)`). Sectiunile de plan si dry-run de mai jos raman context istoric pentru
+deciziile luate.
 
 ## De ce NU e per-feature
 
@@ -37,7 +44,7 @@ final de emit ESM.
 
 Faza B (cutover-ul de emit ESM) a fost executata pe branch-ul
 `refactor/esm-migration-phase-b` si e VERDE: `tsc` 0 erori sub `NodeNext`,
-`npm run check` complet (1514 teste, 0 fail), `test:e2e:prebuilt` 7/7,
+`npm run check` complet (la momentul migrarii 1514 teste, 0 fail), `test:e2e:prebuilt` 7/7,
 `npm audit` 0, boot-graph smoke (main.js incarca tot graful ESM si face
 fail-fast curat pe env) si addon-ul NAPI se incarca prin
 `createRequire(import.meta.url)` (require(esm) pe Node 24). Detalii de executie:

@@ -280,6 +280,29 @@ export function stringLiteralTypesIn(query: ModuleQuery, aliasName: string): str
   return literals;
 }
 
+export function stringLiteralsIn(query: ModuleQuery, variableName: string): string[] {
+  const literals: string[] = [];
+  eachNode(query, node => {
+    if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || node.name.text !== variableName) return;
+    if (!node.initializer) return;
+    walk(node.initializer, inner => {
+      if (ts.isStringLiteral(inner)) literals.push(inner.text);
+    });
+  });
+  return literals;
+}
+
+export function comparisonUpperBounds(query: ModuleQuery, leftExpression: string): number[] {
+  const bounds: number[] = [];
+  eachNode(query, node => {
+    if (!ts.isBinaryExpression(node)) return;
+    if (node.operatorToken.kind !== ts.SyntaxKind.LessThanEqualsToken) return;
+    if (normalize(node.left.getText()) !== leftExpression) return;
+    if (ts.isNumericLiteral(node.right)) bounds.push(Number(node.right.text));
+  });
+  return bounds;
+}
+
 export function indexSignatures(query: ModuleQuery): string[] {
   const found: string[] = [];
   eachNode(query, node => {
