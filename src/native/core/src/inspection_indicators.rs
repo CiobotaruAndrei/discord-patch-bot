@@ -1,8 +1,7 @@
 use crate::code_disassembly::{disassemble_code, DisassemblyLimits, DisassemblyOutcome};
-use crate::executable::{
-  analysis_blind_spots, analyze_executable, locate_code_region, looks_like_executable, ExecutableLimits,
-  ExecutableOutcome,
-};
+use crate::executable::{analyze_executable, locate_code_region};
+use crate::executable_heuristics::{analysis_blind_spots, looks_like_executable};
+use crate::executable_types::{ExecutableLimits, ExecutableOutcome};
 use crate::document_text::{find_url_hosts, DocumentTextLimits};
 use crate::visual::{embedded_jpeg_preview, iso_bmff_image_brand, looks_like_image, scan_visual_codes, VisualLimits, VisualOutcome};
 use crate::inspection_budgets::*;

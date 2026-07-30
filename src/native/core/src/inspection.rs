@@ -1,4 +1,4 @@
-use crate::executable::looks_like_executable;
+use crate::executable_heuristics::looks_like_executable;
 use crate::similarity_corpus::known_sample_indicators;
 use crate::visual::{iso_bmff_image_brand, looks_like_image};
 use std::time::Instant;

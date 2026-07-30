@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readInspectionSources } from "./nativeInspectionSources.js";
+import { readExecutableSources, readInspectionSources } from "./nativeInspectionSources.js";
 
 import fs from "fs";
 import path from "path";
@@ -43,7 +43,7 @@ test("instructiunile citite ajung efectiv in raport si in punctele oarbe", () =>
 
 test("punctele oarbe pe care dezasamblarea le inchide exista cu exact acelasi text", () => {
   const inspection = readInspectionSources();
-  const executable = readNative(path.join("src", "executable.rs"));
+  const executable = readExecutableSources();
 
   const bloc = inspection.match(/const DISASSEMBLY_EXPLAINED_SPOTS: \[&str; \d+\] =\s*\[([\s\S]*?)\];/);
   assert.ok(bloc, "lista de puncte oarbe explicate trebuie sa fie declarata explicit, ca sa poata fi verificata");
