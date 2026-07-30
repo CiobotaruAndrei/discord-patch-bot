@@ -12,6 +12,7 @@ import { m10_moveSuggestedCommandsIntoCollection } from "./m10_moveSuggestedComm
 import { m11_moveYoutubeErrorsIntoCollection } from "./m11_moveYoutubeErrorsIntoCollection.js";
 import { m12_moveDeadLettersIntoCollection } from "./m12_moveDeadLettersIntoCollection.js";
 import { m13_backfillOutboxStatus } from "./m13_backfillOutboxStatus.js";
+import { m14_moveModerationStateIntoCollection } from "./m14_moveModerationStateIntoCollection.js";
 
 const ALL_MIGRATIONS: Migration[] = [
   m1_addEnabledStores,
@@ -26,7 +27,8 @@ const ALL_MIGRATIONS: Migration[] = [
   m10_moveSuggestedCommandsIntoCollection,
   m11_moveYoutubeErrorsIntoCollection,
   m12_moveDeadLettersIntoCollection,
-  m13_backfillOutboxStatus
+  m13_backfillOutboxStatus,
+  m14_moveModerationStateIntoCollection
 ];
 
 export { ALL_MIGRATIONS };
