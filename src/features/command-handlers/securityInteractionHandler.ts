@@ -17,6 +17,7 @@ import { recordChannelLockDivergence, type ChannelLockRecoveryModelLike } from "
 import { readLockedChannelPermissionState } from "../command-security/channelLockRecoveryRuntime.js";
 import { randomUUID } from "node:crypto";
 import { setSecurityChannel } from "../command-security/setSecurityChannelUseCase.js";
+import { createSecurityStore, type SecurityStateModel } from "../command-security/securityStore.js";
 
 type AccountAlertClaimFn = (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
 
@@ -96,6 +97,7 @@ type SecurityDeps = {
   logger?: (level: string, context: string, message: string, meta?: unknown) => void;
   NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
   ChannelLockRecoveryModel?: Pick<ChannelLockRecoveryModelLike, "updateOne">;
+  GuildSecurityModel?: SecurityStateModel;
 };
 
 const SET_CHANNEL_FIELDS: Record<string, string> = {
@@ -215,7 +217,15 @@ async function sendExistingAccountAlerts(
   return { delivered, sentUnconfirmed, undetermined };
 }
 
-function buildSecurityCommandHandler(target: SecurityDeps): CommandHandler<SecurityInteraction> {
+function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<SecurityInteraction> {
+  const target: SecurityDeps = deps.GuildSecurityModel
+    ? {
+      ...deps,
+      GuildModel: createSecurityStore(deps.GuildModel, deps.GuildSecurityModel, guildId => {
+        deps.logger?.("INFO", "SECURITY_STORE", "Starea de securitate a inceput sa fie oglindita in colectia dedicata", { guildId });
+      })
+    }
+    : deps;
   const accountAlertClaim: AccountAlertClaimFn | undefined = target.NewAccountAlertDeliveryModel
     ? createNewAccountAlertDelivery(target.NewAccountAlertDeliveryModel, () => randomUUID()).claim
     : undefined;

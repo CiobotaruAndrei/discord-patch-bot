@@ -32,6 +32,7 @@ type MongoRuntimeContext = {
   withMongoRetry: <T>(fn: () => Promise<T>, options?: { retries?: number; label?: string }) => Promise<T>;
   GuildModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildModel"];
   GuildModerationModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildModerationModel"];
+  GuildSecurityModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSecurityModel"];
   GuildAuditLogModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildAuditLogModel"];
   GuildConfigBackupModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildConfigBackupModel"];
   GuildSuggestedCommandModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSuggestedCommandModel"];
@@ -126,6 +127,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     withMongoRetry: context.withMongoRetry,
     GuildModel: context.GuildModel,
     GuildModerationModel: context.GuildModerationModel,
+    GuildSecurityModel: context.GuildSecurityModel,
     GuildAuditLogModel: context.GuildAuditLogModel,
     GuildConfigBackupModel: context.GuildConfigBackupModel,
     GuildSuggestedCommandModel: context.GuildSuggestedCommandModel,

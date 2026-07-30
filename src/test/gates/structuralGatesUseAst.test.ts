@@ -13,7 +13,8 @@ const MIGRATED_GATES: readonly string[] = [
   "metricRecorderBoundaries.test.ts",
   "commandInstallerTargetContracts.test.ts",
   "mongoPorts.test.ts",
-  "roleCompositionRoots.test.ts"
+  "roleCompositionRoots.test.ts",
+  "guildDocumentSplit.test.ts"
 ];
 
 function read(file: string): string {
