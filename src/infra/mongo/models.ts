@@ -5,6 +5,7 @@ import type { CurrencyCode, CurrencyRegistry } from "../../types.js";
 import type { MongoModelEnv } from "./mongoModelEnv.js";
 import { buildGuildNotificationSchemas } from "./guildNotificationSchemas.js";
 import { buildGuildModerationSchemas } from "./guildModerationSchemas.js";
+import { buildGuildSecuritySchemas } from "./guildSecuritySchemas.js";
 import { buildGuildYoutubeSchemas } from "./guildYoutubeSchemas.js";
 import { buildGuildAdminRecordSchemas } from "./guildAdminRecordSchemas.js";
 import { buildOperationalSchemas } from "./operationalSchemas.js";
@@ -180,6 +181,11 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const GuildModel = mongoose.model("Guild", guildSchema);
   const GuildModerationModel = mongoose.model("GuildModeration", guildModerationStateSchema, "guildModeration");
 
+  const { guildSecurityStateSchema } = buildGuildSecuritySchemas({
+    mongoose, botAddPermissionSchema, botObservationSchema, lockedChannelPermissionSchema
+  });
+  const GuildSecurityModel = mongoose.model("GuildSecurity", guildSecurityStateSchema, "guildSecurity");
+
   const {
     circuitBreakerSchema,
     systemSchema,
@@ -255,6 +261,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   return {
     GuildModel,
     GuildModerationModel,
+    GuildSecurityModel,
     GuildAuditLogModel,
     GuildConfigBackupModel,
     GuildSuggestedCommandModel,

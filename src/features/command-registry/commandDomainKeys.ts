@@ -47,6 +47,7 @@ export const ADMIN_KEYS: DomainKeys<"admin"> = [
   "GuildDeadLetterModel",
   "GuildModel",
   "GuildModerationModel",
+  "GuildSecurityModel",
   "GuildYoutubeErrorModel",
   "MessageFlags",
   "NewAccountAlertDeliveryModel",
