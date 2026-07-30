@@ -1,4 +1,16 @@
 import type { CommandHandler } from "../commandHandler.js";
+import {
+  ADMIN_ACCESS_HANDLER_KEYS,
+  AUDIT_LOG_HANDLER_KEYS,
+  BACKUP_HANDLER_KEYS,
+  BOT_ADD_HANDLER_KEYS,
+  CONFIGURATION_ADMIN_HANDLER_KEYS,
+  HEALTH_HANDLER_KEYS,
+  MAINTENANCE_HANDLER_KEYS,
+  MODERATION_HANDLER_KEYS,
+  SECURITY_HANDLER_KEYS,
+  SOURCE_STATUS_HANDLER_KEYS
+} from "../commandHandlerKeys.js";
 import type { CommandDomainDeps } from "../commandDomainDeps.js";
 import type { CommandHandlerDomain, CommandHandlerDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
 import attachAdminCommandAccessHandler from "../../command-handlers/adminCommandAccessHandler.js";
@@ -14,20 +26,25 @@ import attachSourcesStatusHandler from "../../command-handlers/sourcesStatusHand
 
 export function adminDescriptors(
   define: <D extends CommandHandlerDomain>(
-    input: { id: string; domain: D; build: (context: CommandDomainDeps[D]) => CommandHandler }
+    input: {
+      id: string;
+      domain: D;
+      needs: readonly (keyof CommandDomainDeps[D])[];
+      build: (context: CommandDomainDeps[D]) => CommandHandler;
+    }
       & Partial<Pick<CommandHandlerDescriptor<D>, "scope" | "access" | "help" | "autocomplete">>
   ) => CommandHandlerDescriptor<D>
 ): readonly AnyCommandHandlerDescriptor[] {
   return [
-    define({ id: "source-status", domain: "admin", help: ["sources status"], build: context => attachSourcesStatusHandler.buildCommandHandler(context) }),
-    define({ id: "configuration-admin", domain: "admin", help: ["reset-config", "admin-alerts"], build: context => attachGuildConfigurationAdminHandler.buildCommandHandler(context) }),
-    define({ id: "security", domain: "admin", help: ["lock-channel", "unlock-channel", "purge", "purge-amount", "new-account-alerts", "threat-protection", "bot-add-protection"], build: context => attachSecurityInteractionHandler.buildCommandHandler(context) }),
-    define({ id: "bot-add", domain: "admin", access: "admin", help: ["bot-add-request", "bot-add-permissions"], build: context => attachBotAddInteractionHandler.buildCommandHandler(context) }),
-    define({ id: "admin-access", domain: "admin", access: "owner", help: ["admin-command-access"], build: context => attachAdminCommandAccessHandler.buildCommandHandler(context) }),
-    define({ id: "moderation", domain: "admin", access: "mixed", help: ["timeout", "remove-timeout", "timeout-list", "mute", "unmute", "mute-list", "kick", "ban", "unban", "warn", "remove-warn", "warn-list", "warn-ban-limit"], build: context => attachModerationInteractionHandler.buildCommandHandler(context) }),
-    define({ id: "backup", domain: "admin", help: ["backup"], build: context => attachBackupInteractionHandler.buildCommandHandler(context) }),
-    define({ id: "audit-log", domain: "admin", help: ["bot-log", "server-log"], build: context => attachAuditLogInteractionHandler.buildCommandHandler(context) }),
-    define({ id: "maintenance", domain: "admin", help: ["maintenance"], build: context => attachMaintenanceInteractionHandler.buildCommandHandler(context) }),
-    define({ id: "health", domain: "admin", help: ["health"], build: context => attachHealthInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "source-status", needs: SOURCE_STATUS_HANDLER_KEYS, domain: "admin", help: ["sources status"], build: context => attachSourcesStatusHandler.buildCommandHandler(context) }),
+    define({ id: "configuration-admin", needs: CONFIGURATION_ADMIN_HANDLER_KEYS, domain: "admin", help: ["reset-config", "admin-alerts"], build: context => attachGuildConfigurationAdminHandler.buildCommandHandler(context) }),
+    define({ id: "security", needs: SECURITY_HANDLER_KEYS, domain: "admin", help: ["lock-channel", "unlock-channel", "purge", "purge-amount", "new-account-alerts", "threat-protection", "bot-add-protection"], build: context => attachSecurityInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "bot-add", needs: BOT_ADD_HANDLER_KEYS, domain: "admin", access: "admin", help: ["bot-add-request", "bot-add-permissions"], build: context => attachBotAddInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "admin-access", needs: ADMIN_ACCESS_HANDLER_KEYS, domain: "admin", access: "owner", help: ["admin-command-access"], build: context => attachAdminCommandAccessHandler.buildCommandHandler(context) }),
+    define({ id: "moderation", needs: MODERATION_HANDLER_KEYS, domain: "admin", access: "mixed", help: ["timeout", "remove-timeout", "timeout-list", "mute", "unmute", "mute-list", "kick", "ban", "unban", "warn", "remove-warn", "warn-list", "warn-ban-limit"], build: context => attachModerationInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "backup", needs: BACKUP_HANDLER_KEYS, domain: "admin", help: ["backup"], build: context => attachBackupInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "audit-log", needs: AUDIT_LOG_HANDLER_KEYS, domain: "admin", help: ["bot-log", "server-log"], build: context => attachAuditLogInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "maintenance", needs: MAINTENANCE_HANDLER_KEYS, domain: "admin", help: ["maintenance"], build: context => attachMaintenanceInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "health", needs: HEALTH_HANDLER_KEYS, domain: "admin", help: ["health"], build: context => attachHealthInteractionHandler.buildCommandHandler(context) }),
   ];
 }

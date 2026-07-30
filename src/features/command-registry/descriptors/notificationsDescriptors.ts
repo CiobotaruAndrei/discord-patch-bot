@@ -1,4 +1,12 @@
 import type { CommandHandler } from "../commandHandler.js";
+import {
+  DLC_HANDLER_KEYS,
+  FUTURE_RELEASE_HANDLER_KEYS,
+  PRICE_ALERT_HANDLER_KEYS,
+  SUBSCRIPTION_HANDLER_KEYS,
+  TEMPLATE_PREVIEW_HANDLER_KEYS,
+  YOUTUBE_HANDLER_KEYS
+} from "../commandHandlerKeys.js";
 import type { CommandDomainDeps } from "../commandDomainDeps.js";
 import type { CommandHandlerDomain, CommandHandlerDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
 import attachDlcInteractionHandler from "../../command-handlers/dlcInteractionHandler.js";
@@ -10,16 +18,21 @@ import attachYouTubeInteractionHandler from "../../command-handlers/youtubeInter
 
 export function notificationsDescriptors(
   define: <D extends CommandHandlerDomain>(
-    input: { id: string; domain: D; build: (context: CommandDomainDeps[D]) => CommandHandler }
+    input: {
+      id: string;
+      domain: D;
+      needs: readonly (keyof CommandDomainDeps[D])[];
+      build: (context: CommandDomainDeps[D]) => CommandHandler;
+    }
       & Partial<Pick<CommandHandlerDescriptor<D>, "scope" | "access" | "help" | "autocomplete">>
   ) => CommandHandlerDescriptor<D>
 ): readonly AnyCommandHandlerDescriptor[] {
   return [
-    define({ id: "template-preview", domain: "notifications", help: ["template preview", "notification preview"], build: context => attachTemplatePreviewHandler.buildCommandHandler(context) }),
-    define({ id: "dlc", domain: "notifications", help: ["dlc"], build: context => attachDlcInteractionHandler.buildCommandHandler(context) }),
-    define({ id: "price-alert", domain: "notifications", help: ["price-alert"], build: context => attachPriceAlertInteractionHandler.buildCommandHandler(context) }),
-    define({ id: "future-release", domain: "notifications", help: ["future-release"], build: context => attachFutureReleaseInteractionHandler.buildCommandHandler(context) }),
-    define({ id: "youtube", domain: "youtube", help: ["youtube"], build: context => attachYouTubeInteractionHandler.buildCommandHandler(context) }),
-    define({ id: "subscription", domain: "notifications", help: ["start", "stop"], build: context => attachSubscriptionNotificationHandlers.buildCommandHandler(context) }),
+    define({ id: "template-preview", needs: TEMPLATE_PREVIEW_HANDLER_KEYS, domain: "notifications", help: ["template preview", "notification preview"], build: context => attachTemplatePreviewHandler.buildCommandHandler(context) }),
+    define({ id: "dlc", needs: DLC_HANDLER_KEYS, domain: "notifications", help: ["dlc"], build: context => attachDlcInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "price-alert", needs: PRICE_ALERT_HANDLER_KEYS, domain: "notifications", help: ["price-alert"], build: context => attachPriceAlertInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "future-release", needs: FUTURE_RELEASE_HANDLER_KEYS, domain: "notifications", help: ["future-release"], build: context => attachFutureReleaseInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "youtube", needs: YOUTUBE_HANDLER_KEYS, domain: "youtube", help: ["youtube"], build: context => attachYouTubeInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "subscription", needs: SUBSCRIPTION_HANDLER_KEYS, domain: "notifications", help: ["start", "stop"], build: context => attachSubscriptionNotificationHandlers.buildCommandHandler(context) }),
   ];
 }
