@@ -1,37 +1,51 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import fs from "node:fs";
-import path from "node:path";
-
 import { MONGO_PORT_NAMES } from "../../infra/mongo/mongoPorts.js";
 import { createMongoPorts } from "../../infra/mongo/mongoPortAdapters.js";
 import type { MongoPorts } from "../../infra/mongo/mongoPorts.js";
 
-const srcRoot = process.cwd();
+import {
+  loadModule,
+  calls,
+  declaresType,
+  exportedFunctionNames,
+  exportedTypeNames,
+  identifierNames,
+  importedModules,
+  typeReferenceTexts
+} from "./sourceStructureQueries.js";
 
-function read(relative: string): string {
-  return fs.readFileSync(path.join(srcRoot, relative), "utf8");
-}
+const ports = loadModule("infra", "mongo", "mongoPorts.ts");
+const adapters = loadModule("infra", "mongo", "mongoPortAdapters.ts");
+const housekeeping = loadModule("app", "scheduler", "housekeeping.ts");
 
 function asContext(stub: Record<string, unknown>): Record<string, unknown> & Parameters<typeof createMongoPorts>[0] {
   return stub as Record<string, unknown> & Parameters<typeof createMongoPorts>[0];
 }
 
 test("porturile Mongo sunt interfete independente, nu felii din tipul concret", () => {
-  const ports = read("infra/mongo/mongoPorts.ts");
   assert.ok(
-    !ports.includes("MongoContextExports") && !ports.includes("mongoContext.js"),
+    !identifierNames(ports).has("MongoContextExports"),
     "un port taiat din contextul concret nu inverseaza nimic: ramane acelasi tip, doar mai ingust"
   );
-  assert.ok(!/Pick</.test(ports), "porturile isi descriu propriile operatii");
+  assert.ok(
+    !importedModules(ports).some(module => module.includes("mongoContext")),
+    "portul nu importa contextul concret pe care ar trebui sa il inverseze"
+  );
+  assert.ok(
+    !typeReferenceTexts(ports).some(text => text.startsWith("Pick<")),
+    "porturile isi descriu propriile operatii, nu se taie dintr-un tip existent"
+  );
+  const exported = exportedTypeNames(ports);
   for (const name of MONGO_PORT_NAMES) {
-    assert.match(ports, new RegExp(`^export interface ${name} \\{`, "m"), `${name} e declarat ca interfata proprie`);
+    assert.ok(exported.includes(name), `${name} e exportat din modulul de porturi`);
+    assert.ok(declaresType(ports, name), `${name} e declarat ca interfata proprie`);
   }
 });
 
 test("adaptoarele concrete traiesc in infrastructura si produc valori, nu doar tipuri", () => {
-  const adapters = read("infra/mongo/mongoPortAdapters.ts");
+  const exported = exportedFunctionNames(adapters);
   for (const factory of [
     "createGuildConfigStore",
     "createNotificationStore",
@@ -40,7 +54,7 @@ test("adaptoarele concrete traiesc in infrastructura si produc valori, nu doar t
     "createOperationStore",
     "createMongoPorts"
   ]) {
-    assert.match(adapters, new RegExp(`export function ${factory}\\(`), `${factory} exista ca adaptor concret`);
+    assert.ok(exported.includes(factory), `${factory} exista ca adaptor concret, exportat ca valoare`);
   }
 });
 
@@ -84,16 +98,21 @@ test("un model lipsa nu darama portul, ci da o colectie inerta", async () => {
 });
 
 test("porturile au consumatori reali, nu raman doar declarate", () => {
-  const housekeeping = read("app/scheduler/housekeeping.ts");
-  assert.match(housekeeping, /GuildConfigStore/, "curatarea periodica cere portul, nu functii libere");
-  assert.match(housekeeping, /guildConfig\.sweepExpired\(\)/);
-  assert.match(housekeeping, /DealsSourcePort/);
-  assert.match(housekeeping, /deals\.sweepEnrichedCache\(\)/);
+  const referenced = typeReferenceTexts(housekeeping);
+  assert.ok(
+    referenced.some(text => text.includes("GuildConfigStore")),
+    "curatarea periodica cere portul de configurare, nu functii libere"
+  );
+  assert.ok(referenced.some(text => text.includes("DealsSourcePort")), "curatarea periodica cere si portul de surse");
+  const invoked = calls(housekeeping).map(call => call.callee);
+  assert.ok(invoked.includes("guildConfig.sweepExpired"), "portul de configurare e chiar apelat");
+  assert.ok(invoked.includes("deals.sweepEnrichedCache"), "portul de surse e chiar apelat");
 });
 
 test("lista de porturi si interfetele exportate raman aliniate", () => {
-  const ports = read("infra/mongo/mongoPorts.ts");
-  const exported = [...ports.matchAll(/^export interface (\w+Store) \{/gm)].map(match => match[1]).sort();
+  const exported = exportedTypeNames(ports)
+    .filter(name => name.endsWith("Store"))
+    .sort();
   assert.deepEqual(
     exported,
     [...MONGO_PORT_NAMES].sort(),
