@@ -1,15 +1,11 @@
 "use strict";
 
 import { createGuildDomainSliceStore } from "../../shared/guildDomainSliceStore.js";
+import { MODERATION_FIELDS } from "../../shared/guildModerationFields.js";
 
 import type { ModerationGuildModel } from "./moderationRepository.js";
 
-export const MODERATION_FIELDS = [
-  "moderationTimeouts",
-  "moderationMutes",
-  "moderationWarnings",
-  "moderationWarnBanLimit"
-] as const;
+export { MODERATION_FIELDS };
 
 export function createModerationStore(
   guildModel: ModerationGuildModel,

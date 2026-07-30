@@ -47,6 +47,7 @@ import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from 
 import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSettingsInvalidationChannel.js";
 import { createThreatEngineMonitor } from "../features/command-security/threatEngineMonitor.js";
 import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
+import { createModerationStore } from "../features/moderation/moderationStore.js";
 import { roleRunsInteractions, roleRunsSchedulers } from "../shared/botRole.js";
 import { createGatewayFeatureRuntimes, createInactiveGatewayFeatureRuntimes } from "./runtime/gatewayFeatureRuntimes.js";
 import { createIdleSchedulerFeatureTasks, createSchedulerFeatureTasks } from "./runtime/schedulerFeatureTasks.js";
@@ -141,7 +142,15 @@ function composeGatewayFeatures(deps: AppRuntimeDeps, services: RuntimeServices)
 }
 
 function composeModerationLifecycle(deps: AppRuntimeDeps): ModerationLifecycle | undefined {
-  return deps.mongo.GuildModel ? createModerationLifecycleRuntime(deps.mongo.GuildModel, deps.mongo.logger) : undefined;
+  const guildModel = deps.mongo.GuildModel;
+  if (!guildModel) return undefined;
+  const moderationModel = deps.mongo.GuildModerationModel;
+  const store = moderationModel
+    ? createModerationStore(guildModel, moderationModel, guildId => {
+      deps.mongo.logger("INFO", "MODERATION_STORE", "Starea de moderare a fost mutata in colectia dedicata", { guildId });
+    })
+    : guildModel;
+  return createModerationLifecycleRuntime(store, deps.mongo.logger);
 }
 
 function composeSchedulerTasks(

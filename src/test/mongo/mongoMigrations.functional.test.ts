@@ -1,4 +1,5 @@
 import test from "node:test";
+import { ALL_MIGRATIONS as REGISTRY_MIGRATIONS } from "../../infra/mongo/migrations/registry.js";
 import assert from "node:assert/strict";
 import attachMigrations from "../../infra/mongo/migrations.js";
 
@@ -15,6 +16,8 @@ interface GuildDoc {
   suggestedCommands?: Array<Record<string, unknown>>;
   youtubeErrors?: Array<Record<string, unknown>>;
   notificationDeadLetter?: Array<Record<string, unknown>>;
+  moderationWarnBanLimit?: number;
+  moderationTimeouts?: Array<Record<string, unknown>>;
 }
 
 type MigrationStateDoc = {
@@ -53,6 +56,8 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
   const releaseCalls: Array<{ name: string; token: string }> = [];
   const guilds: GuildDoc[] = [{
     _id: "guild-1",
+    moderationWarnBanLimit: 3,
+    moderationTimeouts: [{ userId: "u9", appliedAt: new Date("2025-05-01T00:00:00.000Z") }],
     seenDiscounts: Array.from({ length: 520 }, (_, index) => `deal-${index}`),
     seen: { cs2: ["u-1", "u-2"], dota: ["u-3"] },
     botAuditLog: [{ userId: "u1", command: "/set mode", result: "Access granted.", serverId: "guild-1", at: new Date("2025-01-01T00:00:00.000Z") }],
@@ -132,6 +137,21 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
         };
       }
       if (filter && "$or" in filter) {
+        const clauses = Array.isArray(filter.$or) ? (filter.$or as Array<Record<string, unknown>>) : [];
+        const clauseFields = clauses.flatMap(clause => Object.keys(clause));
+        if (clauseFields.some(field => field.startsWith("moderation"))) {
+          const matching = guilds.filter(guild => guild.moderationWarnBanLimit !== undefined || Array.isArray(guild.moderationTimeouts));
+          return {
+            async toArray() {
+              return matching.map(guild => ({ _id: guild._id, moderationWarnBanLimit: guild.moderationWarnBanLimit, moderationTimeouts: guild.moderationTimeouts }));
+            },
+            async *[Symbol.asyncIterator]() {
+              for (const guild of matching) {
+                yield { _id: guild._id, moderationWarnBanLimit: guild.moderationWarnBanLimit, moderationTimeouts: guild.moderationTimeouts };
+              }
+            }
+          };
+        }
         const matching = guilds.filter(guild => Array.isArray(guild.botAuditLog) || Array.isArray(guild.serverAuditLog));
         return {
           async toArray() { return matching.map(guild => ({ _id: guild._id, botAuditLog: guild.botAuditLog, serverAuditLog: guild.serverAuditLog })); },
@@ -221,6 +241,13 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       return { upsertedCount: ops.length };
     }
   };
+  const moderationUpdates: Array<{ filter: Record<string, unknown>; update: Record<string, unknown> }> = [];
+  const guildModerationCollection = {
+    async updateOne(filter: Record<string, unknown>, update: Record<string, unknown>) {
+      moderationUpdates.push({ filter, update });
+      return { matchedCount: 1, modifiedCount: 1, upsertedCount: 0 };
+    }
+  };
   const deadLetterBulkOps: unknown[] = [];
   const guildDeadLetterCollection = {
     async bulkWrite(ops: unknown[]) {
@@ -241,6 +268,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       if (name === "guildSuggestedCommands") return fakeCollection(guildSuggestedCommandCollection);
       if (name === "guildYoutubeErrors") return fakeCollection(guildYoutubeErrorCollection);
       if (name === "guildDeadLetters") return fakeCollection(guildDeadLetterCollection);
+      if (name === "guildModeration") return fakeCollection(guildModerationCollection);
       if (name === "notificationOutbox") return fakeCollection([]);
       throw new Error(`Unexpected collection ${name}`);
     }
@@ -260,8 +288,11 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     throw new Error("attachMigrations trebuie sa ataseze runMigrations + ALL_MIGRATIONS");
   }
   const runtime = Object.assign(context, { runMigrations, ALL_MIGRATIONS });
-  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps, auditBulkOps, backupBulkOps, suggestedBulkOps, youtubeErrorBulkOps, deadLetterBulkOps };
+  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps, auditBulkOps, backupBulkOps, suggestedBulkOps, youtubeErrorBulkOps, deadLetterBulkOps, moderationUpdates };
 }
+
+const ALL_MIGRATION_IDS = REGISTRY_MIGRATIONS.map(migration => migration.id);
+const LAST_MIGRATION_ID = ALL_MIGRATION_IDS[ALL_MIGRATION_IDS.length - 1];
 
 test("Mongo migrations apply pending migrations and release the lock", async () => {
   const fixture = createFakeMigrationContext();
@@ -271,7 +302,7 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
     logs.push({ level, context, message });
   });
 
-  assert.deepEqual(result.applied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+  assert.deepEqual(result.applied, ALL_MIGRATION_IDS, "se aplica exact migrarile din registru, in ordinea lor");
   assert.equal(result.skipped, 0);
   assert.equal(fixture.updateManyCalls.length, 5, "m1-m4 + m7 folosesc updateMany; m5 si m6 folosesc find + bulkWrite");
   const m4Call = fixture.updateManyCalls[3];
@@ -326,7 +357,7 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   assert.equal(deadLetterOp.updateOne.filter.dedupeKey, "dk1");
   assert.equal(deadLetterOp.updateOne.upsert, true, "backfill-ul e idempotent (upsert pe continutul intrarii)");
   assert.equal(fixture.guilds[0].notificationDeadLetter, undefined, "m12 curata campul notificationDeadLetter de pe documentul guild");
-  assert.equal(fixture.migrationState?.lastApplied, 13);
+  assert.equal(fixture.migrationState?.lastApplied, LAST_MIGRATION_ID, "starea retine ultima migrare din registru");
   assert.equal(fixture.releaseCalls.length, 1);
   assert.deepEqual(fixture.releaseCalls[0], { name: "db_migrations", token: "migration-lock-token" });
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#8")));
@@ -334,12 +365,14 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#10")));
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#11")));
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#12")));
+  assert.equal(fixture.moderationUpdates.length, 1, "m14 muta felia de moderare in colectia dedicata");
+  assert.equal(fixture.guilds[0].moderationWarnBanLimit, undefined, "m14 scoate campurile de moderare de pe documentul guild");
 });
 
 test("alta instanta tine lock-ul dar schema e deja sincronizata -> asteapta, continua boot-ul fara throw", async () => {
   const fixture = createFakeMigrationContext({
     acquireDbLock: async () => null,
-    initialMigrationState: { _id: "migrationState", lastApplied: 13 }
+    initialMigrationState: { _id: "migrationState", lastApplied: LAST_MIGRATION_ID }
   });
   let slept = 0;
 
@@ -352,7 +385,7 @@ test("alta instanta tine lock-ul dar schema e deja sincronizata -> asteapta, con
   assert.deepEqual(result.applied, []);
   assert.equal(result.skipped, fixture.context.ALL_MIGRATIONS.length);
   assert.equal(result.waited, true, "marcheaza ca a asteptat sincronizarea altei instante");
-  assert.equal(slept, 0, "schema deja la zi (lastApplied=12) -> intoarce la prima verificare, fara sa doarma");
+  assert.equal(slept, 0, `schema deja la zi (lastApplied=${LAST_MIGRATION_ID}) -> intoarce la prima verificare, fara sa doarma`);
   assert.equal(fixture.releaseCalls.length, 0, "nu a tinut niciun lock");
 });
 
@@ -370,8 +403,8 @@ test("alta instanta tine lock-ul si nu termina in timeout -> fail-fast (throw)",
       waitTimeoutMs: 1_000,
       pollIntervalMs: 100
     }),
-    /Timeout.*migrarile.*lastApplied=3 < 13.*fail-fast/s,
-    "schema ramane sub target (3 < 12) pana la timeout -> arunca pentru ca boot-ul sa se opreasca"
+    new RegExp(`Timeout.*migrarile.*lastApplied=3 < ${LAST_MIGRATION_ID}.*fail-fast`, "s"),
+    `schema ramane sub target (3 < ${LAST_MIGRATION_ID}) pana la timeout -> arunca pentru ca boot-ul sa se opreasca`
   );
   assert.equal(fixture.releaseCalls.length, 0);
 });
