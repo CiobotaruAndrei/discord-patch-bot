@@ -60,6 +60,10 @@ export type ModuleQuery = {
 
 const srcRoot = process.cwd();
 
+export function lineCount(query: ModuleQuery): number {
+  return query.source.getLineStarts().length;
+}
+
 export function normalize(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
