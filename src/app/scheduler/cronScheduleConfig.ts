@@ -1,4 +1,4 @@
-import type { RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { BotConfig } from "../../config/configTypes.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;

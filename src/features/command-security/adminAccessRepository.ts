@@ -1,7 +1,7 @@
 "use strict";
 
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
-import type { ServerAuditLogEntry } from "../../types.js";
+import type { ServerAuditLogEntry } from "../admin-records/adminRecordsTypes.js";
 import type { AdminCommandAccessConfig } from "./adminCommandAccessScope.js";
 import type { AdminScopeId } from "./adminScopeIds.js";
 import type { GuildAdminAccessDoc, GuildAdminAccessQuery } from "./adminGuardContracts.js";

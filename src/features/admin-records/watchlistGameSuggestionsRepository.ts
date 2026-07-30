@@ -1,6 +1,8 @@
 "use strict";
 
-import type { GuildSettings, MongoWriteOutcome, ServerAuditLogEntry, WatchlistGameSuggestionEntry } from "../../types.js";
+import type { MongoWriteOutcome } from "../../types.js";
+import type { ServerAuditLogEntry, WatchlistGameSuggestionEntry } from "./adminRecordsTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository.js";
 import { matchedDocument } from "../../shared/persistenceOutcome.js";
 

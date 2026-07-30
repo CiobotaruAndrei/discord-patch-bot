@@ -1,5 +1,5 @@
 import type { GameConfig } from "../../config/configTypes.js";
-import type { SteamReviewData } from "../../types.js";
+import type { SteamReviewData } from "../../sources/sourceTypes.js";
 import type { ReviewSnapshot } from "./reviewTrendAnalysis.js";
 
 interface ReviewTrendLeanDoc {

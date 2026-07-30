@@ -1,11 +1,6 @@
-import type {
-  GuildSettings,
-  LoggerFunction,
-  YouTubeChannelSubscription,
-  YouTubeFilters,
-  YouTubeVideo,
-  YouTubeVideoMetadata
-} from "../../types.js";
+import type { LoggerFunction } from "../../types.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { YouTubeChannelSubscription, YouTubeFilters, YouTubeVideo, YouTubeVideoMetadata } from "./youtubeTypes.js";
 import type {
   NotificationDiscordClient,
   ResolveOutboundChannelResult

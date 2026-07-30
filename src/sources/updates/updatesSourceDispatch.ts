@@ -1,4 +1,5 @@
-import type { GameConfig, NormalizedUpdate } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { NormalizedUpdate } from "../sourceTypes.js";
 import { errorMessage } from "../../shared/errors.js";
 import { applyFallbackSource } from "./updateHelpers.js";
 import { createSteamUpdates } from "./steamUpdates.js";

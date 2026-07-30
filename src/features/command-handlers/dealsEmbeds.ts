@@ -1,6 +1,6 @@
 "use strict";
 
-import type { DealInfo } from "../../types.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 import {
   DEAL_COLOR,
   WARNING_COLOR,

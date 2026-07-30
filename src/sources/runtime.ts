@@ -3,7 +3,8 @@ import * as cheerio from "cheerio";
 import Parser from "rss-parser";
 import crypto from "crypto";
 import type { CircuitBreakerStore } from "./updates/circuitBreakerStore.js";
-import type { CurrencyCode, CurrencyConfig, PriceValue, RuntimeEnv } from "../types.js";
+import type { CurrencyCode, CurrencyConfig, PriceValue } from "../types.js";
+import type { RuntimeEnv } from "../config/runtimeEnvTypes.js";
 
 export interface SourceRuntimeDeps {
   env: RuntimeEnv;

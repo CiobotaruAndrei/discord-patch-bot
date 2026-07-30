@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GameConfig } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import type { SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
 
 type StartStopFactoryDeps = Pick<

@@ -15,7 +15,7 @@ import {
   clearCommandSnooze
 } from "../../features/guild-config/guildConfigRepository.js";
 import { buildResetConfiguration } from "../../features/guild-config/guildConfigDefaults.js";
-import type { PriceAlertRule } from "../../types.js";
+import type { PriceAlertRule } from "../../features/notifications/notificationTypes.js";
 
 test("guildConfigRepository: scrierile /set (config/watchlist/snooze) pastreaza forma exacta a fiecarui operator (runda 10)", async () => {
   const calls: Array<{ filter: object; update: Record<string, unknown>; options?: Record<string, unknown> }> = [];

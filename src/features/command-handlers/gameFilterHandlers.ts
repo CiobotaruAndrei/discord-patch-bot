@@ -7,7 +7,9 @@ import type {
   SubcommandOption
 } from "./discordInteractionPorts.js";
 import { addWatchlistGame, applyGuildConfigUpdate, removeWatchlistGame } from "../guild-config/guildConfigRepository.js";
-import type { DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome } from "../../types.js";
+import type { DiscordReplyPayload, MongoWriteOutcome } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 

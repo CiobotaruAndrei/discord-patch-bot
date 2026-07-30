@@ -8,7 +8,8 @@ const noopDiscordClient = makeNotificationDiscordClient();
 import { createUpdateNotificationService } from "../../features/notifications/updateNotificationService.js";
 import { createDiscountNotificationService } from "../../features/notifications/discountNotificationService.js";
 import attachFetchSnapshots from "../../infra/mongo/fetchSnapshots.js";
-import type { GameConfig, ValidatedDealInfo } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { ValidatedDealInfo } from "../../sources/sourceTypes.js";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];

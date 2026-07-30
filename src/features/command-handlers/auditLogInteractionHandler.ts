@@ -6,7 +6,10 @@ import type {
   StringOption,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { BotAuditLogEntry, DiscordReplyPayload, GameConfig, GuildSettings, ServerAuditLogEntry } from "../../types.js";
+import type { DiscordReplyPayload } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { BotAuditLogEntry, ServerAuditLogEntry } from "../admin-records/adminRecordsTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { clampJoinedList } from "../command-presentation/discordListLimit.js";

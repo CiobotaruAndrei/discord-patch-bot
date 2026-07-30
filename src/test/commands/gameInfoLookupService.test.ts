@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { DealInfo } from "../../types.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 import {
   PLAYER_COUNT_SNAPSHOT_FRESH_MS,
   createGameInfoLookupService,

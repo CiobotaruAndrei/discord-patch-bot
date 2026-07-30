@@ -1,6 +1,7 @@
 "use strict";
 
-import type { DealInfo, PendingDiscount, ValidatedDealInfo } from "../../types.js";
+import type { PendingDiscount } from "./notificationTypes.js";
+import type { DealInfo, ValidatedDealInfo } from "../../sources/sourceTypes.js";
 import { planNotificationFailure } from "./notificationFailurePolicy.js";
 
 export interface DealsHashIndex {

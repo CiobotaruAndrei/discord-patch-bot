@@ -1,4 +1,4 @@
-import type { RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 
 export const COLORS = Object.freeze({
   ERROR:    0xe74c3c,

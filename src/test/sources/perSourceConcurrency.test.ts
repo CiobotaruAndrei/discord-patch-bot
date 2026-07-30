@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as crypto from "crypto";
 import { load as cheerioLoad } from "cheerio";
-import type { GameConfig, FetchResult, NormalizedUpdate } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { FetchResult, NormalizedUpdate } from "../../sources/sourceTypes.js";
 import attachUpdates from "../../sources/updates/index.js";
 import type { UpdatesDeps } from "../../sources/updates/updatesContracts.js";
 

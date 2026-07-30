@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GameConfig } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import type { SteamAppDetailsSummary, SteamCurrentPlayersSummary } from "../../sources/sourceApis.js";
 import type { PlayerCountStats } from "../player-count/playerCountTimeAnalysis.js";
 import { playerCountDirectionLabel } from "../player-count/playerCountTimeAnalysis.js";

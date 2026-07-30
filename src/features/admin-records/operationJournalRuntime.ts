@@ -1,5 +1,6 @@
 import type { TransactionRunner } from "../../shared/transactionPort.js";
-import type { ConfigBackupRecord, CurrencyCode, ServerAuditLogEntry } from "../../types.js";
+import type { CurrencyCode } from "../../types.js";
+import type { ConfigBackupRecord, ServerAuditLogEntry } from "./adminRecordsTypes.js";
 import { createOperationJournal, type OperationJournal, type OperationJournalModelLike } from "../../infra/mongo/operationJournal.js";
 import { resetGuildConfigurationWithAudit, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 import { deleteConfigBackupWithAudit, loadConfigBackupWithAudit, saveConfigBackupRecord, type ConfigBackupModelLike } from "./configBackupRepository.js";

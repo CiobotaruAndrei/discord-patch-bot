@@ -1,6 +1,7 @@
 "use strict";
 
-import type { GuildSettings, YouTubeChannelSubscription, YouTubeFilters, YouTubeVideo, YouTubeVideoMetadata } from "../../types.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { YouTubeChannelSubscription, YouTubeFilters, YouTubeVideo, YouTubeVideoMetadata } from "./youtubeTypes.js";
 import type { PreparedVideo } from "./youtubeDeliveryPlanner.js";
 import type { MetadataResolver } from "./youtubeMetadataResolver.js";
 import { videoPassesYouTubeTitleFilter } from "./youtubeDeliveryPolicy.js";

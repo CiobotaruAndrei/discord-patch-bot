@@ -1,5 +1,6 @@
 import type { AxiosStatic } from "axios";
-import type { LoggerFunction, RuntimeEnv } from "../../types.js";
+import type { LoggerFunction } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import { errorMessage } from "../../shared/errors.js";
 import { buildAdminAlertEmbed, toAdminAlertChannelPayload, toAdminAlertWebhookPayload } from "./adminAlertContent.js";
 import type { AdminAlertEmbedPayload } from "./adminAlertContent.js";

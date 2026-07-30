@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { DealInfo, GuildSettings, PriceValue } from "../../types.js";
+import type { PriceValue } from "../../types.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 
 import installDealScore from "../../features/command-handlers/dealScoreInteractionHandler.js";
 import type { DealPricePoint } from "../../features/game-info/dealPriceHistoryService.js";

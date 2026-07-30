@@ -1,6 +1,7 @@
 import { requestOptionsFor } from "../sourcePolicies.js";
 import type { CheerioAPI } from "cheerio";
-import type { GameConfig, NormalizedUpdate, PatchUpdate } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { NormalizedUpdate, PatchUpdate } from "../sourceTypes.js";
 import { extractAndRankListingCandidates } from "../../native/fuzzy.js";
 import type { ListingAnchorInput } from "../../native/fuzzy.js";
 import { errorMessage } from "../../shared/errors.js";

@@ -1,4 +1,4 @@
-import type { RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { BotMetrics } from "./metricsTypes.js";
 import type { RateLimitBucket, RateLimiter, RateLimitRequest } from "./rateLimitTypes.js";
 

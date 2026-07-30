@@ -1,4 +1,6 @@
-import type { BotRole, GameConfig, RuntimeEnv } from "../../types.js";
+import type { BotRole } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { BotMetrics } from "../health/metricsTypes.js";
 import type { LifecycleDiscordChannel, LifecycleDiscordDeletedChannel, LifecycleDiscordGuild, LifecycleDiscordGuildMember, LifecycleDiscordInteraction, LifecycleDiscordMessage, LifecycleDiscordRole, LifecycleEventClient } from "./lifecycleContracts.js";
 import { createGuildOnboarding } from "./guildOnboarding.js";

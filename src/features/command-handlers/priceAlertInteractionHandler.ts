@@ -6,7 +6,10 @@ import type {
   StringOption,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { CurrencyCode, DiscordReplyPayload, GameConfig, GuildSettings, MongoWriteOutcome, PriceAlertRule } from "../../types.js";
+import type { CurrencyCode, DiscordReplyPayload, MongoWriteOutcome } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { PriceAlertRule } from "../notifications/notificationTypes.js";
 import {
   MAX_PRICE_ALERTS_PER_GUILD,
   PRICE_ALERT_MAX_THRESHOLD,

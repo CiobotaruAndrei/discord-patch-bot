@@ -7,7 +7,8 @@ import type {
   PartialInteractionUserRef,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { CurrencyCode, DiscordReplyPayload, GameConfig } from "../../types.js";
+import type { CurrencyCode, DiscordReplyPayload } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { buildResetConfiguration } from "../guild-config/guildConfigDefaults.js";

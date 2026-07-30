@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { buildDealsHashIndex, planDiscountFailure, planPendingDiscounts } from "../../features/notifications/discountNotificationPlanner.js";
-import type { DealInfo, PendingDiscount, ValidatedDealInfo } from "../../types.js";
+import type { PendingDiscount } from "../../features/notifications/notificationTypes.js";
+import type { DealInfo, ValidatedDealInfo } from "../../sources/sourceTypes.js";
 import { makeDealInfo } from "../typedTestBuilders.js";
 
 const NOW = new Date("2026-07-05T10:00:00.000Z");

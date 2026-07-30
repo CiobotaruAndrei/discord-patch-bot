@@ -2,7 +2,8 @@ import { createUpdateNotificationService } from "../features/notifications/updat
 import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities.js";
 import type { GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository.js";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService.js";
-import type { GameConfig, DealInfo, ValidatedDealInfo } from "../types.js";
+import type { GameConfig } from "../config/configTypes.js";
+import type { DealInfo, ValidatedDealInfo } from "../sources/sourceTypes.js";
 import { makeNotificationDiscordClient } from "./typedTestBuilders.js";
 
 export type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];

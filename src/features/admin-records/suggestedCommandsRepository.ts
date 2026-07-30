@@ -1,6 +1,7 @@
 "use strict";
 
-import type { MongoWriteOutcome, ServerAuditLogEntry, SuggestedCommandEntry } from "../../types.js";
+import type { MongoWriteOutcome } from "../../types.js";
+import type { ServerAuditLogEntry, SuggestedCommandEntry } from "./adminRecordsTypes.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "./auditLogRepository.js";
 import { createdDocument } from "../../shared/persistenceOutcome.js";
 

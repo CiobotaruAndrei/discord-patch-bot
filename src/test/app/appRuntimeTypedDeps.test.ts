@@ -7,7 +7,11 @@ import type { CreateOutboxWorkerDeps, OutboxWorker } from "../../app/scheduler/o
 import type { CreateHttpServerDeps } from "../../app/health/httpServer.js";
 import type { RegisterDiscordEventsDeps, RegisterMongoEventsDeps } from "../../app/lifecycle/events.js";
 import type { CreateShutdownControllerDeps, ShutdownController } from "../../app/lifecycle/shutdown.js";
-import type { BotMetrics, ConfigLoadResult, CronController, RateLimiter, RuntimeEnv } from "../../types.js";
+import type { BotMetrics } from "../../app/health/metricsTypes.js";
+import type { RateLimiter } from "../../app/health/rateLimitTypes.js";
+import type { CronController } from "../../app/scheduler/schedulerTypes.js";
+import type { ConfigLoadResult } from "../../config/configTypes.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 
 type Expect<T extends true> = T;
 type NotLooseRecord<T> = Record<string, unknown> extends T ? false : true;

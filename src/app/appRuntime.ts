@@ -1,21 +1,14 @@
 "use strict";
 
 import { createMetricRecorders } from "./health/metricRecorders.js";
-import type {
-  ActiveLocks,
-  BotConfig,
-  BotMetrics,
-  BotRole,
-  CommandCacheSizes,
-  ConfigLoadResult,
-  DealInfo,
-  FetchResult,
-  CronController,
-  GameConfig,
-  LifecycleState,
-  RateLimiter,
-  RuntimeEnv
-} from "../types.js";
+import type { ActiveLocks, BotRole, LifecycleState } from "../types.js";
+import type { BotMetrics } from "./health/metricsTypes.js";
+import type { RateLimiter } from "./health/rateLimitTypes.js";
+import type { CronController } from "./scheduler/schedulerTypes.js";
+import type { BotConfig, ConfigLoadResult, GameConfig } from "../config/configTypes.js";
+import type { RuntimeEnv } from "../config/runtimeEnvTypes.js";
+import type { CommandCacheSizes } from "../features/command-cache/commandCacheTypes.js";
+import type { DealInfo, FetchResult } from "../sources/sourceTypes.js";
 import type { CreateCronControllerDeps } from "./scheduler/cron.js";
 import type { CreateHousekeepingDeps, HousekeepingController } from "./scheduler/housekeeping.js";
 import type { CreateOutboxWorkerDeps, OutboxWorker } from "./scheduler/outboxWorker.js";

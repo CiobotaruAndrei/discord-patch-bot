@@ -1,5 +1,7 @@
 import type { CheerioAPI } from "cheerio";
-import type { AbortPredicate, GameConfig, GameSourceFallback, HttpRequestOptions } from "../../types.js";
+import type { AbortPredicate } from "../../types.js";
+import type { GameConfig, GameSourceFallback } from "../../config/configTypes.js";
+import type { HttpRequestOptions } from "../httpRequestTypes.js";
 import type { ListingCandidate } from "../sourceApis.js";
 import {
   classifyPatchNote,

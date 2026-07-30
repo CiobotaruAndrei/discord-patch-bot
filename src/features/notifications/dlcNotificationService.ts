@@ -1,6 +1,7 @@
 "use strict";
 
-import type { GameConfig, MongoWriteOutcome } from "../../types.js";
+import type { MongoWriteOutcome } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
 import type { GameDlc, DlcSourceDeps, FetchGameDlcsOutcome } from "../command-handlers/dlcSourceService.js";
 import { currencyToSteamCountry } from "../command-handlers/dlcSourceService.js";

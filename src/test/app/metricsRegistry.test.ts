@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderPrometheusMetrics } from "../../app/health/metricsRegistry.js";
-import type { BotMetrics } from "../../types.js";
+import type { BotMetrics } from "../../app/health/metricsTypes.js";
 
 function makeMetrics(overrides: Partial<BotMetrics> = {}): BotMetrics {
   return {

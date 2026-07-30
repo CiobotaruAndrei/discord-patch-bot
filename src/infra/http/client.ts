@@ -2,11 +2,9 @@ import http from "http";
 import https from "https";
 import dns from "dns";
 import type { AxiosRequestConfig, AxiosResponse, AxiosStatic } from "axios";
-import type {
-  HttpRequestOptions,
-  LoggerFunction,
-  RuntimeEnv
-} from "../../types.js";
+import type { LoggerFunction } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
+import type { HttpRequestOptions } from "../../sources/httpRequestTypes.js";
 import { errorMessage } from "../../shared/errors.js";
 import {
   assertSafeExternalUrl,

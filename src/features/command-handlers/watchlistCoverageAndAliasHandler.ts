@@ -6,7 +6,9 @@ import type {
   StringOption,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { GameConfig, GuildSettings, InteractionMessage } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { InteractionMessage } from "../command-presentation/paginationTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { MAX_ALIASES_PER_GAME, MAX_TOTAL_GAME_ALIASES, aliasOwner, countTotalGameAliases, gameAliasRecord, normalizeGameAlias } from "../guild-config/gameAliasService.js";

@@ -3,7 +3,7 @@ const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as cheerio from "cheerio";
-import type { ValidatedDealInfo } from "../types.js";
+import type { ValidatedDealInfo } from "../sources/sourceTypes.js";
 
 type UtilitiesModule = typeof import("../shared/utilities.js")["default"] & {
   validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is ValidatedDealInfo;

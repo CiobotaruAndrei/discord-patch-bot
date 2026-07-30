@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { DealInfo } from "../../types.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 import { buildPriceCheckEmbed, findComparableDeals, titlesComparable } from "../../features/command-handlers/priceCheckComparison.js";
 
 import installPriceCheck from "../../features/command-handlers/priceCheckInteractionHandler.js";

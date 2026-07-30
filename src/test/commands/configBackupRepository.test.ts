@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { CurrencyRegistry, GuildSettings, RuntimeEnv } from "../../types.js";
+import type { CurrencyRegistry } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
 import {
   CONFIG_BACKUP_KEYS,
   GUILD_SETTINGS_FIELD_ROLES,

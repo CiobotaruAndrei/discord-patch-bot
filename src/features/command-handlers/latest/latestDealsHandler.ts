@@ -4,7 +4,9 @@ import type {
   InteractionGuildRef,
   InteractionUserRef
 } from "../discordInteractionPorts.js";
-import type { DealInfo, GuildSettings, InteractionMessage, ValidatedDealInfo } from "../../../types.js";
+import type { InteractionMessage } from "../../command-presentation/paginationTypes.js";
+import type { GuildSettings } from "../../guild-config/guildSettingsTypes.js";
+import type { DealInfo, ValidatedDealInfo } from "../../../sources/sourceTypes.js";
 
 import { errorMessage } from "../../../shared/errors.js";
 

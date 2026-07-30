@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import mod from "../../features/command-handlers/watchlistCoverageAndAliasHandler.js";
 import { MAX_ALIASES_PER_GAME, MAX_TOTAL_GAME_ALIASES } from "../../features/guild-config/gameAliasService.js";
-import type { GameConfig } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 
 const game: GameConfig = { key: "cs2", name: "Counter-Strike 2", type: "steam" };
 

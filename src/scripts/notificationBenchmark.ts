@@ -3,7 +3,9 @@ import { pathToFileURL as __pathToFileURL } from "node:url";
 
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService.js";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService.js";
-import type { DealInfo, GameConfig, GuildSettings, ValidatedDealInfo } from "../types.js";
+import type { GameConfig } from "../config/configTypes.js";
+import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.js";
+import type { DealInfo, ValidatedDealInfo } from "../sources/sourceTypes.js";
 
 type UpdateDeps = Parameters<typeof createUpdateNotificationService>[0];
 type DiscountDeps = Parameters<typeof createDiscountNotificationService>[0];

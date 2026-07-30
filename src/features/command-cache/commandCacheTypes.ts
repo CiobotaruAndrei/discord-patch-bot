@@ -1,6 +1,6 @@
 "use strict";
 
-import type { DealInfo, DlcCacheEntry, FetchResult, NormalizedUpdate } from "../../types.js";
+import type { DealInfo, DlcCacheEntry, FetchResult, NormalizedUpdate } from "../../sources/sourceTypes.js";
 
 export interface CacheEntry<T> {
   data: T;

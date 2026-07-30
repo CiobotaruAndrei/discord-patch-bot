@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { GuildSettings } from "../../types.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
 import { publishGuildSettingsChanged, subscribeGuildSettingsChanged } from "../../infra/mongo/guildSettingsEvents.js";
 import { publishChangedGuild } from "../../infra/mongo/models.js";
 

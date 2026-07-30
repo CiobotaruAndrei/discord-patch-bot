@@ -1,6 +1,7 @@
 "use strict";
 
-import type { DealInfo, GuildSettings } from "../../types.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 import type { SteamAppDetailsSummary } from "../../sources/sourceApis.js";
 
 import { errorMessage } from "../../shared/errors.js";

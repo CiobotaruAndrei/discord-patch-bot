@@ -1,7 +1,8 @@
 "use strict";
 
 import type { Model } from "mongoose";
-import type { PriceValue, RuntimeEnv } from "../../types.js";
+import type { PriceValue } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { SeenRepositoryDeps } from "./seenRepository.js";
 import type { UpdateNotificationServiceDeps } from "./updateNotificationService.js";
 import type { DiscountNotificationServiceDeps } from "./discountNotificationService.js";

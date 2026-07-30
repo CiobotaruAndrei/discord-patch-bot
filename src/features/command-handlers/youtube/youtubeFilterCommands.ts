@@ -1,6 +1,6 @@
 "use strict";
 
-import type { YouTubeFilters } from "../../../types.js";
+import type { YouTubeFilters } from "../../youtube/youtubeTypes.js";
 import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtubeCommandTypes.js";
 import { YOUTUBE_TITLE_WORD_LIMIT, normalizeYouTubeTitleWord } from "../../youtube/youtubeDeliveryPolicy.js";
 import {

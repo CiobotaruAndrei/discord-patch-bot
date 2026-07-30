@@ -1,6 +1,6 @@
 "use strict";
 
-import type { DealInfo } from "../../types.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 import type { DiscordChannel, SubscriptionFamily, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
 import { createSubscriptionService } from "../notifications/subscriptionService.js";
 

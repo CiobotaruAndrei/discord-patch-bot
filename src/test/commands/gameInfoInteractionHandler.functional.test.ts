@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { load } from "cheerio";
 
-import type { DealInfo } from "../../types.js";
+import type { DealInfo } from "../../sources/sourceTypes.js";
 
 import installGameInfo from "../../features/command-handlers/gameInfoInteractionHandler.js";
 

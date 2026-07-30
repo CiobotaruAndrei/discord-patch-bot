@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { YouTubeChannelSubscription, YouTubeVideo, YouTubeVideoMetadata } from "../../types.js";
+import type { YouTubeChannelSubscription, YouTubeVideo, YouTubeVideoMetadata } from "../../features/youtube/youtubeTypes.js";
 import {
   buildYouTubeEmbed,
   packYouTubeDeliveries,

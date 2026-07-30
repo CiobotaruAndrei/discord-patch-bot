@@ -7,7 +7,9 @@ import type {
 } from "./discordInteractionPorts.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
-import type { CurrencyCode, GameConfig, GuildSettings } from "../../types.js";
+import type { CurrencyCode } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import { buildConfigEmbed, type ConfigEmbed } from "./configView.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";

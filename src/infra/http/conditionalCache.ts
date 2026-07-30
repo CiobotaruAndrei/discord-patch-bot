@@ -1,4 +1,4 @@
-import type { HttpRequestOptions } from "../../types.js";
+import type { HttpRequestOptions } from "../../sources/httpRequestTypes.js";
 
 type ConditionalHttpResponse = { status?: number; data?: unknown; headers?: unknown };
 type ConditionalHttpReq = (method: string, url: string, options?: HttpRequestOptions) => Promise<ConditionalHttpResponse>;

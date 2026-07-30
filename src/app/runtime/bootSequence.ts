@@ -1,4 +1,4 @@
-import type { DealInfo, FetchResult } from "../../types.js";
+import type { DealInfo, FetchResult } from "../../sources/sourceTypes.js";
 import type { AppRuntimeDeps, DiscordClientLike, HttpServerLike } from "../appRuntimeContracts.js";
 import { runCacheHydrationPhase, runDatabaseStartupPhase, runDiscordStartupPhase, runHttpStartupPhase } from "../lifecycle/bootPhases.js";
 

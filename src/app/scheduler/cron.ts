@@ -1,4 +1,4 @@
-import type { RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { BotConfig, GameConfig } from "../../config/configTypes.js";
 import type { BotMetrics } from "../health/metricsTypes.js";
 import type { CronController } from "./schedulerTypes.js";

@@ -1,5 +1,6 @@
 import { requestOptionsFor, SOURCE_POLICIES } from "../sourcePolicies.js";
-import type { DealInfo, LoggerFunction, SteamReviewData } from "../../types.js";
+import type { LoggerFunction } from "../../types.js";
+import type { DealInfo, SteamReviewData } from "../sourceTypes.js";
 import { errorMessage } from "../../shared/errors.js";
 import type { DealCurrencyCode, HttpReq } from "./dealHelpers.js";
 import { decodeSteamFeaturedCategories, decodeSteamReviewResponse } from "../responseDecoders.js";

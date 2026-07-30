@@ -1,4 +1,4 @@
-import type { RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 
 export type MongoModelEnv = Pick<RuntimeEnv,
   | "GUILD_SEEN_DISCOUNT_TTL_DAYS"

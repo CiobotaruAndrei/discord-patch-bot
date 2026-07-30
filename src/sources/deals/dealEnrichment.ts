@@ -1,5 +1,6 @@
 import { requestOptionsFor } from "../sourcePolicies.js";
-import type { CurrencyConfig, DealInfo, LoggerFunction } from "../../types.js";
+import type { CurrencyConfig, LoggerFunction } from "../../types.js";
+import type { DealInfo } from "../sourceTypes.js";
 import { errorMessage } from "../../shared/errors.js";
 import { decodeSteamDetailsResponse } from "../responseDecoders.js";
 import type { DealCurrencyCode, HttpReq, WithInflightTimeout } from "./dealHelpers.js";

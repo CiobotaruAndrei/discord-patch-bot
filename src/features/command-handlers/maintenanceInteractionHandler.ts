@@ -3,7 +3,9 @@
 import type {
   BaseChatInputInteraction
 } from "./discordInteractionPorts.js";
-import type { ConfigBackupRecord, GameConfig, GuildConfigurationSettings, GuildOperationalSettings, GuildSettings } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { ConfigBackupRecord } from "../admin-records/adminRecordsTypes.js";
+import type { GuildConfigurationSettings, GuildOperationalSettings, GuildSettings } from "../guild-config/guildSettingsTypes.js";
 type MongoFilter = Record<string, unknown>;
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";

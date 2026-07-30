@@ -2,7 +2,7 @@ import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
 import { buildConfigSnapshot } from "../features/admin-records/configBackupRepository.js";
-import type { GuildSettings } from "../types.js";
+import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.js";
 
 export type GuildExportMode = "config" | "raw";
 

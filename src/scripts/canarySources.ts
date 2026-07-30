@@ -2,7 +2,8 @@ import { pathToFileURL as __pathToFileURL } from "node:url";
 "use strict";
 
 import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
-import type { ConfigLoadResult, FetchResult, GameConfig } from "../types.js";
+import type { ConfigLoadResult, GameConfig } from "../config/configTypes.js";
+import type { FetchResult } from "../sources/sourceTypes.js";
 
 export interface CanaryGameResult {
   key: string;

@@ -1,12 +1,5 @@
-import type {
-  CacheEntry,
-  CommandCacheSizes,
-  CommandRuntimeCache,
-  DealInfo,
-  DlcCacheEntry,
-  FetchResult,
-  NormalizedUpdate
-} from "../../types.js";
+import type { CacheEntry, CommandCacheSizes, CommandRuntimeCache } from "./commandCacheTypes.js";
+import type { DealInfo, DlcCacheEntry, FetchResult, NormalizedUpdate } from "../../sources/sourceTypes.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 

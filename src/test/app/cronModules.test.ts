@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { BotConfig, RuntimeEnv } from "../../types.js";
+import type { BotConfig } from "../../config/configTypes.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import { createCronHealthWindow } from "../../app/scheduler/cronHealthWindow.js";
 import { resolveCronScheduleConfig } from "../../app/scheduler/cronScheduleConfig.js";
 import { buildCronCycleJobs, runCronJobs, type CronCommandsForJobs } from "../../app/scheduler/cronJobRunner.js";

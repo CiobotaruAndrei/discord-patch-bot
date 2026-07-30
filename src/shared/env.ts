@@ -1,5 +1,6 @@
 import type { z as ZodNamespace } from "zod";
-import type { LoggerFunction, ParseEnvNumber, RuntimeEnv } from "../types.js";
+import type { LoggerFunction, ParseEnvNumber } from "../types.js";
+import type { RuntimeEnv } from "../config/runtimeEnvTypes.js";
 import { BOOLEAN_ENV_PATTERN, parseBooleanEnv } from "./booleanEnv.js";
 import { resolveBotRole, BOT_ROLES } from "./botRole.js";
 import { buildSourcesTuningEnv, buildCycleTuningEnv, buildCacheTuningEnv } from "./envTuning.js";

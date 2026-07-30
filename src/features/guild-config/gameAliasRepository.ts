@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GuildSettings } from "../../types.js";
+import type { GuildSettings } from "./guildSettingsTypes.js";
 import { MAX_ALIASES_PER_GAME, MAX_TOTAL_GAME_ALIASES, gameAliasRecord } from "./gameAliasService.js";
 import { updatedDocument } from "../../shared/persistenceOutcome.js";
 

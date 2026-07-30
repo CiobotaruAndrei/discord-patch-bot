@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { RuntimeEnv, ParseEnvNumberLimits } from "../../types.js";
+import type { ParseEnvNumberLimits } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 
 import { z } from "zod";
 import attachEnv from "../../shared/env.js";

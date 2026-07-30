@@ -1,4 +1,4 @@
-import type { RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import { createRuntimeLimits } from "./runtimeLimits.js";
 import { createUserCooldowns } from "./userCooldowns.js";
 import { createCommandCaches } from "./commandCaches.js";

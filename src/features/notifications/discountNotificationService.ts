@@ -1,6 +1,9 @@
 "use strict";
 
-import type { GuildSettings, DealInfo, MongoWriteOutcome, PendingDiscount, NotificationMode, ValidatedDealInfo } from "../../types.js";
+import type { MongoWriteOutcome } from "../../types.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { NotificationMode, PendingDiscount } from "./notificationTypes.js";
+import type { DealInfo, ValidatedDealInfo } from "../../sources/sourceTypes.js";
 type MongoUpdate = Record<string, unknown>;
 import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
 import type { NotificationEmbed } from "./notificationTypes.js";

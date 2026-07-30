@@ -1,4 +1,7 @@
-import type { CommandCacheSizes, GameConfig, FetchResult, DealInfo, GuildSettings } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { CommandCacheSizes } from "../command-cache/commandCacheTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { DealInfo, FetchResult } from "../../sources/sourceTypes.js";
 import type { NotificationDiscordClient, OutboxDiscordClient } from "../notifications/outboundChannel.js";
 import type { DrainOutboxWorkerResult } from "../notifications/outboxTypes.js";
 import type { SlashCommandJson } from "../command-definitions/slashDefinitionTools.js";

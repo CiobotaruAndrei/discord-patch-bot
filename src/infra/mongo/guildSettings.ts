@@ -1,4 +1,6 @@
-import type { CacheEntry, GuildSettings, RuntimeEnv } from "../../types.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
+import type { CacheEntry } from "../../features/command-cache/commandCacheTypes.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
 import { defaultBus } from "./guildSettingsEvents.js";
 import type { GuildSettingsEventBus } from "./guildSettingsEventBus.js";
 

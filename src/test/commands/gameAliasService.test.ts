@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MAX_ALIASES_PER_GAME, MAX_TOTAL_GAME_ALIASES, aliasOwner, countTotalGameAliases, gameAliasRecord, mergeGuildGameAliases, normalizeGameAlias } from "../../features/guild-config/gameAliasService.js";
-import type { GameConfig } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 
 const games: GameConfig[] = [
   { key: "cs2", name: "Counter-Strike 2", aliases: ["counter strike"], type: "steam" },

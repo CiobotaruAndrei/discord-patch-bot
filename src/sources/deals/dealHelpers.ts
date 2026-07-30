@@ -1,4 +1,6 @@
-import type { CurrencyCode, DealInfo, HttpRequestOptions } from "../../types.js";
+import type { CurrencyCode } from "../../types.js";
+import type { HttpRequestOptions } from "../httpRequestTypes.js";
+import type { DealInfo } from "../sourceTypes.js";
 import { dedupeAndRankDealsIndex } from "../../native/fuzzy.js";
 
 export type DealCurrencyCode = CurrencyCode | string | null | undefined;

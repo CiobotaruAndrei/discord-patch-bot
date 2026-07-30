@@ -5,7 +5,10 @@ import type {
   StringOption
 } from "./discordInteractionPorts.js";
 import type { CheerioAPI } from "cheerio";
-import type { DealInfo, FetchResult, GameConfig, GuildSettings, PriceValue } from "../../types.js";
+import type { PriceValue } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
+import type { DealInfo, FetchResult } from "../../sources/sourceTypes.js";
 import type { GameServerStatus } from "../command-presentation/gameStatusEmbeds.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";

@@ -5,7 +5,9 @@ import type {
   InteractionUserRef,
   SubcommandOption
 } from "../discordInteractionPorts.js";
-import type { FetchResult, EmbeddableUpdate, GameConfig, InteractionMessage } from "../../../types.js";
+import type { GameConfig } from "../../../config/configTypes.js";
+import type { InteractionMessage } from "../../command-presentation/paginationTypes.js";
+import type { EmbeddableUpdate, FetchResult } from "../../../sources/sourceTypes.js";
 
 import { errorMessage } from "../../../shared/errors.js";
 

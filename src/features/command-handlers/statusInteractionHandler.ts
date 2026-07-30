@@ -7,7 +7,9 @@ import type {
   StringOption,
   SubcommandOption
 } from "./discordInteractionPorts.js";
-import type { GameConfig, GuildSettings, InteractionMessage } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { InteractionMessage } from "../command-presentation/paginationTypes.js";
+import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { GameServerStatus } from "../command-presentation/gameStatusEmbeds.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";

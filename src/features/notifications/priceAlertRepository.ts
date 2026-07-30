@@ -1,4 +1,5 @@
-import type { GameConfig, PriceAlertRule } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { PriceAlertRule } from "./notificationTypes.js";
 import { modifiedDocuments } from "../../shared/persistenceOutcome.js";
 
 export interface PriceAlertGuildModelLike {

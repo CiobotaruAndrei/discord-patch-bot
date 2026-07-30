@@ -1,5 +1,6 @@
 import { requestOptionsFor } from "../sourcePolicies.js";
-import type { DealInfo, LoggerFunction } from "../../types.js";
+import type { LoggerFunction } from "../../types.js";
+import type { DealInfo } from "../sourceTypes.js";
 import { errorMessage } from "../../shared/errors.js";
 import type { DealCurrencyCode, HttpReq } from "./dealHelpers.js";
 import { decodeEpicGraphqlResponse } from "../responseDecoders.js";

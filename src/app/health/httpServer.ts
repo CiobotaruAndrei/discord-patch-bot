@@ -1,14 +1,11 @@
 import * as http from "http";
 import type { IncomingMessage, Server } from "http";
-import type {
-  BotMetrics,
-  CommandCacheSizes,
-  CronController,
-  CronHealthSnapshot,
-  LoggerFunction,
-  RateLimiter,
-  RuntimeEnv
-} from "../../types.js";
+import type { LoggerFunction } from "../../types.js";
+import type { BotMetrics } from "./metricsTypes.js";
+import type { RateLimiter } from "./rateLimitTypes.js";
+import type { CronController, CronHealthSnapshot } from "../scheduler/schedulerTypes.js";
+import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
+import type { CommandCacheSizes } from "../../features/command-cache/commandCacheTypes.js";
 import { renderPrometheusMetrics } from "./metricsRegistry.js";
 import { errorMessage } from "../../shared/errors.js";
 

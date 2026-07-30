@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GameConfig } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import type { SubscriptionContext, SubscriptionInteraction, SubscriptionInteractionDeps } from "./subscriptionCommandContracts.js";
 import { createStartStopHandlers } from "./startStopCommandFactory.js";

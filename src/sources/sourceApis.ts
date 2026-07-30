@@ -1,15 +1,6 @@
-import type {
-  AbortPredicate,
-  CurrencyCode,
-  DealInfo,
-  FetchDealsOptions,
-  FetchResult,
-  GameConfig,
-  GameSourceFallback,
-  NormalizedUpdate,
-  SteamReviewData,
-  SteamSearchItem
-} from "../types.js";
+import type { AbortPredicate, CurrencyCode } from "../types.js";
+import type { GameConfig, GameSourceFallback } from "../config/configTypes.js";
+import type { DealInfo, FetchDealsOptions, FetchResult, NormalizedUpdate, SteamReviewData, SteamSearchItem } from "./sourceTypes.js";
 
 export type SourceCurrencyCode = CurrencyCode | string | null | undefined;
 
