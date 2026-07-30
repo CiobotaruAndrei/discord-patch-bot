@@ -1,6 +1,8 @@
 mod autocomplete;
 mod deals;
 mod executable;
+mod executable_heuristics;
+mod executable_types;
 mod fuzzy;
 mod hashing;
 mod inspection;
@@ -13,6 +15,9 @@ mod inspection_pdf;
 mod inspection_verdict;
 mod native_archive;
 mod magic;
+mod magic_encoding;
+mod magic_mime_table;
+mod magic_signatures;
 mod msi_database;
 mod pdf_structure;
 mod listing_rank;
@@ -37,10 +42,9 @@ pub use code_disassembly::{
   code_indicators, disassemble_code, disassembly_available, DecodedInstruction, DisassemblyLimits,
   DisassemblyOutcome, DisassemblyReport,
 };
-pub use executable::{
-  analyze_executable, executable_analysis_available, locate_code_region, looks_like_executable, shannon_entropy,
-  CodeRegion, ExecutableLimits, ExecutableOutcome, ExecutableReport, ExecutableSection,
-};
+pub use executable::{analyze_executable, executable_analysis_available, locate_code_region};
+pub use executable_heuristics::{analysis_blind_spots, looks_like_executable, shannon_entropy};
+pub use executable_types::{CodeRegion, ExecutableLimits, ExecutableOutcome, ExecutableReport, ExecutableSection};
 pub use fuzzy::find_game_keys;
 pub use hashing::{deal_hash, normalize_deal_state, stable_update_id};
 pub use listing_rank::{
@@ -65,7 +69,6 @@ pub use mspack_container::{
   ContainerDecodeLimits, ContainerOutcome, ContainerReport, DecodedEntry,
 };
 pub use document_text::{extract_pdf_text, find_url_hosts, DocumentTextLimits};
-pub use executable::analysis_blind_spots;
 pub use inspection::{container_signature, uninspectable_format};
 pub use inspection::inspect_untrusted_content;
 pub use inspection_budgets::InspectionLimits;
