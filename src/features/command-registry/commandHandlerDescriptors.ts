@@ -1,7 +1,7 @@
 import type { CommandHandler } from "./commandHandler.js";
 import type { CommandAppServices } from "./commandRegistry.js";
 import type { CommandDomainDeps } from "./commandDomainDeps.js";
-import { selectDomainDeps } from "./commandDomainSelection.js";
+import { selectHandlerDeps } from "./commandDomainSelection.js";
 import { coreDescriptors } from "./descriptors/coreDescriptors.js";
 import { adminDescriptors } from "./descriptors/adminDescriptors.js";
 import { notificationsDescriptors } from "./descriptors/notificationsDescriptors.js";
@@ -17,6 +17,7 @@ export interface CommandHandlerDescriptor<D extends CommandHandlerDomain = Comma
   access: "public" | "admin" | "owner" | "mixed";
   help: readonly string[];
   autocomplete: readonly string[];
+  needs: readonly (keyof CommandDomainDeps[D])[];
   build(context: CommandDomainDeps[D]): CommandHandler;
   buildFrom(context: CommandDomainDeps[D]): CommandHandler;
 }
@@ -27,7 +28,12 @@ export type AnyCommandHandlerDescriptor = {
 
 export function createCommandHandlerDescriptors(): readonly AnyCommandHandlerDescriptor[] {
   function define<D extends CommandHandlerDomain>(
-    input: { id: string; domain: D; build: (context: CommandDomainDeps[D]) => CommandHandler }
+    input: {
+      id: string;
+      domain: D;
+      needs: readonly (keyof CommandDomainDeps[D])[];
+      build: (context: CommandDomainDeps[D]) => CommandHandler;
+    }
       & Partial<Pick<CommandHandlerDescriptor<D>, "scope" | "access" | "help" | "autocomplete">>
   ): CommandHandlerDescriptor<D> {
     return {
@@ -36,7 +42,7 @@ export function createCommandHandlerDescriptors(): readonly AnyCommandHandlerDes
       help: [input.id],
       autocomplete: [],
       ...input,
-      buildFrom: (context: CommandDomainDeps[D]) => input.build(selectDomainDeps(input.domain, context))
+      buildFrom: (context: CommandDomainDeps[D]) => input.build(selectHandlerDeps(context, input.needs))
     };
   }
   const descriptors: readonly AnyCommandHandlerDescriptor[] = [

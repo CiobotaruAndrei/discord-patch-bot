@@ -1,15 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import fs from "node:fs";
-import path from "node:path";
-
 import { COMMAND_DOMAIN_KEYS, DOMAIN_KEY_COVERAGE } from "../../features/command-registry/commandDomainKeys.js";
-import { selectDomainDeps } from "../../features/command-registry/commandDomainSelection.js";
+import { HANDLER_KEY_COVERAGE } from "../../features/command-registry/commandHandlerKeys.js";
+import { selectDomainDeps, selectHandlerDeps } from "../../features/command-registry/commandDomainSelection.js";
 import { createCommandHandlerDescriptors } from "../../features/command-registry/commandHandlerDescriptors.js";
 import type { CommandDomainDeps } from "../../features/command-registry/commandDomainDeps.js";
 
-const srcRoot = process.cwd();
+import { loadModule, calls } from "./sourceStructureQueries.js";
 
 function asDomainDeps<D extends keyof CommandDomainDeps>(stub: Record<string, unknown>): Record<string, unknown> & CommandDomainDeps[D] {
   return stub as Record<string, unknown> & CommandDomainDeps[D];
@@ -22,6 +20,14 @@ function fields(value: object): Record<string, unknown> {
 test("listele de chei acopera complet fiecare domeniu, verificat de compilator", () => {
   assert.equal(DOMAIN_KEY_COVERAGE.length, Object.keys(COMMAND_DOMAIN_KEYS).length);
   assert.ok(DOMAIN_KEY_COVERAGE.every(entry => entry === true), "o cheie noua in deps fara intrare in lista rupe compilarea");
+});
+
+test("fiecare handler are lista lui de chei, verificata tot de compilator", () => {
+  assert.ok(HANDLER_KEY_COVERAGE.length > 0, "listele per handler exista");
+  assert.ok(
+    HANDLER_KEY_COVERAGE.every(entry => entry === true),
+    "o dependinta noua intr-un handler, fara intrare in lista lui, rupe compilarea si o numeste"
+  );
 });
 
 test("selectia da doar cheile domeniului, nu tot contextul", () => {
@@ -38,39 +44,79 @@ test("selectia da doar cheile domeniului, nu tot contextul", () => {
   assert.ok(!("GuildModel" in fields(selected)), "un handler de routing nu mai poate ajunge la modelul de guild");
 });
 
+test("selectia per handler da strict mai putin decat domeniul", () => {
+  const context = asDomainDeps<"admin">({
+    ...Object.fromEntries(COMMAND_DOMAIN_KEYS.admin.map(key => [String(key), () => undefined]))
+  });
+  const descriptors = createCommandHandlerDescriptors();
+  const botAdd = descriptors.find(descriptor => descriptor.id === "bot-add" && descriptor.domain === "admin");
+  assert.ok(botAdd, "descriptorul bot-add exista");
+  const needs = botAdd.domain === "admin" ? botAdd.needs : [];
+
+  const selected = selectHandlerDeps<"admin">(context, needs);
+  const selectedKeys = Object.keys(fields(selected));
+  assert.deepEqual(
+    selectedKeys.sort(),
+    needs.map(String).sort(),
+    "handler-ul primeste exact ce a declarat, nu domeniul intreg"
+  );
+  assert.ok(
+    selectedKeys.length < COMMAND_DOMAIN_KEYS.admin.length,
+    `bot-add cere ${selectedKeys.length} chei dintr-un domeniu de ${COMMAND_DOMAIN_KEYS.admin.length}; ` +
+      "daca ar primi tot domeniul, selectorul nu ar spune nimic"
+  );
+});
+
 test("selectia nu inventeaza chei care lipsesc din context", () => {
-  const selected = selectDomainDeps("routing", asDomainDeps<"routing">({}));
+  const selected = selectHandlerDeps<"routing">(asDomainDeps<"routing">({}), COMMAND_DOMAIN_KEYS.routing);
   assert.deepEqual(Object.keys(fields(selected)), []);
 });
 
-test("fiecare descriptor primeste contextul prin propria selectie, nu direct", () => {
-  const registry = fs.readFileSync(path.join(srcRoot, "features", "command-registry", "commandRegistry.ts"), "utf8");
-  assert.match(registry, /descriptor\.buildFrom\(ctx\)/, "registrul apeleaza pasul de selectie al descriptorului");
+test("fiecare descriptor isi declara propriile chei si construieste prin ele", () => {
+  const registry = loadModule("features", "command-registry", "commandRegistry.ts");
+  const invoked = calls(registry).map(call => call.callee);
+  assert.ok(invoked.includes("descriptor.buildFrom"), "registrul apeleaza pasul de selectie al descriptorului");
   assert.ok(
-    !/descriptor\.build\(ctx\)/.test(registry),
+    !invoked.includes("descriptor.build"),
     "trimiterea contextului complet direct catre build era exact service locator-ul mascat"
   );
 
-  const descriptors = fs.readFileSync(path.join(srcRoot, "features", "command-registry", "commandHandlerDescriptors.ts"), "utf8");
-  assert.match(descriptors, /buildFrom: \(context: CommandDomainDeps\[D\]\) => input\.build\(selectDomainDeps\(input\.domain, context\)\)/);
+  const descriptors = loadModule("features", "command-registry", "commandHandlerDescriptors.ts");
+  const narrowing = calls(descriptors).find(call => call.callee === "input.build");
+  assert.ok(narrowing, "descriptorul construieste handler-ul prin build");
+  assert.deepEqual(
+    narrowing?.args,
+    ["selectHandlerDeps(context, input.needs)"],
+    "ingustarea se face cu lista handler-ului, nu cu cea a domeniului"
+  );
 });
 
-test("toate descriptoarele expun pasul de selectie", () => {
+test("toate descriptoarele declara o lista de chei nevida si coerenta cu domeniul", () => {
   const descriptors = createCommandHandlerDescriptors();
   assert.ok(descriptors.length > 0);
   for (const descriptor of descriptors) {
     assert.equal(typeof descriptor.buildFrom, "function", `${descriptor.id} nu are pas de selectie`);
     assert.ok(descriptor.domain in COMMAND_DOMAIN_KEYS, `${descriptor.id} declara un domeniu fara lista de chei`);
+    assert.ok(descriptor.needs.length > 0, `${descriptor.id} nu declara nicio dependinta; un handler fara deps e suspect`);
+    const domainKeys = new Set(COMMAND_DOMAIN_KEYS[descriptor.domain].map(String));
+    const outside = descriptor.needs.map(String).filter(key => !domainKeys.has(key));
+    assert.deepEqual(outside, [], `${descriptor.id} cere chei din afara domeniului lui: ${outside.join(", ")}`);
   }
+});
+
+test("suma cheilor cerute de handlere e mult sub suma domeniilor repetate", () => {
+  const descriptors = createCommandHandlerDescriptors();
+  const perHandler = descriptors.reduce((total, descriptor) => total + descriptor.needs.length, 0);
+  const perDomain = descriptors.reduce((total, descriptor) => total + COMMAND_DOMAIN_KEYS[descriptor.domain].length, 0);
+  assert.ok(
+    perHandler * 2 < perDomain,
+    `handlerele cer in total ${perHandler} chei, fata de ${perDomain} daca fiecare ar primi domeniul lui; ` +
+      "diferenta e exact suprafata pe care un handler nu o mai poate atinge"
+  );
 });
 
 test("domeniile nu isi imprumuta cheile intre ele fara sa se vada", () => {
   const adminOnly = COMMAND_DOMAIN_KEYS.admin.map(String);
   const routingOnly = COMMAND_DOMAIN_KEYS.routing.map(String);
-  const shared = adminOnly.filter(key => routingOnly.includes(key));
-  assert.ok(
-    shared.length <= routingOnly.length,
-    "routing e domeniul cel mai mic; daca ar creste peste admin, gruparea pe domenii nu mai spune nimic"
-  );
   assert.ok(routingOnly.length < adminOnly.length, "routing ramane strict mai ingust decat admin");
 });

@@ -13,6 +13,19 @@ function readableContext<D extends DomainName>(context: CommandDomainDeps[D]): R
   return context as Record<string, unknown> & CommandDomainDeps[D];
 }
 
+export function selectHandlerDeps<D extends DomainName>(
+  context: CommandDomainDeps[D],
+  needs: readonly (keyof CommandDomainDeps[D])[]
+): CommandDomainDeps[D] {
+  const source = readableContext<D>(context);
+  const selected: Record<string, unknown> = {};
+  for (const key of needs) {
+    const name = String(key);
+    if (name in source) selected[name] = source[name];
+  }
+  return selected as Record<string, unknown> & CommandDomainDeps[D];
+}
+
 export function selectDomainDeps<D extends DomainName>(domain: D, context: CommandDomainDeps[D]): CommandDomainDeps[D] {
   const source = readableContext<D>(context);
   const selected: Record<string, unknown> = {};
