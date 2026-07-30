@@ -60,25 +60,56 @@ test("gate-urile migrate nu mai citesc sursa TypeScript ca text", () => {
 });
 
 test("proprietatea verificata supravietuieste reformatarii, nu doar formei actuale a codului", async () => {
-  const { loadModule, functionNames, findFunction, compositionLayers } = await import("./sourceStructureQueries.js");
-  const scratch = path.join(gatesDir, "sourceStructureReformatFixture.ts");
-  const dense = "export function compune(){const base={...intrare};const strat={...base,...modul.buildFrom(base)};return strat;}\n";
-  const spaced =
-    "export function compune()\n{\n  const base = {\n    ...intrare\n  };\n\n  const strat = {\n    ...base,\n" +
-    "    ...modul.buildFrom(base)\n  };\n\n  return strat;\n}\n";
+  const { parseModule, functionNames, findFunction, compositionLayers } = await import("./sourceStructureQueries.js");
+  const dense = "export function compune(){const base={...intrare};const strat={...base,...modul.buildFrom(base)};return strat;}";
+  const spaced = [
+    "export function compune()",
+    "{",
+    "  const base = {",
+    "    ...intrare",
+    "  };",
+    "",
+    "  const strat = {",
+    "    ...base,",
+    "    ...modul.buildFrom(base)",
+    "  };",
+    "",
+    "  return strat;",
+    "}"
+  ].join("\n");
   const shapes: string[] = [];
   for (const variant of [dense, spaced]) {
-    fs.writeFileSync(scratch, variant, "utf8");
-    try {
-      const query = loadModule("test", "gates", "sourceStructureReformatFixture.ts");
-      assert.deepEqual(functionNames(query), ["compune"], "aceeasi functie e gasita in ambele formatari");
-      assert.equal(findFunction(query, "compune")?.params.length, 0, "aceeasi semnatura in ambele formatari");
-      shapes.push(JSON.stringify(compositionLayers(query, "compune")));
-    } finally {
-      fs.rmSync(scratch, { force: true });
-    }
+    const query = parseModule("reformat-fixture.ts", variant);
+    assert.deepEqual(functionNames(query), ["compune"], "aceeasi functie e gasita in ambele formatari");
+    assert.equal(findFunction(query, "compune")?.params.length, 0, "aceeasi semnatura in ambele formatari");
+    shapes.push(JSON.stringify(compositionLayers(query, "compune")));
   }
   assert.equal(shapes[0], shapes[1], "straturile de compunere sunt identice indiferent de formatare");
+});
+
+test("niciun gate nu scrie in arborele pe care alte gate-uri il enumera", async () => {
+  const { loadModule, calls } = await import("./sourceStructureQueries.js");
+  const mutating = ["writeFileSync", "rmSync", "mkdirSync", "unlinkSync", "appendFileSync", "renameSync", "cpSync"];
+  const offenders: string[] = [];
+  for (const gate of [TOOLKIT, ...gateFiles()]) {
+    const query = loadModule("test", "gates", gate);
+    const invoked = calls(query);
+    const mutations = invoked.filter(call => mutating.includes(call.callee.split(".").pop() ?? ""));
+    if (mutations.length === 0) continue;
+    const underTempDir = invoked.some(call => {
+      const name = call.callee.split(".").pop() ?? "";
+      return name === "tmpdir" || name === "mkdtempSync";
+    });
+    if (!underTempDir) offenders.push(`${gate}: ${mutations.map(call => call.callee).join(", ")}`);
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    "runner-ul de teste ruleaza fisierele in paralel, iar mai multe gate-uri enumera test/gates; un fisier scris " +
+      "temporar in arborele scanat apare la enumerare si dispare pana la citire, deci rupe alt gate la intamplare. " +
+      "Un gate care are nevoie de fisiere reale le scrie sub os.tmpdir(); formele de cod pentru asertari se " +
+      "construiesc in memorie prin parseModule"
+  );
 });
 
 test("migrarea de la text la AST poate doar sa avanseze", () => {
