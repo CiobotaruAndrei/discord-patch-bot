@@ -1,11 +1,14 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import attachUpdates from "../../sources/updates/index.js";
+import type { UpdatesDeps } from "../../sources/updates/updatesContracts.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { NormalizedUpdate } from "../../sources/sourceTypes.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-type GameShape = { key: string; type?: string };
+type GameShape = GameConfig;
 interface FetchResultShape { game: GameShape; latest: { id: string } | null; error: string | null }
-interface NormalizedUpdateShape { id: string; title: string; [key: string]: unknown }
+type NormalizedUpdateShape = NormalizedUpdate;
 
 interface UpdatesDepsShape {
   logger: (level: string, context: string, message: string, meta?: unknown) => void;
@@ -45,11 +48,8 @@ interface UpdatesApiShape {
   [key: string]: unknown;
 }
 
-const attachUpdates = require("../../sources/updates").default as {
-  createUpdates: (deps: UpdatesDepsShape) => UpdatesApiShape;
-};
 
-function makeDeps(overrides: Partial<UpdatesDepsShape> = {}): { deps: UpdatesDepsShape; runCalls: Array<{ count: number; concurrency: number }>; conditionalUrls: string[] } {
+function makeDeps(overrides: Partial<UpdatesDepsShape> = {}): { deps: UpdatesDeps; runCalls: Array<{ count: number; concurrency: number }>; conditionalUrls: string[] } {
   const runCalls: Array<{ count: number; concurrency: number }> = [];
   const conditionalUrls: string[] = [];
   const deps: UpdatesDepsShape = {
@@ -78,13 +78,13 @@ function makeDeps(overrides: Partial<UpdatesDepsShape> = {}): { deps: UpdatesDep
       conditionalUrls.push(url);
       return parse({});
     },
-    normalizeUpdate: (data) => ({ id: String(data.id), title: String(data.title), ...data }),
+    normalizeUpdate: (data) => moduleContext<NormalizedUpdate>({ id: String(data.id), title: String(data.title), ...data }),
     cleanText: (text) => String(text == null ? "" : text).trim(),
     rssParser: { parseString: async () => ({ items: [] }) },
     stableUpdateId: (title, link) => `stable:${title}:${link}`,
     ...overrides
   };
-  return { deps, runCalls, conditionalUrls };
+  return { deps: moduleContext<UpdatesDeps>({ ...deps }), runCalls, conditionalUrls };
 }
 
 test("createUpdates: factory decuplat cu deps explicit tipate (fara target/Object.assign)", () => {
@@ -100,13 +100,13 @@ test("createUpdates helperele pure: absoluteUrl si sourceConcurrencyGroup", () =
   const api = attachUpdates.createUpdates(deps);
   assert.equal(api.absoluteUrl("https://example.com/news/", "patch-1"), "https://example.com/news/patch-1");
   assert.equal(api.absoluteUrl("https://example.com", "bad value with spaces"), "https://example.com/bad%20value%20with%20spaces");
-  assert.equal(api.sourceConcurrencyGroup({ key: "cs2", type: "steam" }), "steam");
-  assert.equal(api.sourceConcurrencyGroup({ key: "nv", type: "nvidia" }), "driver");
-  assert.equal(api.sourceConcurrencyGroup({ key: "mc", type: "minecraft" }), "other");
-  assert.equal(api.sourceConcurrencyGroup({ key: "wow", type: "rss" }), "rss");
+  assert.equal(api.sourceConcurrencyGroup({ key: "cs2", name: "cs2", type: "steam" }), "steam");
+  assert.equal(api.sourceConcurrencyGroup({ key: "nv", name: "nv", type: "nvidia" }), "driver");
+  assert.equal(api.sourceConcurrencyGroup({ key: "mc", name: "mc", type: "minecraft" }), "other");
+  assert.equal(api.sourceConcurrencyGroup({ key: "wow", name: "wow", type: "rss" }), "rss");
 });
 
-type RssGame = GameShape & { name?: string; url?: string; thumbnail?: string };
+type RssGame = GameShape;
 
 test("createUpdates.fetchGameUpdate tip 'rss' citeste feed-ul si foloseste guid ca id", async () => {
   const { deps, conditionalUrls } = makeDeps({
@@ -144,7 +144,7 @@ test("createUpdates.fetchGameUpdate tip 'rss' arunca pe feed gol sau lipsa url",
   await assert.rejects(() => fetchGameUpdate({ key: "g2", name: "G2", type: "rss" }), /nu are 'url'/);
 });
 
-type FallbackGame = RssGame & { fallbacks?: Array<{ type: string; url?: string }> };
+type FallbackGame = RssGame;
 
 test("createUpdates.applyFallbackSource suprascrie sursa pastrand identitatea jocului", () => {
   const { deps } = makeDeps();
@@ -279,12 +279,12 @@ test("createUpdates.getLatestForAllGames injecteaza executeFetchWithCircuitBreak
   });
   const api = attachUpdates.createUpdates(deps);
   const games: GameShape[] = [
-    { key: "cs2", type: "steam" },
-    { key: "fortnite", type: "epic_games" },
-    { key: "gta", type: "listing_based" },
-    { key: "nv", type: "nvidia" },
-    { key: "mc", type: "minecraft" },
-    { key: "dota", type: "steam" }
+    { key: "cs2", name: "cs2", type: "steam" },
+    { key: "fortnite", name: "fortnite", type: "epic_games" },
+    { key: "gta", name: "gta", type: "listing_based" },
+    { key: "nv", name: "nv", type: "nvidia" },
+    { key: "mc", name: "mc", type: "minecraft" },
+    { key: "dota", name: "dota", type: "steam" }
   ];
   const results = await api.getLatestForAllGames(games);
   assert.deepEqual(results.map(r => r.latest?.id), ["cs2", "fortnite", "gta", "nv", "mc", "dota"],
@@ -329,7 +329,7 @@ test("createUpdates.fetchListingBasedUpdate margineste fanout-ul pe listingUrls 
     SchemaDriftError: DriftErr
   });
   const api = attachUpdates.createUpdates(deps);
-  const fetchListing = api.fetchListingBasedUpdate as (game: Record<string, unknown>) => Promise<unknown>;
+  const fetchListing = (game: Record<string, unknown>): Promise<unknown> => api.fetchListingBasedUpdate(moduleContext<GameConfig>(game));
   await assert.rejects(() => fetchListing({
     key: "g", name: "G", type: "listing_based", baseUrl: "https://ex.com",
     listingUrls: ["https://ex.com/a", "https://ex.com/b", "https://ex.com/c"]
@@ -348,7 +348,7 @@ test("createUpdates.fetchGameUpdate include esecurile fallback-urilor in eroarea
     }
   });
   const api = attachUpdates.createUpdates(deps);
-  const fetchGameUpdate = api.fetchGameUpdate as (game: Record<string, unknown>) => Promise<unknown>;
+  const fetchGameUpdate = (game: Record<string, unknown>): Promise<unknown> => api.fetchGameUpdate(moduleContext<GameConfig>(game));
   await assert.rejects(
     () => fetchGameUpdate({ key: "g", name: "G", type: "rss", url: "https://ex/primary", fallbacks: [{ type: "rss", url: "https://ex/fb" }] }),
     (err: Error) => {
@@ -374,7 +374,7 @@ test("createUpdates: coalescing-ul inflight e per instanta, nu partajat intre in
   });
   const apiA = attachUpdates.createUpdates(depsA);
   const apiB = attachUpdates.createUpdates(depsB);
-  const games = [{ key: "cs2", type: "steam" }];
+  const games: GameConfig[] = [{ key: "cs2", name: "cs2", type: "steam" }];
   const aPromise = apiA.getLatestForAllGames(games);
   const bResults = await apiB.getLatestForAllGames(games);
   assert.equal(bCalls.length, 1, "instanta B isi ruleaza propriul fetch, nu refoloseste promisiunea inflight a instantei A");

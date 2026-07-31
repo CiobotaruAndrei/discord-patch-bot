@@ -1,5 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import attachSlashCommands from "../../features/command-definitions/slashCommandDefinitions.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -22,8 +22,7 @@ function definedCommandPaths(): Set<string> {
     SUPPORTED_CURRENCIES: { USD: {}, EUR: {}, GBP: {}, RON: {} },
     logger: () => undefined, env: {}
   };
-  const attachSlashCommands = require("../../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
-  attachSlashCommands(target);
+  attachSlashCommands(moduleContext<Parameters<typeof attachSlashCommands>[0]>(target));
   const defs = (target.buildSlashCommandDefinitions as () => JsonCommand[])();
   const paths = new Set<string>();
   for (const cmd of defs) {

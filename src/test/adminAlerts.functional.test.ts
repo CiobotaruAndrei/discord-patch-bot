@@ -1,10 +1,8 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import attachAdminAlerts from "../infra/mongo/adminAlerts.js";
+import { moduleContext } from "./moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const attachAdminAlerts = require("../infra/mongo/adminAlerts").default as
-  (target: AdminAlertsTarget) => void;
 
 type CooldownDoc = { _id: string; lastSentAt: Date };
 type CooldownFilter = { _id: string; lastSentAt?: { $lte: Date } };
@@ -97,7 +95,7 @@ function makeAdminAlertsContext(opts: {
     axios,
     logger: (level: string, context: string, msg: string) => { logs.push({ level, context, msg }); }
   };
-  attachAdminAlerts(target);
+  attachAdminAlerts(moduleContext<Parameters<typeof attachAdminAlerts>[0]>(target));
   const runtime = target as AdminAlertsTarget & AdminAlertsRuntime;
   return {
     adminAlert: runtime.adminAlert,
@@ -160,7 +158,7 @@ test("adminAlert skip when ADMIN_WEBHOOK_URL is empty", async () => {
     axios: { post: async () => { throw new Error("trebuie sa nu fie apelat"); } },
     logger: () => undefined
   };
-  attachAdminAlerts(target);
+  attachAdminAlerts(moduleContext<Parameters<typeof attachAdminAlerts>[0]>(target));
   const runtime = target as AdminAlertsTarget & AdminAlertsRuntime;
 
   await runtime.adminAlert("test", "test", "test");

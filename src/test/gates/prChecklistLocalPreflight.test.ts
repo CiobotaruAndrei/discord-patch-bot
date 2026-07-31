@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "child_process";
 import { createRequire } from "module";
 import path from "path";
+import { pathToFileURL } from "node:url";
 
 const require = createRequire(import.meta.url);
 const srcRoot = process.cwd();
@@ -16,9 +17,8 @@ interface Classifiers {
   isInfra: (file: string) => boolean;
 }
 
-const { isCode, isDoc, isTest, isInfra } = require(
-  path.join(repoRoot, ".github", "scripts", "pr-checklist-file-classifiers.js")
-) as Classifiers;
+const classifiersPath = path.join(repoRoot, ".github", "scripts", "pr-checklist-file-classifiers.js");
+const { isCode, isDoc, isTest, isInfra } = ((await import(pathToFileURL(classifiersPath).href)) as { default: Classifiers }).default;
 
 function changedFiles(): string[] | undefined {
   const base = spawnSync("git", ["merge-base", "HEAD", "origin/main"], { cwd: repoRoot, encoding: "utf8" });

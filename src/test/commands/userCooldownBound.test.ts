@@ -1,11 +1,8 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import attachCommandCache from "../../features/command-cache/commandCache.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const attachCommandCache = require("../../features/command-cache/commandCache").default as {
-  createCommandCache: (target: CommandCacheTarget) => CommandCacheRuntime;
-};
 
 type CommandCacheRuntime = {
   checkUserCooldown: (userId: string, command: string) => { allowed: boolean; remainingMs?: number };
@@ -38,7 +35,7 @@ function makeCache(cooldownMs: number) {
       USER_COMMAND_COOLDOWN_MS: cooldownMs, COLLECTOR_TIMEOUT_MS: 60_000
     }
   };
-  return attachCommandCache.createCommandCache(target);
+  return attachCommandCache.createCommandCache(moduleContext<Parameters<typeof attachCommandCache.createCommandCache>[0]>(target));
 }
 
 const THRESHOLD = 500;

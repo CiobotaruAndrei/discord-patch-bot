@@ -1,10 +1,9 @@
-import { createRequire as __createRequire } from "node:module";
 import attachLogging from "../../shared/logging.js";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
 import { execFileSync } from "child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const { classifyEnvNumber } = attachLogging;
 
@@ -40,10 +39,10 @@ test("classifyEnvNumber: numar valid peste maxim -> clamped la maxim", () => {
 });
 
 test("parseEnvNumber: o valoare numerica invalida opreste boot-ul cu process.exit(1)", () => {
-  const loggingPath = require.resolve("../../shared/logging");
+  const loggingPath = fileURLToPath(new URL("../../shared/logging.js", import.meta.url));
   const script = [
-    `const attach = require(${JSON.stringify(loggingPath)});`,
-    `const { AsyncLocalStorage } = require("async_hooks");`,
+    `const { AsyncLocalStorage } = await import("node:async_hooks");`,
+    `const attach = (await import(${JSON.stringify(pathToFileURL(loggingPath).href)})).default;`,
     `const target = { AsyncLocalStorage };`,
     `attach(target);`,
     `process.env.TEST_KNOB_INVALID = "abc";`,
@@ -53,7 +52,7 @@ test("parseEnvNumber: o valoare numerica invalida opreste boot-ul cu process.exi
 
   let exitCode = 0;
   try {
-    execFileSync(process.execPath, ["-e", script], { stdio: "pipe" });
+    execFileSync(process.execPath, ["--input-type=module", "-e", script], { stdio: "pipe" });
   } catch (err) {
     exitCode = (err as { status?: number }).status ?? -1;
   }

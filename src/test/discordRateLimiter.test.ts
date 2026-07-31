@@ -1,7 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createDiscordRateLimiter, createDefaultDiscordSendLimiter, DiscordRateLimiterOptions } from "../features/notifications/discordRateLimiter.js";
@@ -67,8 +65,8 @@ test("createDefaultDiscordSendLimiter: configureaza limiter-ul din RuntimeEnv (c
   assert.deepEqual(sleeps, [10], "al treilea acquire e plafonat la maxWaitMs din env (10ms), nu la fallback-ul de 5000");
 });
 
-test("discordRateLimiter: fara singleton legacy si fara citire process.env (config doar prin createDefaultDiscordSendLimiter(env))", () => {
-  const mod = require("../features/notifications/discordRateLimiter") as Record<string, unknown>;
+test("discordRateLimiter: fara singleton legacy si fara citire process.env (config doar prin createDefaultDiscordSendLimiter(env))", async () => {
+  const mod: Record<string, unknown> = { ...await import("../features/notifications/discordRateLimiter.js") };
   assert.equal(mod.defaultDiscordSendLimiter, undefined, "singleton-ul eager defaultDiscordSendLimiter a fost eliminat (nu mai citeste process.env la import)");
   assert.equal(typeof mod.createDefaultDiscordSendLimiter, "function", "configurarea se face exclusiv prin createDefaultDiscordSendLimiter(env)");
   const source = fs.readFileSync(path.join(process.cwd(), "features", "notifications", "discordRateLimiter.ts"), "utf8");

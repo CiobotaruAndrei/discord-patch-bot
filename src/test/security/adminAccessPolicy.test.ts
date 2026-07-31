@@ -1,7 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 import { decideAdminAccess, decideSensitiveAccess, isSensitiveUserAllowed } from "../../features/command-security/adminAccessPolicy.js";

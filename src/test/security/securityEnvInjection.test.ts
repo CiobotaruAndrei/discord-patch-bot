@@ -1,16 +1,15 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 import { hasSensitiveUserAccess } from "../../features/command-security/adminAccessResolver.js";
 
+import { z } from "zod";
 import attachEnv from "../../shared/env.js";
 import globalAccessCode from "../../features/command-security/globalAccessCode.js";
 import { adminCommandGuard as adminCommandRouterGuard } from "../adminGuardTestKit.js";
 
 function makeEnvContext(): Record<string, unknown> {
   return {
-    z: require("zod").z,
+    z,
     logger: () => undefined,
     parseEnvNumber: (_name: string, defaultValue: number) => defaultValue,
     RAW_LOG_LEVEL: "INFO"
