@@ -1,4 +1,6 @@
 import test from "node:test";
+import type { ConcurrentRunResult } from "../../shared/concurrencyPort.js";
+
 import assert from "node:assert/strict";
 import * as cheerio from "cheerio";
 
@@ -52,9 +54,9 @@ function makeHarness(opts?: {
     logger: () => undefined,
     runConcurrent: async (items, _c, fn, o) => {
       let processed = 0;
-      const errors: Array<{ error: unknown }> = [];
-      for (const item of items) {
-        try { await fn(item); processed++; } catch (err) { errors.push({ error: err }); o?.errorLogger?.(item, err); }
+      const errors: ConcurrentRunResult<typeof items[number]>["errors"] = [];
+      for (const [index, item] of items.entries()) {
+        try { await fn(item, index); processed++; } catch (err) { errors.push({ index, item, error: err }); o?.errorLogger?.(item, err); }
       }
       return { processed, errors };
     },

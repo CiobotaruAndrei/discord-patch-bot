@@ -1,6 +1,7 @@
 "use strict";
 
 import type { GameConfig } from "../../config/configTypes.js";
+import type { RunConcurrent } from "../../shared/concurrencyPort.js";
 type MongoUpdate = Record<string, unknown>;
 import type { GuildSettings, EmbeddableUpdate, MongoWriteOutcome, NotificationMode } from "../../types.js";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue.js";
@@ -40,15 +41,6 @@ type ResolveOutboundChannel = (opts: {
   context: string;
   disableFn: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
 }) => Promise<ResolveOutboundChannelResult>;
-
-interface RunConcurrentOptions<T> {
-  errorLogger?: (item: T, err: unknown) => void;
-}
-interface RunConcurrentResult {
-  processed: number;
-  errors: Array<{ error: unknown }>;
-}
-type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions<T>) => Promise<RunConcurrentResult>;
 
 export interface UpdateNotificationServiceDeps {
   GuildModel: GuildModelLike;

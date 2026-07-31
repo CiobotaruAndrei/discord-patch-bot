@@ -1,12 +1,8 @@
 import type { Mongoose } from "mongoose";
-import type { ConcurrentRunResult, DealInfo, LoggerFunction, MaybePromise, ValidatedDealInfo } from "../types.js";
+import type { ConcurrentRunOptions, ConcurrentRunResult } from "../shared/concurrencyPort.js";
+import type { DealInfo, LoggerFunction, MaybePromise, ValidatedDealInfo } from "../types.js";
 import type { RuntimeEnv } from "../config/runtimeEnvTypes.js";
 import { errorMessage } from "./errors.js";
-
-interface ConcurrentRunOptions<T> {
-  shouldAbort?: (() => boolean) | null;
-  errorLogger?: ((item: T, err: unknown) => void) | null;
-}
 
 interface MongoRetryOptions {
   retries?: number;

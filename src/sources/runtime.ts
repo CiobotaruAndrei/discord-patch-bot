@@ -1,4 +1,6 @@
 import axios from "axios";
+import type { RunConcurrent } from "../shared/concurrencyPort.js";
+
 import * as cheerio from "cheerio";
 import Parser from "rss-parser";
 import crypto from "crypto";
@@ -12,7 +14,7 @@ export interface SourceRuntimeDeps {
   getAbortSignal(): AbortSignal | null;
   getCurrencyConfig(code?: CurrencyCode | string | null): CurrencyConfig;
   formatPrice(value: PriceValue, currencyCode?: CurrencyCode | string | null): string;
-  runConcurrent<T>(items: T[], concurrency: number, fn: (item: T, index: number) => void | Promise<unknown>, options?: unknown): Promise<{ processed: number; errors: Array<{ error: unknown }> }>;
+  runConcurrent: RunConcurrent;
   adminAlert(kind: string, title: string, body: unknown, guildId?: string): Promise<void>;
   SchemaDriftError: new (message: string, source?: string) => Error;
   circuitBreakerStore: CircuitBreakerStore;

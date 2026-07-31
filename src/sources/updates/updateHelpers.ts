@@ -24,16 +24,6 @@ type WithInflightTimeout = <T>(promise: Promise<T>, label: string) => Promise<T>
 type SchemaDriftErrorInstance = Error & { source?: string };
 type SchemaDriftErrorClass = new (message: string, source?: string) => SchemaDriftErrorInstance;
 
-type RunConcurrent = <T>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T, index: number) => Promise<void>,
-  options?: {
-    shouldAbort?: AbortPredicate;
-    errorLogger?: (item: T, err: unknown) => void;
-  }
-) => Promise<unknown>;
-
 
 interface RssItem {
   title?: string;
@@ -112,4 +102,4 @@ export {
   sourceConcurrencyGroup,
   applyFallbackSource
 };
-export type { HttpResponse, HttpReq, RssItem, RssParserLike, SchemaDriftErrorClass, SchemaDriftErrorInstance, RunConcurrent, TrackInflight, WithInflightTimeout, CheerioSelector };
+export type { HttpResponse, HttpReq, RssItem, RssParserLike, SchemaDriftErrorClass, SchemaDriftErrorInstance, TrackInflight, WithInflightTimeout, CheerioSelector };

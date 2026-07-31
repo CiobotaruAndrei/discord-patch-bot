@@ -1,6 +1,7 @@
 "use strict";
 
 import type { ActiveLocks, CurrencyCode, CurrencyConfig, CurrencyRegistry, LoggerFunction, PriceValue, SystemTimes } from "../../types.js";
+import type { RunConcurrent } from "../../shared/concurrencyPort.js";
 import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
 import type { DealInfo, ValidatedDealInfo } from "../../sources/sourceTypes.js";
@@ -19,12 +20,7 @@ type MongoRuntimeContext = {
   logger: LoggerFunction;
   env: RuntimeEnv & { MONGO_URI: string; DISCORD_TOKEN: string };
   parseEnvNumber: (name: string, defaultValue: number, limits?: { min?: number; max?: number }) => number;
-  runConcurrent: <T>(
-    items: T[],
-    concurrency: number,
-    fn: (item: T, index: number) => unknown,
-    options?: { shouldAbort?: (() => boolean) | null; errorLogger?: ((item: T, err: unknown) => void) | null }
-  ) => Promise<import("../../types.js").ConcurrentRunResult<T>>;
+  runConcurrent: RunConcurrent;
   waitForMongoReady: (timeoutMs?: number) => Promise<boolean>;
   validatePendingDiscountSnapshot: (snapshot: unknown) => snapshot is ValidatedDealInfo;
   validateUpdateFetchSnapshot: (item: unknown) => boolean;

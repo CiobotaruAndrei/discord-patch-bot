@@ -1,4 +1,6 @@
 import { requestOptionsFor } from "../sourcePolicies.js";
+import type { RunConcurrent } from "../../shared/concurrencyPort.js";
+
 import type { CheerioAPI } from "cheerio";
 import type { GameConfig } from "../../config/configTypes.js";
 import type { NormalizedUpdate, PatchUpdate } from "../sourceTypes.js";
@@ -6,7 +8,7 @@ import { extractAndRankListingCandidates } from "../../native/fuzzy.js";
 import type { ListingAnchorInput } from "../../native/fuzzy.js";
 import { errorMessage } from "../../shared/errors.js";
 import { absoluteUrl, getArticleHrefRegex } from "./updateHelpers.js";
-import type { CheerioSelector, HttpReq, RunConcurrent, SchemaDriftErrorClass } from "./updateHelpers.js";
+import type { CheerioSelector, HttpReq, SchemaDriftErrorClass } from "./updateHelpers.js";
 
 const LISTING_RANKED_LIMIT = 3;
 

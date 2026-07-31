@@ -45,24 +45,23 @@ export function createUpdatesFetchOrchestrator(deps: UpdatesDeps, executeFetchWi
           logger("WARN", "FETCH_WORKER", `Eroare la procesarea ${item.game.key}`, errorMessage(err));
         }
       });
-      if (runResult && Array.isArray((runResult as { errors?: unknown }).errors)) {
-        for (const entry of ((runResult as { errors: Array<{ index: number; error: unknown }> }).errors)) {
-          const globalIdx = items[entry.index]?.idx;
-          if (globalIdx !== undefined) errorsByIndex.set(globalIdx, entry.error);
-        }
+      for (const entry of runResult.errors) {
+        const globalIdx = items[entry.index]?.idx;
+        if (globalIdx !== undefined) errorsByIndex.set(globalIdx, entry.error);
       }
     }));
 
-    for (let i = 0; i < results.length; i++) {
-      if (!results[i]) {
-        const concurrentErr = errorsByIndex.get(i);
-        const placeholderError = concurrentErr !== undefined
-          ? errorMessage(concurrentErr)
-          : "abort";
-        results[i] = { game: list[i], latest: null, error: placeholderError };
+    const completed: FetchResult[] = [];
+    for (let i = 0; i < list.length; i++) {
+      const fetched = results[i];
+      if (fetched) {
+        completed.push(fetched);
+        continue;
       }
+      const concurrentErr = errorsByIndex.get(i);
+      completed.push({ game: list[i], latest: null, error: concurrentErr !== undefined ? errorMessage(concurrentErr) : "abort" });
     }
-    return results as FetchResult[];
+    return completed;
   }
 
   async function getLatestForAllGames(games: GameConfig[], shouldAbort?: AbortPredicate): Promise<FetchResult[]> {
