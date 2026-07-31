@@ -99,6 +99,7 @@ import attachLocksModule from "./locks.js";
 import attachMigrationsModule from "./migrations.js";
 import attachSystemStateModule from "./systemState.js";
 import attachGuildSettingsModule from "./guildSettings.js";
+import attachGuildSliceSourcesModule from "./guildSliceSources.js";
 import attachAdminAlertsModule from "./adminAlerts.js";
 import attachFetchSnapshotsModule from "./fetchSnapshots.js";
 import attachSourceHealthModule from "./sourceHealth.js";
@@ -204,7 +205,8 @@ function createMongoContext(): MongoRuntimeContext {
   const withLocks = { ...withModels, ...attachLocksModule.buildFrom(withModels) };
   const withMigrations = { ...withLocks, ...attachMigrationsModule.buildFrom(withLocks) };
   const withSystemState = { ...withMigrations, ...attachSystemStateModule.buildFrom(withMigrations) };
-  const withGuildSettings = { ...withSystemState, ...attachGuildSettingsModule.buildFrom(withSystemState) };
+  const withGuildSlices = { ...withSystemState, ...attachGuildSliceSourcesModule.buildFrom(withSystemState) };
+  const withGuildSettings = { ...withGuildSlices, ...attachGuildSettingsModule.buildFrom(withGuildSlices) };
   const withAdminAlerts = { ...withGuildSettings, ...attachAdminAlertsModule.buildFrom(withGuildSettings) };
   const withFetchSnapshots = { ...withAdminAlerts, ...attachFetchSnapshotsModule.buildFrom(withAdminAlerts) };
   const withSourceHealth = { ...withFetchSnapshots, ...attachSourceHealthModule.buildFrom(withFetchSnapshots) };
