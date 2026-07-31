@@ -38,6 +38,7 @@ import { parseAdminScopeId } from "../command-security/adminScopeIds.js";
 import adminCommandRouterGuard from "../command-security/adminCommandRouterGuard.js";
 import { errorDetail } from "../../shared/errors.js";
 import type { MongoWriteOutcome } from "../../types.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type InteractionPayload = string | { content: string; flags?: number };
 
@@ -249,3 +250,19 @@ export default {
   createAdminCommandAccessHandler,
   buildCommandHandler: buildAdminCommandAccessCommandHandler
 };
+
+export const ADMIN_ACCESS_HANDLER_KEYS = [
+  "GuildAuditLogModel",
+  "GuildModel",
+  "MessageFlags",
+  "OperationJournalModel",
+  "adminAlert",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type AdminAccessKeyCheckDeps = Parameters<typeof buildAdminCommandAccessCommandHandler>[0];
+type AdminAccessMissing = MissingDependencyKeys<AdminAccessKeyCheckDeps, (typeof ADMIN_ACCESS_HANDLER_KEYS)[number] & string>;
+type AdminAccessExtra = ExtraDependencyKeys<AdminAccessKeyCheckDeps, (typeof ADMIN_ACCESS_HANDLER_KEYS)[number] & string>;
+const adminAccessKeysComplete: ExactDependencyKeys<AdminAccessMissing, AdminAccessExtra> = true;

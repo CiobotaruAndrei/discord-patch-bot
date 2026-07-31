@@ -14,6 +14,7 @@ import { buildConfigEmbed, type ConfigEmbed } from "./configView.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type DiscordInteraction = BaseChatInputInteraction<PartialInteractionGuildRef, InteractionPayload> & AlwaysReplies<InteractionPayload>;
@@ -108,3 +109,19 @@ export default {
   createConfigInteractionHandler,
   buildConfigEmbed
 };
+
+export const CONFIGURATION_HANDLER_KEYS = [
+  "DEFAULT_CURRENCY",
+  "MessageFlags",
+  "enforceCooldown",
+  "getGuildSettings",
+  "logger",
+  "safeDefer",
+  "safeEdit",
+  "startCommandLog"
+] as const;
+
+type ConfigurationKeyCheckDeps = Parameters<typeof buildConfigCommandHandler>[0];
+type ConfigurationMissing = MissingDependencyKeys<ConfigurationKeyCheckDeps, (typeof CONFIGURATION_HANDLER_KEYS)[number] & string>;
+type ConfigurationExtra = ExtraDependencyKeys<ConfigurationKeyCheckDeps, (typeof CONFIGURATION_HANDLER_KEYS)[number] & string>;
+const configurationKeysComplete: ExactDependencyKeys<ConfigurationMissing, ConfigurationExtra> = true;

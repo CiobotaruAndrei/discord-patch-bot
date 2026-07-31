@@ -1,18 +1,16 @@
 import type { CommandHandler } from "../commandHandler.js";
-import {
-  CONFIGURATION_HANDLER_KEYS,
-  COVERAGE_ALIAS_HANDLER_KEYS,
-  DEAL_SCORE_HANDLER_KEYS,
-  GAME_FILTER_HANDLER_KEYS,
-  GAME_INFO_HANDLER_KEYS,
-  GAME_OVERVIEW_HANDLER_KEYS,
-  PLAYER_COUNT_HANDLER_KEYS,
-  PRICE_CHECK_HANDLER_KEYS,
-  ROLE_PING_HANDLER_KEYS,
-  SET_HANDLER_KEYS,
-  SNOOZE_HANDLER_KEYS,
-  WATCHLIST_SUGGESTION_HANDLER_KEYS
-} from "../commandHandlerKeys.js";
+import { CONFIGURATION_HANDLER_KEYS } from "../../command-handlers/configInteractionHandler.js";
+import { COVERAGE_ALIAS_HANDLER_KEYS } from "../../command-handlers/watchlistCoverageAndAliasHandler.js";
+import { DEAL_SCORE_HANDLER_KEYS } from "../../command-handlers/dealScoreInteractionHandler.js";
+import { GAME_FILTER_HANDLER_KEYS } from "../../command-handlers/gameFilterHandlers.js";
+import { GAME_INFO_HANDLER_KEYS } from "../../command-handlers/gameInfoInteractionHandler.js";
+import { GAME_OVERVIEW_HANDLER_KEYS } from "../../command-handlers/gameOverviewInteractionHandler.js";
+import { PLAYER_COUNT_HANDLER_KEYS } from "../../command-handlers/playerCountAnalyticsHandler.js";
+import { PRICE_CHECK_HANDLER_KEYS } from "../../command-handlers/priceCheckInteractionHandler.js";
+import { ROLE_PING_HANDLER_KEYS } from "../../command-handlers/rolePingHandlers.js";
+import { SET_HANDLER_KEYS } from "../../command-handlers/setInteractionHandler.js";
+import { SNOOZE_HANDLER_KEYS } from "../../command-handlers/snoozeInteractionHandler.js";
+import { WATCHLIST_SUGGESTION_HANDLER_KEYS } from "../../command-handlers/watchlistGameSuggestionHandler.js";
 import type { CommandDomainDeps } from "../commandDomainDeps.js";
 import type { DefineDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
 import attachConfigInteractionHandler from "../../command-handlers/configInteractionHandler.js";

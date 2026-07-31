@@ -15,6 +15,7 @@ import { matchesCommand } from "../command-registry/commandMatch.js";
 import { findBestDeal, scoreDeal } from "./dealScoreInteractionHandler.js";
 import { dlcPageHasAgeGate, parseDlcRows } from "./dlcSteamPage.js";
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type DiscordInteraction = ChatInputInteraction<StringOption>;
 
@@ -146,3 +147,29 @@ function buildGameOverviewHandler(target: GameOverviewDeps) {
 }
 
 export default { createGameOverviewHandler, buildCommandHandler: buildGameOverviewHandler };
+
+export const GAME_OVERVIEW_HANDLER_KEYS = [
+  "DEFAULT_CURRENCY",
+  "MessageFlags",
+  "enforceCooldown",
+  "executeFetchWithCircuitBreaker",
+  "fetchDeals",
+  "fetchGameStatusSummary",
+  "fetchSteamCurrentPlayers",
+  "findGameAndSuggestion",
+  "formatPrice",
+  "getCurrencyConfig",
+  "getDealsCacheData",
+  "getGuildSettings",
+  "httpReq",
+  "logger",
+  "safeCheerioLoad",
+  "safeDefer",
+  "safeEdit",
+  "setDealsCache"
+] as const;
+
+type GameOverviewKeyCheckDeps = Parameters<typeof buildGameOverviewHandler>[0];
+type GameOverviewMissing = MissingDependencyKeys<GameOverviewKeyCheckDeps, (typeof GAME_OVERVIEW_HANDLER_KEYS)[number] & string>;
+type GameOverviewExtra = ExtraDependencyKeys<GameOverviewKeyCheckDeps, (typeof GAME_OVERVIEW_HANDLER_KEYS)[number] & string>;
+const gameOverviewKeysComplete: ExactDependencyKeys<GameOverviewMissing, GameOverviewExtra> = true;

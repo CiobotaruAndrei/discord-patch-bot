@@ -17,6 +17,7 @@ import {
 } from "../game-info/dealPriceHistoryService.js";
 
 import { errorDetail, errorMessage } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
@@ -226,3 +227,25 @@ export default {
   findBestDeal,
   buildCommandHandler: buildDealScoreCommandHandler
 };
+
+export const DEAL_SCORE_HANDLER_KEYS = [
+  "DEFAULT_CURRENCY",
+  "MessageFlags",
+  "enforceCooldown",
+  "fetchDeals",
+  "formatPrice",
+  "getDealsCacheData",
+  "getGuildSettings",
+  "logger",
+  "readDealPriceHistory",
+  "recordDealPriceSnapshots",
+  "safeDefer",
+  "safeEdit",
+  "setDealsCache",
+  "startCommandLog"
+] as const;
+
+type DealScoreKeyCheckDeps = Parameters<typeof buildDealScoreCommandHandler>[0];
+type DealScoreMissing = MissingDependencyKeys<DealScoreKeyCheckDeps, (typeof DEAL_SCORE_HANDLER_KEYS)[number] & string>;
+type DealScoreExtra = ExtraDependencyKeys<DealScoreKeyCheckDeps, (typeof DEAL_SCORE_HANDLER_KEYS)[number] & string>;
+const dealScoreKeysComplete: ExactDependencyKeys<DealScoreMissing, DealScoreExtra> = true;

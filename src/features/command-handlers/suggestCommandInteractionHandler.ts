@@ -20,6 +20,7 @@ import { validateUserText } from "../command-security/userTextPolicy.js";
 
 import { errorDetail } from "../../shared/errors.js";
 import defaultRequireGuildAdminModule from "../command-security/adminPermissionGuard.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as RequireGuildAdmin;
 
 type InteractionPayload = DiscordReplyPayload;
@@ -185,3 +186,19 @@ export default {
   renderSuggestedCommandLines,
   buildCommandHandler: buildSuggestCommandHandler
 };
+
+export const SUGGEST_COMMAND_HANDLER_KEYS = [
+  "GuildAuditLogModel",
+  "GuildSuggestedCommandModel",
+  "MessageFlags",
+  "enforceCooldown",
+  "logger",
+  "requireGuildAdmin",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type SuggestCommandKeyCheckDeps = Parameters<typeof buildSuggestCommandHandler>[0];
+type SuggestCommandMissing = MissingDependencyKeys<SuggestCommandKeyCheckDeps, (typeof SUGGEST_COMMAND_HANDLER_KEYS)[number] & string>;
+type SuggestCommandExtra = ExtraDependencyKeys<SuggestCommandKeyCheckDeps, (typeof SUGGEST_COMMAND_HANDLER_KEYS)[number] & string>;
+const suggestCommandKeysComplete: ExactDependencyKeys<SuggestCommandMissing, SuggestCommandExtra> = true;

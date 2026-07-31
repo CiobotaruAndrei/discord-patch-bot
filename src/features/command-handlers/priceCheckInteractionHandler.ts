@@ -18,6 +18,7 @@ import {
 } from "./priceCheckComparison.js";
 
 import { errorMessage, errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
@@ -140,3 +141,26 @@ export default {
   findComparableDeals,
   titlesComparable
 };
+
+export const PRICE_CHECK_HANDLER_KEYS = [
+  "DEFAULT_CURRENCY",
+  "MessageFlags",
+  "chooseBestSteamMatch",
+  "enforceCooldown",
+  "fetchDeals",
+  "fetchSteamPriceDetails",
+  "formatPrice",
+  "getDealsCacheData",
+  "getGuildSettings",
+  "logger",
+  "safeDefer",
+  "safeEdit",
+  "searchSteamGameByName",
+  "setDealsCache",
+  "startCommandLog"
+] as const;
+
+type PriceCheckKeyCheckDeps = Parameters<typeof buildPriceCheckCommandHandler>[0];
+type PriceCheckMissing = MissingDependencyKeys<PriceCheckKeyCheckDeps, (typeof PRICE_CHECK_HANDLER_KEYS)[number] & string>;
+type PriceCheckExtra = ExtraDependencyKeys<PriceCheckKeyCheckDeps, (typeof PRICE_CHECK_HANDLER_KEYS)[number] & string>;
+const priceCheckKeysComplete: ExactDependencyKeys<PriceCheckMissing, PriceCheckExtra> = true;

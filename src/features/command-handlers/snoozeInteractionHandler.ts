@@ -19,6 +19,7 @@ import {
   parseSnoozeDuration
 } from "../command-snooze/commandSnoozeState.js";
 import { findCommandHelpEntry } from "../command-help/commandHelpCatalog.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -145,3 +146,16 @@ export default {
   createSnoozeInteractionHandler,
   buildCommandHandler: buildSnoozeCommandHandler
 };
+
+export const SNOOZE_HANDLER_KEYS = [
+  "GuildModel",
+  "MessageFlags",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type SnoozeKeyCheckDeps = Parameters<typeof buildSnoozeCommandHandler>[0];
+type SnoozeMissing = MissingDependencyKeys<SnoozeKeyCheckDeps, (typeof SNOOZE_HANDLER_KEYS)[number] & string>;
+type SnoozeExtra = ExtraDependencyKeys<SnoozeKeyCheckDeps, (typeof SNOOZE_HANDLER_KEYS)[number] & string>;
+const snoozeKeysComplete: ExactDependencyKeys<SnoozeMissing, SnoozeExtra> = true;

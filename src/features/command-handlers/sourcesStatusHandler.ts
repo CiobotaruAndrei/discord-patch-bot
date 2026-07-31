@@ -19,6 +19,7 @@ import {
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type DiscordInteraction = ChatInputInteraction<SubcommandOption, PartialInteractionGuildRef, InteractionPayload> & AlwaysReplies<InteractionPayload>;
@@ -110,3 +111,20 @@ export default {
   createSourcesStatusHandler,
   buildSourcesStatusEmbed
 };
+
+export const SOURCE_STATUS_HANDLER_KEYS = [
+  "MessageFlags",
+  "enforceCooldown",
+  "loadDealsFetchSnapshots",
+  "loadFetchSnapshot",
+  "loadSourceHealth",
+  "logger",
+  "safeDefer",
+  "safeEdit",
+  "startCommandLog"
+] as const;
+
+type SourceStatusKeyCheckDeps = Parameters<typeof buildSourcesStatusCommandHandler>[0];
+type SourceStatusMissing = MissingDependencyKeys<SourceStatusKeyCheckDeps, (typeof SOURCE_STATUS_HANDLER_KEYS)[number] & string>;
+type SourceStatusExtra = ExtraDependencyKeys<SourceStatusKeyCheckDeps, (typeof SOURCE_STATUS_HANDLER_KEYS)[number] & string>;
+const sourceStatusKeysComplete: ExactDependencyKeys<SourceStatusMissing, SourceStatusExtra> = true;

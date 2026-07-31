@@ -14,10 +14,11 @@ import type { GameServerStatus } from "../command-presentation/gameStatusEmbeds.
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorMessage, errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type DiscordInteraction = ChatInputInteraction<Partial<SubcommandOption> & StringOption> & AlwaysReplies & { user?: InteractionUserRef | null };
 
-type StatusHandlerDeps = {
+type StatusDeclaredKeysDeps = {
   logger(level: string, context: string, message: string, meta?: unknown): void;
   enforceCooldown(interaction: DiscordInteraction, command: string): Promise<boolean>;
   startCommandLog(interaction: DiscordInteraction, command: string, extra?: Record<string, unknown>): (status?: string, endExtra?: Record<string, unknown>) => void;
@@ -58,7 +59,7 @@ function stateIcon(state: GameServerStatus["state"]): string {
   return "⚪";
 }
 
-function createStatusInteractionHandler(deps: StatusHandlerDeps) {
+function createStatusInteractionHandler(deps: StatusDeclaredKeysDeps) {
   const {
     logger, enforceCooldown, startCommandLog, safeDefer, safeEdit,
     findGameAndSuggestion, fetchGameStatus, MessageFlags
@@ -136,7 +137,7 @@ function isStatusCommand(interaction: DiscordInteraction): boolean {
   return interaction.isChatInputCommand?.() === true && Boolean(interaction.guild) && interaction.commandName === "status";
 }
 
-function buildStatusCommandHandler(target: StatusHandlerDeps) {
+function buildStatusCommandHandler(target: StatusDeclaredKeysDeps) {
   const handlers = createStatusInteractionHandler(target);
   const command: CommandHandler<DiscordInteraction> = {
     canHandle: (interaction): interaction is DiscordInteraction => isStatusCommand(interaction as DiscordInteraction),
@@ -157,8 +158,27 @@ function buildStatusCommandHandler(target: StatusHandlerDeps) {
   return { handlers, ...command };
 }
 
-function loggerFailure(target: StatusHandlerDeps, error: unknown): void {
+function loggerFailure(target: StatusDeclaredKeysDeps, error: unknown): void {
   target.logger("ERROR", "STATUS_INTERACTION", "Eroare in handler-ul /status", errorDetail(error));
 }
 
 export default { createStatusInteractionHandler, supportsServerStatus, buildCommandHandler: buildStatusCommandHandler };
+
+export const STATUS_HANDLER_KEYS = [
+  "MessageFlags",
+  "enforceCooldown",
+  "fetchGameStatus",
+  "fetchGameStatusSummary",
+  "findGameAndSuggestion",
+  "getGuildSettings",
+  "handlePagination",
+  "logger",
+  "safeDefer",
+  "safeEdit",
+  "startCommandLog"
+] as const;
+
+type StatusKeyCheckDeps = Parameters<typeof buildStatusCommandHandler>[0];
+type StatusMissing = MissingDependencyKeys<StatusKeyCheckDeps, (typeof STATUS_HANDLER_KEYS)[number] & string>;
+type StatusExtra = ExtraDependencyKeys<StatusKeyCheckDeps, (typeof STATUS_HANDLER_KEYS)[number] & string>;
+const statusKeysComplete: ExactDependencyKeys<StatusMissing, StatusExtra> = true;

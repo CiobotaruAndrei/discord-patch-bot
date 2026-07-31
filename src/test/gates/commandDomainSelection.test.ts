@@ -2,12 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { COMMAND_DOMAIN_KEYS, DOMAIN_KEY_COVERAGE } from "../../features/command-registry/commandDomainKeys.js";
-import { HANDLER_KEY_COVERAGE } from "../../features/command-registry/commandHandlerKeys.js";
 import { selectDomainDeps, selectHandlerDeps } from "../../features/command-registry/commandDomainSelection.js";
 import { createCommandHandlerDescriptors } from "../../features/command-registry/commandHandlerDescriptors.js";
 import type { CommandDomainDeps } from "../../features/command-registry/commandDomainDeps.js";
 
-import { loadModule, calls } from "./sourceStructureQueries.js";
+import { loadModule, loadModulesIn, calls, exportedConstNames, importedModules } from "./sourceStructureQueries.js";
 
 function asDomainDeps<D extends keyof CommandDomainDeps>(stub: Record<string, unknown>): Record<string, unknown> & CommandDomainDeps[D] {
   return stub as Record<string, unknown> & CommandDomainDeps[D];
@@ -22,11 +21,24 @@ test("listele de chei acopera complet fiecare domeniu, verificat de compilator",
   assert.ok(DOMAIN_KEY_COVERAGE.every(entry => entry === true), "o cheie noua in deps fara intrare in lista rupe compilarea");
 });
 
-test("fiecare handler are lista lui de chei, verificata tot de compilator", () => {
-  assert.ok(HANDLER_KEY_COVERAGE.length > 0, "listele per handler exista");
-  assert.ok(
-    HANDLER_KEY_COVERAGE.every(entry => entry === true),
-    "o dependinta noua intr-un handler, fara intrare in lista lui, rupe compilarea si o numeste"
+test("lista de chei a fiecarui handler sta langa handler si e verificata acolo", () => {
+  const declarate: string[] = [];
+  const fara_verificare: string[] = [];
+  const module_dirs = [["features", "command-handlers"], ["features", "command-handlers", "youtube"], ["features", "command-security"]];
+  for (const query of module_dirs.flatMap(directory => loadModulesIn(directory, name => name.endsWith(".ts")))) {
+    const nume = exportedConstNames(query).filter(name => name.endsWith("_HANDLER_KEYS"));
+    if (nume.length === 0) continue;
+    declarate.push(query.relativePath);
+    if (!importedModules(query).some(module => module.endsWith("shared/dependencyKeyContract.js"))) {
+      fara_verificare.push(query.relativePath);
+    }
+  }
+  assert.ok(declarate.length >= 36, `doar ${declarate.length} handlere isi declara lista langa ele; nu se intoarce nimeni la un registru central`);
+  assert.deepEqual(
+    fara_verificare,
+    [],
+    "o lista fara `ExactDependencyKeys` langa ea e exact registrul manual de dinainte: text care nu verifica nimic. " +
+      `Fisierele astea declara chei fara verificare: ${fara_verificare.join(", ")}`
   );
 });
 

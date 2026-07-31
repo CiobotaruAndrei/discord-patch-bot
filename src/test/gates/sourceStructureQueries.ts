@@ -458,6 +458,19 @@ export function exportedTypeNames(query: ModuleQuery): string[] {
   return names;
 }
 
+export function exportedConstNames(query: ModuleQuery): string[] {
+  const names: string[] = [];
+  eachNode(query, node => {
+    if (!ts.isVariableStatement(node)) return;
+    const modifiers = ts.getModifiers(node) ?? [];
+    if (!modifiers.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) return;
+    for (const declaration of node.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name)) names.push(declaration.name.text);
+    }
+  });
+  return names;
+}
+
 export type ComparisonInfo = {
   readonly left: string;
   readonly right: string;

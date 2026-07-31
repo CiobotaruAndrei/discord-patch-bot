@@ -20,6 +20,7 @@ import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText.js";
 
 import { errorDetail } from "../../shared/errors.js";
 import defaultRequireGuildAdminModule from "../command-security/adminPermissionGuard.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 const defaultRequireGuildAdmin = defaultRequireGuildAdminModule as RequireGuildAdmin;
 
 type InteractionPayload = DiscordReplyPayload;
@@ -167,3 +168,20 @@ export default {
   renderWatchlistGameSuggestions,
   buildCommandHandler: buildWatchlistGameSuggestionCommandHandler
 };
+
+export const WATCHLIST_SUGGESTION_HANDLER_KEYS = [
+  "GuildAuditLogModel",
+  "GuildModel",
+  "MessageFlags",
+  "enforceCooldown",
+  "getGuildSettings",
+  "logger",
+  "requireGuildAdmin",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type WatchlistSuggestionKeyCheckDeps = Parameters<typeof buildWatchlistGameSuggestionCommandHandler>[0];
+type WatchlistSuggestionMissing = MissingDependencyKeys<WatchlistSuggestionKeyCheckDeps, (typeof WATCHLIST_SUGGESTION_HANDLER_KEYS)[number] & string>;
+type WatchlistSuggestionExtra = ExtraDependencyKeys<WatchlistSuggestionKeyCheckDeps, (typeof WATCHLIST_SUGGESTION_HANDLER_KEYS)[number] & string>;
+const watchlistSuggestionKeysComplete: ExactDependencyKeys<WatchlistSuggestionMissing, WatchlistSuggestionExtra> = true;

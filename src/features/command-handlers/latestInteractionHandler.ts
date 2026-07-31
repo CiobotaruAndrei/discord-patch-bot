@@ -19,6 +19,7 @@ import { createLatestUpdatesHandler } from "./latest/latestUpdatesHandler.js";
 import { createLatestDealsHandler } from "./latest/latestDealsHandler.js";
 import { createLatestSingleHandler } from "./latest/latestSingleHandler.js";
 import { createPriceSearchHandler } from "./latest/priceSearchHandler.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption> & AlwaysReplies;
@@ -138,3 +139,51 @@ function buildLatestCommandHandler(target: LatestContext) {
 }
 
 export default { createLatestInteractionHandler, buildCommandHandler: buildLatestCommandHandler };
+
+export const LATEST_HANDLER_KEYS = [
+  "CACHE_TTL_MS",
+  "DEFAULT_CURRENCY",
+  "ITEMS_PER_PAGE",
+  "MAX_DEALS",
+  "MessageFlags",
+  "SINGLE_CACHE_MAX_SIZE",
+  "buildDealEmbed",
+  "buildSteamPriceEmbed",
+  "buildUpdateEmbed",
+  "cache",
+  "cacheGetLRU",
+  "cacheSetLRU",
+  "chooseBestSteamMatch",
+  "dealPassesFilters",
+  "enforceCooldown",
+  "enrichDealData",
+  "executeFetchWithCircuitBreaker",
+  "extractSteamOfferEndDate",
+  "fetchDeals",
+  "fetchSteamPriceDetails",
+  "findGameAndSuggestion",
+  "formatUserError",
+  "getDealsCacheData",
+  "getGuildSettings",
+  "getLatestForAllGames",
+  "getSystemTimes",
+  "getUpdatesCacheData",
+  "handlePagination",
+  "loadFetchSnapshot",
+  "logger",
+  "safeDefer",
+  "safeEdit",
+  "saveSystemTime",
+  "searchSteamGameByName",
+  "setDealsCache",
+  "setUpdatesCache",
+  "smoothTime",
+  "startCommandLog",
+  "validatePendingDiscountSnapshot",
+  "validateUpdateFetchSnapshot"
+] as const;
+
+type LatestKeyCheckDeps = Parameters<typeof buildLatestCommandHandler>[0];
+type LatestMissing = MissingDependencyKeys<LatestKeyCheckDeps, (typeof LATEST_HANDLER_KEYS)[number] & string>;
+type LatestExtra = ExtraDependencyKeys<LatestKeyCheckDeps, (typeof LATEST_HANDLER_KEYS)[number] & string>;
+const latestKeysComplete: ExactDependencyKeys<LatestMissing, LatestExtra> = true;

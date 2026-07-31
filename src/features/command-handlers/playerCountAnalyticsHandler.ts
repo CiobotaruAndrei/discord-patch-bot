@@ -16,6 +16,7 @@ import {
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type Period = "24h" | "7d" | "30d";
 
@@ -232,3 +233,22 @@ function buildPlayerCountAnalyticsHandler(target: PlayerCountAnalyticsDeps) {
 }
 
 export default { createPlayerCountAnalyticsHandler, buildCommandHandler: buildPlayerCountAnalyticsHandler };
+
+export const PLAYER_COUNT_HANDLER_KEYS = [
+  "MessageFlags",
+  "enforceCooldown",
+  "fetchSteamCurrentPlayers",
+  "findGameAndSuggestion",
+  "getGuildSettings",
+  "logger",
+  "readPlayerCountHistory",
+  "readPlayerCountRecords",
+  "readPlayerCountSnapshots",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type PlayerCountKeyCheckDeps = Parameters<typeof buildPlayerCountAnalyticsHandler>[0];
+type PlayerCountMissing = MissingDependencyKeys<PlayerCountKeyCheckDeps, (typeof PLAYER_COUNT_HANDLER_KEYS)[number] & string>;
+type PlayerCountExtra = ExtraDependencyKeys<PlayerCountKeyCheckDeps, (typeof PLAYER_COUNT_HANDLER_KEYS)[number] & string>;
+const playerCountKeysComplete: ExactDependencyKeys<PlayerCountMissing, PlayerCountExtra> = true;

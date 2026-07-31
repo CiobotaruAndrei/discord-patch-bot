@@ -16,6 +16,7 @@ import { countUnresolvedNewAccountSends, type NewAccountAlertDeliveryModelLike }
 import { countChannelLockRecoveries, type ChannelLockRecoveryModelLike } from "../command-security/channelLockRecoveryRepository.js";
 
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 type CommandLogEnd = (status?: string, extra?: Record<string, unknown>) => void;
@@ -195,3 +196,25 @@ export default {
   MAINTENANCE_MODULES,
   buildCommandHandler: buildMaintenanceCommandHandler
 };
+
+export const MAINTENANCE_HANDLER_KEYS = [
+  "ChannelLockRecoveryModel",
+  "GuildConfigBackupModel",
+  "GuildDeadLetterModel",
+  "GuildYoutubeErrorModel",
+  "MessageFlags",
+  "NewAccountAlertDeliveryModel",
+  "NotificationOutboxModel",
+  "enforceCooldown",
+  "getGuildSettings",
+  "getOutboxPaused",
+  "logger",
+  "safeDefer",
+  "safeEdit",
+  "startCommandLog"
+] as const;
+
+type MaintenanceKeyCheckDeps = Parameters<typeof buildMaintenanceCommandHandler>[0];
+type MaintenanceMissing = MissingDependencyKeys<MaintenanceKeyCheckDeps, (typeof MAINTENANCE_HANDLER_KEYS)[number] & string>;
+type MaintenanceExtra = ExtraDependencyKeys<MaintenanceKeyCheckDeps, (typeof MAINTENANCE_HANDLER_KEYS)[number] & string>;
+const maintenanceKeysComplete: ExactDependencyKeys<MaintenanceMissing, MaintenanceExtra> = true;

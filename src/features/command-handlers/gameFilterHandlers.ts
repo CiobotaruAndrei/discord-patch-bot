@@ -16,6 +16,7 @@ import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 import { errorDetail } from "../../shared/errors.js";
 import { findGameByKey } from "../../config/gameCatalog.js";
 import { updatedDocument } from "../../shared/persistenceOutcome.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -183,3 +184,18 @@ function buildGameFilterCommandHandler(target: GameFilterContext) {
 }
 
 export default { createGameFilterInteractionHandlers, buildCommandHandler: buildGameFilterCommandHandler };
+
+export const GAME_FILTER_HANDLER_KEYS = [
+  "GuildModel",
+  "MessageFlags",
+  "formatUserError",
+  "getGuildSettings",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type GameFilterKeyCheckDeps = Parameters<typeof buildGameFilterCommandHandler>[0];
+type GameFilterMissing = MissingDependencyKeys<GameFilterKeyCheckDeps, (typeof GAME_FILTER_HANDLER_KEYS)[number] & string>;
+type GameFilterExtra = ExtraDependencyKeys<GameFilterKeyCheckDeps, (typeof GAME_FILTER_HANDLER_KEYS)[number] & string>;
+const gameFilterKeysComplete: ExactDependencyKeys<GameFilterMissing, GameFilterExtra> = true;

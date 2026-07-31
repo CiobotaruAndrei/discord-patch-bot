@@ -16,6 +16,7 @@ import { validateUserText } from "../command-security/userTextPolicy.js";
 import { errorDetail } from "../../shared/errors.js";
 import { addGameAlias, removeGameAlias, type GameAliasGuildModelLike } from "../guild-config/gameAliasRepository.js";
 import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption> & { user?: InteractionUserRef | null };
 
@@ -140,3 +141,19 @@ function buildCoverageAliasHandler(target: CoverageAliasDeps) {
 }
 
 export default { createCoverageAliasHandler, capabilityLine, buildCommandHandler: buildCoverageAliasHandler };
+
+export const COVERAGE_ALIAS_HANDLER_KEYS = [
+  "GuildModel",
+  "MessageFlags",
+  "findGameAndSuggestion",
+  "getGuildSettings",
+  "handlePagination",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type CoverageAliasKeyCheckDeps = Parameters<typeof buildCoverageAliasHandler>[0];
+type CoverageAliasMissing = MissingDependencyKeys<CoverageAliasKeyCheckDeps, (typeof COVERAGE_ALIAS_HANDLER_KEYS)[number] & string>;
+type CoverageAliasExtra = ExtraDependencyKeys<CoverageAliasKeyCheckDeps, (typeof COVERAGE_ALIAS_HANDLER_KEYS)[number] & string>;
+const coverageAliasKeysComplete: ExactDependencyKeys<CoverageAliasMissing, CoverageAliasExtra> = true;

@@ -41,6 +41,7 @@ import {
   type ModerationMember,
   type ModerationUser
 } from "../moderation/moderationInteractionAdapters.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type Interaction = ChatInputInteraction<
   Partial<SubcommandOption> & UserOption<ModerationUser> & StringOption & IntegerOption & AttachmentOption<DirectAttachment> & OptionalChannelOption<ModerationChannel>,
@@ -213,3 +214,19 @@ function buildModerationCommandHandler(target: Deps) {
 }
 
 export default { createModerationInteractionHandler, buildCommandHandler: buildModerationCommandHandler };
+
+export const MODERATION_HANDLER_KEYS = [
+  "OperationJournalModel",
+  "GuildModel",
+  "GuildModerationModel",
+  "MessageFlags",
+  "getGuildSettings",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type ModerationKeyCheckDeps = Parameters<typeof buildModerationCommandHandler>[0];
+type ModerationMissing = MissingDependencyKeys<ModerationKeyCheckDeps, (typeof MODERATION_HANDLER_KEYS)[number] & string>;
+type ModerationExtra = ExtraDependencyKeys<ModerationKeyCheckDeps, (typeof MODERATION_HANDLER_KEYS)[number] & string>;
+const moderationKeysComplete: ExactDependencyKeys<ModerationMissing, ModerationExtra> = true;

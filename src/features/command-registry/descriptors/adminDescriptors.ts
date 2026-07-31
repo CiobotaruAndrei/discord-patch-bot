@@ -1,16 +1,14 @@
 import type { CommandHandler } from "../commandHandler.js";
-import {
-  ADMIN_ACCESS_HANDLER_KEYS,
-  AUDIT_LOG_HANDLER_KEYS,
-  BACKUP_HANDLER_KEYS,
-  BOT_ADD_HANDLER_KEYS,
-  CONFIGURATION_ADMIN_HANDLER_KEYS,
-  HEALTH_HANDLER_KEYS,
-  MAINTENANCE_HANDLER_KEYS,
-  MODERATION_HANDLER_KEYS,
-  SECURITY_HANDLER_KEYS,
-  SOURCE_STATUS_HANDLER_KEYS
-} from "../commandHandlerKeys.js";
+import { ADMIN_ACCESS_HANDLER_KEYS } from "../../command-handlers/adminCommandAccessHandler.js";
+import { AUDIT_LOG_HANDLER_KEYS } from "../../command-handlers/auditLogInteractionHandler.js";
+import { BACKUP_HANDLER_KEYS } from "../../command-handlers/backupInteractionHandler.js";
+import { BOT_ADD_HANDLER_KEYS } from "../../command-handlers/botAddInteractionHandler.js";
+import { CONFIGURATION_ADMIN_HANDLER_KEYS } from "../../command-handlers/guildConfigurationAdminHandler.js";
+import { HEALTH_HANDLER_KEYS } from "../../command-handlers/healthInteractionHandler.js";
+import { MAINTENANCE_HANDLER_KEYS } from "../../command-handlers/maintenanceInteractionHandler.js";
+import { MODERATION_HANDLER_KEYS } from "../../command-handlers/moderationInteractionHandler.js";
+import { SECURITY_HANDLER_KEYS } from "../../command-security/securityHandlerKeys.js";
+import { SOURCE_STATUS_HANDLER_KEYS } from "../../command-handlers/sourcesStatusHandler.js";
 import type { CommandDomainDeps } from "../commandDomainDeps.js";
 import type { DefineDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
 import attachAdminCommandAccessHandler from "../../command-handlers/adminCommandAccessHandler.js";

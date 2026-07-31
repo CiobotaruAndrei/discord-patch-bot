@@ -26,6 +26,7 @@ import { sendPaginatedEdit } from "../command-presentation/textPagination.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
 import { findGameByKey } from "../../config/gameCatalog.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type MongoWriteResult = MongoWriteOutcome;
@@ -191,3 +192,19 @@ export default {
   buildPriceAlertUpsertPipeline,
   buildCommandHandler: buildPriceAlertCommandHandler
 };
+
+export const PRICE_ALERT_HANDLER_KEYS = [
+  "GuildModel",
+  "MessageFlags",
+  "SUPPORTED_CURRENCIES",
+  "formatUserError",
+  "getGuildSettings",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type PriceAlertKeyCheckDeps = Parameters<typeof buildPriceAlertCommandHandler>[0];
+type PriceAlertMissing = MissingDependencyKeys<PriceAlertKeyCheckDeps, (typeof PRICE_ALERT_HANDLER_KEYS)[number] & string>;
+type PriceAlertExtra = ExtraDependencyKeys<PriceAlertKeyCheckDeps, (typeof PRICE_ALERT_HANDLER_KEYS)[number] & string>;
+const priceAlertKeysComplete: ExactDependencyKeys<PriceAlertMissing, PriceAlertExtra> = true;

@@ -18,6 +18,7 @@ import { deleteFutureReleaseGame, listFutureReleaseGames, saveFutureReleaseGame,
 import { escapeInlineText, NO_MENTIONS } from "../../shared/discordText.js";
 
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -185,3 +186,22 @@ export default {
   futureReleaseListLines,
   buildCommandHandler: buildFutureReleaseCommandHandler
 };
+
+export const FUTURE_RELEASE_HANDLER_KEYS = [
+  "GuildModel",
+  "MessageFlags",
+  "canSendEmbeds",
+  "checkChannelPermissions",
+  "getGuildSettings",
+  "listMissingChannelPerms",
+  "logger",
+  "makeActivationId",
+  "missingChannelPermsMessage",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type FutureReleaseKeyCheckDeps = Parameters<typeof buildFutureReleaseCommandHandler>[0];
+type FutureReleaseMissing = MissingDependencyKeys<FutureReleaseKeyCheckDeps, (typeof FUTURE_RELEASE_HANDLER_KEYS)[number] & string>;
+type FutureReleaseExtra = ExtraDependencyKeys<FutureReleaseKeyCheckDeps, (typeof FUTURE_RELEASE_HANDLER_KEYS)[number] & string>;
+const futureReleaseKeysComplete: ExactDependencyKeys<FutureReleaseMissing, FutureReleaseExtra> = true;

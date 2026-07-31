@@ -28,6 +28,7 @@ import {
   type AuditBatchPage,
   type AuditBatchScheduler
 } from "../admin-records/auditLogBatchDelivery.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -190,3 +191,18 @@ export default {
   renderServerLog,
   buildCommandHandler: buildAuditLogCommandHandler
 };
+
+export const AUDIT_LOG_HANDLER_KEYS = [
+  "GuildAuditLogModel",
+  "MessageFlags",
+  "auditBatchIntervalMs",
+  "logger",
+  "safeDefer",
+  "safeEdit",
+  "scheduleAuditBatch"
+] as const;
+
+type AuditLogKeyCheckDeps = Parameters<typeof buildAuditLogCommandHandler>[0];
+type AuditLogMissing = MissingDependencyKeys<AuditLogKeyCheckDeps, (typeof AUDIT_LOG_HANDLER_KEYS)[number] & string>;
+type AuditLogExtra = ExtraDependencyKeys<AuditLogKeyCheckDeps, (typeof AUDIT_LOG_HANDLER_KEYS)[number] & string>;
+const auditLogKeysComplete: ExactDependencyKeys<AuditLogMissing, AuditLogExtra> = true;
