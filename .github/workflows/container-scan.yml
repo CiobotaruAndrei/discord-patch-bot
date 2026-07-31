@@ -12,8 +12,6 @@ on:
       - "src/native/**"
       - ".github/workflows/container-scan.yml"
   pull_request:
-    branches:
-      - main
   schedule:
     - cron: "0 5 * * 1"
   workflow_dispatch:
