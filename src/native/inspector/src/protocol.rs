@@ -1,6 +1,6 @@
 use std::io::{self, Read, Write};
 
-pub const PROTOCOL_VERSION: u16 = 1;
+pub const PROTOCOL_VERSION: u16 = 2;
 pub const MAX_FRAME_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_TEXT_BYTES: u32 = 4096;
 
@@ -12,6 +12,7 @@ pub struct InspectionRequest {
   pub max_depth: u32,
   pub max_entries: u32,
   pub max_expanded_bytes: u64,
+  pub max_compression_ratio: f64,
   pub timeout_ms: u64,
   pub content: Vec<u8>,
 }
@@ -25,6 +26,8 @@ pub struct InspectionResponse {
   pub expanded_bytes: u64,
   pub elapsed_ms: f64,
   pub sandbox: bool,
+  pub uninspectable_format: Option<String>,
+  pub analysis_blind_spots: Vec<String>,
 }
 
 fn invalid(detail: &str) -> io::Error {
@@ -96,6 +99,7 @@ pub fn read_request(reader: &mut impl Read) -> io::Result<Option<InspectionReque
   let max_depth = read_u32(reader)?;
   let max_entries = read_u32(reader)?;
   let max_expanded_bytes = read_u64(reader)?;
+  let max_compression_ratio = read_f64(reader)?;
   let timeout_ms = read_u64(reader)?;
   let content_length = read_u64(reader)?;
   if content_length > MAX_FRAME_BYTES {
@@ -110,6 +114,7 @@ pub fn read_request(reader: &mut impl Read) -> io::Result<Option<InspectionReque
     max_depth,
     max_entries,
     max_expanded_bytes,
+    max_compression_ratio,
     timeout_ms,
     content,
   }))
@@ -124,6 +129,7 @@ pub fn write_request(writer: &mut impl Write, request: &InspectionRequest) -> io
   writer.write_all(&request.max_depth.to_le_bytes())?;
   writer.write_all(&request.max_entries.to_le_bytes())?;
   writer.write_all(&request.max_expanded_bytes.to_le_bytes())?;
+  writer.write_all(&request.max_compression_ratio.to_le_bytes())?;
   writer.write_all(&request.timeout_ms.to_le_bytes())?;
   writer.write_all(&(request.content.len() as u64).to_le_bytes())?;
   writer.write_all(&request.content)?;
@@ -143,6 +149,17 @@ pub fn write_response(writer: &mut impl Write, response: &InspectionResponse) ->
   writer.write_all(&response.expanded_bytes.to_le_bytes())?;
   writer.write_all(&response.elapsed_ms.to_le_bytes())?;
   writer.write_all(&[u8::from(response.sandbox)])?;
+  match response.uninspectable_format.as_deref() {
+    Some(format) => {
+      writer.write_all(&[1u8])?;
+      write_text(writer, format)?;
+    }
+    None => writer.write_all(&[0u8])?,
+  }
+  writer.write_all(&(response.analysis_blind_spots.len() as u32).to_le_bytes())?;
+  for spot in &response.analysis_blind_spots {
+    write_text(writer, spot)?;
+  }
   writer.flush()
 }
 
@@ -171,6 +188,17 @@ pub fn read_response(reader: &mut impl Read) -> io::Result<InspectionResponse> {
   let elapsed_ms = read_f64(reader)?;
   let mut sandbox = [0u8; 1];
   read_exact(reader, &mut sandbox)?;
+  let mut present = [0u8; 1];
+  read_exact(reader, &mut present)?;
+  let uninspectable_format = if present[0] != 0 { Some(read_text(reader)?) } else { None };
+  let spot_count = read_u32(reader)?;
+  if spot_count > 1024 {
+    return Err(invalid("prea multe puncte oarbe in raspuns"));
+  }
+  let mut analysis_blind_spots = Vec::with_capacity(spot_count as usize);
+  for _ in 0..spot_count {
+    analysis_blind_spots.push(read_text(reader)?);
+  }
   Ok(InspectionResponse {
     status,
     reason,
@@ -179,6 +207,8 @@ pub fn read_response(reader: &mut impl Read) -> io::Result<InspectionResponse> {
     expanded_bytes,
     elapsed_ms,
     sandbox: sandbox[0] != 0,
+    uninspectable_format,
+    analysis_blind_spots,
   })
 }
 
@@ -194,6 +224,7 @@ mod tests {
       max_depth: 3,
       max_entries: 64,
       max_expanded_bytes: 8 * 1024 * 1024,
+      max_compression_ratio: 100.0,
       timeout_ms: 100,
       content: b"%PDF-1.7 continut".to_vec(),
     }
@@ -223,6 +254,8 @@ mod tests {
       expanded_bytes: 4096,
       elapsed_ms: 12.5,
       sandbox: true,
+      uninspectable_format: Some("rar-cu-header-criptat".to_string()),
+      analysis_blind_spots: vec!["sectiune impachetata".to_string()],
     };
     let mut buffer = Vec::new();
     write_response(&mut buffer, &response).unwrap();
@@ -231,6 +264,32 @@ mod tests {
     assert_eq!(decoded.indicators.len(), 2);
     assert_eq!(decoded.entries_inspected, 7);
     assert!(decoded.sandbox, "starea sandbox-ului calatoreste explicit, nu se presupune");
+    assert_eq!(
+      decoded.uninspectable_format.as_deref(),
+      Some("rar-cu-header-criptat"),
+      "formatul neinspectat trece prin proces: altfel metricile de acoperire ar arata zero pe calea izolata"
+    );
+    assert_eq!(decoded.analysis_blind_spots, vec!["sectiune impachetata".to_string()]);
+  }
+
+  #[test]
+  fn lipsa_formatului_neinspectat_nu_e_confundata_cu_un_format_gol() {
+    let response = InspectionResponse {
+      status: "inspected".to_string(),
+      reason: "fara indicatori".to_string(),
+      indicators: Vec::new(),
+      entries_inspected: 1,
+      expanded_bytes: 10,
+      elapsed_ms: 1.0,
+      sandbox: false,
+      uninspectable_format: None,
+      analysis_blind_spots: Vec::new(),
+    };
+    let mut buffer = Vec::new();
+    write_response(&mut buffer, &response).unwrap();
+    let decoded = read_response(&mut buffer.as_slice()).unwrap();
+    assert!(decoded.uninspectable_format.is_none());
+    assert!(decoded.analysis_blind_spots.is_empty());
   }
 
   #[test]
@@ -258,6 +317,7 @@ mod tests {
     frame.extend_from_slice(&3u32.to_le_bytes());
     frame.extend_from_slice(&64u32.to_le_bytes());
     frame.extend_from_slice(&1024u64.to_le_bytes());
+    frame.extend_from_slice(&100.0f64.to_le_bytes());
     frame.extend_from_slice(&100u64.to_le_bytes());
     frame.extend_from_slice(&(MAX_FRAME_BYTES + 1).to_le_bytes());
     let error = read_request(&mut frame.as_slice()).unwrap_err();

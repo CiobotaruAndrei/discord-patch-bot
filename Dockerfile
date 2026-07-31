@@ -54,6 +54,11 @@ RUN npm run build:rust
 
 COPY src/ ./
 RUN npm run build:ts
+# Binarul de inspectie izolata nu e produs de `napi build` (acela compileaza doar addon-ul cdylib), deci
+# se compileaza separat. Pasul trece prin scripts/build-native-inspector.ts, care citeste tripletul din
+# `rustc -vV` si il transmite lui cargo: fara --target, cargo ar scrie in target/release, adica alt
+# director decat cel incalzit mai sus, si ar recompila de la zero acelasi set de librarii C/C++.
+RUN npm run build:inspector:prebuilt
 
 FROM node:24-bookworm-slim AS runtime
 
@@ -70,6 +75,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/src/dist ./dist
 COPY --from=build /app/src/native/*.node ./native/
+COPY --from=build /app/src/native/native-inspector ./native/
 COPY --from=build /app/src/native/index.js ./native/
 COPY --from=build /app/src/native/index.d.ts ./native/
 COPY --from=build /app/src/config.json ./config.json

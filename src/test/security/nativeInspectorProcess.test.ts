@@ -23,18 +23,38 @@ function encodeText(value: string): Buffer {
   return Buffer.concat([header, raw]);
 }
 
-function encodeResponse(status: string, reason: string, indicators: string[], sandboxed: boolean): Buffer {
+function encodeResponse(
+  status: string,
+  reason: string,
+  indicators: string[],
+  sandboxed: boolean,
+  gaps: { uninspectableFormat?: string; analysisBlindSpots?: string[] } = {}
+): Buffer {
   const head = Buffer.alloc(6);
   head.write("DPBO", 0, "ascii");
-  head.writeUInt16LE(1, 4);
+  head.writeUInt16LE(2, 4);
   const count = Buffer.alloc(4);
   count.writeUInt32LE(indicators.length, 0);
-  const tail = Buffer.alloc(21);
+  const tail = Buffer.alloc(22);
   tail.writeUInt32LE(3, 0);
   tail.writeBigUInt64LE(4096n, 4);
   tail.writeDoubleLE(12.5, 12);
   tail[20] = sandboxed ? 1 : 0;
-  return Buffer.concat([head, encodeText(status), encodeText(reason), count, ...indicators.map(encodeText), tail]);
+  tail[21] = gaps.uninspectableFormat === undefined ? 0 : 1;
+  const spots = gaps.analysisBlindSpots ?? [];
+  const spotCount = Buffer.alloc(4);
+  spotCount.writeUInt32LE(spots.length, 0);
+  return Buffer.concat([
+    head,
+    encodeText(status),
+    encodeText(reason),
+    count,
+    ...indicators.map(encodeText),
+    tail,
+    ...(gaps.uninspectableFormat === undefined ? [] : [encodeText(gaps.uninspectableFormat)]),
+    spotCount,
+    ...spots.map(encodeText)
+  ]);
 }
 
 class FakeChild extends EventEmitter {
@@ -76,7 +96,7 @@ test("cererea codificata poarta semnatura, versiunea si continutul intact", () =
   const frame = encodeRequest(content, "arhiva.zip", "application/zip", "archive", DEFAULT_INSPECTION_LIMITS);
 
   assert.equal(frame.subarray(0, 4).toString("ascii"), "DPBI");
-  assert.equal(frame.readUInt16LE(4), 1);
+  assert.equal(frame.readUInt16LE(4), 2);
   assert.ok(frame.subarray(frame.length - content.length).equals(content), "continutul ajunge byte-cu-byte, fara reincodare");
 });
 
@@ -167,4 +187,49 @@ test("lipsa filtrului de syscall este raportata explicit, nu tacuta", async () =
   assert.equal(outcome.sandboxed, false);
   assert.equal(collected.nativeInspectorSandboxed, 0);
   assert.ok(logs.some(entry => entry.startsWith("WARN") && /FARA filtru de syscall/.test(entry)));
+});
+
+test("golurile de acoperire calatoresc prin proces, nu se pierd la granita", async () => {
+  const child = new FakeChild();
+  const { client } = clientWith(child);
+  const pending = client.inspect(Buffer.from("x"), "a.rar", "application/x-rar", "archive", DEFAULT_INSPECTION_LIMITS);
+  setImmediate(() => child.stdout.emit("data", encodeResponse("uncertain", "header criptat", [], true, {
+    uninspectableFormat: "rar-cu-header-criptat",
+    analysisBlindSpots: ["sectiune impachetata"]
+  })));
+
+  const outcome = await pending;
+  assert.equal(outcome.report?.uninspectableFormat, "rar-cu-header-criptat");
+  assert.deepEqual(outcome.report?.analysisBlindSpots, ["sectiune impachetata"]);
+});
+
+test("absenta unui format neinspectat nu devine sir gol", async () => {
+  const child = new FakeChild();
+  const { client } = clientWith(child);
+  const pending = client.inspect(Buffer.from("x"), "a.zip", "application/zip", "archive", DEFAULT_INSPECTION_LIMITS);
+  setImmediate(() => child.stdout.emit("data", encodeResponse("inspected", "fara indicatori", [], true)));
+
+  const outcome = await pending;
+  assert.equal(outcome.report?.uninspectableFormat, undefined);
+  assert.equal(outcome.report?.analysisBlindSpots, undefined);
+});
+
+test("cererea poarta si raportul maxim de compresie cerut de apelant", () => {
+  const frame = encodeRequest(Buffer.from("PK"), "a.zip", "application/zip", "archive", { ...DEFAULT_INSPECTION_LIMITS, maxCompressionRatio: 42 });
+  const numbersAt = 6 + (4 + "a.zip".length) + (4 + "application/zip".length) + (4 + "archive".length);
+
+  assert.equal(frame.readDoubleLE(numbersAt + 16), 42, "fara campul asta, plafonul de zip bomb cerut ar fi ignorat tacut in proces");
+});
+
+test("un al doilea job concurent este refuzat, nu suprapus peste primul", async () => {
+  const child = new FakeChild();
+  const { client } = clientWith(child);
+  const first = client.inspect(Buffer.from("x"), "a.zip", "application/zip", "archive", DEFAULT_INSPECTION_LIMITS);
+  await new Promise(resolve => setImmediate(resolve));
+  const second = await client.inspect(Buffer.from("y"), "b.zip", "application/zip", "archive", DEFAULT_INSPECTION_LIMITS);
+
+  assert.equal(second.report, null);
+  assert.match(second.failure, /job in lucru/, "suprascrierea asteptarii ar fi dus verdictul unui atasament la alt atasament");
+  child.stdout.emit("data", encodeResponse("inspected", "ok", [], true));
+  assert.equal((await first).report?.reason, "ok", "primul job ramane legat de raspunsul lui");
 });

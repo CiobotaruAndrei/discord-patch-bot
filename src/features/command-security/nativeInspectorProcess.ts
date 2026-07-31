@@ -40,7 +40,7 @@ export interface InspectorOutcome {
   failure: string;
 }
 
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_RESTARTS = 5;
 const MAX_TEXT_BYTES = 4096;
@@ -62,11 +62,12 @@ export function encodeRequest(
   const head = Buffer.alloc(6);
   head.write("DPBI", 0, "ascii");
   head.writeUInt16LE(PROTOCOL_VERSION, 4);
-  const numbers = Buffer.alloc(24);
+  const numbers = Buffer.alloc(32);
   numbers.writeUInt32LE(limits.maxDepth, 0);
   numbers.writeUInt32LE(limits.maxEntries, 4);
   numbers.writeBigUInt64LE(BigInt(Math.trunc(limits.maxExpandedBytes)), 8);
-  numbers.writeBigUInt64LE(BigInt(Math.trunc(limits.timeoutMs)), 16);
+  numbers.writeDoubleLE(limits.maxCompressionRatio, 16);
+  numbers.writeBigUInt64LE(BigInt(Math.trunc(limits.timeoutMs)), 24);
   const length = Buffer.alloc(8);
   length.writeBigUInt64LE(BigInt(content.length), 0);
   return Buffer.concat([
@@ -132,12 +133,28 @@ class FrameReader {
       if (value === null) return this.rewind(start);
       indicators.push(value);
     }
-    if (!this.available(21)) return this.rewind(start);
+    if (!this.available(22)) return this.rewind(start);
     const entriesInspected = this.buffer.readUInt32LE(this.offset);
     const expandedBytes = Number(this.buffer.readBigUInt64LE(this.offset + 4));
     const elapsedMs = this.buffer.readDoubleLE(this.offset + 12);
     const sandboxed = this.buffer[this.offset + 20] !== 0;
-    this.offset += 21;
+    const hasUninspectableFormat = this.buffer[this.offset + 21] !== 0;
+    this.offset += 22;
+    let uninspectableFormat: string | undefined;
+    if (hasUninspectableFormat) {
+      const value = this.text();
+      if (value === null) return this.rewind(start);
+      uninspectableFormat = value;
+    }
+    if (!this.available(4)) return this.rewind(start);
+    const spotCount = this.buffer.readUInt32LE(this.offset);
+    this.offset += 4;
+    const analysisBlindSpots: string[] = [];
+    for (let index = 0; index < spotCount; index++) {
+      const value = this.text();
+      if (value === null) return this.rewind(start);
+      analysisBlindSpots.push(value);
+    }
     this.compact();
     return {
       report: {
@@ -146,7 +163,9 @@ class FrameReader {
         reason,
         entriesInspected,
         expandedBytes,
-        elapsedMs
+        elapsedMs,
+        uninspectableFormat,
+        analysisBlindSpots: analysisBlindSpots.length > 0 ? analysisBlindSpots : undefined
       },
       sandboxed
     };
@@ -171,6 +190,7 @@ export function createNativeInspectorClient(deps: InspectorDeps) {
   let reader = new FrameReader();
   let sandboxed = false;
   let restarts = 0;
+  let busy = false;
   let ready: Promise<boolean> | null = null;
   let onReady: ((state: boolean) => void) | null = null;
   let onFrame: ((decoded: { report: InspectionReport; sandboxed: boolean }) => void) | null = null;
@@ -263,7 +283,7 @@ export function createNativeInspectorClient(deps: InspectorDeps) {
     return ready;
   };
 
-  const inspect = async (
+  const runInspection = async (
     content: Buffer,
     filename: string,
     mime: string,
@@ -309,6 +329,22 @@ export function createNativeInspectorClient(deps: InspectorDeps) {
       spawned.stdin.write(encodeRequest(content, filename, mime, mode, limits));
       pump(Buffer.alloc(0));
     });
+  };
+
+  const inspect = async (
+    content: Buffer,
+    filename: string,
+    mime: string,
+    mode: string,
+    limits: InspectionLimits
+  ): Promise<InspectorOutcome> => {
+    if (busy) return { report: null, sandboxed, failure: "procesul de inspectie are deja un job in lucru" };
+    busy = true;
+    try {
+      return await runInspection(content, filename, mime, mode, limits);
+    } finally {
+      busy = false;
+    }
   };
 
   return {

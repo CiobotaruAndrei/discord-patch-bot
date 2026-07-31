@@ -3,6 +3,8 @@ node_modules/
 native/target/
 native/*.node
 native/*.dll
+native/native-inspector
+native/native-inspector.exe
 native/index.js
 native/index.d.ts
 .env
