@@ -1,62 +1,52 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import fs from "node:fs";
-import path from "node:path";
+import { loadModulesIn, comparisons, importedModules } from "./sourceStructureQueries.js";
+import type { ModuleQuery } from "./sourceStructureQueries.js";
 
-const srcRoot = process.cwd();
-const LAYERS: readonly string[] = ["app", "features", "domain", "infra", "sources", "shared"];
-const OWN_MODULE = path.join("shared", "persistenceOutcome.ts");
-
-const RAW_COMPARISONS: ReadonlyArray<{ pattern: RegExp; why: string }> = [
-  { pattern: /\(\s*\w+(?:\?)?\.(?:matched|modified|upserted)Count\s*(?:\?\?|\|\|)[^)]*\)\s*(?:>|===|!==|==|!=)/, why: "contorul citit cu fallback si comparat direct" },
-  { pattern: /\w+(?:\?)?\.(?:matched|modified|upserted)Count\s*(?:>|<|===|!==|==|!=)\s*\d/, why: "contorul comparat direct cu un numar" }
+const LAYERS: ReadonlyArray<readonly string[]> = [
+  ["app"], ["app", "health"], ["app", "runtime"], ["app", "scheduler"], ["app", "lifecycle"],
+  ["features", "notifications"], ["features", "command-handlers"], ["features", "command-security"],
+  ["features", "guild-config"], ["features", "admin-records"], ["features", "moderation"], ["features", "youtube"],
+  ["domain", "deals"], ["infra", "mongo"], ["infra", "redis"], ["infra", "http"],
+  ["sources"], ["sources", "updates"], ["sources", "deals"], ["shared"]
 ];
 
-function sourceFiles(): string[] {
-  const found: string[] = [];
-  for (const layer of LAYERS) {
-    const stack = [path.join(srcRoot, layer)];
-    while (stack.length) {
-      const current = stack.pop();
-      if (!current || !fs.existsSync(current)) continue;
-      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-        const full = path.join(current, entry.name);
-        if (entry.isDirectory()) stack.push(full);
-        else if (entry.name.endsWith(".ts")) found.push(full);
-      }
-    }
-  }
-  return found;
+const OWN_MODULE = "shared/persistenceOutcome.ts";
+const WRITE_COUNTERS = /(^|\.)((matched|modified|upserted)Count)$/;
+
+function layerModules(): ModuleQuery[] {
+  return LAYERS
+    .flatMap(directory => loadModulesIn(directory, name => name.endsWith(".ts")))
+    .filter(query => query.relativePath !== OWN_MODULE);
+}
+
+function readsWriteCounter(expression: string): boolean {
+  const normalized = expression.replace(/[()\s]/g, "").split(/\?\?|\|\|/)[0];
+  return WRITE_COUNTERS.test(normalized.replace(/\?\./g, "."));
 }
 
 test("niciun modul nu mai interpreteaza singur contoarele de scriere Mongo", () => {
   const offenders: string[] = [];
-  for (const file of sourceFiles()) {
-    const relative = path.relative(srcRoot, file);
-    if (relative === OWN_MODULE) continue;
-    const lines = fs.readFileSync(file, "utf8").split("\n");
-    lines.forEach((line, index) => {
-      for (const { pattern, why } of RAW_COMPARISONS) {
-        if (pattern.test(line)) offenders.push(`${relative}:${index + 1} (${why})`);
-      }
-    });
+  for (const query of layerModules()) {
+    for (const comparison of comparisons(query)) {
+      if (!readsWriteCounter(comparison.left) && !readsWriteCounter(comparison.right)) continue;
+      offenders.push(`${query.relativePath}:${comparison.line} (${comparison.left} ${comparison.operator} ${comparison.right})`);
+    }
   }
   assert.deepEqual(
     offenders,
     [],
-    "zero-inseamna-esec e o conventie nescrisa: modifiedCount === 0 inseamna alt lucru decat matchedCount === 0, " +
-      "iar !== 0 citeste un contor absent drept succes. Vocabularul e in shared/persistenceOutcome.ts " +
+    "zero-inseamna-esec e o conventie nescrisa: `modifiedCount === 0` inseamna alt lucru decat `matchedCount === 0`, " +
+      "iar `!== 0` citeste un contor absent drept succes. Vocabularul e in shared/persistenceOutcome.ts " +
       `(classifyWrite / createdDocument / updatedDocument / changedDocument / matchedDocument / modifiedDocuments): ${offenders.join(" | ")}`
   );
 });
 
 test("vocabularul de rezultat e folosit acolo unde se decid scrierile, nu doar declarat", () => {
-  const users = sourceFiles().filter(file => {
-    const relative = path.relative(srcRoot, file);
-    if (relative === OWN_MODULE) return false;
-    return fs.readFileSync(file, "utf8").includes("shared/persistenceOutcome.js");
-  });
+  const users = layerModules().filter(query =>
+    importedModules(query).some(module => module.endsWith("shared/persistenceOutcome.js"))
+  );
   assert.ok(
     users.length >= 15,
     `doar ${users.length} module folosesc vocabularul de rezultat; daca scade, inseamna ca cineva s-a intors la contoare brute`

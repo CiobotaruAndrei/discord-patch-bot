@@ -87,6 +87,28 @@ export function loadModulesIn(directory: readonly string[], filter: (name: strin
     .map(name => loadModule(...directory, name));
 }
 
+export function loadModulesUnder(directory: readonly string[], filter: (relativePath: string) => boolean = () => true): ModuleQuery[] {
+  const root = path.join(srcRoot, ...directory);
+  const found: ModuleQuery[] = [];
+  const stack: string[] = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === undefined) continue;
+    for (const entry of fs.readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!entry.name.endsWith(".ts")) continue;
+      const segments = path.relative(srcRoot, full).split(path.sep);
+      if (!filter(segments.join("/"))) continue;
+      found.push(loadModule(...segments));
+    }
+  }
+  return found.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+}
+
 function walk(node: ts.Node, visit: (node: ts.Node) => void): void {
   visit(node);
   ts.forEachChild(node, child => walk(child, visit));
@@ -434,6 +456,63 @@ export function exportedTypeNames(query: ModuleQuery): string[] {
     names.push(node.name.text);
   });
   return names;
+}
+
+export type ComparisonInfo = {
+  readonly left: string;
+  readonly right: string;
+  readonly operator: string;
+  readonly line: number;
+};
+
+const COMPARISON_OPERATORS = new Set([
+  ts.SyntaxKind.GreaterThanToken,
+  ts.SyntaxKind.LessThanToken,
+  ts.SyntaxKind.GreaterThanEqualsToken,
+  ts.SyntaxKind.LessThanEqualsToken,
+  ts.SyntaxKind.EqualsEqualsToken,
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken
+]);
+
+export function comparisons(query: ModuleQuery): ComparisonInfo[] {
+  const found: ComparisonInfo[] = [];
+  eachNode(query, node => {
+    if (!ts.isBinaryExpression(node)) return;
+    if (!COMPARISON_OPERATORS.has(node.operatorToken.kind)) return;
+    found.push({
+      left: node.left.getText(query.source),
+      right: node.right.getText(query.source),
+      operator: node.operatorToken.getText(query.source),
+      line: query.source.getLineAndCharacterOfPosition(node.getStart(query.source)).line + 1
+    });
+  });
+  return found;
+}
+
+export type ReExport = {
+  readonly name: string;
+  readonly module: string;
+  readonly typeOnly: boolean;
+};
+
+export function reExports(query: ModuleQuery): ReExport[] {
+  const found: ReExport[] = [];
+  eachNode(query, node => {
+    if (!ts.isExportDeclaration(node) || !node.moduleSpecifier) return;
+    if (!ts.isStringLiteral(node.moduleSpecifier)) return;
+    const clause = node.exportClause;
+    if (!clause || !ts.isNamedExports(clause)) return;
+    for (const element of clause.elements) {
+      found.push({
+        name: element.name.text,
+        module: node.moduleSpecifier.text,
+        typeOnly: node.isTypeOnly || element.isTypeOnly
+      });
+    }
+  });
+  return found;
 }
 
 export function returnedObjectProperties(query: ModuleQuery, functionName: string): string[] {

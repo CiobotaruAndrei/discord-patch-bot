@@ -4,8 +4,7 @@ Acest document pastreaza runbook-ul autoritar folosit pentru migrarea
 codebase-ului de la CommonJS (`export =` / `require()`) la module ECMAScript.
 Codul de productie este integral ESM (`NodeNext` + `"type": "module"`), si asta
 nu mai are exceptii. Ce NU e terminat, si documentul spunea pana acum ca ar fi:
-**incarcarea modulelor in teste**. Au ramas 28 de fisiere din `src/test` care isi
-incarca modulele prin `createRequire`, fiindca acolo `import` chiar schimba tipul si
+**incarcarea modulelor in teste**. Au ramas 28 de fisiere din `src/test` care isiincarca modulele prin `createRequire`, fiindca acolo `import` chiar schimba tipul si
 scoate la iveala forme scrise de mana care nu se potrivesc cu modulul real. Masurat pe cele 16 fisiere convertite: conversia mecanica a 32 de `require` la `import` static a lasat 13 fisiere care NU mai compileaza, cu 76 de erori de tip - toate de forma "dublura de test nu satisface contractul real". Adica `require` + cast scris de mana nu era doar un stil vechi, ci ascundea ca harness-urile trec obiecte incomplete. Cele 13 raman pe `createRequire` pana cand fiecare dublura primeste forma corecta; e o curatare de contracte de test, nu de incarcare de module.
 Numarul are un plafon descrescator in `testModuleLoading.test.ts` si doua reguli
 care blocheaza formele deja sigure (built-in-uri Node si `require(x) as typeof

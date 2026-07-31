@@ -1,29 +1,42 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fileURLToPath as __fileURLToPath } from "node:url";
-import { dirname as __pathDirname } from "node:path";
-import fs from "node:fs";
-import path from "node:path";
 
-const __filename = __fileURLToPath(import.meta.url);
-const __dirname = __pathDirname(__filename);
-const appRoot = path.join(__dirname, "..", "..", "..", "app");
-const read = (rel: string): string => fs.readFileSync(path.join(appRoot, rel), "utf8");
+import { loadModule, declaresType, reExports, imports } from "./sourceStructureQueries.js";
+
+const CONTRACTE = [
+  "AppRuntimeDeps", "RuntimeServices", "Schedulers", "DiscordClientLike",
+  "HttpServerLike", "AppRuntime", "CommandRuntime", "ScraperRuntime", "MongoContextLike"
+];
+
+const contracts = loadModule("app", "appRuntimeContracts.ts");
+const runtime = loadModule("app", "appRuntime.ts");
 
 test("contractele AppRuntime traiesc in appRuntimeContracts.ts, nu in composition root (review 22 #10)", () => {
-  const contracts = read("appRuntimeContracts.ts");
-  for (const name of ["AppRuntimeDeps", "RuntimeServices", "Schedulers", "DiscordClientLike", "HttpServerLike", "AppRuntime", "CommandRuntime", "ScraperRuntime", "MongoContextLike"]) {
-    assert.match(contracts, new RegExp(`export (interface|type) ${name}[^A-Za-z0-9_]`), `${name} e definit in appRuntimeContracts.ts`);
+  for (const name of CONTRACTE) {
+    assert.ok(declaresType(contracts, name), `${name} e definit in appRuntimeContracts.ts`);
   }
-  const runtime = read("appRuntime.ts");
-  assert.ok(!/\nexport interface AppRuntimeDeps\b/.test(runtime), "AppRuntimeDeps nu mai e definit in appRuntime.ts");
-  assert.match(runtime, /export type \{[\s\S]*?AppRuntimeDeps[\s\S]*?\} from "\.\/appRuntimeContracts\.js"/, "appRuntime.ts re-exporta contractele pentru compatibilitate");
+  assert.ok(
+    !declaresType(runtime, "AppRuntimeDeps"),
+    "AppRuntimeDeps definit si in composition root ar insemna doua forme care pot devia tacut una de alta"
+  );
+  assert.ok(
+    reExports(runtime).some(entry => entry.name === "AppRuntimeDeps" && entry.module.endsWith("appRuntimeContracts.js")),
+    "appRuntime.ts re-exporta contractele din appRuntimeContracts pentru compatibilitate, fara sa le redefineasca"
+  );
 });
 
 test("modulele runtime importa contractele direct, nu prin composition root (fara ciclu de tipuri)", () => {
-  for (const rel of ["runtime/bootSequence.ts", "runtime/runtimeSchedulers.ts", "runtime/runtimeServices.ts"]) {
-    const text = read(rel);
-    assert.match(text, /from "\.\.\/appRuntimeContracts\.js"/, `${rel} importa din appRuntimeContracts`);
-    assert.ok(!text.includes('from "../appRuntime.js"'), `${rel} nu mai importa tipuri din appRuntime (ciclul e rupt)`);
+  for (const file of ["bootSequence.ts", "runtimeSchedulers.ts", "runtimeServices.ts"]) {
+    const query = loadModule("app", "runtime", file);
+    const modules = imports(query).map(entry => entry.module);
+    assert.ok(
+      modules.some(module => module.endsWith("appRuntimeContracts.js")),
+      `${file} importa din appRuntimeContracts`
+    );
+    assert.ok(
+      !modules.some(module => module.endsWith("/appRuntime.js")),
+      `${file} nu mai importa din appRuntime: un modul pe care composition root-ul il compune, dar care importa inapoi ` +
+        "din el, inchide un ciclu; ciclul se vede intai la tipuri si abia apoi la runtime"
+    );
   }
 });

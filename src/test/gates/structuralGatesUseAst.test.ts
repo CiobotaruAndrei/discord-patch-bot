@@ -161,8 +161,8 @@ test("gate-urile care inca citesc text sunt numarate, ca restul migrarii sa nu s
     return source.includes("readFileSync") && /\.ts"|\.ts'|"\.ts|endsWith\("\.ts"\)/.test(source);
   });
   assert.ok(
-    remaining.length <= 25,
-    `${remaining.length} gate-uri citesc inca sursa TypeScript ca text; plafonul e 25 si poate doar sa scada: ` +
+    remaining.length <= 17,
+    `${remaining.length} gate-uri citesc inca sursa TypeScript ca text; plafonul e 17 si poate doar sa scada: ` +
       remaining.join(", ")
   );
 });
