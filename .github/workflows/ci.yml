@@ -16,6 +16,38 @@ permissions:
   contents: read
 
 jobs:
+  # Jobul rapid, fara Rust. Ruleaza in paralel cu `check` si da feedback in ~40s pe cea mai
+  # frecventa clasa de esec: gate-uri structurale, tipare, comentarii, straturi.
+  #
+  # De ce NU e o copie a lui `check` impartita in doua: masurat pe un run reusit, pasii scumpi
+  # sunt restaurarea cache-ului Rust (96s) si `apt-get install` pentru librariile C (34s), nu
+  # verificarile in sine (37s check + 28s clippy). Doua joburi care au amandoua nevoie de Rust ar
+  # plati de doua ori acele 130s ca sa castige cateva zeci de secunde de wall-clock. Jobul asta
+  # castiga tocmai fiindca NU are nevoie de ele: `npm ci` nu are hook-uri de install, `build:ts`
+  # nu atinge Rust, iar gate-urile ruleaza fara addon-ul nativ (verificat mutand .node-ul).
+  gates:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile TypeScript
+        run: npm run build:ts
+
+      - name: Structural gates + lint
+        run: npm run check:gates:prebuilt && npm run lint:prebuilt
+
   check:
     runs-on: ubuntu-latest
     defaults:
@@ -93,3 +125,22 @@ jobs:
           DISCORD_TOKEN: test_discord_token
           DISCORD_CLIENT_ID: test_discord_client_id
         run: npm run test:e2e:prebuilt
+
+  # Un singur check agregat pentru protectia de branch: daca oricare job cade, cade si asta.
+  # `if: always()` e obligatoriu - fara el, jobul ar fi sarit cand un dependinte esueaza, si
+  # protectia de branch ar vedea "skipped", nu "failed".
+  ci:
+    needs: [gates, check]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rezultatul agregat al CI
+        env:
+          GATES: ${{ needs.gates.result }}
+          CHECK: ${{ needs.check.result }}
+        run: |
+          echo "gates=$GATES check=$CHECK"
+          if [ "$GATES" != "success" ] || [ "$CHECK" != "success" ]; then
+            echo "::error::CI a esuat (gates=$GATES, check=$CHECK)"
+            exit 1
+          fi
