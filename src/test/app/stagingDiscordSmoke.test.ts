@@ -1,17 +1,6 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import * as smoke from "../../scripts/stagingDiscordSmoke.js";
 import assert from "node:assert/strict";
-
-const smoke = require("../../scripts/stagingDiscordSmoke") as {
-  evaluateCommands: (registered: Array<{ name?: string }>, requiredAny?: string[]) => { ok: boolean; count: number; missing: string[] };
-  evaluatePermissions: (grantedNames: string[], requiredNames?: string[]) => { ok: boolean; missing: string[] };
-  isSendableSmokeChannel: (channel: unknown) => boolean;
-  sendabilityFailureDetail: (channel: unknown) => string;
-  expectedCommandNames: () => string[];
-  REQUIRED_COMMANDS: string[];
-  REQUIRED_PERMISSIONS: string[];
-};
 
 test("REQUIRED_COMMANDS = exact suprafata din buildSlashCommandDefinitions, nu o lista scrisa de mana (review #2)", () => {
   assert.deepEqual(smoke.REQUIRED_COMMANDS, smoke.expectedCommandNames(),

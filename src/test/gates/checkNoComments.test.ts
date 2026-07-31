@@ -1,15 +1,7 @@
 import path from "node:path";
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import * as checker from "../../scripts/check-no-comments.js";
 import test from "node:test";
 import assert from "node:assert/strict";
-
-const checker = require("../../scripts/check-no-comments") as {
-  findComments: (text: string, ext: string, fileName?: string) => Array<{ line: number; text: string }>;
-  findCommentsRust: (text: string) => Array<{ line: number; text: string }>;
-  isAllowed: (relFile: string, commentText: string) => boolean;
-  ALLOWED_COMMENTS: Array<{ file: string; text: string }>;
-};
 
 test("findComments: detecteaza comentariu de linie in TS", () => {
   const found = checker.findComments("const a = 1; // explica\n", ".ts", "f.ts");

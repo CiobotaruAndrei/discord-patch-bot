@@ -1,6 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import attachDeals from "../../sources/deals/index.js";
 import assert from "node:assert/strict";
 
 interface FakeCurrencyConfig { cc: string; symbol: string; placement: "prefix" | "suffix" }
@@ -42,10 +41,6 @@ interface DealsApiShape {
   enrichDealData: (deal: DealInfoShape, currencyCode?: string) => Promise<DealInfoShape>;
   fetchDeals: (opts?: { currency?: string; fromCron?: boolean }) => Promise<DealInfoShape[]>;
 }
-
-const attachDeals = require("../../sources/deals").default as {
-  createDeals: (deps: DealsDepsShape) => DealsApiShape;
-};
 
 function makeDeps(overrides: Partial<DealsDepsShape> = {}): { deps: DealsDepsShape; calls: string[] } {
   const calls: string[] = [];

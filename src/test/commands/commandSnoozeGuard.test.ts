@@ -1,13 +1,6 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import snoozeGuard from "../../features/command-security/commandSnoozeGuard.js";
 import assert from "node:assert/strict";
-
-const snoozeGuard = require("../../features/command-security/commandSnoozeGuard").default as {
-  createCommandSnoozeGuard: (deps: Record<string, unknown>) => {
-    handleSnoozedCommand: (interaction: unknown, games: unknown[], next?: (interaction: unknown, games: unknown[]) => Promise<unknown>) => Promise<unknown>;
-  };
-};
 
 function makeInteraction(commandName: string, subcommand: string | null = null) {
   const replies: unknown[] = [];

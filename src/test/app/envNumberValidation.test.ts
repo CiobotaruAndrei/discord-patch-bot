@@ -1,18 +1,11 @@
 import { createRequire as __createRequire } from "node:module";
+import attachLogging from "../../shared/logging.js";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
 import { execFileSync } from "child_process";
 
-const attachLogging = require("../../shared/logging").default as ((target: unknown) => void) & {
-  classifyEnvNumber: (
-    name: string,
-    raw: string | undefined,
-    defaultValue: number,
-    limits?: { min?: number; max?: number }
-  ) => { kind: string; value: number; message?: string };
-};
 const { classifyEnvNumber } = attachLogging;
 
 test("classifyEnvNumber: numar valid in interval -> ok, valoarea parsata", () => {

@@ -19,9 +19,9 @@ test("niciun test nou nu mai introduce createRequire", () => {
     .filter(file => path.basename(file) !== "testModuleLoading.test.ts")
     .filter(file => fs.readFileSync(file, "utf8").includes("createRequire"));
   assert.ok(
-    cuRequire.length <= 44,
+    cuRequire.length <= 28,
     "repo-ul a migrat la ESM, dar testele mai incarca module prin `createRequire`. Numarul are voie sa scada, " +
-      `nu sa creasca: gasite ${cuRequire.length}, plafon 44. Un test nou trebuie sa foloseasca import sau ` +
+      `nu sa creasca: gasite ${cuRequire.length}, plafon 28. Un test nou trebuie sa foloseasca import sau ` +
       "`await import`, ca tipurile reale ale modulului sa fie verificate"
   );
 });

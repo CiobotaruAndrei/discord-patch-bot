@@ -1,23 +1,7 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import * as retryPolicy from "../../infra/http/retryPolicy.js";
+import * as conditionalCache from "../../infra/http/conditionalCache.js";
 import assert from "node:assert/strict";
-
-const retryPolicy = require("../../infra/http/retryPolicy") as {
-  RETRY_ABLE_4XX: Set<number>;
-  parseRetryAfter: (raw: unknown, nowMs?: number) => number | null;
-  classifyHttpFailure: (status: number | string, isIdempotent: boolean) => {
-    isRateLimit: boolean; isRetryable4xx: boolean; is5xx: boolean; isNetworkErr: boolean; isFatalClient: boolean; shouldRetry: boolean;
-  };
-  computeBackoffWaitMs: (baseBackoffMs: number, retryAfterMs: number | null, random?: () => number) => number;
-};
-
-const conditionalCache = require("../../infra/http/conditionalCache") as {
-  createConditionalGet: (
-    httpReq: (method: string, url: string, options?: { headers?: Record<string, string> }) => Promise<{ status?: number; data?: unknown; headers?: unknown }>,
-    maxSize: number
-  ) => <T>(url: string, parse: (data: unknown) => T | Promise<T>, options?: { headers?: Record<string, string> }) => Promise<T>;
-};
 
 test("classifyHttpFailure: rate-limit, 5xx, network si 4xx fatal vs retryable", () => {
   const rl = retryPolicy.classifyHttpFailure(429, true);

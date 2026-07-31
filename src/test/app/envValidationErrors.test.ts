@@ -1,11 +1,7 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import attachEnv from "../../shared/env.js";
 import assert from "node:assert/strict";
 
-const attachEnv = require("../../shared/env").default as ((target: unknown) => void) & {
-  formatEnvValidationErrors: (err: unknown) => Array<{ variable: string; problem: string }>;
-};
 const { formatEnvValidationErrors } = attachEnv;
 
 import { z } from "zod";

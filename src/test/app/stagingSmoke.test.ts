@@ -1,13 +1,6 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import * as smoke from "../../scripts/stagingSmoke.js";
 import assert from "node:assert/strict";
-
-const smoke = require("../../scripts/stagingSmoke") as {
-  evaluateHealthBody: (body: unknown) => { ok: boolean; problems: string[] };
-  evaluateMetricsText: (text: string, requiredNames?: string[]) => { ok: boolean; missing: string[] };
-  REQUIRED_METRICS: string[];
-};
 
 test("evaluateHealthBody: raspuns sanatos -> ok", () => {
   const result = smoke.evaluateHealthBody({ status: "ok", mongo: 1, discord: "ready", uptimeMs: 1234 });

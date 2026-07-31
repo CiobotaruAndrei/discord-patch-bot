@@ -1,6 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import __mod0 from "../../features/command-runtime/commandRuntimeContext.js";
 import assert from "node:assert/strict";
 
 process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/itest-perms";
@@ -9,10 +8,7 @@ process.env.DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || "test-client-id
 process.env.METRICS_PUBLIC = process.env.METRICS_PUBLIC || "true";
 
 import { PermissionsBitField } from "discord.js";
-const { checkChannelPermissions, checkReadMessageHistory } = require("../../features/command-runtime/commandRuntimeContext").default as {
-  checkChannelPermissions: (interaction: unknown, channelId: string) => Promise<{ viewChannel: boolean; sendMessages: boolean; embedLinks: boolean; readMessageHistory: boolean } | null>;
-  checkReadMessageHistory: (interaction: unknown, channelId: string) => Promise<boolean | null>;
-};
+const { checkChannelPermissions, checkReadMessageHistory } = __mod0;
 
 const me = { id: "bot" };
 

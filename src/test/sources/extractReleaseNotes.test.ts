@@ -1,12 +1,8 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import * as __mod0 from "../../scripts/extract-release-notes.js";
 import assert from "node:assert/strict";
 
-const { extractReleaseNotes, normalizeTag } = require("../../scripts/extract-release-notes") as {
-  extractReleaseNotes: (changelog: string, tag: string) => string;
-  normalizeTag: (tag: string) => string;
-};
+const { extractReleaseNotes, normalizeTag } = __mod0;
 
 test("release notes extraction normalizes refs/tags prefixes", () => {
   assert.equal(normalizeTag("refs/tags/v1.2.3"), "v1.2.3");
