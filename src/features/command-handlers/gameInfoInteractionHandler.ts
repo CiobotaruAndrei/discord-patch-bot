@@ -34,10 +34,9 @@ import {
   selectTopActiveGames
 } from "./gameInfoEmbeds.js";
 import { createGameInfoLookupService } from "./gameInfoLookupService.js";
-import { calculatePlayerCountStats } from "../player-count/playerCountTimeAnalysis.js";
 import type { PlayerCountHistoryPoint } from "../player-count/playerCountSnapshotService.js";
-import { analyzeReviewTrend } from "../game-info/reviewTrendAnalysis.js";
-import { selectHistoricalReviewSnapshot, type StoredReviewSnapshot } from "../game-info/reviewTrendSnapshotService.js";
+import type { StoredReviewSnapshot } from "../game-info/reviewTrendSnapshotService.js";
+import { assemblePlayerCount, assembleReviewTrend, assembleTopActive } from "../game-info/gameInfoDataAssembly.js";
 
 import { errorMessage } from "../../shared/errors.js";
 import ________shared_utilities from "../../shared/utilities.js";
@@ -128,17 +127,12 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
     if (!resolved) return safeEdit(interaction, `Eroare: nu am gasit jocul \`${query}\` pe Steam.`);
     const { appId, details } = resolved;
     if (interaction.commandName === "review-trend") {
-      const review = await fetchSteamReviewData(appId);
-      const now = new Date();
-      const history = deps.readReviewTrendHistory
-        ? await deps.readReviewTrendHistory(appId, new Date(now.getTime() - 15 * 86_400_000)).catch(() => [])
-        : [];
-      const older = selectHistoricalReviewSnapshot(history, now);
-      const recent = review.success ? { totalReviews: review.totalReviews, qualityPercent: review.qualityPercent, at: now } : null;
-      const analysis = analyzeReviewTrend(older, recent);
-      if (deps.recordReviewTrendSnapshot) {
-        await deps.recordReviewTrendSnapshot(appId, query, review, now).catch(() => false);
-      }
+      const { review, analysis } = await assembleReviewTrend(appId, query, {
+        fetchReview: fetchSteamReviewData,
+        readHistory: deps.readReviewTrendHistory,
+        recordSnapshot: deps.recordReviewTrendSnapshot,
+        now: () => new Date()
+      });
       return safeEdit(interaction, { embeds: [buildReviewTrendEmbed(query, appId, details, review, analysis)] });
     }
     if (interaction.commandName === "crossplay") return safeEdit(interaction, { embeds: [buildCrossplayEmbed(query, appId, details)] });
@@ -149,17 +143,12 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
       return safeEdit(interaction, { embeds: [buildGameSizeEmbed(query, appId, details, deps.safeCheerioLoad, latestUpdate)] });
     }
     if (interaction.commandName === "player-count") {
-      const to = new Date();
-      const from = new Date(to.getTime() - 24 * 60 * 60_000);
-      const fresh = await lookup.readFreshSnapshots([String(appId)]);
-      const snapshot = fresh.get(String(appId));
-      const players = snapshot
-        ? { appId: String(appId), playerCount: snapshot.playerCount, success: true }
-        : await fetchSteamCurrentPlayers(appId);
-      const history = deps.readPlayerCountHistory
-        ? await deps.readPlayerCountHistory([String(appId)], from).catch(() => [])
-        : [];
-      const stats = calculatePlayerCountStats(history, { from, to });
+      const { players, stats } = await assemblePlayerCount(appId, {
+        readFreshSnapshots: lookup.readFreshSnapshots,
+        fetchCurrentPlayers: fetchSteamCurrentPlayers,
+        readHistory: deps.readPlayerCountHistory,
+        now: () => new Date()
+      });
       return safeEdit(interaction, { embeds: [buildPlayerCountEmbed(query, appId, details, players, stats)] });
     }
     const deals = await lookup.loadDeals(currency).catch(() => []);
@@ -172,30 +161,15 @@ function createGameInfoInteractionHandler(deps: GameInfoDeps) {
     if (!selectedGames.length) {
       return safeEdit(interaction, "Eroare: nu am jocuri cunoscute cu Steam appId pentru player-count.");
     }
-    const fresh = await lookup.readFreshSnapshots(selectedGames.map(game => String(game.appId)));
-    const snapshotItems: Array<{ game: GameConfig; players: SteamCurrentPlayersSummary }> = [];
-    const missing: GameConfig[] = [];
-    for (const game of selectedGames) {
-      const appId = String(game.appId);
-      const snapshot = fresh.get(appId);
-      if (snapshot) {
-        snapshotItems.push({ game, players: { appId, playerCount: snapshot.playerCount, success: true } });
-      } else {
-        missing.push(game);
-      }
-    }
-    const toFetch = missing.slice(0, TOP_ACTIVE_CANDIDATE_CAP);
-    const liveItems = await mapWithConcurrency(toFetch, TOP_ACTIVE_PLAYER_COUNT_CONCURRENCY, async game => {
-      const appId = String(game.appId);
-      try {
-        return { game, players: await fetchSteamCurrentPlayers(appId) };
-      } catch (err) {
-        deps.logger("WARN", "GAME_INFO", "Player count Steam esuat pentru un joc din top", { appId, error: errorMessage(err) });
-        return { game, players: { appId, playerCount: 0, success: false } };
-      }
+    const { playerCounts, notChecked } = await assembleTopActive(selectedGames, {
+      readFreshSnapshots: lookup.readFreshSnapshots,
+      fetchCurrentPlayers: fetchSteamCurrentPlayers,
+      mapWithConcurrency,
+      onFetchFailed: (appId, error) =>
+        deps.logger("WARN", "GAME_INFO", "Player count Steam esuat pentru un joc din top", { appId, error: errorMessage(error) }),
+      candidateCap: TOP_ACTIVE_CANDIDATE_CAP,
+      concurrency: TOP_ACTIVE_PLAYER_COUNT_CONCURRENCY
     });
-    const notChecked = Math.max(0, missing.length - toFetch.length);
-    const playerCounts = [...snapshotItems, ...liveItems];
     return safeEdit(interaction, { embeds: [buildTopActiveGamesEmbed(playerCounts, limit, notChecked)] });
   }
 
