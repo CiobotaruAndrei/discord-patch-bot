@@ -1,5 +1,6 @@
 import type { PriceValue } from "../../types.js";
 import type { DealInfo } from "../../sources/sourceTypes.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 interface DealPriceLeanDoc {
   gameKey?: string;
@@ -135,3 +136,12 @@ export function createDealPriceHistoryService(deps: DealPriceHistoryDeps) {
 }
 
 export default { createDealPriceHistoryService, dealPriceSeriesIdentity, summarizeDealPriceHistory };
+
+export const DEAL_PRICE_HISTORY_KEYS = [
+  "DealPriceSnapshotModel"
+] as const;
+
+type DealPriceHistoryKeyCheckDeps = Parameters<typeof createDealPriceHistoryService>[0];
+type DealPriceHistoryMissing = MissingDependencyKeys<DealPriceHistoryKeyCheckDeps, (typeof DEAL_PRICE_HISTORY_KEYS)[number] & string>;
+type DealPriceHistoryExtra = ExtraDependencyKeys<DealPriceHistoryKeyCheckDeps, (typeof DEAL_PRICE_HISTORY_KEYS)[number] & string>;
+const dealpricehistoryKeysComplete: ExactDependencyKeys<MissingDependencyKeys<DealPriceHistoryKeyCheckDeps, (typeof DEAL_PRICE_HISTORY_KEYS)[number] & string>, DealPriceHistoryExtra> = true;

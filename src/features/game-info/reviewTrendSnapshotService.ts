@@ -1,6 +1,7 @@
 import type { GameConfig } from "../../config/configTypes.js";
 import type { SteamReviewData } from "../../sources/sourceTypes.js";
 import type { ReviewSnapshot } from "./reviewTrendAnalysis.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 interface ReviewTrendLeanDoc {
   appId?: string;
@@ -125,3 +126,14 @@ export function createReviewTrendSnapshotService(deps: ReviewTrendSnapshotDeps) 
 }
 
 export default { createReviewTrendSnapshotService, selectHistoricalReviewSnapshot };
+
+export const REVIEW_TREND_KEYS = [
+  "ReviewTrendSnapshotModel",
+  "fetchSteamReviewData",
+  "logger"
+] as const;
+
+type ReviewTrendKeyCheckDeps = Parameters<typeof createReviewTrendSnapshotService>[0];
+type ReviewTrendMissing = MissingDependencyKeys<ReviewTrendKeyCheckDeps, (typeof REVIEW_TREND_KEYS)[number] & string>;
+type ReviewTrendExtra = ExtraDependencyKeys<ReviewTrendKeyCheckDeps, (typeof REVIEW_TREND_KEYS)[number] & string>;
+const reviewtrendKeysComplete: ExactDependencyKeys<Exclude<Extract<keyof ReviewTrendKeyCheckDeps, string>, (typeof REVIEW_TREND_KEYS)[number] & string>, ReviewTrendExtra> = true;

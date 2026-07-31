@@ -1,6 +1,7 @@
 "use strict";
 
 import { createHash } from "node:crypto";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 export interface BugReportRecord {
   id: string;
@@ -164,3 +165,14 @@ export function createReportRepository(deps: ReportRepositoryDeps) {
 
   return { saveBug, saveComplaint, listBugs, listComplaints, removeBug, removeComplaint };
 }
+
+export const REPORT_REPOSITORY_KEYS = [
+  "BugReportModel",
+  "UserComplaintModel",
+  "withMongoRetry"
+] as const;
+
+type ReportRepositoryKeyCheckDeps = Parameters<typeof createReportRepository>[0];
+type ReportRepositoryMissing = MissingDependencyKeys<ReportRepositoryKeyCheckDeps, (typeof REPORT_REPOSITORY_KEYS)[number] & string>;
+type ReportRepositoryExtra = ExtraDependencyKeys<ReportRepositoryKeyCheckDeps, (typeof REPORT_REPOSITORY_KEYS)[number] & string>;
+const reportrepositoryKeysComplete: ExactDependencyKeys<Exclude<Extract<keyof ReportRepositoryKeyCheckDeps, string>, (typeof REPORT_REPOSITORY_KEYS)[number] & string>, ReportRepositoryExtra> = true;

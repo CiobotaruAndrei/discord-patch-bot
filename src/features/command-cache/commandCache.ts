@@ -9,6 +9,7 @@ import {
   formatMissingChannelPerms
 } from "./channelPermissionChecks.js";
 import type { PermissionsBitFieldLike } from "./channelPermissionChecks.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
@@ -73,3 +74,16 @@ const commandCacheModule = {
 };
 
 export default commandCacheModule;
+
+export const COMMAND_CACHE_KEYS = [
+  "crypto",
+  "PermissionsBitField",
+  "logger",
+  "DEFAULT_CURRENCY",
+  "env"
+] as const;
+
+type CommandCacheKeyCheckDeps = Parameters<typeof createCommandCache>[0];
+type CommandCacheMissing = MissingDependencyKeys<CommandCacheKeyCheckDeps, (typeof COMMAND_CACHE_KEYS)[number] & string>;
+type CommandCacheExtra = ExtraDependencyKeys<CommandCacheKeyCheckDeps, (typeof COMMAND_CACHE_KEYS)[number] & string>;
+const commandcacheKeysComplete: ExactDependencyKeys<Exclude<Extract<keyof CommandCacheKeyCheckDeps, string>, (typeof COMMAND_CACHE_KEYS)[number] & string>, CommandCacheExtra> = true;
