@@ -14,6 +14,7 @@ import {
   findCommandHelpEntry,
   renderCommandHelpEntry
 } from "../command-help/commandHelpCatalog.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -30,7 +31,7 @@ type EmbedBuilderInstance = {
 };
 type EmbedBuilderCtor = new () => EmbedBuilderInstance;
 
-type HelpHandlerDeps = {
+type HelpDeclaredKeysDeps = {
   buildHelpEmbed: () => HelpEmbed;
   MessageFlags?: { Ephemeral: number };
   findCommandHelpEntry?: typeof findCommandHelpEntry;
@@ -122,7 +123,7 @@ function readRequestedCommand(interaction: DiscordInteraction): string | null {
   return trimmed ? trimmed : null;
 }
 
-function createHelpHandler(deps: HelpHandlerDeps) {
+function createHelpHandler(deps: HelpDeclaredKeysDeps) {
   async function handleHelpInteraction(interaction: DiscordInteraction) {
     const requestedCommand = readRequestedCommand(interaction);
     if (requestedCommand) {
@@ -188,3 +189,16 @@ function buildHelpCommandHandler(target: HelpContext): CommandHandler<DiscordInt
 }
 
 export default { createHelpHandler, buildHelpEmbed: buildHelpEmbedFromDeps, buildCommandHandler: buildHelpCommandHandler };
+
+export const HELP_HANDLER_KEYS = [
+  "COLORS",
+  "EmbedBuilder",
+  "MessageFlags",
+  "buildHelpEmbed",
+  "logger"
+] as const;
+
+type HelpKeyCheckDeps = Parameters<typeof buildHelpCommandHandler>[0];
+type HelpMissing = MissingDependencyKeys<HelpKeyCheckDeps, (typeof HELP_HANDLER_KEYS)[number] & string>;
+type HelpExtra = ExtraDependencyKeys<HelpKeyCheckDeps, (typeof HELP_HANDLER_KEYS)[number] & string>;
+const helpKeysComplete: ExactDependencyKeys<HelpMissing, HelpExtra> = true;

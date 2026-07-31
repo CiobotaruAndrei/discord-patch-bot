@@ -12,6 +12,7 @@ import type { RedisStatus } from "../../infra/redis/redisClient.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -35,7 +36,7 @@ interface HealthSnapshot {
   uptimeSeconds: number;
 }
 
-interface HealthHandlerDeps {
+interface HealthDeclaredKeysDeps {
   logger: Logger;
   enforceCooldown: (interaction: DiscordInteraction, command: string) => Promise<boolean>;
   startCommandLog: (interaction: DiscordInteraction, command: string, extra?: Record<string, unknown>) => CommandLogEnd;
@@ -47,7 +48,7 @@ interface HealthHandlerDeps {
   MessageFlags: { Ephemeral: number };
 }
 
-type HealthContext = Omit<HealthHandlerDeps, "getMongoReadyState" | "getRedisStatus">;
+type HealthContext = Omit<HealthDeclaredKeysDeps, "getMongoReadyState" | "getRedisStatus">;
 
 const MONGO_STATE_LABELS: Record<number, string> = {
   0: "deconectat",
@@ -92,7 +93,7 @@ function buildHealthEmbed(snapshot: HealthSnapshot): { title: string; descriptio
   };
 }
 
-function createHealthInteractionHandler(deps: HealthHandlerDeps) {
+function createHealthInteractionHandler(deps: HealthDeclaredKeysDeps) {
   const { enforceCooldown, startCommandLog, safeDefer, safeEdit, getCacheSizes, getMongoReadyState, getRedisStatus } = deps;
 
   async function handleHealthInteraction(interaction: DiscordInteraction): Promise<unknown> {
@@ -189,3 +190,20 @@ export default {
   buildHealthEmbed,
   formatUptime
 };
+
+export const HEALTH_HANDLER_KEYS = [
+  "GuildModel",
+  "MessageFlags",
+  "enforceCooldown",
+  "getCacheSizes",
+  "logger",
+  "redis",
+  "safeDefer",
+  "safeEdit",
+  "startCommandLog"
+] as const;
+
+type HealthKeyCheckDeps = Parameters<typeof buildHealthCommandHandler>[0];
+type HealthMissing = MissingDependencyKeys<HealthKeyCheckDeps, (typeof HEALTH_HANDLER_KEYS)[number] & string>;
+type HealthExtra = ExtraDependencyKeys<HealthKeyCheckDeps, (typeof HEALTH_HANDLER_KEYS)[number] & string>;
+const healthKeysComplete: ExactDependencyKeys<HealthMissing, HealthExtra> = true;

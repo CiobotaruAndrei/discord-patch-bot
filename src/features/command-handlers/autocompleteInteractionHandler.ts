@@ -26,6 +26,7 @@ import { buildAutocompleteChoices } from "../../native/fuzzy.js";
 import { buildCommandHelpChoices } from "../command-help/commandHelpCatalog.js";
 import { buildSettableAdminScopeChoices } from "../command-security/adminSettableScopeCatalog.js";
 import { NOTIFICATION_TEMPLATE_SPECS } from "../notifications/templateCatalog.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type FocusedOption = { name?: string; value?: unknown };
@@ -38,12 +39,12 @@ type DiscordInteraction = {
 } & AutocompleteResponder<AutocompleteChoice>;
 type NextInteractionHandler = (interaction: DiscordInteraction, games: GameConfig[]) => MaybePromise<unknown>;
 
-type AutocompleteHandlerDeps = {
+type AutocompleteDeclaredKeysDeps = {
   logger: Logger;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLite | null>;
 };
 
-type AutocompleteContext = AutocompleteHandlerDeps;
+type AutocompleteContext = AutocompleteDeclaredKeysDeps;
 
 const MIN_RELEVANT_SCORE = 20;
 const SCORE_EXACT = 100;
@@ -66,7 +67,7 @@ function scoreGameAgainstInput(game: GameConfig, input: string): number {
   return score;
 }
 
-function createAutocompleteHandler(deps: AutocompleteHandlerDeps) {
+function createAutocompleteHandler(deps: AutocompleteDeclaredKeysDeps) {
   const { logger, getGuildSettings } = deps;
   const builders = createAutocompleteChoiceBuilders({ logger, getGuildSettings });
 
@@ -180,3 +181,13 @@ function buildAutocompleteCommandHandler(target: AutocompleteContext) {
 }
 
 export default { createAutocompleteHandler, scoreGameAgainstInput, buildCommandHandler: buildAutocompleteCommandHandler };
+
+export const AUTOCOMPLETE_HANDLER_KEYS = [
+  "getGuildSettings",
+  "logger"
+] as const;
+
+type AutocompleteKeyCheckDeps = Parameters<typeof buildAutocompleteCommandHandler>[0];
+type AutocompleteMissing = MissingDependencyKeys<AutocompleteKeyCheckDeps, (typeof AUTOCOMPLETE_HANDLER_KEYS)[number] & string>;
+type AutocompleteExtra = ExtraDependencyKeys<AutocompleteKeyCheckDeps, (typeof AUTOCOMPLETE_HANDLER_KEYS)[number] & string>;
+const autocompleteKeysComplete: ExactDependencyKeys<AutocompleteMissing, AutocompleteExtra> = true;

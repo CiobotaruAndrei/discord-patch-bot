@@ -17,6 +17,7 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail, errorMessage } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -151,3 +152,20 @@ function buildSetCommandHandler(target: SetContext) {
 }
 
 export default { createSetInteractionHandler, buildSetUpdatePlan, buildCommandHandler: buildSetCommandHandler };
+
+export const SET_HANDLER_KEYS = [
+  "GuildModel",
+  "MessageFlags",
+  "SUPPORTED_CURRENCIES",
+  "checkReadMessageHistory",
+  "formatUserError",
+  "getGuildSettings",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type SetKeyCheckDeps = Parameters<typeof buildSetCommandHandler>[0];
+type SetMissing = MissingDependencyKeys<SetKeyCheckDeps, (typeof SET_HANDLER_KEYS)[number] & string>;
+type SetExtra = ExtraDependencyKeys<SetKeyCheckDeps, (typeof SET_HANDLER_KEYS)[number] & string>;
+const setKeysComplete: ExactDependencyKeys<SetMissing, SetExtra> = true;

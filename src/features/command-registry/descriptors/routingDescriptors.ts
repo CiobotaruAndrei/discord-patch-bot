@@ -1,8 +1,6 @@
 import type { CommandHandler } from "../commandHandler.js";
-import {
-  AUTOCOMPLETE_HANDLER_KEYS,
-  FALLBACK_HANDLER_KEYS
-} from "../commandHandlerKeys.js";
+import { AUTOCOMPLETE_HANDLER_KEYS } from "../../command-handlers/autocompleteInteractionHandler.js";
+import { FALLBACK_HANDLER_KEYS } from "../../command-handlers/fallbackInteractionHandler.js";
 import type { CommandDomainDeps } from "../commandDomainDeps.js";
 import type { DefineDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
 import attachAutocompleteInteractionHandler from "../../command-handlers/autocompleteInteractionHandler.js";

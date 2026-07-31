@@ -19,6 +19,7 @@ import { errorDetail } from "../../shared/errors.js";
 import { containsExternalLink } from "../moderation/moderationInputPolicy.js";
 
 import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 interface DiscordUser {
   id: string;
@@ -46,7 +47,7 @@ type DiscordInteraction = ChatInputInteraction<
   awaitModalSubmit?(options: { time: number; filter(interaction: ModalSubmit): boolean }): Promise<ModalSubmit>;
 };
 
-interface ReportHandlerDeps {
+interface ReportDeclaredKeysDeps {
   logger(level: string, context: string, message: string, meta?: unknown): void;
   enforceCooldown(interaction: DiscordInteraction, command: string): Promise<boolean>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
@@ -111,7 +112,7 @@ function complaintLine(record: UserComplaintRecord): string {
   return `\`${record.id || "fara-id"}\` reclamant: <@${record.reporterId}> | reclamat: <@${record.targetId}> | <t:${Math.floor(record.createdAt.getTime() / 1000)}:R>\n${record.reason}`;
 }
 
-function createReportInteractionHandler(deps: ReportHandlerDeps) {
+function createReportInteractionHandler(deps: ReportDeclaredKeysDeps) {
   async function bug(interaction: DiscordInteraction, games: GameConfig[], guildId: string): Promise<unknown> {
     if (!(await deps.enforceCooldown(interaction, "report bug"))) return undefined;
     const query = String(interaction.options.getString("joc", true) || "").trim();
@@ -182,7 +183,7 @@ function createReportInteractionHandler(deps: ReportHandlerDeps) {
   return { handle };
 }
 
-function buildReportCommandHandler(target: ReportHandlerDeps) {
+function buildReportCommandHandler(target: ReportDeclaredKeysDeps) {
   const reports = createReportInteractionHandler(target);
   const command: CommandHandler<DiscordInteraction> = {
     canHandle: (interaction): interaction is DiscordInteraction => matchesCommand(interaction, { commandNames: ["report"] }),
@@ -201,3 +202,25 @@ function buildReportCommandHandler(target: ReportHandlerDeps) {
 }
 
 export default { createReportInteractionHandler, buildCommandHandler: buildReportCommandHandler };
+
+export const REPORT_HANDLER_KEYS = [
+  "MessageFlags",
+  "adminAlert",
+  "enforceCooldown",
+  "findGameAndSuggestion",
+  "handlePagination",
+  "listBugs",
+  "listComplaints",
+  "logger",
+  "removeBug",
+  "removeComplaint",
+  "safeDefer",
+  "safeEdit",
+  "saveBug",
+  "saveComplaint"
+] as const;
+
+type ReportKeyCheckDeps = Parameters<typeof buildReportCommandHandler>[0];
+type ReportMissing = MissingDependencyKeys<ReportKeyCheckDeps, (typeof REPORT_HANDLER_KEYS)[number] & string>;
+type ReportExtra = ExtraDependencyKeys<ReportKeyCheckDeps, (typeof REPORT_HANDLER_KEYS)[number] & string>;
+const reportKeysComplete: ExactDependencyKeys<ReportMissing, ReportExtra> = true;

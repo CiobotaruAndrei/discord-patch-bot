@@ -12,6 +12,7 @@ import { countYoutubeErrors } from "../youtube/youtubeErrorsRepository.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type YouTubeContext = YouTubeInteractionDeps & {
   env?: { NOTIFICATION_OUTBOX_ENABLED?: boolean };
@@ -108,3 +109,31 @@ export default {
   youTubeListLines,
   formatYouTubeStatus
 };
+
+export const YOUTUBE_HANDLER_KEYS = [
+  "OperationJournalModel",
+  "GuildYoutubeStateModel",
+  "GuildModel",
+  "GuildYoutubeErrorModel",
+  "MessageFlags",
+  "checkChannelPermissions",
+  "clearYouTubeErrors",
+  "deliverManualYouTubeVideos",
+  "env",
+  "fetchYouTubeFeed",
+  "formatUserError",
+  "getGuildSettings",
+  "logger",
+  "outboxEnabled",
+  "prepareManualYouTubeVideos",
+  "removeSeenChannel",
+  "resolveYouTubeChannel",
+  "safeDefer",
+  "safeEdit",
+  "seedSeenVideos"
+] as const;
+
+type YoutubeKeyCheckDeps = Parameters<typeof buildYouTubeCommandHandler>[0];
+type YoutubeMissing = MissingDependencyKeys<YoutubeKeyCheckDeps, (typeof YOUTUBE_HANDLER_KEYS)[number] & string>;
+type YoutubeExtra = ExtraDependencyKeys<YoutubeKeyCheckDeps, (typeof YOUTUBE_HANDLER_KEYS)[number] & string>;
+const youtubeKeysComplete: ExactDependencyKeys<YoutubeMissing, YoutubeExtra> = true;

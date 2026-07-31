@@ -9,6 +9,7 @@ import type { LoggerFunction } from "../../types.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string; aliases?: string[] } & Record<string, unknown>;
@@ -105,3 +106,14 @@ function buildSimpleCommandsCommandHandler(target: SimpleCommandsContext) {
 }
 
 export default { createSimpleCommandsHandler, buildCommandHandler: buildSimpleCommandsCommandHandler };
+
+export const SIMPLE_HANDLER_KEYS = [
+  "COMMAND_OUTPUT_MAX_CHARS",
+  "MessageFlags",
+  "logger"
+] as const;
+
+type SimpleKeyCheckDeps = Parameters<typeof buildSimpleCommandsCommandHandler>[0];
+type SimpleMissing = MissingDependencyKeys<SimpleKeyCheckDeps, (typeof SIMPLE_HANDLER_KEYS)[number] & string>;
+type SimpleExtra = ExtraDependencyKeys<SimpleKeyCheckDeps, (typeof SIMPLE_HANDLER_KEYS)[number] & string>;
+const simpleKeysComplete: ExactDependencyKeys<SimpleMissing, SimpleExtra> = true;

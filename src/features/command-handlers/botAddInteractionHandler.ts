@@ -7,6 +7,7 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 import botAddRepository from "../moderation/botAddRepository.js";
 import type { BotAddPermissionRecord } from "../moderation/botAddRepository.js";
 import { sendTextPages } from "../command-presentation/textPagination.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type Channel = { send?: (payload: unknown) => Promise<unknown> };
 type RequesterMember = { send?: (payload: unknown) => Promise<unknown> };
@@ -141,3 +142,15 @@ export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
 }
 
 export default { buildCommandHandler };
+
+export const BOT_ADD_HANDLER_KEYS = [
+  "GuildModel",
+  "getGuildSettings",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type BotAddKeyCheckDeps = Parameters<typeof buildCommandHandler>[0];
+type BotAddMissing = MissingDependencyKeys<BotAddKeyCheckDeps, (typeof BOT_ADD_HANDLER_KEYS)[number] & string>;
+type BotAddExtra = ExtraDependencyKeys<BotAddKeyCheckDeps, (typeof BOT_ADD_HANDLER_KEYS)[number] & string>;
+const botAddKeysComplete: ExactDependencyKeys<BotAddMissing, BotAddExtra> = true;

@@ -1,12 +1,10 @@
 import type { CommandHandler } from "../commandHandler.js";
-import {
-  HELP_HANDLER_KEYS,
-  LATEST_HANDLER_KEYS,
-  REPORT_HANDLER_KEYS,
-  SIMPLE_HANDLER_KEYS,
-  STATUS_HANDLER_KEYS,
-  SUGGEST_COMMAND_HANDLER_KEYS
-} from "../commandHandlerKeys.js";
+import { HELP_HANDLER_KEYS } from "../../command-handlers/helpInteractionHandler.js";
+import { LATEST_HANDLER_KEYS } from "../../command-handlers/latestInteractionHandler.js";
+import { REPORT_HANDLER_KEYS } from "../../command-handlers/reportInteractionHandler.js";
+import { SIMPLE_HANDLER_KEYS } from "../../command-handlers/simpleCommandsHandler.js";
+import { STATUS_HANDLER_KEYS } from "../../command-handlers/statusInteractionHandler.js";
+import { SUGGEST_COMMAND_HANDLER_KEYS } from "../../command-handlers/suggestCommandInteractionHandler.js";
 import type { CommandDomainDeps } from "../commandDomainDeps.js";
 import type { DefineDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
 import attachHelpInteractionHandler from "../../command-handlers/helpInteractionHandler.js";

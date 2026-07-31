@@ -40,6 +40,7 @@ import { assemblePlayerCount, assembleReviewTrend, assembleTopActive } from "../
 
 import { errorMessage } from "../../shared/errors.js";
 import ________shared_utilities from "../../shared/utilities.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 const { mapWithConcurrency } = ________shared_utilities;
 
 type MaybePromise<T> = T | Promise<T>;
@@ -251,3 +252,35 @@ export default {
   extractInstallSize,
   buildCommandHandler: buildGameInfoCommandHandler
 };
+
+export const GAME_INFO_HANDLER_KEYS = [
+  "DEFAULT_CURRENCY",
+  "MessageFlags",
+  "chooseBestSteamMatch",
+  "enforceCooldown",
+  "enrichDealData",
+  "fetchDeals",
+  "fetchSteamCurrentPlayers",
+  "fetchSteamLatestUpdateSize",
+  "fetchSteamPriceDetails",
+  "fetchSteamReviewData",
+  "formatPrice",
+  "getDealsCacheData",
+  "getGuildSettings",
+  "logger",
+  "readPlayerCountHistory",
+  "readPlayerCountSnapshots",
+  "readReviewTrendHistory",
+  "recordReviewTrendSnapshot",
+  "safeCheerioLoad",
+  "safeDefer",
+  "safeEdit",
+  "searchSteamGameByName",
+  "setDealsCache",
+  "startCommandLog"
+] as const;
+
+type GameInfoKeyCheckDeps = Parameters<typeof buildGameInfoCommandHandler>[0];
+type GameInfoMissing = MissingDependencyKeys<GameInfoKeyCheckDeps, (typeof GAME_INFO_HANDLER_KEYS)[number] & string>;
+type GameInfoExtra = ExtraDependencyKeys<GameInfoKeyCheckDeps, (typeof GAME_INFO_HANDLER_KEYS)[number] & string>;
+const gameInfoKeysComplete: ExactDependencyKeys<GameInfoMissing, GameInfoExtra> = true;

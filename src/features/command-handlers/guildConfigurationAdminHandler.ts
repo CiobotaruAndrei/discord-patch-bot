@@ -24,6 +24,7 @@ import { createOperationJournalRuntime, journalResourceVersion, OPERATION_PAYLOA
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -179,3 +180,26 @@ export default {
   buildResetConfiguration,
   buildCommandHandler: buildGuildConfigurationAdminCommandHandler
 };
+
+export const CONFIGURATION_ADMIN_HANDLER_KEYS = [
+  "GuildModerationModel",
+  "GuildSecurityModel",
+  "GuildYoutubeStateModel",
+  "DEFAULT_CURRENCY",
+  "GuildAuditLogModel",
+  "GuildDeadLetterModel",
+  "GuildModel",
+  "GuildYoutubeErrorModel",
+  "MessageFlags",
+  "NotificationDeadLetterReplayModel",
+  "OperationJournalModel",
+  "checkChannelPermissions",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type ConfigurationAdminKeyCheckDeps = Parameters<typeof buildGuildConfigurationAdminCommandHandler>[0];
+type ConfigurationAdminMissing = MissingDependencyKeys<ConfigurationAdminKeyCheckDeps, (typeof CONFIGURATION_ADMIN_HANDLER_KEYS)[number] & string>;
+type ConfigurationAdminExtra = ExtraDependencyKeys<ConfigurationAdminKeyCheckDeps, (typeof CONFIGURATION_ADMIN_HANDLER_KEYS)[number] & string>;
+const configurationAdminKeysComplete: ExactDependencyKeys<ConfigurationAdminMissing, ConfigurationAdminExtra> = true;

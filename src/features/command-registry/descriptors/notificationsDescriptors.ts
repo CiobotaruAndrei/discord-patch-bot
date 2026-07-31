@@ -1,12 +1,10 @@
 import type { CommandHandler } from "../commandHandler.js";
-import {
-  DLC_HANDLER_KEYS,
-  FUTURE_RELEASE_HANDLER_KEYS,
-  PRICE_ALERT_HANDLER_KEYS,
-  SUBSCRIPTION_HANDLER_KEYS,
-  TEMPLATE_PREVIEW_HANDLER_KEYS,
-  YOUTUBE_HANDLER_KEYS
-} from "../commandHandlerKeys.js";
+import { DLC_HANDLER_KEYS } from "../../command-handlers/dlcInteractionHandler.js";
+import { FUTURE_RELEASE_HANDLER_KEYS } from "../../command-handlers/futureReleaseInteractionHandler.js";
+import { PRICE_ALERT_HANDLER_KEYS } from "../../command-handlers/priceAlertInteractionHandler.js";
+import { SUBSCRIPTION_HANDLER_KEYS } from "../../command-handlers/subscriptionNotificationHandlers.js";
+import { TEMPLATE_PREVIEW_HANDLER_KEYS } from "../../command-handlers/templateAndNotificationPreviewHandler.js";
+import { YOUTUBE_HANDLER_KEYS } from "../../command-handlers/youtubeInteractionHandler.js";
 import type { CommandDomainDeps } from "../commandDomainDeps.js";
 import type { DefineDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
 import attachDlcInteractionHandler from "../../command-handlers/dlcInteractionHandler.js";

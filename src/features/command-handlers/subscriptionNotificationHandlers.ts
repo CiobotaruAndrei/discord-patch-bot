@@ -10,6 +10,7 @@ import { createDlcSubscriptionFamily } from "./dlcSubscriptionFamily.js";
 import { createPlayerCountSubscriptionFamily } from "./playerCountSubscriptionFamily.js";
 
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps) {
   const families = {
@@ -81,3 +82,33 @@ function buildSubscriptionCommandHandler(target: SubscriptionContext) {
 }
 
 export default { createSubscriptionInteractionHandlers, buildCommandHandler: buildSubscriptionCommandHandler };
+
+export const SUBSCRIPTION_HANDLER_KEYS = [
+  "DEALS_HISTORY_LIMIT",
+  "DEFAULT_CURRENCY",
+  "GuildModel",
+  "MessageFlags",
+  "OP_UPDATE_OPTS",
+  "canSendEmbeds",
+  "dealHash",
+  "fetchDeals",
+  "fetchSteamCurrentPlayers",
+  "formatUserError",
+  "getGuildSettings",
+  "getLatestForAllGames",
+  "listMissingChannelPerms",
+  "logger",
+  "makeActivationId",
+  "missingChannelPermsMessage",
+  "safeDefer",
+  "safeEdit",
+  "seedBaselineDlc",
+  "seedSeenDiscounts",
+  "seedSeenUpdates",
+  "setDealsCache"
+] as const;
+
+type SubscriptionKeyCheckDeps = Parameters<typeof buildSubscriptionCommandHandler>[0];
+type SubscriptionMissing = MissingDependencyKeys<SubscriptionKeyCheckDeps, (typeof SUBSCRIPTION_HANDLER_KEYS)[number] & string>;
+type SubscriptionExtra = ExtraDependencyKeys<SubscriptionKeyCheckDeps, (typeof SUBSCRIPTION_HANDLER_KEYS)[number] & string>;
+const subscriptionKeysComplete: ExactDependencyKeys<SubscriptionMissing, SubscriptionExtra> = true;

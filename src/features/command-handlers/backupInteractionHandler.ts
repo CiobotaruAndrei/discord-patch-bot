@@ -48,6 +48,7 @@ import {
 } from "../admin-records/backupResourceRestoreRuntime.js";
 
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type InteractionPayload = DiscordReplyPayload;
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
@@ -261,3 +262,24 @@ export default {
   renderBackupPreview,
   buildCommandHandler: buildBackupCommandHandler
 };
+
+export const BACKUP_HANDLER_KEYS = [
+  "GuildModerationModel",
+  "GuildSecurityModel",
+  "GuildYoutubeStateModel",
+  "GuildAuditLogModel",
+  "GuildConfigBackupModel",
+  "GuildModel",
+  "MessageFlags",
+  "OperationJournalModel",
+  "formatUserError",
+  "getGuildSettings",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type BackupKeyCheckDeps = Parameters<typeof buildBackupCommandHandler>[0];
+type BackupMissing = MissingDependencyKeys<BackupKeyCheckDeps, (typeof BACKUP_HANDLER_KEYS)[number] & string>;
+type BackupExtra = ExtraDependencyKeys<BackupKeyCheckDeps, (typeof BACKUP_HANDLER_KEYS)[number] & string>;
+const backupKeysComplete: ExactDependencyKeys<BackupMissing, BackupExtra> = true;

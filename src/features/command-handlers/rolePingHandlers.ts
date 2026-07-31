@@ -13,6 +13,7 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";
 
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -118,3 +119,17 @@ function buildRolePingCommandHandler(target: RolePingContext) {
 }
 
 export default { createRolePingInteractionHandlers, buildCommandHandler: buildRolePingCommandHandler };
+
+export const ROLE_PING_HANDLER_KEYS = [
+  "GuildModel",
+  "MessageFlags",
+  "formatUserError",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type RolePingKeyCheckDeps = Parameters<typeof buildRolePingCommandHandler>[0];
+type RolePingMissing = MissingDependencyKeys<RolePingKeyCheckDeps, (typeof ROLE_PING_HANDLER_KEYS)[number] & string>;
+type RolePingExtra = ExtraDependencyKeys<RolePingKeyCheckDeps, (typeof ROLE_PING_HANDLER_KEYS)[number] & string>;
+const rolePingKeysComplete: ExactDependencyKeys<RolePingMissing, RolePingExtra> = true;

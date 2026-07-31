@@ -8,6 +8,7 @@ import type { GameConfig } from "../../config/configTypes.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 
 import { errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type DiscordInteraction = BaseChatInputInteraction & AlwaysReplies & {
   isAutocomplete?: () => boolean;
@@ -77,3 +78,13 @@ function buildFallbackCommandHandler(target: RouterContext): CommandHandler<Disc
 }
 
 export default { createFallbackInteractionHandler, buildCommandHandler: buildFallbackCommandHandler };
+
+export const FALLBACK_HANDLER_KEYS = [
+  "MessageFlags",
+  "logger"
+] as const;
+
+type FallbackKeyCheckDeps = Parameters<typeof buildFallbackCommandHandler>[0];
+type FallbackMissing = MissingDependencyKeys<FallbackKeyCheckDeps, (typeof FALLBACK_HANDLER_KEYS)[number] & string>;
+type FallbackExtra = ExtraDependencyKeys<FallbackKeyCheckDeps, (typeof FALLBACK_HANDLER_KEYS)[number] & string>;
+const fallbackKeysComplete: ExactDependencyKeys<FallbackMissing, FallbackExtra> = true;

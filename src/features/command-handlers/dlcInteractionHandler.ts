@@ -14,6 +14,7 @@ import { dlcPageHasAgeGate, dlcPageLooksLikeStorePage, parseDlcRows } from "./dl
 import { matchesCommand } from "../command-registry/commandMatch.js";
 
 import { errorMessage, errorDetail } from "../../shared/errors.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -46,7 +47,7 @@ type ChainableEmbed = {
   setFooter(value: unknown): ChainableEmbed;
 };
 
-type DlcHandlerDeps = {
+type DlcDeclaredKeysDeps = {
   logger: DlcHandlerLogger;
   enforceCooldown: (interaction: DiscordInteraction, command: string) => Promise<boolean>;
   startCommandLog: (interaction: DiscordInteraction, command: string, extra?: Record<string, unknown>) => CommandLogEnd;
@@ -81,9 +82,9 @@ type DlcHandlerDeps = {
   MessageFlags: { Ephemeral: number };
 };
 
-type DlcContext = DlcHandlerDeps;
+type DlcContext = DlcDeclaredKeysDeps;
 
-function createDlcInteractionHandler(deps: DlcHandlerDeps) {
+function createDlcInteractionHandler(deps: DlcDeclaredKeysDeps) {
   const {
     logger, enforceCooldown, startCommandLog, safeDefer, safeEdit,
     getGuildSettings, DEFAULT_CURRENCY,
@@ -247,3 +248,35 @@ function buildDlcCommandHandler(target: DlcContext) {
 }
 
 export default { createDlcInteractionHandler, buildCommandHandler: buildDlcCommandHandler };
+
+export const DLC_HANDLER_KEYS = [
+  "CACHE_TTL_MS",
+  "COLORS",
+  "DEFAULT_CURRENCY",
+  "DLC_CACHE_MAX_SIZE",
+  "DLC_ITEMS_PER_PAGE",
+  "EmbedBuilder",
+  "MessageFlags",
+  "cache",
+  "cacheGetLRU",
+  "cacheSetLRU",
+  "chooseBestSteamMatch",
+  "enforceCooldown",
+  "fetchSteamPriceDetails",
+  "getCurrencyConfig",
+  "getGuildSettings",
+  "handlePagination",
+  "httpReq",
+  "logger",
+  "safeCheerioLoad",
+  "safeDefer",
+  "safeEdit",
+  "searchSteamGameByName",
+  "startCommandLog",
+  "truncate"
+] as const;
+
+type DlcKeyCheckDeps = Parameters<typeof buildDlcCommandHandler>[0];
+type DlcMissing = MissingDependencyKeys<DlcKeyCheckDeps, (typeof DLC_HANDLER_KEYS)[number] & string>;
+type DlcExtra = ExtraDependencyKeys<DlcKeyCheckDeps, (typeof DLC_HANDLER_KEYS)[number] & string>;
+const dlcKeysComplete: ExactDependencyKeys<DlcMissing, DlcExtra> = true;

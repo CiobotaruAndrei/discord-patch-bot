@@ -14,6 +14,7 @@ import { invalidTemplatePlaceholders, templateSpecFor } from "../notifications/t
 import { errorDetail } from "../../shared/errors.js";
 import { applyGuildConfigUpdate, type GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 import { validateUserText } from "../command-security/userTextPolicy.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type DiscordInteraction = ChatInputInteraction<SubcommandOption & StringOption>;
 
@@ -145,3 +146,17 @@ function buildTemplatePreviewHandler(target: TemplatePreviewDeps) {
 }
 
 export default { createTemplatePreviewHandler, buildCommandHandler: buildTemplatePreviewHandler };
+
+export const TEMPLATE_PREVIEW_HANDLER_KEYS = [
+  "GuildModel",
+  "MessageFlags",
+  "getGuildSettings",
+  "logger",
+  "safeDefer",
+  "safeEdit"
+] as const;
+
+type TemplatePreviewKeyCheckDeps = Parameters<typeof buildTemplatePreviewHandler>[0];
+type TemplatePreviewMissing = MissingDependencyKeys<TemplatePreviewKeyCheckDeps, (typeof TEMPLATE_PREVIEW_HANDLER_KEYS)[number] & string>;
+type TemplatePreviewExtra = ExtraDependencyKeys<TemplatePreviewKeyCheckDeps, (typeof TEMPLATE_PREVIEW_HANDLER_KEYS)[number] & string>;
+const templatePreviewKeysComplete: ExactDependencyKeys<TemplatePreviewMissing, TemplatePreviewExtra> = true;
