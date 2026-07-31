@@ -73,10 +73,14 @@ test("rularea programata isi pastreaza build-ul fara cache, iar exportul e compr
     "rularea saptamanala exista ca sa prinda CVE-uri noi in imaginea de baza; cu layere din cache, " +
       "`apt-get upgrade` nu s-ar mai executa si Trivy ar scana o imagine veche"
   );
-  assert.ok(
-    workflow.includes("cache-to: type=gha,mode=max,compression=zstd"),
-    "exportul de cache e al doilea cost al jobului dupa compilarea librariilor C: masurat, 119s cand stratul " +
-      "de dependinte cargo s-a reconstruit si 18s cand totul venea din cache. zstd comprima acelasi continut " +
-      "mai repede decat gzip, iar `mode=max` ramane, altfel straturile intermediare nu s-ar mai refolosi"
-  );
+  const cacheTo = workflow.split("\n").find(line => line.trim().startsWith("cache-to:")) ?? "";
+  for (const parte of ["type=gha", "mode=max", "compression=zstd"]) {
+    assert.ok(
+      cacheTo.includes(parte),
+      `exportul de cache si-a pierdut ${parte}. E al doilea cost al jobului dupa compilarea librariilor C: masurat, ` +
+        "119s cand stratul de dependinte cargo s-a reconstruit si 18s cand totul venea din cache. zstd comprima " +
+        "acelasi continut mai repede decat gzip, iar `mode=max` trebuie sa ramana, altfel straturile intermediare " +
+        "nu s-ar mai refolosi"
+    );
+  }
 });

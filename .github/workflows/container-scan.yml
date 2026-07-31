@@ -52,7 +52,16 @@ jobs:
           # compilarea librariilor C: masurat, 119s cand stratul de dependinte cargo s-a reconstruit
           # si 18s cand totul venea din cache. Continutul cache-ului e identic, doar algoritmul de
           # compresie e altul.
-          cache-to: type=gha,mode=max,compression=zstd
+          #
+          # Exportul se face DOAR de pe main (si de pe rularea programata), niciodata dintr-un PR.
+          # Motivul e cota de 10 GB pe repo: `mode=max` salveaza fiecare layer intermediar ca intrare
+          # separata, iar un PR isi scrie propriul scope (`refs/pull/N/merge`), adica o copie
+          # integrala a aceluiasi set de layere. Cu cateva PR-uri deschise se depaseste cota, GitHub
+          # evacueaza LRU, si exact layerele de care are nevoie rularea urmatoare dispar - build-ul
+          # redevine rece (masurat: 356s in loc de ~60s). PR-urile CITESC in continuare cache-ul de pe
+          # main prin `cache-from`, iar main il reimprospateaza la fiecare push care atinge Dockerfile,
+          # lock-ul de dependinte sau `src/native/**` - adica exact intrarile care il invalideaza.
+          cache-to: ${{ github.event_name == 'pull_request' && '' || 'type=gha,mode=max,compression=zstd' }}
 
       # Doua scanari in loc de trei. Trivy pornea de trei ori pe aceeasi imagine — SARIF, SBOM si
       # gate — iar fiecare pornire isi descarca din nou baza de vulnerabilitati: masurat, 14-15s de
