@@ -1,6 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import commandRuntimeContext from "../features/command-runtime/commandRuntimeContext.js";
 import assert from "node:assert/strict";
 
 process.env.MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/itest-di-wiring";
@@ -13,9 +12,6 @@ const commandRegistryFactories = (await import("../features/command-registry/com
   createCommandRegistry: (input: unknown) => Record<string, unknown>;
 };
 const commandRegistry = commandRegistryFactories.createCommandRegistry(commandRuntimeInput);
-const commandRuntimeContext = require("../features/command-runtime/commandRuntimeContext").default as {
-  createCommandRuntimeContext: (input: unknown) => { discord: Record<string, unknown>; mongo: Record<string, unknown>; sources: Record<string, unknown>; platform: Record<string, unknown> };
-};
 
 const REQUIRED_REGISTRY_FUNCTIONS = [
   "cleanCache", "getCacheSizes", "setGlobalCacheTtl", "setUpdatesCache", "setDealsCache",

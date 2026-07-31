@@ -1,11 +1,7 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import installSetHandler from "../../features/command-handlers/setInteractionHandler.js";
 import { installCommandChain, type ChainableCommandModule } from "../commandChainTestKit.js";
 import assert from "node:assert/strict";
-
-const installSetHandler = require("../../features/command-handlers/setInteractionHandler").default as
-  ChainableCommandModule & { createSetInteractionHandler?: (deps: unknown) => unknown };
 
 type SetInteractionRuntime = {
   handleInteraction: (interaction: unknown, games?: unknown[]) => Promise<unknown>;

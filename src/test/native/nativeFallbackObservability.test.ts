@@ -1,17 +1,6 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import * as fuzzy from "../../native/fuzzy.js";
 import assert from "node:assert/strict";
-
-const fuzzy = require("../../native/fuzzy") as {
-  recordNativeFallback: (fnName: string, err: unknown) => void;
-  getNativeFallbackTotals: () => Record<string, number>;
-  getNativeFallbackTotal: () => number;
-  resetNativeFallbackTotals: () => void;
-  classifyPatchNote: (title: unknown, contents: unknown, tags: unknown) => boolean;
-  extractDateScore: (url: unknown) => number;
-  NATIVE_FALLBACK_FUNCTIONS: string[];
-};
 
 test("recordNativeFallback: numara per-functie si agregat", () => {
   fuzzy.resetNativeFallbackTotals();

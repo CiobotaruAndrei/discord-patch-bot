@@ -1,6 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import snoozeInteractions from "../../features/command-handlers/snoozeInteractionHandler.js";
 import assert from "node:assert/strict";
 
 type UpdateCall = {
@@ -11,10 +10,6 @@ type UpdateCall = {
 
 type SnoozeRuntime = {
   handleSnoozeInteraction: (interaction: unknown) => Promise<unknown>;
-};
-
-const snoozeInteractions = require("../../features/command-handlers/snoozeInteractionHandler").default as {
-  createSnoozeInteractionHandler: (deps: Record<string, unknown>) => SnoozeRuntime;
 };
 
 function makeContext() {

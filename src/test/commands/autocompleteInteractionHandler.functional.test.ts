@@ -1,14 +1,7 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
+import installAutocomplete from "../../features/command-handlers/autocompleteInteractionHandler.js";
 import { installCommandChain, type ChainableCommandModule } from "../commandChainTestKit.js";
 import assert from "node:assert/strict";
-
-const installAutocomplete = require("../../features/command-handlers/autocompleteInteractionHandler").default as
-  ChainableCommandModule & {
-    createAutocompleteHandler?: (deps: unknown) => unknown;
-    scoreGameAgainstInput?: (game: TestGame, input: string) => number;
-  };
 
 type TestGame = { key: string; name: string; aliases: string[] };
 type AutocompleteChoice = { name: string; value: string };

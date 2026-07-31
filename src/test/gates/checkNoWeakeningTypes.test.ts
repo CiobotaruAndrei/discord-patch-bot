@@ -1,4 +1,5 @@
 import { createRequire as __createRequire } from "node:module";
+import * as mod from "../../scripts/check-no-weakening-types.js";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -6,12 +7,7 @@ import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";
 import path from "path";
-const mod = require("../../scripts/check-no-weakening-types") as {
-  findWeakeningTypes: (text: string, fileName?: string) => Array<{ line: number; kind: string; text: string }>;
-  collectWeakeningViolations: (files: string[]) => Array<{ file: string; line: number; kind: string; text: string }>;
-  canUseWeakeningTypes: (file: string) => boolean;
-  isBugCatchingRel: (rel: string) => boolean;
-};
+
 const { findWeakeningTypes, collectWeakeningViolations, canUseWeakeningTypes, isBugCatchingRel } = mod;
 
 test("detecteaza dubla asertiune `as unknown as`", () => {
