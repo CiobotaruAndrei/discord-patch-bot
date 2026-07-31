@@ -373,6 +373,13 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Al doilea cast din acelasi fisier (`results as FetchResult[]`) afirma ca tabloul e complet dupa bucla de completare. Afirmatia era adevarata, dar necontrolata de compilator: acum tabloul se construieste element cu element intr-un `FetchResult[]`, deci proprietatea e verificata, nu declarata.
 - Contractul sta in `shared/`, **nu in `types.ts`** — barrel-ul e importat din tot repo-ul, deci un contract definit acolo leaga toate straturile de el (regula pazita de `typesBarrelScope.test.ts`, care a si prins prima varianta a acestei mutari). Gardat de `runConcurrentSingleContract.test.ts`: gate AST care esueaza la orice redeclarare locala, plus teste de comportament pe pastrarea indexului/elementului in erori, pe `shouldAbort`, pe un `errorLogger` care arunca si pe plafonarea concurentei.
 
+### `src/shared/guildDomainSliceStore.ts`
+
+- Fatada de scriere dubla pentru feliile scoase din documentul `Guild` (moderare, securitate, YouTube). **Ordinea a fost inversata** (review nou, P1 #1): se scrie intai in **sursa canonica de citire** (`Guild`), abia apoi in colectia dedicata. Inainte era pe dos, iar asta insemna ca un esec al celei de-a doua scrieri lasa copia cu valoarea noua si sursa citita cu cea veche — divergenta se vedea abia cand cititorii ar fi fost mutati pe colectia dedicata.
+- Cu ordinea corecta, cele doua esecuri posibile au amandoua o iesire sigura: daca pica scrierea canonica, copia **nici nu e atinsa** si operatia esueaza fara sa scrie nimic; daca pica doar copia, scrierea canonica ramane valida, esecul se **raporteaza** prin `onCopyFailed` (nu se arunca, fiindca operatia chiar a avut efect si o compensare ar fi gresita), iar copia ramasa in urma se **repara singura** la urmatoarea citire, prin backfill-ul care exista deja.
+- `writeCanonicalThenCopy` e forma reutilizabila a aceleiasi ordini. Securitatea si YouTube isi scriau propriile fatade, fiecare cu aceeasi ordine gresita; acum trec toate trei prin acelasi loc, deci ordinea nu mai poate diverge intre domenii.
+- Acoperit de `guildSliceStoreConvergence.test.ts` (9 teste, inclusiv unul care prinde apelarea copiei ca **metoda detasata**: `updateMany` scos de pe model pierde `this`, arunca, iar esecul ar fi doar raportat — adica o curatare in bloc care nu se mai propaga in copie).
+
 ### `src/features/command-catalog/commandCatalog.ts`
 
 - Sursa unica pentru faptele per comanda: manifestul de acces (`COMMAND_ACCESS_MANIFEST`: tier public/admin, `discordAdminPermissions`, exceptii de subcomenzi publice/admin-runtime, owner-only, cai sensibile) + intrarile de help per cale (`COMMAND_CATALOG_HELP`: descriere, exemplu, note, aliases, flag `ephemeral` doar pentru caile publice ephemeral).
