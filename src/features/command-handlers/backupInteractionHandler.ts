@@ -19,7 +19,10 @@ import {
   type ConfigBackupModelLike
 } from "../admin-records/configBackupRepository.js";
 import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
+import { composeGuildSliceWriteModel } from "../guild-config/guildSliceWriteComposition.js";
+
 import type { OperationJournalModelLike } from "../../shared/operationJournalEngine.js";
+import type { GuildSliceWriteCompositionDeps } from "../guild-config/guildSliceWriteComposition.js";
 import type { GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 import {
   BACKUP_DELETE_KIND,
@@ -56,6 +59,9 @@ interface BackupInteractionDeps {
   GuildAuditLogModel: GuildAuditLogModelLike;
   GuildConfigBackupModel: ConfigBackupModelLike;
   OperationJournalModel: OperationJournalModelLike;
+  GuildModerationModel?: GuildSliceWriteCompositionDeps["GuildModerationModel"];
+  GuildSecurityModel?: GuildSliceWriteCompositionDeps["GuildSecurityModel"];
+  GuildYoutubeStateModel?: GuildSliceWriteCompositionDeps["GuildYoutubeStateModel"];
   getGuildSettings(guildId: string): Promise<GuildSettings | null>;
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
@@ -86,9 +92,18 @@ function resourcePlan(interaction: DiscordInteraction, snapshot: Record<string, 
 
 function createBackupInteractionHandler(deps: BackupInteractionDeps) {
   const { GuildModel, GuildAuditLogModel, GuildConfigBackupModel, getGuildSettings, safeDefer, safeEdit, formatUserError } = deps;
+  const sliceWriteModel = composeGuildSliceWriteModel({
+    GuildModel,
+    GuildModerationModel: deps.GuildModerationModel,
+    GuildSecurityModel: deps.GuildSecurityModel,
+    GuildYoutubeStateModel: deps.GuildYoutubeStateModel,
+    OperationJournalModel: deps.OperationJournalModel,
+    logger: deps.logger
+  });
+
   const operationJournal = createOperationJournalRuntime({
     OperationJournalModel: deps.OperationJournalModel,
-    GuildModel,
+    GuildModel: sliceWriteModel,
     GuildAuditLogModel,
     GuildConfigBackupModel,
     logger: deps.logger
