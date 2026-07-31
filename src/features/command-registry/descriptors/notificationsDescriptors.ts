@@ -8,7 +8,7 @@ import {
   YOUTUBE_HANDLER_KEYS
 } from "../commandHandlerKeys.js";
 import type { CommandDomainDeps } from "../commandDomainDeps.js";
-import type { CommandHandlerDomain, CommandHandlerDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
+import type { DefineDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
 import attachDlcInteractionHandler from "../../command-handlers/dlcInteractionHandler.js";
 import attachFutureReleaseInteractionHandler from "../../command-handlers/futureReleaseInteractionHandler.js";
 import attachPriceAlertInteractionHandler from "../../command-handlers/priceAlertInteractionHandler.js";
@@ -17,15 +17,7 @@ import attachTemplatePreviewHandler from "../../command-handlers/templateAndNoti
 import attachYouTubeInteractionHandler from "../../command-handlers/youtubeInteractionHandler.js";
 
 export function notificationsDescriptors(
-  define: <D extends CommandHandlerDomain>(
-    input: {
-      id: string;
-      domain: D;
-      needs: readonly (keyof CommandDomainDeps[D])[];
-      build: (context: CommandDomainDeps[D]) => CommandHandler;
-    }
-      & Partial<Pick<CommandHandlerDescriptor<D>, "scope" | "access" | "help" | "autocomplete">>
-  ) => CommandHandlerDescriptor<D>
+  define: DefineDescriptor
 ): readonly AnyCommandHandlerDescriptor[] {
   return [
     define({ id: "template-preview", needs: TEMPLATE_PREVIEW_HANDLER_KEYS, domain: "notifications", help: ["template preview", "notification preview"], build: context => attachTemplatePreviewHandler.buildCommandHandler(context) }),

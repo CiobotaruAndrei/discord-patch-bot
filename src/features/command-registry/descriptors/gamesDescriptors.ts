@@ -14,7 +14,7 @@ import {
   WATCHLIST_SUGGESTION_HANDLER_KEYS
 } from "../commandHandlerKeys.js";
 import type { CommandDomainDeps } from "../commandDomainDeps.js";
-import type { CommandHandlerDomain, CommandHandlerDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
+import type { DefineDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
 import attachConfigInteractionHandler from "../../command-handlers/configInteractionHandler.js";
 import attachCoverageAliasHandler from "../../command-handlers/watchlistCoverageAndAliasHandler.js";
 import attachDealScoreInteractionHandler from "../../command-handlers/dealScoreInteractionHandler.js";
@@ -29,15 +29,7 @@ import attachSnoozeInteractionHandler from "../../command-handlers/snoozeInterac
 import attachWatchlistGameSuggestionHandler from "../../command-handlers/watchlistGameSuggestionHandler.js";
 
 export function gamesDescriptors(
-  define: <D extends CommandHandlerDomain>(
-    input: {
-      id: string;
-      domain: D;
-      needs: readonly (keyof CommandDomainDeps[D])[];
-      build: (context: CommandDomainDeps[D]) => CommandHandler;
-    }
-      & Partial<Pick<CommandHandlerDescriptor<D>, "scope" | "access" | "help" | "autocomplete">>
-  ) => CommandHandlerDescriptor<D>
+  define: DefineDescriptor
 ): readonly AnyCommandHandlerDescriptor[] {
   return [
     define({ id: "player-count", needs: PLAYER_COUNT_HANDLER_KEYS, domain: "game-info", help: ["player-count", "top active-games"], build: context => attachPlayerCountAnalyticsHandler.buildCommandHandler(context) }),

@@ -12,7 +12,7 @@ import {
   SOURCE_STATUS_HANDLER_KEYS
 } from "../commandHandlerKeys.js";
 import type { CommandDomainDeps } from "../commandDomainDeps.js";
-import type { CommandHandlerDomain, CommandHandlerDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
+import type { DefineDescriptor, AnyCommandHandlerDescriptor } from "../commandHandlerDescriptors.js";
 import attachAdminCommandAccessHandler from "../../command-handlers/adminCommandAccessHandler.js";
 import attachAuditLogInteractionHandler from "../../command-handlers/auditLogInteractionHandler.js";
 import attachBackupInteractionHandler from "../../command-handlers/backupInteractionHandler.js";
@@ -25,15 +25,7 @@ import attachSecurityInteractionHandler from "../../command-handlers/securityInt
 import attachSourcesStatusHandler from "../../command-handlers/sourcesStatusHandler.js";
 
 export function adminDescriptors(
-  define: <D extends CommandHandlerDomain>(
-    input: {
-      id: string;
-      domain: D;
-      needs: readonly (keyof CommandDomainDeps[D])[];
-      build: (context: CommandDomainDeps[D]) => CommandHandler;
-    }
-      & Partial<Pick<CommandHandlerDescriptor<D>, "scope" | "access" | "help" | "autocomplete">>
-  ) => CommandHandlerDescriptor<D>
+  define: DefineDescriptor
 ): readonly AnyCommandHandlerDescriptor[] {
   return [
     define({ id: "source-status", needs: SOURCE_STATUS_HANDLER_KEYS, domain: "admin", help: ["sources status"], build: context => attachSourcesStatusHandler.buildCommandHandler(context) }),
