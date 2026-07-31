@@ -142,15 +142,6 @@ export interface SystemTimes {
   [key: string]: number;
 }
 
-export interface ConcurrentRunResult<T> {
-  processed: number;
-  errors: Array<{
-    index: number;
-    item: T;
-    error: unknown;
-  }>;
-}
-
 export type {
   CacheEntry,
   CommandCacheSizes,

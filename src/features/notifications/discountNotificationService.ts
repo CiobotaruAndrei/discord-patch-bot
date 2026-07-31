@@ -1,6 +1,7 @@
 "use strict";
 
 import type { MongoWriteOutcome } from "../../types.js";
+import type { RunConcurrent } from "../../shared/concurrencyPort.js";
 import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { NotificationMode, PendingDiscount } from "./notificationTypes.js";
 import type { DealInfo, ValidatedDealInfo } from "../../sources/sourceTypes.js";
@@ -40,15 +41,6 @@ type ResolveOutboundChannel = (opts: {
   context: string;
   disableFn: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
 }) => Promise<ResolveOutboundChannelResult>;
-
-interface RunConcurrentOptions<T> {
-  errorLogger?: (item: T, err: unknown) => void;
-}
-interface RunConcurrentResult {
-  processed: number;
-  errors: Array<{ error: unknown }>;
-}
-type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: RunConcurrentOptions<T>) => Promise<RunConcurrentResult>;
 
 export interface DiscountNotificationServiceDeps {
   GuildModel: GuildModelLike;

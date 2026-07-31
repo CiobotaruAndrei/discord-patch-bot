@@ -1,4 +1,6 @@
 import test from "node:test";
+import type { ConcurrentRunOptions, ConcurrentRunResult, RunConcurrent } from "../../shared/concurrencyPort.js";
+
 import assert from "node:assert/strict";
 
 import { makeDealInfo, makeNotificationDiscordClient } from "../typedTestBuilders.js";
@@ -121,11 +123,11 @@ test("UpdateService.checkForUpdates persista snapshot-ul 'updates' dupa fetch (l
   const deps = {
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
-    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>) => {
+    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T, index: number) => unknown) => {
       let processed = 0;
-      const errors: Array<{ error: unknown }> = [];
-      for (const it of items) {
-        try { await fn(it); processed++; } catch (error) { errors.push({ error }); }
+      const errors: ConcurrentRunResult<T>["errors"] = [];
+      for (const [index, it] of items.entries()) {
+        try { await fn(it, index); processed++; } catch (error) { errors.push({ index, item: it, error }); }
       }
       return { processed, errors };
     },
@@ -150,11 +152,11 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
   const deps = {
     GuildModel: { find: () => ({ lean: async () => [guild] }), updateOne: async () => ({ matchedCount: 1 }) },
     logger: () => undefined,
-    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>) => {
+    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T, index: number) => unknown) => {
       let processed = 0;
-      const errors: Array<{ error: unknown }> = [];
-      for (const it of items) {
-        try { await fn(it); processed++; } catch (error) { errors.push({ error }); }
+      const errors: ConcurrentRunResult<T>["errors"] = [];
+      for (const [index, it] of items.entries()) {
+        try { await fn(it, index); processed++; } catch (error) { errors.push({ index, item: it, error }); }
       }
       return { processed, errors };
     },
@@ -174,11 +176,11 @@ test("DiscountService.checkForDiscounts persista snapshot-ul 'deals:<MONEDA>' du
   assert.deepEqual(persistCalls[0].payload, [{ id: "d1" }]);
 });
 
-const runConcurrentSafe = async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>, opts?: { errorLogger?: (item: T, err: unknown) => void }) => {
+const runConcurrentSafe: RunConcurrent = async <T>(items: T[], _c: number, fn: (item: T, index: number) => unknown, opts?: ConcurrentRunOptions<T>) => {
   let processed = 0;
-  const errors: Array<{ error: unknown }> = [];
-  for (const it of items) {
-    try { await fn(it); processed++; } catch (err) { opts?.errorLogger?.(it, err); errors.push({ error: err }); }
+  const errors: ConcurrentRunResult<T>["errors"] = [];
+  for (const [index, it] of items.entries()) {
+    try { await fn(it, index); processed++; } catch (err) { opts?.errorLogger?.(it, err); errors.push({ index, item: it, error: err }); }
   }
   return { processed, errors };
 };

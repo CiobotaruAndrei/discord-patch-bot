@@ -1,6 +1,7 @@
 "use strict";
 
 import type { MongoWriteOutcome } from "../../types.js";
+import type { RunConcurrent } from "../../shared/concurrencyPort.js";
 import type { GameConfig } from "../../config/configTypes.js";
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
 import type { GameDlc, DlcSourceDeps, FetchGameDlcsOutcome } from "../command-handlers/dlcSourceService.js";
@@ -35,12 +36,6 @@ type ResolveOutboundChannel = (opts: {
   context: string;
   disableFn: (guildId: string, channelId: string, message: string) => Promise<MongoWriteResult>;
 }) => Promise<ResolveOutboundChannelResult>;
-
-interface RunConcurrentResult {
-  processed: number;
-  errors: Array<{ error: unknown }>;
-}
-type RunConcurrent = <T>(items: T[], concurrency: number, fn: (item: T) => Promise<unknown>, opts?: { errorLogger?: (item: T, err: unknown) => void }) => Promise<RunConcurrentResult>;
 
 export interface DlcNotificationServiceDeps {
   GuildModel: GuildModelLike;

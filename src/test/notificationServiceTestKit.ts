@@ -1,4 +1,6 @@
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService.js";
+import type { ConcurrentRunResult } from "../shared/concurrencyPort.js";
+
 import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../shared/utilities.js";
 import type { GuildDeadLetterRecord } from "../features/notifications/deadLetterRepository.js";
 import { createDiscountNotificationService } from "../features/notifications/discountNotificationService.js";
@@ -55,11 +57,11 @@ export function makeUpdateDeps(overrides: Partial<UpdateDeps> = {}) {
       deleteMany: async () => ({ deletedCount: 0 })
     },
     logger: () => undefined,
-    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>) => {
+    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T, index: number) => unknown) => {
       let processed = 0;
-      const errors: Array<{ error: unknown }> = [];
-      for (const it of items) {
-        try { await fn(it); processed++; } catch (error) { errors.push({ error }); }
+      const errors: ConcurrentRunResult<T>["errors"] = [];
+      for (const [index, it] of items.entries()) {
+        try { await fn(it, index); processed++; } catch (error) { errors.push({ index, item: it, error }); }
       }
       return { processed, errors };
     },
@@ -129,11 +131,11 @@ export function makeDiscountDeps(overrides: Partial<DiscountDeps> = {}) {
       deleteMany: async () => ({ deletedCount: 0 })
     },
     logger: () => undefined,
-    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T) => Promise<unknown>) => {
+    runConcurrent: async <T>(items: T[], _c: number, fn: (item: T, index: number) => unknown) => {
       let processed = 0;
-      const errors: Array<{ error: unknown }> = [];
-      for (const it of items) {
-        try { await fn(it); processed++; } catch (error) { errors.push({ error }); }
+      const errors: ConcurrentRunResult<T>["errors"] = [];
+      for (const [index, it] of items.entries()) {
+        try { await fn(it, index); processed++; } catch (error) { errors.push({ index, item: it, error }); }
       }
       return { processed, errors };
     },

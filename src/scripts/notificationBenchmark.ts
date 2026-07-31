@@ -1,4 +1,6 @@
 import { pathToFileURL as __pathToFileURL } from "node:url";
+import type { ConcurrentRunResult } from "../shared/concurrencyPort.js";
+
 "use strict";
 
 import { createUpdateNotificationService } from "../features/notifications/updateNotificationService.js";
@@ -41,10 +43,10 @@ export interface BenchmarkOptions {
   gamesPerCycle?: number;
 }
 
-async function runConcurrent<T>(items: T[], concurrency: number, fn: (item: T, idx: number) => Promise<unknown>): Promise<{ processed: number; errors: Array<{ error: unknown }> }> {
+async function runConcurrent<T>(items: T[], concurrency: number, fn: (item: T, idx: number) => unknown | Promise<unknown>): Promise<ConcurrentRunResult<T>> {
   let cursor = 0;
   let processed = 0;
-  const errors: Array<{ error: unknown }> = [];
+  const errors: ConcurrentRunResult<T>["errors"] = [];
   const limit = Math.max(1, Math.min(concurrency, items.length));
   const workers = Array.from({ length: limit }, async () => {
     while (cursor < items.length) {
@@ -53,7 +55,7 @@ async function runConcurrent<T>(items: T[], concurrency: number, fn: (item: T, i
         await fn(items[idx], idx);
         processed++;
       } catch (error) {
-        errors.push({ error });
+        errors.push({ index: idx, item: items[idx], error });
       }
     }
   });
