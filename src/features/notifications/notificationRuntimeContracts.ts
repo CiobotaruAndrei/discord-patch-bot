@@ -13,6 +13,7 @@ import type { SourceRegistryApi } from "../../sources/sourceRegistry.js";
 import type { GuildDeadLetterDoc, GuildSeenYoutubeDoc, GuildYoutubeErrorDoc } from "../../infra/mongo/modelTypes.js";
 import type { ReportRollbackFailure } from "./rollbackReporter.js";
 import type { FutureReleaseGuildDoc } from "./futureReleaseNotificationService.js";
+import type { YoutubeSliceReaderModel } from "../youtube/youtubeStateReader.js";
 
 export type GeneratedUpdateDeps =
   | "resolveOutboundChannel"
@@ -59,6 +60,7 @@ export type NotificationsRuntimeDeps = SeenRepositoryDeps
     NotificationHistoryModel: HistoryRepositoryDeps["NotificationHistoryModel"];
     NotificationDeadLetterReplayModel: DeadLetterReplayRepositoryDeps["NotificationDeadLetterReplayModel"];
     GuildSeenYoutubeModel: Model<GuildSeenYoutubeDoc>;
+    GuildYoutubeStateModel?: YoutubeSliceReaderModel;
     GuildYoutubeErrorModel: Model<GuildYoutubeErrorDoc>;
     GuildDeadLetterModel: Model<GuildDeadLetterDoc>;
     httpReq: SourceRegistryApi["httpReq"];
