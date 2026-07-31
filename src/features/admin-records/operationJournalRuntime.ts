@@ -1,4 +1,5 @@
 import type { TransactionRunner } from "../../shared/transactionPort.js";
+import type { SliceUpdate } from "../../shared/guildDomainSliceStore.js";
 import type { CurrencyCode } from "../../types.js";
 import type { ConfigBackupRecord, ServerAuditLogEntry } from "./adminRecordsTypes.js";
 import { createOperationJournal, type OperationJournal, type OperationJournalModelLike } from "../../shared/operationJournalEngine.js";
@@ -20,6 +21,7 @@ export const BACKUP_SAVE_KIND = "backup-save";
 export const BACKUP_DELETE_KIND = "backup-delete";
 export const ADMIN_ACCESS_SAVE_KIND = "admin-access-save";
 export const ADMIN_ACCESS_DELETE_KIND = "admin-access-delete";
+export const GUILD_SLICE_COPY_KIND = "guild-slice-copy";
 export const OPERATION_PAYLOAD_SCHEMA_VERSION = 1;
 
 export type OperationKindMap = {
@@ -29,6 +31,7 @@ export type OperationKindMap = {
   [BACKUP_DELETE_KIND]: BackupDeletePayload;
   [ADMIN_ACCESS_SAVE_KIND]: AdminAccessSavePayload;
   [ADMIN_ACCESS_DELETE_KIND]: AdminAccessDeletePayload;
+  [GUILD_SLICE_COPY_KIND]: GuildSliceCopyPayload;
 };
 
 const DISCORD_EPOCH_MS = 1420070400000;
@@ -82,6 +85,16 @@ export interface AdminAccessDeletePayload {
   audit: AuditPayload;
 }
 
+export interface GuildSliceCopyPayload {
+  guildId: string;
+  domain: string;
+  update: string;
+}
+
+export interface GuildSliceCopyModelLike {
+  updateOne(filter: Record<string, unknown>, update: SliceUpdate, options?: Record<string, unknown>): Promise<unknown>;
+}
+
 interface ReplayPayloadModelLike {
   deleteMany(filter: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
 }
@@ -94,6 +107,7 @@ export interface OperationJournalRuntimeDeps {
   GuildYoutubeErrorModel?: Pick<YoutubeErrorModelLike, "deleteMany">;
   GuildDeadLetterModel?: Pick<DeadLetterModelLike, "deleteMany">;
   NotificationDeadLetterReplayModel?: ReplayPayloadModelLike;
+  guildSliceModels?: Readonly<Record<string, GuildSliceCopyModelLike>>;
   transactionRunner?: TransactionRunner;
   logger: JournalLogger;
 }
@@ -172,6 +186,26 @@ function adminAccessDeletePayload(value: unknown): AdminAccessDeletePayload | nu
   return { guildId: candidate.guildId, scope: candidate.scope, lookupKeys, audit };
 }
 
+export function guildSliceCopyPayload(value: unknown): GuildSliceCopyPayload | null {
+  const candidate = record(value);
+  if (!candidate || typeof candidate.guildId !== "string" || typeof candidate.domain !== "string" || typeof candidate.update !== "string") return null;
+  return { guildId: candidate.guildId, domain: candidate.domain, update: candidate.update };
+}
+
+export function decodeSliceUpdate(encoded: string): SliceUpdate {
+  const parsed: unknown = JSON.parse(encoded);
+  if (Array.isArray(parsed) && parsed.every(stage => record(stage))) return parsed as Record<string, unknown>[];
+  const single = record(parsed);
+  if (!single) throw new Error("operationJournal: update-ul feliei nu e un document Mongo valid");
+  return single;
+}
+
+function requiredSliceModel(models: Readonly<Record<string, GuildSliceCopyModelLike>> | undefined, domain: string): GuildSliceCopyModelLike {
+  const model = models?.[domain];
+  if (!model) throw new Error(`operationJournal: colectia dedicata pentru domeniul ${domain} lipseste`);
+  return model;
+}
+
 function requiredBackupModel(model: ConfigBackupModelLike | undefined): ConfigBackupModelLike {
   if (!model) throw new Error("operationJournal: GuildConfigBackupModel lipseste pentru operatia de backup");
   return model;
@@ -233,6 +267,15 @@ export function createOperationJournalRuntime(deps: OperationJournalRuntimeDeps)
       resourceKey: payload => `${payload.guildId}:${payload.scope}`,
       execute: async (payload, operationId) => {
         await saveAdminAccessRule(deps.GuildModel, deps.GuildAuditLogModel, payload.guildId, { ...payload, operationId }, deps.transactionRunner);
+      }
+    },
+    [GUILD_SLICE_COPY_KIND]: {
+      schemaVersion: OPERATION_PAYLOAD_SCHEMA_VERSION,
+      decode: guildSliceCopyPayload,
+      resourceKey: payload => `${payload.domain}:${payload.guildId}`,
+      execute: async payload => {
+        const model = requiredSliceModel(deps.guildSliceModels, payload.domain);
+        await model.updateOne({ _id: payload.guildId }, decodeSliceUpdate(payload.update), { upsert: true });
       }
     },
     [ADMIN_ACCESS_DELETE_KIND]: {

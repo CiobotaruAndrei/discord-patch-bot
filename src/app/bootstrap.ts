@@ -44,6 +44,11 @@ const operationJournal = createOperationJournalRuntime({
   GuildYoutubeErrorModel: repositories.GuildYoutubeErrorModel,
   GuildDeadLetterModel: repositories.GuildDeadLetterModel,
   NotificationDeadLetterReplayModel: repositories.NotificationDeadLetterReplayModel,
+  guildSliceModels: {
+    moderation: repositories.GuildModerationModel,
+    security: repositories.GuildSecurityModel,
+    youtube: repositories.GuildYoutubeStateModel
+  },
   transactionRunner: createDeferredTransactionRunner(mongoose, logger),
   logger
 });

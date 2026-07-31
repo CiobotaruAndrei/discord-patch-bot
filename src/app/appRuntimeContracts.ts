@@ -1,6 +1,7 @@
 "use strict";
 
 import type { GuildSettingsEventBus } from "../infra/mongo/guildSettingsEventBus.js";
+import type { OperationJournalModelLike } from "../shared/operationJournalEngine.js";
 import type { HttpServerMetricRecorder, MetricRecorders } from "../shared/metricRecorderPorts.js";
 import type { HttpRequestOptions } from "../sources/httpRequestTypes.js";
 import type { ActiveLocks, BotRole, LifecycleState } from "../types.js";
@@ -84,6 +85,7 @@ export interface MongoContextLike {
   guildSettingsBus: GuildSettingsEventBus;
   GuildModel?: ModerationGuildModel & GuildConfigWriteModelLike;
   GuildModerationModel?: ModerationGuildModel;
+  OperationJournalModel?: OperationJournalModelLike;
   GuildAuditLogModel?: GuildAuditLogModelLike;
   NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
   ChannelLockRecoveryModel?: ChannelLockRecoveryModelLike;

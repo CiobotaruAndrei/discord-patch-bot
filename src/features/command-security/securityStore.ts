@@ -3,7 +3,7 @@
 import { updateTouchesSlice, writeCanonicalThenCopy } from "../../shared/guildDomainSliceStore.js";
 import { SECURITY_FIELDS } from "../../shared/guildSecurityFields.js";
 
-import type { SliceUpdate } from "../../shared/guildDomainSliceStore.js";
+import type { SliceCopyWriter, SliceUpdate } from "../../shared/guildDomainSliceStore.js";
 import type { GuildConfigWriteModelLike, GuildConfigWriteResult } from "../guild-config/guildConfigRepository.js";
 
 export interface SecurityStateModel {
@@ -18,7 +18,8 @@ export function createSecurityStore(
   guildModel: GuildConfigWriteModelLike,
   securityModel: SecurityStateModel,
   onFirstMirror?: (guildId: string) => void,
-  onCopyFailed?: (guildId: string, error: unknown) => void
+  onCopyFailed?: (guildId: string, error: unknown) => void,
+  journaledCopy?: SliceCopyWriter
 ): GuildConfigWriteModelLike {
   const mirrored = new Set<string>();
   const reporters = {
@@ -42,7 +43,9 @@ export function createSecurityStore(
         guildId,
         updateTouchesSlice(SECURITY_FIELDS, update),
         () => guildModel.updateOne(filter, update, options),
-        () => securityModel.updateOne({ _id: guildId }, update, { ...options, upsert: true }),
+        () => journaledCopy && guildId
+          ? journaledCopy(guildId, update)
+          : securityModel.updateOne({ _id: guildId }, update, { ...options, upsert: true }),
         reporters
       );
     }

@@ -47,6 +47,7 @@ import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSett
 import { createThreatEngineMonitor } from "../features/command-security/threatEngineMonitor.js";
 import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
 import { createModerationStore } from "../features/moderation/moderationStore.js";
+import { journaledSliceCopy } from "../features/admin-records/journaledSliceCopy.js";
 import { roleRunsInteractions, roleRunsSchedulers } from "../shared/botRole.js";
 import { createGatewayFeatureRuntimes, createInactiveGatewayFeatureRuntimes } from "./runtime/gatewayFeatureRuntimes.js";
 import { createIdleSchedulerFeatureTasks, createSchedulerFeatureTasks } from "./runtime/schedulerFeatureTasks.js";
@@ -145,9 +146,19 @@ function composeModerationLifecycle(deps: AppRuntimeDeps): ModerationLifecycle |
   if (!guildModel) return undefined;
   const moderationModel = deps.mongo.GuildModerationModel;
   const store = moderationModel
-    ? createModerationStore(guildModel, moderationModel, guildId => {
-      deps.mongo.logger("INFO", "MODERATION_STORE", "Starea de moderare a fost mutata in colectia dedicata", { guildId });
-    })
+    ? createModerationStore(
+      guildModel,
+      moderationModel,
+      guildId => {
+        deps.mongo.logger("INFO", "MODERATION_STORE", "Starea de moderare a fost mutata in colectia dedicata", { guildId });
+      },
+      journaledSliceCopy({
+        OperationJournalModel: deps.mongo.OperationJournalModel,
+        domain: "moderation",
+        dedicatedModel: moderationModel,
+        logger: deps.mongo.logger
+      })
+    )
     : guildModel;
   return createModerationLifecycleRuntime(store, deps.mongo.logger);
 }

@@ -2,6 +2,7 @@
 
 import type { CommandGame, CommandHandler } from "../command-registry/commandHandler.js";
 import { createYoutubeStateStore } from "../youtube/youtubeStateStore.js";
+import { journaledSliceCopy } from "../admin-records/journaledSliceCopy.js";
 import type { DiscordInteraction, YouTubeInteractionDeps } from "./youtube/youtubeCommandTypes.js";
 import { createYouTubeSubscriptionCommands } from "./youtube/youtubeSubscriptionCommands.js";
 import { createYouTubeNotifyCommands } from "./youtube/youtubeNotifyCommands.js";
@@ -58,9 +59,20 @@ function isYouTubeCommand(interaction: DiscordInteraction): boolean {
 
 function buildYouTubeCommandHandler(target: YouTubeContext) {
   const GuildModel = target.GuildYoutubeStateModel
-    ? createYoutubeStateStore(target.GuildModel, target.GuildYoutubeStateModel, guildId => {
-      target.logger?.("INFO", "YOUTUBE_STORE", "Starea YouTube a inceput sa fie oglindita in colectia dedicata", { guildId });
-    })
+    ? createYoutubeStateStore(
+      target.GuildModel,
+      target.GuildYoutubeStateModel,
+      guildId => {
+        target.logger?.("INFO", "YOUTUBE_STORE", "Starea YouTube a inceput sa fie oglindita in colectia dedicata", { guildId });
+      },
+      undefined,
+      journaledSliceCopy({
+        OperationJournalModel: target.OperationJournalModel,
+        domain: "youtube",
+        dedicatedModel: target.GuildYoutubeStateModel,
+        logger: target.logger
+      })
+    )
     : target.GuildModel;
   const handlers = createYouTubeInteractionHandler(
     { ...target, GuildModel, outboxEnabled: target.env?.NOTIFICATION_OUTBOX_ENABLED === true }

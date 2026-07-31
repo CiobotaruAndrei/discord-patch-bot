@@ -6,14 +6,16 @@ import {
   type OperationJournalDoc
 } from "../../shared/operationJournalEngine.js";
 import type { OperationKindMap, ResetConfigPayload, BackupDeletePayload } from "../../features/admin-records/operationJournalRuntime.js";
+import { fakeJournalModel, journalDoc } from "./operationJournalTestKit.js";
+import type { JournalFilter, JournalUpdate } from "./operationJournalTestKit.js";
 
 const resetKindIsTyped: [OperationKindMap["reset-config"]] extends [ResetConfigPayload]
   ? ([ResetConfigPayload] extends [OperationKindMap["reset-config"]] ? true : never)
   : never = true;
 const backupDeleteKindIsTyped: [OperationKindMap["backup-delete"]] extends [BackupDeletePayload] ? true : never = true;
 type RegisteredKinds = keyof OperationKindMap;
-const kindsAreClosed: [RegisteredKinds] extends ["reset-config" | "backup-load" | "backup-save" | "backup-delete" | "admin-access-save" | "admin-access-delete"]
-  ? (["reset-config" | "backup-load" | "backup-save" | "backup-delete" | "admin-access-save" | "admin-access-delete"] extends [RegisteredKinds] ? true : never)
+const kindsAreClosed: [RegisteredKinds] extends ["reset-config" | "backup-load" | "backup-save" | "backup-delete" | "admin-access-save" | "admin-access-delete" | "guild-slice-copy"]
+  ? (["reset-config" | "backup-load" | "backup-save" | "backup-delete" | "admin-access-save" | "admin-access-delete" | "guild-slice-copy"] extends [RegisteredKinds] ? true : never)
   : never = true;
 
 test("contract compile-time: registrul de operatii e tipat pe kind - fiecare kind isi cunoaste payload-ul la compilare (review nou, Major #6)", () => {
@@ -21,112 +23,6 @@ test("contract compile-time: registrul de operatii e tipat pe kind - fiecare kin
   assert.equal(backupDeleteKindIsTyped, true, "kind-ul backup-delete e legat de BackupDeletePayload");
   assert.equal(kindsAreClosed, true, "multimea kind-urilor e inchisa: un kind nou fara payload declarat nu compileaza");
 });
-
-type Filter = Record<string, unknown>;
-type Update = Record<string, unknown>;
-
-function valueMatches(value: unknown, condition: unknown): boolean {
-  if (!condition || typeof condition !== "object" || Array.isArray(condition)) return value === condition;
-  const operators = condition as Record<string, unknown>;
-  if ("$ne" in operators && value === operators.$ne) return false;
-  if ("$lte" in operators) {
-    if (!(value instanceof Date) || !(operators.$lte instanceof Date) || value > operators.$lte) return false;
-  }
-  if ("$lt" in operators && !(typeof value === "number" && typeof operators.$lt === "number" && value < operators.$lt)) return false;
-  if ("$gt" in operators && !(typeof value === "string" && typeof operators.$gt === "string" && value > operators.$gt)) return false;
-  if ("$in" in operators && !(Array.isArray(operators.$in) && operators.$in.includes(value))) return false;
-  return true;
-}
-
-function matches(doc: OperationJournalDoc, filter: Filter): boolean {
-  for (const [key, condition] of Object.entries(filter)) {
-    if (key === "$or") {
-      const alternatives = Array.isArray(condition) ? condition as Filter[] : [];
-      if (!alternatives.some(alternative => matches(doc, alternative))) return false;
-      continue;
-    }
-    if (!valueMatches(doc[key as keyof OperationJournalDoc], condition)) return false;
-  }
-  return true;
-}
-
-function applyUpdate(doc: OperationJournalDoc, update: Update, inserted: boolean): OperationJournalDoc {
-  const set = (update.$set ?? {}) as Partial<OperationJournalDoc>;
-  const setOnInsert = inserted ? (update.$setOnInsert ?? {}) as Partial<OperationJournalDoc> : {};
-  const inc = (update.$inc ?? {}) as { attempts?: number; leaseVersion?: number };
-  return {
-    ...doc,
-    ...setOnInsert,
-    ...set,
-    attempts: (doc.attempts ?? 0) + (inc.attempts ?? 0),
-    leaseVersion: (doc.leaseVersion ?? 0) + (inc.leaseVersion ?? 0)
-  };
-}
-
-function baseDoc(id: string): OperationJournalDoc {
-  return {
-    _id: id,
-    kind: "",
-    payload: null,
-    schemaVersion: 1,
-    resourceKey: id,
-    resourceVersion: "00000000000000000001",
-    status: "pending",
-    attempts: 0,
-    leaseVersion: 0,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-}
-
-function fakeJournalModel(seed: OperationJournalDoc[] = []) {
-  const docs = new Map<string, OperationJournalDoc>(seed.map(doc => [doc._id, { ...doc }]));
-  const writes: Array<{ filter: Filter; update: Update }> = [];
-  return {
-    writes,
-    docs,
-    findOne: (filter: Filter) => ({
-      lean: async () => Array.from(docs.values()).find(doc => matches(doc, filter)) ?? null
-    }),
-    findOneAndUpdate: (filter: Filter, update: Update) => ({
-      lean: async () => {
-        const existing = Array.from(docs.values()).find(doc => matches(doc, filter));
-        if (!existing) return null;
-        const updated = applyUpdate(existing, update, false);
-        docs.set(updated._id, updated);
-        writes.push({ filter, update });
-        return { ...updated };
-      }
-    }),
-    updateOne: async (filter: Filter, update: Update, options?: Filter) => {
-      writes.push({ filter, update });
-      const existing = Array.from(docs.values()).find(doc => matches(doc, filter));
-      if (!existing && options?.upsert === true && typeof filter._id === "string") {
-        const inserted = applyUpdate(baseDoc(filter._id), update, true);
-        docs.set(inserted._id, inserted);
-        return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
-      }
-      if (!existing) return { matchedCount: 0, modifiedCount: 0 };
-      const updated = applyUpdate(existing, update, false);
-      docs.set(updated._id, updated);
-      return { matchedCount: 1, modifiedCount: 1 };
-    },
-    find: (filter: Filter) => ({
-      sort: () => ({
-        limit: (count: number) => ({
-          lean: async () => Array.from(docs.values()).filter(doc => matches(doc, filter)).slice(0, count)
-        })
-      })
-    })
-  };
-}
-
-function journalDoc(input: Partial<OperationJournalDoc> & Pick<OperationJournalDoc, "_id" | "kind">): OperationJournalDoc {
-  return {
-    ...baseDoc(input._id),
-    ...input
-  };
-}
 
 test("runJournaled revendica atomic operatia, executa si finalizeaza cu acelasi lease", async () => {
   const model = fakeJournalModel();
@@ -200,7 +96,7 @@ test("heartbeat-ul de lease e serializat: nu porneste o reinnoire noua cat timp 
   let maxRenewalsInFlight = 0;
   let renewals = 0;
   const baseUpdateOne = model.updateOne;
-  model.updateOne = async (filter: Filter, update: Update, options?: Filter) => {
+  model.updateOne = async (filter: JournalFilter, update: JournalUpdate, options?: JournalFilter) => {
     const set = (update.$set ?? {}) as Record<string, unknown>;
     const isRenewal = "lockedUntil" in set && !("status" in set);
     if (!isRenewal) return baseUpdateOne(filter, update, options);

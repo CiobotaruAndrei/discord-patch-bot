@@ -43,6 +43,8 @@ export function sliceOf(fields: readonly string[], document: SliceDoc): Record<s
   return slice;
 }
 
+export type SliceCopyWriter = (guildId: string, update: SliceUpdate) => Promise<void>;
+
 export interface SliceStoreReporters {
   onBackfill?: (guildId: string) => void;
   onCopied?: (guildId: string) => void;
@@ -71,7 +73,8 @@ export function createGuildDomainSliceStore(
   fields: readonly string[],
   legacyModel: GuildSliceModel,
   dedicatedModel: GuildSliceModel,
-  reporters?: ((guildId: string) => void) | SliceStoreReporters
+  reporters?: ((guildId: string) => void) | SliceStoreReporters,
+  journaledCopy?: SliceCopyWriter
 ) {
   const { onBackfill, onCopied, onCopyFailed } = typeof reporters === "function" ? { onBackfill: reporters, onCopied: undefined, onCopyFailed: undefined } : (reporters ?? {});
 
@@ -108,7 +111,9 @@ export function createGuildDomainSliceStore(
       const guildId = guildIdOf(filter);
       const result = await resolve(legacyModel.findOneAndUpdate(filter, update, options));
       if (guildId && updateTouchesSlice(fields, update)) {
-        await copyToDedicated(guildId, () => Promise.resolve(dedicatedModel.findOneAndUpdate({ _id: guildId }, update, { ...options, upsert: true })));
+        await copyToDedicated(guildId, () => journaledCopy
+          ? journaledCopy(guildId, update)
+          : Promise.resolve(dedicatedModel.findOneAndUpdate({ _id: guildId }, update, { ...options, upsert: true })));
       }
       return result;
     },
@@ -121,7 +126,9 @@ export function createGuildDomainSliceStore(
       const guildId = guildIdOf(filter);
       const result = await legacyModel.updateOne(filter, update, options);
       if (guildId && updateTouchesSlice(fields, update)) {
-        await copyToDedicated(guildId, () => dedicatedModel.updateOne({ _id: guildId }, update, { ...options, upsert: true }));
+        await copyToDedicated(guildId, () => journaledCopy
+          ? journaledCopy(guildId, update)
+          : dedicatedModel.updateOne({ _id: guildId }, update, { ...options, upsert: true }));
       }
       return result;
     },

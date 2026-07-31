@@ -3,7 +3,7 @@
 import { updateTouchesSlice, writeCanonicalThenCopy } from "../../shared/guildDomainSliceStore.js";
 import { YOUTUBE_FIELDS } from "../../shared/guildYoutubeFields.js";
 
-import type { SliceUpdate } from "../../shared/guildDomainSliceStore.js";
+import type { SliceCopyWriter, SliceUpdate } from "../../shared/guildDomainSliceStore.js";
 import type { YouTubeConfigGuildModel } from "./youtubeGuildConfigRepository.js";
 
 export interface YoutubeStateModel {
@@ -15,7 +15,8 @@ export function createYoutubeStateStore(
   guildModel: YouTubeConfigGuildModel,
   youtubeModel: YoutubeStateModel,
   onFirstMirror?: (guildId: string) => void,
-  onCopyFailed?: (guildId: string, error: unknown) => void
+  onCopyFailed?: (guildId: string, error: unknown) => void,
+  journaledCopy?: SliceCopyWriter
 ): YouTubeConfigGuildModel {
   const mirrored = new Set<string>();
   const reporters = {
@@ -39,7 +40,9 @@ export function createYoutubeStateStore(
         guildId,
         updateTouchesSlice(YOUTUBE_FIELDS, update as SliceUpdate),
         () => guildModel.updateOne(filter, update, options),
-        () => youtubeModel.updateOne({ _id: guildId }, update as SliceUpdate, { ...(options ?? {}), upsert: true }),
+        () => journaledCopy && guildId
+          ? journaledCopy(guildId, update as SliceUpdate)
+          : youtubeModel.updateOne({ _id: guildId }, update as SliceUpdate, { ...(options ?? {}), upsert: true }),
         reporters
       );
     },
@@ -50,7 +53,9 @@ export function createYoutubeStateStore(
         guildId,
         updateTouchesSlice(YOUTUBE_FIELDS, update as SliceUpdate),
         () => guildModel.findOneAndUpdate(filter, update, options),
-        () => youtubeModel.findOneAndUpdate({ _id: guildId }, update as SliceUpdate, { ...(options ?? {}), upsert: true }),
+        () => journaledCopy && guildId
+          ? journaledCopy(guildId, update as SliceUpdate)
+          : youtubeModel.findOneAndUpdate({ _id: guildId }, update as SliceUpdate, { ...(options ?? {}), upsert: true }),
         reporters
       );
     }

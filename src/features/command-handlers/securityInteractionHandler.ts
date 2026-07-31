@@ -46,14 +46,26 @@ import {
   renderToggleProtectionOutcome
 } from "../command-presentation/securityCommandMessages.js";
 import { createSecurityStore, type SecurityStateModel } from "../command-security/securityStore.js";
+import { journaledSliceCopy } from "../admin-records/journaledSliceCopy.js";
 
 function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<SecurityInteraction> {
   const target: SecurityDeps = deps.GuildSecurityModel
     ? {
       ...deps,
-      GuildModel: createSecurityStore(deps.GuildModel, deps.GuildSecurityModel, guildId => {
-        deps.logger?.("INFO", "SECURITY_STORE", "Starea de securitate a inceput sa fie oglindita in colectia dedicata", { guildId });
-      })
+      GuildModel: createSecurityStore(
+        deps.GuildModel,
+        deps.GuildSecurityModel,
+        guildId => {
+          deps.logger?.("INFO", "SECURITY_STORE", "Starea de securitate a inceput sa fie oglindita in colectia dedicata", { guildId });
+        },
+        undefined,
+        journaledSliceCopy({
+          OperationJournalModel: deps.OperationJournalModel,
+          domain: "security",
+          dedicatedModel: deps.GuildSecurityModel,
+          logger: deps.logger
+        })
+      )
     }
     : deps;
   const accountAlertClaim: AccountAlertClaimFn | undefined = target.NewAccountAlertDeliveryModel

@@ -5,6 +5,7 @@ import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import type { NewAccountAlertClaim, NewAccountAlertDeliveryModelLike } from "./newAccountAlertDedup.js";
 import type { ChannelLockRecoveryModelLike } from "./channelLockRecoveryRepository.js";
 import type { SecurityStateModel } from "./securityStore.js";
+import type { OperationJournalModelLike } from "../../shared/operationJournalEngine.js";
 
 export type AccountAlertClaimFn = (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
 
@@ -85,6 +86,7 @@ export type SecurityDeps = {
   NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
   ChannelLockRecoveryModel?: Pick<ChannelLockRecoveryModelLike, "updateOne">;
   GuildSecurityModel?: SecurityStateModel;
+  OperationJournalModel?: OperationJournalModelLike;
 };
 
 export type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "botAddAlertChannelId";
