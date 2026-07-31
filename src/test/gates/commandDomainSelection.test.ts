@@ -51,9 +51,9 @@ test("selectia per handler da strict mai putin decat domeniul", () => {
   const descriptors = createCommandHandlerDescriptors();
   const botAdd = descriptors.find(descriptor => descriptor.id === "bot-add" && descriptor.domain === "admin");
   assert.ok(botAdd, "descriptorul bot-add exista");
-  const needs = botAdd.domain === "admin" ? botAdd.needs : [];
+  const needs: readonly (keyof CommandDomainDeps["admin"])[] = botAdd.domain === "admin" ? botAdd.needs : [];
 
-  const selected = selectHandlerDeps<"admin">(context, needs);
+  const selected = selectHandlerDeps<"admin", keyof CommandDomainDeps["admin"]>(context, needs);
   const selectedKeys = Object.keys(fields(selected));
   assert.deepEqual(
     selectedKeys.sort(),
@@ -68,7 +68,7 @@ test("selectia per handler da strict mai putin decat domeniul", () => {
 });
 
 test("selectia nu inventeaza chei care lipsesc din context", () => {
-  const selected = selectHandlerDeps<"routing">(asDomainDeps<"routing">({}), COMMAND_DOMAIN_KEYS.routing);
+  const selected = selectHandlerDeps<"routing", keyof CommandDomainDeps["routing"]>(asDomainDeps<"routing">({}), COMMAND_DOMAIN_KEYS.routing);
   assert.deepEqual(Object.keys(fields(selected)), []);
 });
 
@@ -86,8 +86,8 @@ test("fiecare descriptor isi declara propriile chei si construieste prin ele", (
   assert.ok(narrowing, "descriptorul construieste handler-ul prin build");
   assert.deepEqual(
     narrowing?.args,
-    ["selectHandlerDeps(context, input.needs)"],
-    "ingustarea se face cu lista handler-ului, nu cu cea a domeniului"
+    ["selectHandlerDeps<D, K>(context, input.needs)"],
+    "ingustarea se face cu lista handler-ului, nu cu cea a domeniului, iar `K` o leaga la compilare de tipul primit de `build`"
   );
 });
 

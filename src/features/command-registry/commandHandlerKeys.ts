@@ -40,10 +40,11 @@ import type attachYouTubeInteractionHandler from "../command-handlers/youtubeInt
 import type { CommandDomainDeps } from "./commandDomainDeps.js";
 
 type HandlerDeps<T> = T extends { buildCommandHandler: (context: infer D) => unknown } ? D : never;
-type HandlerKeys<D extends keyof CommandDomainDeps> = readonly (keyof CommandDomainDeps[D])[];
 type Missing<Deps, Listed extends string> = Exclude<Extract<keyof Deps, string>, Listed>;
+type Extra<Deps, Listed extends string> = Exclude<Listed, Extract<keyof Deps, string>>;
+type Exact<Absente, Straine> = [Absente] extends [never] ? ([Straine] extends [never] ? true : ["chei in plus", Straine]) : ["chei lipsa", Absente];
 
-export const SOURCE_STATUS_HANDLER_KEYS: HandlerKeys<"admin"> = [
+export const SOURCE_STATUS_HANDLER_KEYS = [
   "MessageFlags",
   "enforceCooldown",
   "loadDealsFetchSnapshots",
@@ -56,9 +57,10 @@ export const SOURCE_STATUS_HANDLER_KEYS: HandlerKeys<"admin"> = [
 ] as const;
 
 type SourceStatusMissing = Missing<HandlerDeps<typeof attachSourcesStatusHandler>, (typeof SOURCE_STATUS_HANDLER_KEYS)[number] & string>;
-const sourceStatusComplete: [SourceStatusMissing] extends [never] ? true : SourceStatusMissing = true;
+type SourceStatusExtra = Extra<HandlerDeps<typeof attachSourcesStatusHandler>, (typeof SOURCE_STATUS_HANDLER_KEYS)[number] & string>;
+const sourceStatusComplete: Exact<SourceStatusMissing, SourceStatusExtra> = true;
 
-export const CONFIGURATION_ADMIN_HANDLER_KEYS: HandlerKeys<"admin"> = [
+export const CONFIGURATION_ADMIN_HANDLER_KEYS = [
   "GuildModerationModel",
   "GuildSecurityModel",
   "GuildYoutubeStateModel",
@@ -77,9 +79,11 @@ export const CONFIGURATION_ADMIN_HANDLER_KEYS: HandlerKeys<"admin"> = [
 ] as const;
 
 type ConfigurationAdminMissing = Missing<HandlerDeps<typeof attachGuildConfigurationAdminHandler>, (typeof CONFIGURATION_ADMIN_HANDLER_KEYS)[number] & string>;
-const configurationAdminComplete: [ConfigurationAdminMissing] extends [never] ? true : ConfigurationAdminMissing = true;
+type ConfigurationAdminExtra = Extra<HandlerDeps<typeof attachGuildConfigurationAdminHandler>, (typeof CONFIGURATION_ADMIN_HANDLER_KEYS)[number] & string>;
+const configurationAdminComplete: Exact<ConfigurationAdminMissing, ConfigurationAdminExtra> = true;
 
-export const SECURITY_HANDLER_KEYS: HandlerKeys<"admin"> = [
+export const SECURITY_HANDLER_KEYS = [
+  "OperationJournalModel",
   "ChannelLockRecoveryModel",
   "GuildModel",
   "GuildSecurityModel",
@@ -93,9 +97,10 @@ export const SECURITY_HANDLER_KEYS: HandlerKeys<"admin"> = [
 ] as const;
 
 type SecurityMissing = Missing<HandlerDeps<typeof attachSecurityInteractionHandler>, (typeof SECURITY_HANDLER_KEYS)[number] & string>;
-const securityComplete: [SecurityMissing] extends [never] ? true : SecurityMissing = true;
+type SecurityExtra = Extra<HandlerDeps<typeof attachSecurityInteractionHandler>, (typeof SECURITY_HANDLER_KEYS)[number] & string>;
+const securityComplete: Exact<SecurityMissing, SecurityExtra> = true;
 
-export const BOT_ADD_HANDLER_KEYS: HandlerKeys<"admin"> = [
+export const BOT_ADD_HANDLER_KEYS = [
   "GuildModel",
   "getGuildSettings",
   "safeDefer",
@@ -103,9 +108,10 @@ export const BOT_ADD_HANDLER_KEYS: HandlerKeys<"admin"> = [
 ] as const;
 
 type BotAddMissing = Missing<HandlerDeps<typeof attachBotAddInteractionHandler>, (typeof BOT_ADD_HANDLER_KEYS)[number] & string>;
-const botAddComplete: [BotAddMissing] extends [never] ? true : BotAddMissing = true;
+type BotAddExtra = Extra<HandlerDeps<typeof attachBotAddInteractionHandler>, (typeof BOT_ADD_HANDLER_KEYS)[number] & string>;
+const botAddComplete: Exact<BotAddMissing, BotAddExtra> = true;
 
-export const ADMIN_ACCESS_HANDLER_KEYS: HandlerKeys<"admin"> = [
+export const ADMIN_ACCESS_HANDLER_KEYS = [
   "GuildAuditLogModel",
   "GuildModel",
   "MessageFlags",
@@ -117,9 +123,11 @@ export const ADMIN_ACCESS_HANDLER_KEYS: HandlerKeys<"admin"> = [
 ] as const;
 
 type AdminAccessMissing = Missing<HandlerDeps<typeof attachAdminCommandAccessHandler>, (typeof ADMIN_ACCESS_HANDLER_KEYS)[number] & string>;
-const adminAccessComplete: [AdminAccessMissing] extends [never] ? true : AdminAccessMissing = true;
+type AdminAccessExtra = Extra<HandlerDeps<typeof attachAdminCommandAccessHandler>, (typeof ADMIN_ACCESS_HANDLER_KEYS)[number] & string>;
+const adminAccessComplete: Exact<AdminAccessMissing, AdminAccessExtra> = true;
 
-export const MODERATION_HANDLER_KEYS: HandlerKeys<"admin"> = [
+export const MODERATION_HANDLER_KEYS = [
+  "OperationJournalModel",
   "GuildModel",
   "GuildModerationModel",
   "MessageFlags",
@@ -130,9 +138,10 @@ export const MODERATION_HANDLER_KEYS: HandlerKeys<"admin"> = [
 ] as const;
 
 type ModerationMissing = Missing<HandlerDeps<typeof attachModerationInteractionHandler>, (typeof MODERATION_HANDLER_KEYS)[number] & string>;
-const moderationComplete: [ModerationMissing] extends [never] ? true : ModerationMissing = true;
+type ModerationExtra = Extra<HandlerDeps<typeof attachModerationInteractionHandler>, (typeof MODERATION_HANDLER_KEYS)[number] & string>;
+const moderationComplete: Exact<ModerationMissing, ModerationExtra> = true;
 
-export const BACKUP_HANDLER_KEYS: HandlerKeys<"admin"> = [
+export const BACKUP_HANDLER_KEYS = [
   "GuildModerationModel",
   "GuildSecurityModel",
   "GuildYoutubeStateModel",
@@ -149,9 +158,10 @@ export const BACKUP_HANDLER_KEYS: HandlerKeys<"admin"> = [
 ] as const;
 
 type BackupMissing = Missing<HandlerDeps<typeof attachBackupInteractionHandler>, (typeof BACKUP_HANDLER_KEYS)[number] & string>;
-const backupComplete: [BackupMissing] extends [never] ? true : BackupMissing = true;
+type BackupExtra = Extra<HandlerDeps<typeof attachBackupInteractionHandler>, (typeof BACKUP_HANDLER_KEYS)[number] & string>;
+const backupComplete: Exact<BackupMissing, BackupExtra> = true;
 
-export const AUDIT_LOG_HANDLER_KEYS: HandlerKeys<"admin"> = [
+export const AUDIT_LOG_HANDLER_KEYS = [
   "GuildAuditLogModel",
   "MessageFlags",
   "auditBatchIntervalMs",
@@ -162,9 +172,10 @@ export const AUDIT_LOG_HANDLER_KEYS: HandlerKeys<"admin"> = [
 ] as const;
 
 type AuditLogMissing = Missing<HandlerDeps<typeof attachAuditLogInteractionHandler>, (typeof AUDIT_LOG_HANDLER_KEYS)[number] & string>;
-const auditLogComplete: [AuditLogMissing] extends [never] ? true : AuditLogMissing = true;
+type AuditLogExtra = Extra<HandlerDeps<typeof attachAuditLogInteractionHandler>, (typeof AUDIT_LOG_HANDLER_KEYS)[number] & string>;
+const auditLogComplete: Exact<AuditLogMissing, AuditLogExtra> = true;
 
-export const MAINTENANCE_HANDLER_KEYS: HandlerKeys<"admin"> = [
+export const MAINTENANCE_HANDLER_KEYS = [
   "ChannelLockRecoveryModel",
   "GuildConfigBackupModel",
   "GuildDeadLetterModel",
@@ -182,9 +193,10 @@ export const MAINTENANCE_HANDLER_KEYS: HandlerKeys<"admin"> = [
 ] as const;
 
 type MaintenanceMissing = Missing<HandlerDeps<typeof attachMaintenanceInteractionHandler>, (typeof MAINTENANCE_HANDLER_KEYS)[number] & string>;
-const maintenanceComplete: [MaintenanceMissing] extends [never] ? true : MaintenanceMissing = true;
+type MaintenanceExtra = Extra<HandlerDeps<typeof attachMaintenanceInteractionHandler>, (typeof MAINTENANCE_HANDLER_KEYS)[number] & string>;
+const maintenanceComplete: Exact<MaintenanceMissing, MaintenanceExtra> = true;
 
-export const HEALTH_HANDLER_KEYS: HandlerKeys<"admin"> = [
+export const HEALTH_HANDLER_KEYS = [
   "GuildModel",
   "MessageFlags",
   "enforceCooldown",
@@ -197,9 +209,10 @@ export const HEALTH_HANDLER_KEYS: HandlerKeys<"admin"> = [
 ] as const;
 
 type HealthMissing = Missing<HandlerDeps<typeof attachHealthInteractionHandler>, (typeof HEALTH_HANDLER_KEYS)[number] & string>;
-const healthComplete: [HealthMissing] extends [never] ? true : HealthMissing = true;
+type HealthExtra = Extra<HandlerDeps<typeof attachHealthInteractionHandler>, (typeof HEALTH_HANDLER_KEYS)[number] & string>;
+const healthComplete: Exact<HealthMissing, HealthExtra> = true;
 
-export const SUGGEST_COMMAND_HANDLER_KEYS: HandlerKeys<"core"> = [
+export const SUGGEST_COMMAND_HANDLER_KEYS = [
   "GuildAuditLogModel",
   "GuildSuggestedCommandModel",
   "MessageFlags",
@@ -211,9 +224,10 @@ export const SUGGEST_COMMAND_HANDLER_KEYS: HandlerKeys<"core"> = [
 ] as const;
 
 type SuggestCommandMissing = Missing<HandlerDeps<typeof attachSuggestCommandInteractionHandler>, (typeof SUGGEST_COMMAND_HANDLER_KEYS)[number] & string>;
-const suggestCommandComplete: [SuggestCommandMissing] extends [never] ? true : SuggestCommandMissing = true;
+type SuggestCommandExtra = Extra<HandlerDeps<typeof attachSuggestCommandInteractionHandler>, (typeof SUGGEST_COMMAND_HANDLER_KEYS)[number] & string>;
+const suggestCommandComplete: Exact<SuggestCommandMissing, SuggestCommandExtra> = true;
 
-export const REPORT_HANDLER_KEYS: HandlerKeys<"core"> = [
+export const REPORT_HANDLER_KEYS = [
   "MessageFlags",
   "adminAlert",
   "enforceCooldown",
@@ -231,9 +245,10 @@ export const REPORT_HANDLER_KEYS: HandlerKeys<"core"> = [
 ] as const;
 
 type ReportMissing = Missing<HandlerDeps<typeof attachReportInteractionHandler>, (typeof REPORT_HANDLER_KEYS)[number] & string>;
-const reportComplete: [ReportMissing] extends [never] ? true : ReportMissing = true;
+type ReportExtra = Extra<HandlerDeps<typeof attachReportInteractionHandler>, (typeof REPORT_HANDLER_KEYS)[number] & string>;
+const reportComplete: Exact<ReportMissing, ReportExtra> = true;
 
-export const STATUS_HANDLER_KEYS: HandlerKeys<"core"> = [
+export const STATUS_HANDLER_KEYS = [
   "MessageFlags",
   "enforceCooldown",
   "fetchGameStatus",
@@ -248,9 +263,10 @@ export const STATUS_HANDLER_KEYS: HandlerKeys<"core"> = [
 ] as const;
 
 type StatusMissing = Missing<HandlerDeps<typeof attachStatusInteractionHandler>, (typeof STATUS_HANDLER_KEYS)[number] & string>;
-const statusComplete: [StatusMissing] extends [never] ? true : StatusMissing = true;
+type StatusExtra = Extra<HandlerDeps<typeof attachStatusInteractionHandler>, (typeof STATUS_HANDLER_KEYS)[number] & string>;
+const statusComplete: Exact<StatusMissing, StatusExtra> = true;
 
-export const LATEST_HANDLER_KEYS: HandlerKeys<"core"> = [
+export const LATEST_HANDLER_KEYS = [
   "CACHE_TTL_MS",
   "DEFAULT_CURRENCY",
   "ITEMS_PER_PAGE",
@@ -294,18 +310,20 @@ export const LATEST_HANDLER_KEYS: HandlerKeys<"core"> = [
 ] as const;
 
 type LatestMissing = Missing<HandlerDeps<typeof attachLatestInteractionHandler>, (typeof LATEST_HANDLER_KEYS)[number] & string>;
-const latestComplete: [LatestMissing] extends [never] ? true : LatestMissing = true;
+type LatestExtra = Extra<HandlerDeps<typeof attachLatestInteractionHandler>, (typeof LATEST_HANDLER_KEYS)[number] & string>;
+const latestComplete: Exact<LatestMissing, LatestExtra> = true;
 
-export const SIMPLE_HANDLER_KEYS: HandlerKeys<"core"> = [
+export const SIMPLE_HANDLER_KEYS = [
   "COMMAND_OUTPUT_MAX_CHARS",
   "MessageFlags",
   "logger"
 ] as const;
 
 type SimpleMissing = Missing<HandlerDeps<typeof attachSimpleCommandsHandler>, (typeof SIMPLE_HANDLER_KEYS)[number] & string>;
-const simpleComplete: [SimpleMissing] extends [never] ? true : SimpleMissing = true;
+type SimpleExtra = Extra<HandlerDeps<typeof attachSimpleCommandsHandler>, (typeof SIMPLE_HANDLER_KEYS)[number] & string>;
+const simpleComplete: Exact<SimpleMissing, SimpleExtra> = true;
 
-export const HELP_HANDLER_KEYS: HandlerKeys<"core"> = [
+export const HELP_HANDLER_KEYS = [
   "COLORS",
   "EmbedBuilder",
   "MessageFlags",
@@ -314,9 +332,10 @@ export const HELP_HANDLER_KEYS: HandlerKeys<"core"> = [
 ] as const;
 
 type HelpMissing = Missing<HandlerDeps<typeof attachHelpInteractionHandler>, (typeof HELP_HANDLER_KEYS)[number] & string>;
-const helpComplete: [HelpMissing] extends [never] ? true : HelpMissing = true;
+type HelpExtra = Extra<HandlerDeps<typeof attachHelpInteractionHandler>, (typeof HELP_HANDLER_KEYS)[number] & string>;
+const helpComplete: Exact<HelpMissing, HelpExtra> = true;
 
-export const PLAYER_COUNT_HANDLER_KEYS: HandlerKeys<"game-info"> = [
+export const PLAYER_COUNT_HANDLER_KEYS = [
   "MessageFlags",
   "enforceCooldown",
   "fetchSteamCurrentPlayers",
@@ -331,9 +350,10 @@ export const PLAYER_COUNT_HANDLER_KEYS: HandlerKeys<"game-info"> = [
 ] as const;
 
 type PlayerCountMissing = Missing<HandlerDeps<typeof attachPlayerCountAnalyticsHandler>, (typeof PLAYER_COUNT_HANDLER_KEYS)[number] & string>;
-const playerCountComplete: [PlayerCountMissing] extends [never] ? true : PlayerCountMissing = true;
+type PlayerCountExtra = Extra<HandlerDeps<typeof attachPlayerCountAnalyticsHandler>, (typeof PLAYER_COUNT_HANDLER_KEYS)[number] & string>;
+const playerCountComplete: Exact<PlayerCountMissing, PlayerCountExtra> = true;
 
-export const GAME_OVERVIEW_HANDLER_KEYS: HandlerKeys<"game-info"> = [
+export const GAME_OVERVIEW_HANDLER_KEYS = [
   "DEFAULT_CURRENCY",
   "MessageFlags",
   "enforceCooldown",
@@ -355,9 +375,10 @@ export const GAME_OVERVIEW_HANDLER_KEYS: HandlerKeys<"game-info"> = [
 ] as const;
 
 type GameOverviewMissing = Missing<HandlerDeps<typeof attachGameOverviewInteractionHandler>, (typeof GAME_OVERVIEW_HANDLER_KEYS)[number] & string>;
-const gameOverviewComplete: [GameOverviewMissing] extends [never] ? true : GameOverviewMissing = true;
+type GameOverviewExtra = Extra<HandlerDeps<typeof attachGameOverviewInteractionHandler>, (typeof GAME_OVERVIEW_HANDLER_KEYS)[number] & string>;
+const gameOverviewComplete: Exact<GameOverviewMissing, GameOverviewExtra> = true;
 
-export const COVERAGE_ALIAS_HANDLER_KEYS: HandlerKeys<"configuration"> = [
+export const COVERAGE_ALIAS_HANDLER_KEYS = [
   "GuildModel",
   "MessageFlags",
   "findGameAndSuggestion",
@@ -369,9 +390,10 @@ export const COVERAGE_ALIAS_HANDLER_KEYS: HandlerKeys<"configuration"> = [
 ] as const;
 
 type CoverageAliasMissing = Missing<HandlerDeps<typeof attachCoverageAliasHandler>, (typeof COVERAGE_ALIAS_HANDLER_KEYS)[number] & string>;
-const coverageAliasComplete: [CoverageAliasMissing] extends [never] ? true : CoverageAliasMissing = true;
+type CoverageAliasExtra = Extra<HandlerDeps<typeof attachCoverageAliasHandler>, (typeof COVERAGE_ALIAS_HANDLER_KEYS)[number] & string>;
+const coverageAliasComplete: Exact<CoverageAliasMissing, CoverageAliasExtra> = true;
 
-export const CONFIGURATION_HANDLER_KEYS: HandlerKeys<"configuration"> = [
+export const CONFIGURATION_HANDLER_KEYS = [
   "DEFAULT_CURRENCY",
   "MessageFlags",
   "enforceCooldown",
@@ -383,9 +405,10 @@ export const CONFIGURATION_HANDLER_KEYS: HandlerKeys<"configuration"> = [
 ] as const;
 
 type ConfigurationMissing = Missing<HandlerDeps<typeof attachConfigInteractionHandler>, (typeof CONFIGURATION_HANDLER_KEYS)[number] & string>;
-const configurationComplete: [ConfigurationMissing] extends [never] ? true : ConfigurationMissing = true;
+type ConfigurationExtra = Extra<HandlerDeps<typeof attachConfigInteractionHandler>, (typeof CONFIGURATION_HANDLER_KEYS)[number] & string>;
+const configurationComplete: Exact<ConfigurationMissing, ConfigurationExtra> = true;
 
-export const WATCHLIST_SUGGESTION_HANDLER_KEYS: HandlerKeys<"configuration"> = [
+export const WATCHLIST_SUGGESTION_HANDLER_KEYS = [
   "GuildAuditLogModel",
   "GuildModel",
   "MessageFlags",
@@ -398,9 +421,10 @@ export const WATCHLIST_SUGGESTION_HANDLER_KEYS: HandlerKeys<"configuration"> = [
 ] as const;
 
 type WatchlistSuggestionMissing = Missing<HandlerDeps<typeof attachWatchlistGameSuggestionHandler>, (typeof WATCHLIST_SUGGESTION_HANDLER_KEYS)[number] & string>;
-const watchlistSuggestionComplete: [WatchlistSuggestionMissing] extends [never] ? true : WatchlistSuggestionMissing = true;
+type WatchlistSuggestionExtra = Extra<HandlerDeps<typeof attachWatchlistGameSuggestionHandler>, (typeof WATCHLIST_SUGGESTION_HANDLER_KEYS)[number] & string>;
+const watchlistSuggestionComplete: Exact<WatchlistSuggestionMissing, WatchlistSuggestionExtra> = true;
 
-export const PRICE_CHECK_HANDLER_KEYS: HandlerKeys<"game-info"> = [
+export const PRICE_CHECK_HANDLER_KEYS = [
   "DEFAULT_CURRENCY",
   "MessageFlags",
   "chooseBestSteamMatch",
@@ -419,9 +443,10 @@ export const PRICE_CHECK_HANDLER_KEYS: HandlerKeys<"game-info"> = [
 ] as const;
 
 type PriceCheckMissing = Missing<HandlerDeps<typeof attachPriceCheckInteractionHandler>, (typeof PRICE_CHECK_HANDLER_KEYS)[number] & string>;
-const priceCheckComplete: [PriceCheckMissing] extends [never] ? true : PriceCheckMissing = true;
+type PriceCheckExtra = Extra<HandlerDeps<typeof attachPriceCheckInteractionHandler>, (typeof PRICE_CHECK_HANDLER_KEYS)[number] & string>;
+const priceCheckComplete: Exact<PriceCheckMissing, PriceCheckExtra> = true;
 
-export const DEAL_SCORE_HANDLER_KEYS: HandlerKeys<"game-info"> = [
+export const DEAL_SCORE_HANDLER_KEYS = [
   "DEFAULT_CURRENCY",
   "MessageFlags",
   "enforceCooldown",
@@ -439,9 +464,10 @@ export const DEAL_SCORE_HANDLER_KEYS: HandlerKeys<"game-info"> = [
 ] as const;
 
 type DealScoreMissing = Missing<HandlerDeps<typeof attachDealScoreInteractionHandler>, (typeof DEAL_SCORE_HANDLER_KEYS)[number] & string>;
-const dealScoreComplete: [DealScoreMissing] extends [never] ? true : DealScoreMissing = true;
+type DealScoreExtra = Extra<HandlerDeps<typeof attachDealScoreInteractionHandler>, (typeof DEAL_SCORE_HANDLER_KEYS)[number] & string>;
+const dealScoreComplete: Exact<DealScoreMissing, DealScoreExtra> = true;
 
-export const GAME_INFO_HANDLER_KEYS: HandlerKeys<"game-info"> = [
+export const GAME_INFO_HANDLER_KEYS = [
   "DEFAULT_CURRENCY",
   "MessageFlags",
   "chooseBestSteamMatch",
@@ -469,9 +495,10 @@ export const GAME_INFO_HANDLER_KEYS: HandlerKeys<"game-info"> = [
 ] as const;
 
 type GameInfoMissing = Missing<HandlerDeps<typeof attachGameInfoInteractionHandler>, (typeof GAME_INFO_HANDLER_KEYS)[number] & string>;
-const gameInfoComplete: [GameInfoMissing] extends [never] ? true : GameInfoMissing = true;
+type GameInfoExtra = Extra<HandlerDeps<typeof attachGameInfoInteractionHandler>, (typeof GAME_INFO_HANDLER_KEYS)[number] & string>;
+const gameInfoComplete: Exact<GameInfoMissing, GameInfoExtra> = true;
 
-export const SNOOZE_HANDLER_KEYS: HandlerKeys<"configuration"> = [
+export const SNOOZE_HANDLER_KEYS = [
   "GuildModel",
   "MessageFlags",
   "logger",
@@ -480,9 +507,10 @@ export const SNOOZE_HANDLER_KEYS: HandlerKeys<"configuration"> = [
 ] as const;
 
 type SnoozeMissing = Missing<HandlerDeps<typeof attachSnoozeInteractionHandler>, (typeof SNOOZE_HANDLER_KEYS)[number] & string>;
-const snoozeComplete: [SnoozeMissing] extends [never] ? true : SnoozeMissing = true;
+type SnoozeExtra = Extra<HandlerDeps<typeof attachSnoozeInteractionHandler>, (typeof SNOOZE_HANDLER_KEYS)[number] & string>;
+const snoozeComplete: Exact<SnoozeMissing, SnoozeExtra> = true;
 
-export const SET_HANDLER_KEYS: HandlerKeys<"configuration"> = [
+export const SET_HANDLER_KEYS = [
   "GuildModel",
   "MessageFlags",
   "SUPPORTED_CURRENCIES",
@@ -495,9 +523,10 @@ export const SET_HANDLER_KEYS: HandlerKeys<"configuration"> = [
 ] as const;
 
 type SetMissing = Missing<HandlerDeps<typeof attachSetInteractionHandler>, (typeof SET_HANDLER_KEYS)[number] & string>;
-const setComplete: [SetMissing] extends [never] ? true : SetMissing = true;
+type SetExtra = Extra<HandlerDeps<typeof attachSetInteractionHandler>, (typeof SET_HANDLER_KEYS)[number] & string>;
+const setComplete: Exact<SetMissing, SetExtra> = true;
 
-export const ROLE_PING_HANDLER_KEYS: HandlerKeys<"configuration"> = [
+export const ROLE_PING_HANDLER_KEYS = [
   "GuildModel",
   "MessageFlags",
   "formatUserError",
@@ -507,9 +536,10 @@ export const ROLE_PING_HANDLER_KEYS: HandlerKeys<"configuration"> = [
 ] as const;
 
 type RolePingMissing = Missing<HandlerDeps<typeof attachRolePingHandlers>, (typeof ROLE_PING_HANDLER_KEYS)[number] & string>;
-const rolePingComplete: [RolePingMissing] extends [never] ? true : RolePingMissing = true;
+type RolePingExtra = Extra<HandlerDeps<typeof attachRolePingHandlers>, (typeof ROLE_PING_HANDLER_KEYS)[number] & string>;
+const rolePingComplete: Exact<RolePingMissing, RolePingExtra> = true;
 
-export const GAME_FILTER_HANDLER_KEYS: HandlerKeys<"configuration"> = [
+export const GAME_FILTER_HANDLER_KEYS = [
   "GuildModel",
   "MessageFlags",
   "formatUserError",
@@ -520,9 +550,10 @@ export const GAME_FILTER_HANDLER_KEYS: HandlerKeys<"configuration"> = [
 ] as const;
 
 type GameFilterMissing = Missing<HandlerDeps<typeof attachGameFilterHandlers>, (typeof GAME_FILTER_HANDLER_KEYS)[number] & string>;
-const gameFilterComplete: [GameFilterMissing] extends [never] ? true : GameFilterMissing = true;
+type GameFilterExtra = Extra<HandlerDeps<typeof attachGameFilterHandlers>, (typeof GAME_FILTER_HANDLER_KEYS)[number] & string>;
+const gameFilterComplete: Exact<GameFilterMissing, GameFilterExtra> = true;
 
-export const TEMPLATE_PREVIEW_HANDLER_KEYS: HandlerKeys<"notifications"> = [
+export const TEMPLATE_PREVIEW_HANDLER_KEYS = [
   "GuildModel",
   "MessageFlags",
   "getGuildSettings",
@@ -532,9 +563,10 @@ export const TEMPLATE_PREVIEW_HANDLER_KEYS: HandlerKeys<"notifications"> = [
 ] as const;
 
 type TemplatePreviewMissing = Missing<HandlerDeps<typeof attachTemplatePreviewHandler>, (typeof TEMPLATE_PREVIEW_HANDLER_KEYS)[number] & string>;
-const templatePreviewComplete: [TemplatePreviewMissing] extends [never] ? true : TemplatePreviewMissing = true;
+type TemplatePreviewExtra = Extra<HandlerDeps<typeof attachTemplatePreviewHandler>, (typeof TEMPLATE_PREVIEW_HANDLER_KEYS)[number] & string>;
+const templatePreviewComplete: Exact<TemplatePreviewMissing, TemplatePreviewExtra> = true;
 
-export const DLC_HANDLER_KEYS: HandlerKeys<"notifications"> = [
+export const DLC_HANDLER_KEYS = [
   "CACHE_TTL_MS",
   "COLORS",
   "DEFAULT_CURRENCY",
@@ -562,9 +594,10 @@ export const DLC_HANDLER_KEYS: HandlerKeys<"notifications"> = [
 ] as const;
 
 type DlcMissing = Missing<HandlerDeps<typeof attachDlcInteractionHandler>, (typeof DLC_HANDLER_KEYS)[number] & string>;
-const dlcComplete: [DlcMissing] extends [never] ? true : DlcMissing = true;
+type DlcExtra = Extra<HandlerDeps<typeof attachDlcInteractionHandler>, (typeof DLC_HANDLER_KEYS)[number] & string>;
+const dlcComplete: Exact<DlcMissing, DlcExtra> = true;
 
-export const PRICE_ALERT_HANDLER_KEYS: HandlerKeys<"notifications"> = [
+export const PRICE_ALERT_HANDLER_KEYS = [
   "GuildModel",
   "MessageFlags",
   "SUPPORTED_CURRENCIES",
@@ -576,9 +609,10 @@ export const PRICE_ALERT_HANDLER_KEYS: HandlerKeys<"notifications"> = [
 ] as const;
 
 type PriceAlertMissing = Missing<HandlerDeps<typeof attachPriceAlertInteractionHandler>, (typeof PRICE_ALERT_HANDLER_KEYS)[number] & string>;
-const priceAlertComplete: [PriceAlertMissing] extends [never] ? true : PriceAlertMissing = true;
+type PriceAlertExtra = Extra<HandlerDeps<typeof attachPriceAlertInteractionHandler>, (typeof PRICE_ALERT_HANDLER_KEYS)[number] & string>;
+const priceAlertComplete: Exact<PriceAlertMissing, PriceAlertExtra> = true;
 
-export const FUTURE_RELEASE_HANDLER_KEYS: HandlerKeys<"notifications"> = [
+export const FUTURE_RELEASE_HANDLER_KEYS = [
   "GuildModel",
   "MessageFlags",
   "canSendEmbeds",
@@ -593,9 +627,12 @@ export const FUTURE_RELEASE_HANDLER_KEYS: HandlerKeys<"notifications"> = [
 ] as const;
 
 type FutureReleaseMissing = Missing<HandlerDeps<typeof attachFutureReleaseInteractionHandler>, (typeof FUTURE_RELEASE_HANDLER_KEYS)[number] & string>;
-const futureReleaseComplete: [FutureReleaseMissing] extends [never] ? true : FutureReleaseMissing = true;
+type FutureReleaseExtra = Extra<HandlerDeps<typeof attachFutureReleaseInteractionHandler>, (typeof FUTURE_RELEASE_HANDLER_KEYS)[number] & string>;
+const futureReleaseComplete: Exact<FutureReleaseMissing, FutureReleaseExtra> = true;
 
-export const YOUTUBE_HANDLER_KEYS: HandlerKeys<"youtube"> = [
+export const YOUTUBE_HANDLER_KEYS = [
+  "OperationJournalModel",
+  "GuildYoutubeStateModel",
   "GuildModel",
   "GuildYoutubeErrorModel",
   "MessageFlags",
@@ -617,9 +654,10 @@ export const YOUTUBE_HANDLER_KEYS: HandlerKeys<"youtube"> = [
 ] as const;
 
 type YoutubeMissing = Missing<HandlerDeps<typeof attachYouTubeInteractionHandler>, (typeof YOUTUBE_HANDLER_KEYS)[number] & string>;
-const youtubeComplete: [YoutubeMissing] extends [never] ? true : YoutubeMissing = true;
+type YoutubeExtra = Extra<HandlerDeps<typeof attachYouTubeInteractionHandler>, (typeof YOUTUBE_HANDLER_KEYS)[number] & string>;
+const youtubeComplete: Exact<YoutubeMissing, YoutubeExtra> = true;
 
-export const SUBSCRIPTION_HANDLER_KEYS: HandlerKeys<"notifications"> = [
+export const SUBSCRIPTION_HANDLER_KEYS = [
   "DEALS_HISTORY_LIMIT",
   "DEFAULT_CURRENCY",
   "GuildModel",
@@ -645,22 +683,25 @@ export const SUBSCRIPTION_HANDLER_KEYS: HandlerKeys<"notifications"> = [
 ] as const;
 
 type SubscriptionMissing = Missing<HandlerDeps<typeof attachSubscriptionNotificationHandlers>, (typeof SUBSCRIPTION_HANDLER_KEYS)[number] & string>;
-const subscriptionComplete: [SubscriptionMissing] extends [never] ? true : SubscriptionMissing = true;
+type SubscriptionExtra = Extra<HandlerDeps<typeof attachSubscriptionNotificationHandlers>, (typeof SUBSCRIPTION_HANDLER_KEYS)[number] & string>;
+const subscriptionComplete: Exact<SubscriptionMissing, SubscriptionExtra> = true;
 
-export const AUTOCOMPLETE_HANDLER_KEYS: HandlerKeys<"routing"> = [
+export const AUTOCOMPLETE_HANDLER_KEYS = [
   "getGuildSettings",
   "logger"
 ] as const;
 
 type AutocompleteMissing = Missing<HandlerDeps<typeof attachAutocompleteInteractionHandler>, (typeof AUTOCOMPLETE_HANDLER_KEYS)[number] & string>;
-const autocompleteComplete: [AutocompleteMissing] extends [never] ? true : AutocompleteMissing = true;
+type AutocompleteExtra = Extra<HandlerDeps<typeof attachAutocompleteInteractionHandler>, (typeof AUTOCOMPLETE_HANDLER_KEYS)[number] & string>;
+const autocompleteComplete: Exact<AutocompleteMissing, AutocompleteExtra> = true;
 
-export const FALLBACK_HANDLER_KEYS: HandlerKeys<"routing"> = [
+export const FALLBACK_HANDLER_KEYS = [
   "MessageFlags",
   "logger"
 ] as const;
 
 type FallbackMissing = Missing<HandlerDeps<typeof attachFallbackInteractionHandler>, (typeof FALLBACK_HANDLER_KEYS)[number] & string>;
-const fallbackComplete: [FallbackMissing] extends [never] ? true : FallbackMissing = true;
+type FallbackExtra = Extra<HandlerDeps<typeof attachFallbackInteractionHandler>, (typeof FALLBACK_HANDLER_KEYS)[number] & string>;
+const fallbackComplete: Exact<FallbackMissing, FallbackExtra> = true;
 
 export const HANDLER_KEY_COVERAGE = [sourceStatusComplete, configurationAdminComplete, securityComplete, botAddComplete, adminAccessComplete, moderationComplete, backupComplete, auditLogComplete, maintenanceComplete, healthComplete, suggestCommandComplete, reportComplete, statusComplete, latestComplete, simpleComplete, helpComplete, playerCountComplete, gameOverviewComplete, coverageAliasComplete, configurationComplete, watchlistSuggestionComplete, priceCheckComplete, dealScoreComplete, gameInfoComplete, snoozeComplete, setComplete, rolePingComplete, gameFilterComplete, templatePreviewComplete, dlcComplete, priceAlertComplete, futureReleaseComplete, youtubeComplete, subscriptionComplete, autocompleteComplete, fallbackComplete] as const;

@@ -26,13 +26,23 @@ export type AnyCommandHandlerDescriptor = {
   [D in CommandHandlerDomain]: CommandHandlerDescriptor<D>
 }[CommandHandlerDomain];
 
+export type DefineDescriptor = <D extends CommandHandlerDomain, K extends keyof CommandDomainDeps[D]>(
+  input: {
+    id: string;
+    domain: D;
+    needs: readonly K[];
+    build: (context: Pick<CommandDomainDeps[D], K>) => CommandHandler;
+  }
+    & Partial<Pick<CommandHandlerDescriptor<D>, "scope" | "access" | "help" | "autocomplete">>
+) => CommandHandlerDescriptor<D>;
+
 export function createCommandHandlerDescriptors(): readonly AnyCommandHandlerDescriptor[] {
-  function define<D extends CommandHandlerDomain>(
+  function define<D extends CommandHandlerDomain, K extends keyof CommandDomainDeps[D]>(
     input: {
       id: string;
       domain: D;
-      needs: readonly (keyof CommandDomainDeps[D])[];
-      build: (context: CommandDomainDeps[D]) => CommandHandler;
+      needs: readonly K[];
+      build: (context: Pick<CommandDomainDeps[D], K>) => CommandHandler;
     }
       & Partial<Pick<CommandHandlerDescriptor<D>, "scope" | "access" | "help" | "autocomplete">>
   ): CommandHandlerDescriptor<D> {
@@ -42,7 +52,7 @@ export function createCommandHandlerDescriptors(): readonly AnyCommandHandlerDes
       help: [input.id],
       autocomplete: [],
       ...input,
-      buildFrom: (context: CommandDomainDeps[D]) => input.build(selectHandlerDeps(context, input.needs))
+      buildFrom: (context: CommandDomainDeps[D]) => input.build(selectHandlerDeps<D, K>(context, input.needs))
     };
   }
   const descriptors: readonly AnyCommandHandlerDescriptor[] = [

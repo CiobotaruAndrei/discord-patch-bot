@@ -5,33 +5,27 @@ import type { CommandDomainDeps } from "./commandDomainDeps.js";
 
 type DomainName = keyof CommandDomainDeps;
 
-function keysFor(domain: DomainName): readonly PropertyKey[] {
-  return COMMAND_DOMAIN_KEYS[domain];
+function keysFor<D extends DomainName>(domain: D): readonly (keyof CommandDomainDeps[D])[] {
+  return COMMAND_DOMAIN_KEYS[domain] as readonly (keyof CommandDomainDeps[D])[];
 }
 
-function readableContext<D extends DomainName>(context: CommandDomainDeps[D]): Record<string, unknown> & CommandDomainDeps[D] {
-  return context as Record<string, unknown> & CommandDomainDeps[D];
+function copyKey<T extends object, K extends keyof T>(target: Partial<Pick<T, K>>, source: T, key: K): void {
+  if (key in source) target[key] = source[key];
 }
 
-export function selectHandlerDeps<D extends DomainName>(
+function pickKeys<T extends object, K extends keyof T>(source: T, keys: readonly K[]): Pick<T, K> {
+  const selected: Partial<Pick<T, K>> = {};
+  for (const key of keys) copyKey(selected, source, key);
+  return selected as Pick<T, K>;
+}
+
+export function selectHandlerDeps<D extends DomainName, K extends keyof CommandDomainDeps[D]>(
   context: CommandDomainDeps[D],
-  needs: readonly (keyof CommandDomainDeps[D])[]
-): CommandDomainDeps[D] {
-  const source = readableContext<D>(context);
-  const selected: Record<string, unknown> = {};
-  for (const key of needs) {
-    const name = String(key);
-    if (name in source) selected[name] = source[name];
-  }
-  return selected as Record<string, unknown> & CommandDomainDeps[D];
+  needs: readonly K[]
+): Pick<CommandDomainDeps[D], K> {
+  return pickKeys(context, needs);
 }
 
 export function selectDomainDeps<D extends DomainName>(domain: D, context: CommandDomainDeps[D]): CommandDomainDeps[D] {
-  const source = readableContext<D>(context);
-  const selected: Record<string, unknown> = {};
-  for (const key of keysFor(domain)) {
-    const name = String(key);
-    if (name in source) selected[name] = source[name];
-  }
-  return selected as Record<string, unknown> & CommandDomainDeps[D];
+  return pickKeys(context, keysFor(domain)) as CommandDomainDeps[D];
 }
