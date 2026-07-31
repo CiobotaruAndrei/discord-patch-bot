@@ -11,46 +11,40 @@ import type {
   UserOption
 } from "./discordInteractionPorts.js";
 import { randomUUID } from "node:crypto";
-import { PermissionFlagsBits } from "discord.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail } from "../../shared/errors.js";
-import moderationRepository, { type ModerationRecord } from "../moderation/moderationRepository.js";
+import moderationRepository from "../moderation/moderationRepository.js";
 import type { ModerationGuildModel } from "../moderation/moderationRepository.js";
 import { createModerationStore } from "../moderation/moderationStore.js";
 import { attachmentLabel, validateModerationText, type DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import { sendTextPages } from "../command-presentation/textPagination.js";
+import {
+  applyModerationCommand,
+  type ModerationCommand,
+  type ModerationDeps,
+  type WarningChannel
+} from "../moderation/moderationSanctionUseCase.js";
+import { moderationOutcomeMessage } from "../moderation/moderationOutcomeMessages.js";
+import { formatModerationRecord, summarizeWarnings, mention } from "../moderation/moderationListView.js";
+import {
+  botHasPermission,
+  missingWarningChannelPermissions,
+  parseDuration,
+  resolveTargetPort,
+  unbanPort,
+  type ModerationChannel,
+  type ModerationGuild,
+  type ModerationMember,
+  type ModerationUser
+} from "../moderation/moderationInteractionAdapters.js";
 
-type User = { id: string; username?: string; bot?: boolean };
-type Role = { position?: number };
-type Member = {
-  id: string;
-  user?: User;
-  roles?: { highest?: Role };
-  timeout?: (duration: number | null, reason?: string) => Promise<unknown>;
-  kick?: (reason?: string) => Promise<unknown>;
-  ban?: (options?: { reason?: string }) => Promise<unknown>;
-  permissions?: { has(permission: string | bigint): boolean };
-};
-type Channel = {
-  id?: string;
-  send?: (payload: unknown) => Promise<unknown>;
-  isTextBased?: () => boolean;
-  permissionsFor?: (member: Member) => { has(permission: bigint): boolean } | null;
-};
-type Guild = {
-  id: string;
-  ownerId?: string;
-  members: { me?: Member; fetch(userId: string): Promise<Member> };
-  bans?: { remove(userId: string, reason?: string): Promise<unknown> };
-  channels?: { fetch(channelId: string): Promise<Channel | null> };
-};
 type Interaction = ChatInputInteraction<
-  Partial<SubcommandOption> & UserOption<User> & StringOption & IntegerOption & AttachmentOption<DirectAttachment> & OptionalChannelOption<Channel>,
-  Guild
+  Partial<SubcommandOption> & UserOption<ModerationUser> & StringOption & IntegerOption & AttachmentOption<DirectAttachment> & OptionalChannelOption<ModerationChannel>,
+  ModerationGuild
 > & AlwaysReplies & {
-  user?: User | null;
-  member?: Member | null;
+  user?: ModerationUser | null;
+  member?: ModerationMember | null;
 };
 type Deps = {
   GuildModel: Parameters<typeof moderationRepository.getModerationState>[0];
@@ -65,73 +59,10 @@ type Deps = {
 const ADMIN_ACTIONS = new Set(["timeout", "remove-timeout", "mute", "unmute", "kick", "ban", "unban", "warn", "remove-warn", "warn-ban-limit"]);
 const LIST_ACTIONS = new Set(["timeout-list", "mute-list", "warn-list"]);
 
-function durationMs(value: string): number | null {
-  const match = /^([1-9][0-9]{0,5})(s|m|h|d|w)$/i.exec(value.trim());
-  if (!match) return null;
-  const units: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 };
-  const result = Number(match[1]) * units[match[2].toLowerCase()];
-  return result > 0 && result <= 28 * 86_400_000 ? result : null;
-}
-
-function highest(member: Member | null | undefined): number { return member?.roles?.highest?.position ?? 0; }
-
-async function targetMember(interaction: Interaction, user: User): Promise<Member | null> {
-  if (!interaction.guild) return null;
-  return interaction.guild.members.fetch(user.id).catch(() => null);
-}
-
-function canAct(interaction: Interaction, target: Member | null): boolean {
-  const guild = interaction.guild;
-  if (!guild || !target || !interaction.user) return false;
-  if (target.id === interaction.user.id || target.user?.bot || target.id === guild.ownerId) return false;
-  const actor = interaction.member;
-  if (actor && interaction.user.id !== guild.ownerId && highest(actor) <= highest(target)) return false;
-  const me = guild.members.me;
-  if (me && highest(me) <= highest(target)) return false;
-  return true;
-}
-
-function hasPermission(member: Member | undefined, permission: string): boolean {
-  return member?.permissions?.has(permission) ?? false;
-}
-
-function mention(userId: string, name?: string): string { return name ? `${name} (<@${userId}>)` : `<@${userId}>`; }
-function optionUser(interaction: Interaction): User | null { return interaction.options.getUser("utilizator", false) ?? interaction.options.getUser("user", false); }
+function optionUser(interaction: Interaction): ModerationUser | null { return interaction.options.getUser("utilizator", false) ?? interaction.options.getUser("user", false); }
 function optionString(interaction: Interaction, primary: string, fallback: string): string | null { return interaction.options.getString(primary, false) ?? interaction.options.getString(fallback, false); }
 function optionInteger(interaction: Interaction, primary: string, fallback: string): number | null { return interaction.options.getInteger(primary, false) ?? interaction.options.getInteger(fallback, false); }
 function optionAttachment(interaction: Interaction): DirectAttachment | null { return interaction.options.getAttachment?.("atasament", false) ?? interaction.options.getAttachment?.("attachment", false) ?? null; }
-function formatRecord(record: ModerationRecord): string {
-  const applied = Math.floor(new Date(record.appliedAt).getTime() / 1000);
-  const expiryDate = record.expiresAt ? new Date(record.expiresAt) : null;
-  const expiry = expiryDate ? `<t:${Math.floor(expiryDate.getTime() / 1000)}:F> (<t:${Math.floor(expiryDate.getTime() / 1000)}:R>)` : "permanent";
-  const remaining = expiryDate ? Math.max(0, expiryDate.getTime() - Date.now()) : null;
-  const remainingLabel = remaining === null ? "permanent" : remaining >= 3_600_000 ? `${Math.ceil(remaining / 3_600_000)}h` : `${Math.ceil(remaining / 60_000)}m`;
-  const reason = record.reason && record.reason.trim() ? record.reason.trim() : "-";
-  return `${mention(record.userId, record.username)} | ID ${record.userId} | aplicat de <@${record.moderatorId}> la <t:${applied}:F> (<t:${applied}:R>) | expira ${expiry} | ramas ${remainingLabel} | motiv: ${reason}`;
-}
-
-function warningChannelMissingPermissions(channel: Channel, bot: Member | undefined): string[] {
-  if (!channel.id || !bot || channel.isTextBased?.() === false || typeof channel.send !== "function") return ["canal text valid"];
-  const permissions = channel.permissionsFor?.(bot);
-  if (!permissions) return ["permisiuni verificabile"];
-  const required: Array<[bigint, string]> = [
-    [PermissionFlagsBits.ViewChannel, "View Channel"],
-    [PermissionFlagsBits.SendMessages, "Send Messages"],
-    [PermissionFlagsBits.EmbedLinks, "Embed Links"]
-  ];
-  return required.filter(([permission]) => permissions.has(permission) !== true).map(([, label]) => label);
-}
-
-function reasonForDiscord(reason: string | null, attachment: DirectAttachment | null): string | undefined {
-  const value = `${reason ?? ""}${attachmentLabel(attachment)}`.trim();
-  return value || undefined;
-}
-
-async function rollbackTimeout(target: Member, record: ModerationRecord | null): Promise<void> {
-  if (!target.timeout || !record?.expiresAt) return;
-  const remaining = new Date(record.expiresAt).getTime() - Date.now();
-  if (remaining > 0) await target.timeout(remaining, record.reason);
-}
 
 function createModerationInteractionHandler(deps: Deps) {
   const { MessageFlags, safeDefer, safeEdit } = deps;
@@ -144,27 +75,77 @@ function createModerationInteractionHandler(deps: Deps) {
   async function handleLists(interaction: Interaction, command: string, guildId: string): Promise<unknown> {
     const state = await moderationRepository.getModerationState(GuildModel, guildId);
     const records = command === "timeout-list" ? state.moderationTimeouts : command === "mute-list" ? state.moderationMutes : undefined;
-    if (records) return sendTextPages(interaction, records.map(formatRecord), "Lista este goala.", true);
-    const totalsByUser = new Map<string, { userId: string; username?: string; count: number; lastWarnedAt: number }>();
-    for (const warning of state.moderationWarnings ?? []) {
-      const warnedAt = new Date(warning.warnedAt).getTime();
-      const entry = totalsByUser.get(warning.userId);
-      if (!entry) {
-        totalsByUser.set(warning.userId, { userId: warning.userId, username: warning.username, count: 1, lastWarnedAt: warnedAt });
-      } else {
-        entry.count += 1;
-        if (warnedAt > entry.lastWarnedAt) {
-          entry.lastWarnedAt = warnedAt;
-          entry.username = warning.username;
-        }
-      }
-    }
-    const rows = [...totalsByUser.values()]
-      .sort((left, right) => right.count - left.count || right.lastWarnedAt - left.lastWarnedAt)
-      .map(entry =>
-        `${mention(entry.userId, entry.username)} | ${entry.count === 1 ? "1 warn activ" : `${entry.count} warn-uri active`} | ultimul <t:${Math.floor(entry.lastWarnedAt / 1000)}:R>`
-      );
+    const rows = records ? records.map(record => formatModerationRecord(record)) : summarizeWarnings(state.moderationWarnings ?? []);
     return sendTextPages(interaction, rows, "Lista este goala.", true);
+  }
+
+  function warningChannelPort(interaction: Interaction, guild: ModerationGuild, user: ModerationUser | null): () => Promise<WarningChannel> {
+    return async () => {
+      const settings = await deps.getGuildSettings(guild.id);
+      let channel = settings?.warningChannelId && guild.channels?.fetch
+        ? await guild.channels.fetch(settings.warningChannelId).catch(() => null)
+        : null;
+      if (!channel?.send) {
+        const selected = interaction.options.getChannel?.("canal", false) ?? null;
+        if (!selected) return { status: "not-selected" };
+        const missing = missingWarningChannelPermissions(selected, guild.members.me);
+        if (missing.length > 0) return { status: "missing-permissions", missing };
+        if (!selected.id) return { status: "without-id" };
+        await moderationRepository.setWarningChannel(GuildModel, guild.id, selected.id);
+        channel = selected;
+      }
+      const send = typeof channel.send === "function" ? channel.send.bind(channel) : null;
+      if (!send) return { status: "unavailable" };
+      const attachment = optionAttachment(interaction);
+      const moderatorId = interaction.user?.id || "";
+      return {
+        status: "ready",
+        send: (reason, count) => send({
+          content: `Warn pentru ${mention(user?.id ?? "", user?.username)} (${count} total) | moderator <@${moderatorId}> | motiv: ${reason ?? "atasament direct"}`,
+          files: attachment?.url ? [attachment.url] : [],
+          allowedMentions: { parse: [] }
+        })
+      };
+    };
+  }
+
+  function useCasePorts(interaction: Interaction, guild: ModerationGuild, user: ModerationUser | null): ModerationDeps {
+    const attachment = optionAttachment(interaction);
+    const userId = user?.id ?? "";
+    const moderatorId = interaction.user?.id || "";
+    const actor = { actorId: interaction.user?.id, actorMember: interaction.member };
+    return {
+      validateReason: raw => validateModerationText(raw),
+      discordReason: reason => {
+        const value = `${reason ?? ""}${attachmentLabel(attachment)}`.trim();
+        return value || undefined;
+      },
+      botHasPermission: permission => botHasPermission(guild, permission),
+      resolveTarget: user ? resolveTargetPort(guild, actor, user.id) : async () => null,
+      unbanUser: unbanPort(guild, userId),
+      setWarnBanLimit: limit => moderationRepository.setWarnBanLimit(GuildModel, guild.id, limit),
+      saveSanction: (command, sanction) => command === "timeout"
+        ? moderationRepository.saveTimeout(GuildModel, guild.id, sanction)
+        : moderationRepository.saveMute(GuildModel, guild.id, sanction),
+      findSanctionsForUser: () => moderationRepository.findModerationRecordsForUser(GuildModel, guild.id, userId),
+      removeSanction: field => moderationRepository.removeModeration(GuildModel, guild.id, field, userId),
+      removeWarning: () => moderationRepository.removeWarning(GuildModel, guild.id, userId),
+      resolveWarningChannel: warningChannelPort(interaction, guild, user),
+      addWarning: warningId => moderationRepository.addWarning(GuildModel, guild.id, {
+        warningId,
+        userId,
+        username: user?.username || userId,
+        moderatorId,
+        warnedAt: new Date()
+      }),
+      dropWarning: warningId => moderationRepository.removeWarningById(GuildModel, guild.id, warningId).then(() => true),
+      newWarningId: () => randomUUID(),
+      reportOrphanedWarning: error =>
+        deps.logger?.("ERROR", "MODERATION", "Livrarea warn-ului a esuat, iar compensarea nu a putut sterge inregistrarea salvata", errorDetail(error)),
+      reportFailedAutoBan: error =>
+        deps.logger?.("ERROR", "MODERATION", "Auto-ban-ul dupa warn a esuat; avertismentul ramane valid pentru reconciliere", errorDetail(error)),
+      now: () => Date.now()
+    };
   }
 
   async function handle(interaction: Interaction): Promise<unknown> {
@@ -173,145 +154,22 @@ function createModerationInteractionHandler(deps: Deps) {
     const command = interaction.commandName || "";
     if (LIST_ACTIONS.has(command)) return handleLists(interaction, command, guild.id);
     await safeDefer(interaction, true);
-    const rawReason = optionString(interaction, "motiv", "reason") ?? undefined;
-    let reason: string | null;
-    try {
-      reason = validateModerationText(rawReason);
-    } catch (err) {
-      return safeEdit(interaction, err instanceof Error ? err.message : "Motivul nu este valid.");
-    }
-    const attachment = optionAttachment(interaction);
-    const discordReason = reasonForDiscord(reason, attachment);
-    const moderatorId = interaction.user?.id || "";
-    if (command === "warn-ban-limit") {
-      const limit = optionInteger(interaction, "numar", "number");
-      if (!limit || limit < 1) return safeEdit(interaction, "Eroare: limita trebuie sa fie un numar intreg pozitiv.");
-      const previous = await moderationRepository.setWarnBanLimit(GuildModel, guild.id, limit);
-      return safeEdit(interaction, `OK: limita de warn-uri a fost schimbata: ${previous} -> ${limit}.`);
-    }
-    const selectedUser = optionUser(interaction);
-    if (!selectedUser) return safeEdit(interaction, "Eroare: trebuie sa selectezi un utilizator.");
-    const user = selectedUser;
-    if (command === "unban") {
-      if (!hasPermission(guild.members.me, "BanMembers") || !guild.bans?.remove) return safeEdit(interaction, "Eroare: botul nu poate debana utilizatori.");
-      await guild.bans.remove(user.id, discordReason);
-      return safeEdit(interaction, `OK: ${mention(user.id, user.username)} a fost debanat.`);
-    }
-    const target = await targetMember(interaction, user);
-    if (!target || !canAct(interaction, target)) return safeEdit(interaction, "Eroare: utilizatorul nu poate fi sanctionat din cauza ierarhiei, a tipului de cont sau a absentei pe server.");
-    if (command === "timeout" || command === "mute") {
-      const duration = durationMs(optionString(interaction, "durata", "duration") || "");
-      if (!duration) return safeEdit(interaction, "Eroare: durata trebuie sa fie intre 1s si 28d (exemplu: 30m, 2h, 1d).");
-      if (!hasPermission(guild.members.me, "ModerateMembers")) return safeEdit(interaction, "Eroare: botul nu are permisiunea Moderate Members.");
-      if (typeof target.timeout !== "function") return safeEdit(interaction, "Eroare: Discord nu permite timeout pentru acest utilizator.");
-      const record: ModerationRecord = {
-        userId: user.id,
-        username: user.username || user.id,
-        moderatorId,
-        appliedAt: new Date(),
-        expiresAt: new Date(Date.now() + duration),
-        reason: discordReason
-      };
-      await target.timeout(duration, discordReason);
-      try {
-        if (command === "timeout") await moderationRepository.saveTimeout(GuildModel, guild.id, record);
-        else await moderationRepository.saveMute(GuildModel, guild.id, record);
-      } catch (err) {
-        await target.timeout(null).catch(() => undefined);
-        throw err;
-      }
-      const expiresAt = record.expiresAt;
-      if (!expiresAt) throw new Error("Data expirarii sanctiunii lipseste.");
-      return safeEdit(interaction, `OK: ${mention(user.id, user.username)} a primit ${command === "timeout" ? "timeout" : "mute"} pana <t:${Math.floor(expiresAt.getTime() / 1000)}:F>.`);
-    }
-    if (command === "remove-timeout" || command === "unmute") {
-      if (!hasPermission(guild.members.me, "ModerateMembers")) return safeEdit(interaction, "Eroare: botul nu are permisiunea Moderate Members.");
-      const field = command === "remove-timeout" ? "moderationTimeouts" : "moderationMutes";
-      const records = await moderationRepository.findModerationRecordsForUser(GuildModel, guild.id, user.id);
-      if (records.timeout && records.mute) return safeEdit(interaction, "Eroare: persistenta contine simultan timeout si mute pentru acest utilizator. Ruleaza reconcilierea inainte de eliminare.");
-      const activeRecord = command === "remove-timeout" ? records.timeout : records.mute;
-      const oppositeRecord = command === "remove-timeout" ? records.mute : records.timeout;
-      if (!activeRecord && oppositeRecord) return safeEdit(interaction, `Eroare: utilizatorul are ${command === "remove-timeout" ? "mute" : "timeout"}, nu ${command === "remove-timeout" ? "timeout" : "mute"}. Foloseste \`/${command === "remove-timeout" ? "unmute" : "remove-timeout"}\`.`);
-      if (!activeRecord) return safeEdit(interaction, `Nu exista un ${command === "unmute" ? "mute" : "timeout"} activ pentru ${mention(user.id, user.username)}.`);
-      if (typeof target.timeout !== "function") return safeEdit(interaction, "Eroare: Discord nu permite eliminarea sanctiunii.");
-      await target.timeout(null);
-      try {
-        const removed = await moderationRepository.removeModeration(GuildModel, guild.id, field, user.id);
-        if (!removed) throw new Error("Sanctiunea nu a putut fi eliminata din persistenta.");
-      } catch (err) {
-        await rollbackTimeout(target, activeRecord).catch(() => undefined);
-        throw err;
-      }
-      return safeEdit(interaction, `OK: sanctiunea a fost eliminata pentru ${mention(user.id, user.username)}.`);
-    }
-    if (command === "kick" || command === "ban") {
-      if (!hasPermission(guild.members.me, command === "kick" ? "KickMembers" : "BanMembers")) return safeEdit(interaction, `Eroare: botul nu are permisiunea ${command === "kick" ? "Kick Members" : "Ban Members"}.`);
-      if (command === "kick") {
-        if (typeof target.kick !== "function") return safeEdit(interaction, "Eroare: kick indisponibil.");
-        await target.kick(discordReason);
-      } else {
-        if (typeof target.ban !== "function") return safeEdit(interaction, "Eroare: ban indisponibil.");
-        await target.ban({ reason: discordReason });
-      }
-      return safeEdit(interaction, `OK: ${mention(user.id, user.username)} a fost ${command === "kick" ? "eliminat" : "banat"}.`);
-    }
-    if (command === "warn" || command === "remove-warn") {
-      if (command === "remove-warn") {
-        const result = await moderationRepository.removeWarning(GuildModel, guild.id, user.id);
-        if (!result.removed) return safeEdit(interaction, "Utilizatorul nu are warn-uri active.");
-        return safeEdit(interaction, `OK: ${mention(user.id, user.username)} are ${result.remaining} warn(uri) ramase.`);
-      }
-      if (!reason && !attachment) return safeEdit(interaction, "Eroare: warn-ul necesita motiv text sau un atasament direct.");
-      const settings = await deps.getGuildSettings(guild.id);
-      let warningChannel = settings?.warningChannelId && guild.channels?.fetch
-        ? await guild.channels.fetch(settings.warningChannelId).catch(() => null)
-        : null;
-      if (!warningChannel?.send) {
-        const selectedChannel = interaction.options.getChannel?.("canal", false) ?? null;
-        if (!selectedChannel) return safeEdit(interaction, "Eroare: selecteaza optiunea `canal` pentru a configura canalul dedicat de warn.");
-        const missing = warningChannelMissingPermissions(selectedChannel, guild.members.me);
-        if (missing.length > 0) return safeEdit(interaction, `Eroare: canalul selectat nu poate primi warn-uri. Lipsesc: ${missing.join(", ")}.`);
-        if (!selectedChannel.id) return safeEdit(interaction, "Eroare: canalul selectat nu are un ID valid.");
-        await moderationRepository.setWarningChannel(GuildModel, guild.id, selectedChannel.id);
-        warningChannel = selectedChannel;
-      }
-      const sendWarning = typeof warningChannel.send === "function" ? warningChannel.send.bind(warningChannel) : null;
-      if (!sendWarning) return safeEdit(interaction, "Eroare: canalul de warn nu mai este disponibil.");
-      const warningId = randomUUID();
-      const result = await moderationRepository.addWarning(GuildModel, guild.id, {
-        warningId,
-        userId: user.id,
-        username: user.username || user.id,
-        moderatorId,
-        warnedAt: new Date()
-      });
-      try {
-        await sendWarning({
-          content: `Warn pentru ${mention(user.id, user.username)} (${result.count} total) | moderator <@${moderatorId}> | motiv: ${reason ?? "atasament direct"}`,
-          files: attachment?.url ? [attachment.url] : [],
-          allowedMentions: { parse: [] }
-        });
-      } catch (err) {
-        const rolledBack = await moderationRepository.removeWarningById(GuildModel, guild.id, warningId).then(() => true).catch(() => false);
-        if (!rolledBack) {
-          deps.logger?.("ERROR", "MODERATION", "Livrarea warn-ului a esuat, iar compensarea nu a putut sterge inregistrarea salvata", errorDetail(err));
-          return safeEdit(interaction, `Atentie: warn-ul pentru ${mention(user.id, user.username)} a fost salvat, dar mesajul pe canal nu a putut fi livrat si compensarea a esuat. Inregistrarea ramane si necesita interventie manuala (\`/remove-warn\`).`);
-        }
-        throw err;
-      }
-      let suffix = "";
-      if (result.limit > 0 && result.count >= result.limit && typeof target.ban === "function" && hasPermission(guild.members.me, "BanMembers")) {
-        try {
-          await target.ban({ reason: `Limita de warn-uri atinsa (${result.limit})` });
-          suffix = " Utilizatorul a fost banat automat dupa atingerea limitei.";
-        } catch (err) {
-          deps.logger?.("ERROR", "MODERATION", "Auto-ban-ul dupa warn a esuat; avertismentul ramane valid pentru reconciliere", errorDetail(err));
-          suffix = " Avertismentul a fost salvat, dar auto-ban-ul a esuat si necesita interventie administrativa.";
-        }
-      }
-      return safeEdit(interaction, `OK: ${mention(user.id, user.username)} a primit warn-ul #${result.count}.${suffix}`);
-    }
-    return safeEdit(interaction, "Eroare: comanda de moderare nu este recunoscuta.");
+
+    const user = optionUser(interaction);
+    const outcome = await applyModerationCommand(
+      {
+        command: command as ModerationCommand,
+        rawReason: optionString(interaction, "motiv", "reason") ?? undefined,
+        hasAttachment: Boolean(optionAttachment(interaction)),
+        duration: parseDuration(optionString(interaction, "durata", "duration") || ""),
+        limit: optionInteger(interaction, "numar", "number"),
+        userId: user?.id ?? null,
+        username: user?.username,
+        moderatorId: interaction.user?.id || ""
+      },
+      useCasePorts(interaction, guild, user)
+    );
+    return safeEdit(interaction, moderationOutcomeMessage(outcome, mention(user?.id ?? "", user?.username)));
   }
   return { handle };
 }
