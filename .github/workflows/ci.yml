@@ -19,12 +19,14 @@ jobs:
   # Jobul rapid, fara Rust. Ruleaza in paralel cu `check` si da feedback in ~40s pe cea mai
   # frecventa clasa de esec: gate-uri structurale, tipare, comentarii, straturi.
   #
-  # De ce NU e o copie a lui `check` impartita in doua: masurat pe un run reusit, pasii scumpi
-  # sunt restaurarea cache-ului Rust (96s) si `apt-get install` pentru librariile C (34s), nu
-  # verificarile in sine (37s check + 28s clippy). Doua joburi care au amandoua nevoie de Rust ar
-  # plati de doua ori acele 130s ca sa castige cateva zeci de secunde de wall-clock. Jobul asta
-  # castiga tocmai fiindca NU are nevoie de ele: `npm ci` nu are hook-uri de install, `build:ts`
-  # nu atinge Rust, iar gate-urile ruleaza fara addon-ul nativ (verificat mutand .node-ul).
+  # De ce NU e o copie a lui `check` impartita in doua: `check` are 62,8s cost fix (container Mongo,
+  # apt, toolchain Rust, cache, npm ci) inaintea primului pas util. Doua joburi care au amandoua
+  # nevoie de Rust l-ar plati de doua ori, pentru ~40s de wall-clock castigat si ~63s de runner in
+  # plus - iar castigul real e mai mic, fiindca `check:native` si `npm run check` impart acelasi
+  # target/<triplet>/release si separate ar recompila aceleasi artefacte. Jobul asta castiga tocmai
+  # fiindca NU plateste costul fix: fara Rust, fara librarii C, fara Mongo (gate-urile ruleaza fara
+  # addon-ul nativ, verificat mutand .node-ul). Masuratorile pe pasi, cu run id si data, plus pragul
+  # la care decizia merita re-discutata: docs/architecture/ci-timings.md.
   gates:
     timeout-minutes: 15
     runs-on: ubuntu-latest
