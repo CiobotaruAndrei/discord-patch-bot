@@ -99,7 +99,7 @@ test("recuperarea reia copia ramasa in urma dupa o cadere", async () => {
   assert.deepEqual(writes[0].update, { $set: { threatProtectionEnabled: true } });
 });
 
-test("fatada de securitate scrie intai canonic, apoi copia jurnalizata", async () => {
+test("un pipeline de agregare ramane copie jurnalizata, scrisa dupa documentul canonic", async () => {
   const order: string[] = [];
   const journal = fakeJournalModel();
   const writes: DedicatedWrite[] = [];
@@ -128,10 +128,14 @@ test("fatada de securitate scrie intai canonic, apoi copia jurnalizata", async (
     copy
   );
 
-  await store.updateOne({ _id: "g4" }, { $set: { warningChannelId: "canal" } });
+  await store.updateOne({ _id: "g4" }, [{ $set: { warningChannelId: "canal" } }]);
 
-  assert.deepEqual(order, ["canonic", "copie"]);
-  assert.deepEqual(writes[0].update, { $set: { warningChannelId: "canal" } });
+  assert.deepEqual(
+    order,
+    ["canonic", "copie"],
+    "un pipeline nu se poate imparti pe campuri, deci ramane scriere dubla si pastreaza ordinea canonic-apoi-copie"
+  );
+  assert.deepEqual(writes[0].update, [{ $set: { warningChannelId: "canal" } }]);
 });
 
 test("o scriere care nu atinge felia nu ajunge in jurnal", async () => {

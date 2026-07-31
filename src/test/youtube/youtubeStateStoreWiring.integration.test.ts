@@ -78,7 +78,7 @@ test("schema dedicata acopera fiecare camp YouTube declarat", async (t) => {
   }
 });
 
-test("real Mongo: o scriere YouTube ajunge in ambele colectii, raportata o singura data", async (t) => {
+test("real Mongo: o scriere YouTube ajunge doar in colectia dedicata, raportata o singura data", async (t) => {
   await ready;
   if (!connected) { t.skip("MongoDB indisponibil"); return; }
   const { GuildModel, GuildYoutubeStateModel } = buildModels();
@@ -92,7 +92,11 @@ test("real Mongo: o scriere YouTube ajunge in ambele colectii, raportata o singu
 
   assert.equal(await GuildYoutubeStateModel.countDocuments({ _id: guildId, youtubeNotificationsEnabled: true }), 1);
   const legacy = await GuildModel.findOne({ _id: guildId }).lean();
-  assert.equal(legacy?.youtubeNotificationsEnabled, true, "documentul vechi ramane sursa de citire pana la finalul migrarii");
+  assert.equal(
+    legacy?.youtubeNotificationsEnabled,
+    undefined,
+    "colectia dedicata detine campul; o scriere in documentul vechi ar reinvia exact campurile scoase de migrarea 16"
+  );
   assert.deepEqual(mirrored, [guildId], "oglindirea se raporteaza o singura data per guild");
 
   await store.updateOne({ _id: guildId }, { $set: { youtubeMessageTemplate: "sablon" } }, { upsert: true });

@@ -75,7 +75,7 @@ test("toate campurile de securitate declarate exista in schema dedicata", async 
   }
 });
 
-test("real Mongo: o scriere de securitate ajunge in ambele colectii", async (t) => {
+test("real Mongo: o scriere de securitate ajunge doar in colectia dedicata", async (t) => {
   await ready;
   if (!connected) { t.skip("MongoDB indisponibil"); return; }
   const { GuildModel, GuildSecurityModel } = buildModels();
@@ -89,7 +89,11 @@ test("real Mongo: o scriere de securitate ajunge in ambele colectii", async (t) 
 
   assert.equal(await GuildSecurityModel.countDocuments({ _id: guildId, threatProtectionEnabled: true }), 1);
   const legacy = await GuildModel.findOne({ _id: guildId }).lean();
-  assert.equal(legacy?.threatProtectionEnabled, true, "documentul vechi ramane sursa de citire pana la finalul migrarii");
+  assert.equal(
+    legacy?.threatProtectionEnabled,
+    undefined,
+    "colectia dedicata detine campul, iar migrarea 16 il scoate din documentul vechi; o scriere acolo l-ar reinvia"
+  );
   assert.deepEqual(mirrored, [guildId], "oglindirea se raporteaza o singura data per guild, nu la fiecare scriere");
 
   await store.updateOne({ _id: guildId }, { $set: { purgeAmount: 25 } }, { upsert: true });

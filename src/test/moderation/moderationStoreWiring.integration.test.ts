@@ -98,7 +98,7 @@ test("real Mongo: prima citire migreaza starea din Guild in colectia dedicata", 
   await GuildModerationModel.deleteMany({ _id: guildId });
 });
 
-test("real Mongo: o scriere de moderare ajunge in ambele colectii cat timp dureaza migrarea", async (t) => {
+test("real Mongo: o scriere de moderare ajunge doar in colectia dedicata", async (t) => {
   await ready;
   if (!connected) { t.skip("MongoDB indisponibil"); return; }
   const { GuildModel, GuildModerationModel } = buildModels();
@@ -112,7 +112,11 @@ test("real Mongo: o scriere de moderare ajunge in ambele colectii cat timp durea
   assert.equal(await GuildModerationModel.countDocuments({ _id: guildId, moderationWarnBanLimit: 7 }), 1);
   const guild = await GuildModel.findOne({ _id: guildId });
   const legacy = await (guild && typeof guild === "object" && "lean" in guild ? (guild as { lean: () => Promise<Record<string, unknown> | null> }).lean() : Promise.resolve(guild));
-  assert.equal(legacy?.moderationWarnBanLimit, 7, "documentul vechi ramane citibil pana la finalul migrarii");
+  assert.equal(
+    legacy?.moderationWarnBanLimit,
+    undefined,
+    "colectia dedicata detine campul, iar migrarea 16 il scoate din documentul vechi; o scriere acolo l-ar reinvia"
+  );
 
   await GuildModel.deleteMany({ _id: guildId });
   await GuildModerationModel.deleteMany({ _id: guildId });

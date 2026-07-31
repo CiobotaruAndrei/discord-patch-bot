@@ -14,6 +14,7 @@ import { m12_moveDeadLettersIntoCollection } from "./m12_moveDeadLettersIntoColl
 import { m13_backfillOutboxStatus } from "./m13_backfillOutboxStatus.js";
 import { m14_moveModerationStateIntoCollection } from "./m14_moveModerationStateIntoCollection.js";
 import { m15_moveYoutubeStateIntoCollection } from "./m15_moveYoutubeStateIntoCollection.js";
+import { m16_dropMigratedSliceFieldsFromGuilds } from "./m16_dropMigratedSliceFieldsFromGuilds.js";
 
 const ALL_MIGRATIONS: Migration[] = [
   m1_addEnabledStores,
@@ -30,7 +31,8 @@ const ALL_MIGRATIONS: Migration[] = [
   m12_moveDeadLettersIntoCollection,
   m13_backfillOutboxStatus,
   m14_moveModerationStateIntoCollection,
-  m15_moveYoutubeStateIntoCollection
+  m15_moveYoutubeStateIntoCollection,
+  m16_dropMigratedSliceFieldsFromGuilds
 ];
 
 export { ALL_MIGRATIONS };

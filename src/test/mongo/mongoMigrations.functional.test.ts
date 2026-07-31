@@ -18,6 +18,7 @@ interface GuildDoc {
   notificationDeadLetter?: Array<Record<string, unknown>>;
   moderationWarnBanLimit?: number;
   youtubeNotificationsEnabled?: boolean;
+  threatProtectionEnabled?: boolean;
   moderationTimeouts?: Array<Record<string, unknown>>;
 }
 
@@ -59,6 +60,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     _id: "guild-1",
     moderationWarnBanLimit: 3,
     youtubeNotificationsEnabled: true,
+    threatProtectionEnabled: true,
     moderationTimeouts: [{ userId: "u9", appliedAt: new Date("2025-05-01T00:00:00.000Z") }],
     seenDiscounts: Array.from({ length: 520 }, (_, index) => `deal-${index}`),
     seen: { cs2: ["u-1", "u-2"], dota: ["u-3"] },
@@ -147,6 +149,15 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
             async toArray() { return matching.map(guild => ({ _id: guild._id, youtubeNotificationsEnabled: guild.youtubeNotificationsEnabled })); },
             async *[Symbol.asyncIterator]() {
               for (const guild of matching) yield { _id: guild._id, youtubeNotificationsEnabled: guild.youtubeNotificationsEnabled };
+            }
+          };
+        }
+        if (clauseFields.some(field => field.startsWith("threatProtection") || field.startsWith("newAccountAlert"))) {
+          const matching = guilds.filter(guild => guild.threatProtectionEnabled !== undefined);
+          return {
+            async toArray() { return matching.map(guild => ({ _id: guild._id, threatProtectionEnabled: guild.threatProtectionEnabled })); },
+            async *[Symbol.asyncIterator]() {
+              for (const guild of matching) yield { _id: guild._id, threatProtectionEnabled: guild.threatProtectionEnabled };
             }
           };
         }
@@ -266,6 +277,13 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       return { matchedCount: 1, modifiedCount: 1, upsertedCount: 0 };
     }
   };
+  const securityUpdates: Array<{ filter: Record<string, unknown>; update: Record<string, unknown> }> = [];
+  const guildSecurityCollection = {
+    async updateOne(filter: Record<string, unknown>, update: Record<string, unknown>) {
+      securityUpdates.push({ filter, update });
+      return { matchedCount: 1, modifiedCount: 1, upsertedCount: 0 };
+    }
+  };
   const deadLetterBulkOps: unknown[] = [];
   const guildDeadLetterCollection = {
     async bulkWrite(ops: unknown[]) {
@@ -288,6 +306,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       if (name === "guildDeadLetters") return fakeCollection(guildDeadLetterCollection);
       if (name === "guildModeration") return fakeCollection(guildModerationCollection);
       if (name === "guildYoutubeState") return fakeCollection(guildYoutubeStateCollection);
+      if (name === "guildSecurity") return fakeCollection(guildSecurityCollection);
       if (name === "notificationOutbox") return fakeCollection([]);
       throw new Error(`Unexpected collection ${name}`);
     }
@@ -307,7 +326,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     throw new Error("attachMigrations trebuie sa ataseze runMigrations + ALL_MIGRATIONS");
   }
   const runtime = Object.assign(context, { runMigrations, ALL_MIGRATIONS });
-  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps, auditBulkOps, backupBulkOps, suggestedBulkOps, youtubeErrorBulkOps, deadLetterBulkOps, moderationUpdates, youtubeStateUpdates };
+  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps, auditBulkOps, backupBulkOps, suggestedBulkOps, youtubeErrorBulkOps, deadLetterBulkOps, moderationUpdates, youtubeStateUpdates, securityUpdates };
 }
 
 const ALL_MIGRATION_IDS = REGISTRY_MIGRATIONS.map(migration => migration.id);
@@ -323,7 +342,11 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
 
   assert.deepEqual(result.applied, ALL_MIGRATION_IDS, "se aplica exact migrarile din registru, in ordinea lor");
   assert.equal(result.skipped, 0);
-  assert.equal(fixture.updateManyCalls.length, 5, "m1-m4 + m7 folosesc updateMany; m5 si m6 folosesc find + bulkWrite");
+  assert.equal(
+    fixture.updateManyCalls.length,
+    8,
+    "m1-m4 + m7 folosesc updateMany, m5 si m6 folosesc find + bulkWrite, iar m16 mai face cate un updateMany de $unset pentru fiecare dintre cele trei domenii"
+  );
   const m4Call = fixture.updateManyCalls[3];
   assert.deepEqual(m4Call.filter, { "seenDiscounts.500": { $exists: true } });
   assert.ok(Array.isArray(m4Call.update), "m4 trebuie sa foloseasca aggregation pipeline (array)");
@@ -385,8 +408,27 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#11")));
   assert.ok(logs.some(log => log.context === "MIGRATE" && log.message.includes("#12")));
   assert.equal(fixture.moderationUpdates.length, 1, "m14 muta felia de moderare in colectia dedicata");
-  assert.equal(fixture.youtubeStateUpdates.length, 1, "m15 copiaza felia YouTube in colectia dedicata");
+  assert.equal(
+    fixture.youtubeStateUpdates.length,
+    2,
+    "m15 copiaza felia YouTube, iar m16 o completeaza inainte sa scoata campurile vechi - moderarea nu mai apare a doua oara fiindca m14 golise deja documentul"
+  );
   assert.equal(fixture.guilds[0].moderationWarnBanLimit, undefined, "m14 scoate campurile de moderare de pe documentul guild");
+  assert.equal(
+    fixture.securityUpdates.length,
+    1,
+    "m16 completeaza si felia de securitate, care nu avusese o migrare proprie de mutare"
+  );
+  const sliceUnsets = fixture.updateManyCalls.slice(5);
+  assert.deepEqual(
+    sliceUnsets.map(call => Object.keys((call.update as { $unset: Record<string, string> }).$unset).length),
+    [4, 12, 8],
+    "m16 scoate din documentul guild exact campurile celor trei domenii: moderare, securitate, YouTube"
+  );
+  assert.ok(
+    sliceUnsets.every(call => Object.prototype.hasOwnProperty.call(call.filter, "$or")),
+    "stergerea atinge doar guild-urile care mai au campuri de mutat"
+  );
 });
 
 test("alta instanta tine lock-ul dar schema e deja sincronizata -> asteapta, continua boot-ul fara throw", async () => {

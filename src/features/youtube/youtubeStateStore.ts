@@ -1,14 +1,14 @@
 "use strict";
 
-import { updateTouchesSlice, writeCanonicalThenCopy } from "../../shared/guildDomainSliceStore.js";
+import { splitUpdateBySlice, updateTouchesSlice, writeCanonicalThenCopy } from "../../shared/guildDomainSliceStore.js";
 import { YOUTUBE_FIELDS } from "../../shared/guildYoutubeFields.js";
 
 import type { SliceCopyWriter, SliceUpdate } from "../../shared/guildDomainSliceStore.js";
 import type { YouTubeConfigGuildModel } from "./youtubeGuildConfigRepository.js";
 
 export interface YoutubeStateModel {
-  updateOne(filter: Record<string, unknown>, update: SliceUpdate, options?: Record<string, unknown>): Promise<unknown>;
-  findOneAndUpdate(filter: Record<string, unknown>, update: SliceUpdate, options?: Record<string, unknown>): Promise<unknown>;
+  updateOne(filter: Record<string, unknown>, update: SliceUpdate, options?: Record<string, unknown>): ReturnType<YouTubeConfigGuildModel["updateOne"]>;
+  findOneAndUpdate(filter: Record<string, unknown>, update: SliceUpdate, options?: Record<string, unknown>): ReturnType<YouTubeConfigGuildModel["findOneAndUpdate"]>;
 }
 
 export function createYoutubeStateStore(
@@ -36,6 +36,13 @@ export function createYoutubeStateStore(
   return {
     async updateOne(filter: object, update: object, options?: object) {
       const guildId = guildIdOf(filter);
+      const split = guildId ? splitUpdateBySlice(YOUTUBE_FIELDS, update as SliceUpdate) : { own: null, rest: null };
+      if (guildId && split.own) {
+        const written = await youtubeModel.updateOne({ _id: guildId }, split.own, { ...(options ?? {}), upsert: true });
+        reporters.onCopied(guildId);
+        if (split.rest) return guildModel.updateOne(filter, split.rest, options);
+        return written;
+      }
       return writeCanonicalThenCopy(
         guildId,
         updateTouchesSlice(YOUTUBE_FIELDS, update as SliceUpdate),
@@ -49,6 +56,13 @@ export function createYoutubeStateStore(
 
     async findOneAndUpdate(filter: object, update: object, options?: object) {
       const guildId = guildIdOf(filter);
+      const split = guildId ? splitUpdateBySlice(YOUTUBE_FIELDS, update as SliceUpdate) : { own: null, rest: null };
+      if (guildId && split.own) {
+        const written = await youtubeModel.findOneAndUpdate({ _id: guildId }, split.own, { ...(options ?? {}), upsert: true });
+        reporters.onCopied(guildId);
+        if (split.rest) return guildModel.findOneAndUpdate(filter, split.rest, options);
+        return written;
+      }
       return writeCanonicalThenCopy(
         guildId,
         updateTouchesSlice(YOUTUBE_FIELDS, update as SliceUpdate),
