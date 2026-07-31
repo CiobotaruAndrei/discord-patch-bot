@@ -144,6 +144,8 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
         .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru alerte").setRequired(true)))
       .addSubcommand(subcommand => subcommand.setName("bot-add-alert-channel").setDescription("Seteaza canalul pentru aprobari de boti")
         .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru alerte").setRequired(true)))
+      .addSubcommand(subcommand => subcommand.setName("permission-request-channel").setDescription("Seteaza canalul unic pentru cererile de aprobare de securitate")
+        .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru cereri si decizii").setRequired(true)))
       .addSubcommand(subcommand => subcommand.setName("warn-channel").setDescription("Seteaza canalul dedicat avertismentelor")
         .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru warn-uri").setRequired(true)))
       .addSubcommandGroup(group => group.setName("add").setDescription("Adauga in watchlist")

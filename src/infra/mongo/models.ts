@@ -156,6 +156,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     threatAlertChannelId: { type: String, default: null },
     threatProtectionEnabled: { type: Boolean, default: false },
     botAddAlertChannelId: { type: String, default: null },
+    permissionRequestChannelId: { type: String, default: null },
     botAddProtectionEnabled: { type: Boolean, default: false },
     warningChannelId: { type: String, default: null },
     botAddPermissions: { type: [botAddPermissionSchema], default: [] },
@@ -202,6 +203,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     channelLockRecoverySchema,
     playerCountRecordSchema,
     playerCountWatchSchema,
+    permissionRequestSchema,
     bugReportSchema,
     userComplaintSchema,
     feedbackReportSchema,
@@ -220,6 +222,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const ChannelLockRecoveryModel = mongoose.model("ChannelLockRecovery", channelLockRecoverySchema, "channelLockRecoveries");
   const PlayerCountRecordModel = mongoose.model("PlayerCountRecord", playerCountRecordSchema, "playerCountRecords");
   const PlayerCountWatchModel = mongoose.model("PlayerCountWatch", playerCountWatchSchema, "guildPlayerCountWatch");
+  const PermissionRequestModel = mongoose.model("PermissionRequest", permissionRequestSchema, "guildPermissionRequests");
   const BugReportModel = mongoose.model("BugReport", bugReportSchema, "bugReports");
   const UserComplaintModel = mongoose.model("UserComplaint", userComplaintSchema, "userComplaints");
   const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchema, "feedbackReports");
@@ -285,6 +288,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     ChannelLockRecoveryModel,
     PlayerCountRecordModel,
     PlayerCountWatchModel,
+    PermissionRequestModel,
     BugReportModel,
     OperationJournalModel,
     UserComplaintModel,
