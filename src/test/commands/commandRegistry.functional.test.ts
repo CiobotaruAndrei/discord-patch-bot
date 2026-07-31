@@ -1,5 +1,3 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -174,10 +172,8 @@ test("dispatcher: /ping si /games sunt rutate prin registry catre handler-ul lor
   }
 });
 
-test("createCommandRuntimeContext returns a fresh, isolated base on every call", () => {
-  const runtimeContextModule = require("../../features/command-runtime/commandRuntimeContext").default as {
-    createCommandRuntimeContext: (input: unknown) => { discord: Record<string, unknown>; mongo: Record<string, unknown>; sources: Record<string, unknown>; platform: Record<string, unknown> };
-  };
+test("createCommandRuntimeContext returns a fresh, isolated base on every call", async () => {
+  const runtimeContextModule = (await import("../../features/command-runtime/commandRuntimeContext.js")).default;
 
   const first = runtimeContextModule.createCommandRuntimeContext(commandRuntimeInput);
   const second = runtimeContextModule.createCommandRuntimeContext(commandRuntimeInput);
@@ -186,6 +182,8 @@ test("createCommandRuntimeContext returns a fresh, isolated base on every call",
   assert.equal(typeof first.discord.EmbedBuilder, "function");
   assert.equal(typeof first.discord.crypto, "object");
 
-  first.platform.handleInteraction = () => "installed";
-  assert.equal(second.platform.handleInteraction, undefined);
+  const firstPlatform = first.platform as Record<string, unknown>;
+  const secondPlatform = second.platform as Record<string, unknown>;
+  firstPlatform.handleInteraction = () => "installed";
+  assert.equal(secondPlatform.handleInteraction, undefined);
 });

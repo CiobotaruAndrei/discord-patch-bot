@@ -1,5 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import latestHandlerModule from "../../features/command-handlers/latestInteractionHandler.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import { validateUpdateFetchSnapshot as _vUpd, validatePendingDiscountSnapshot as _vDisc } from "../../shared/utilities.js";
 import assert from "node:assert/strict";
@@ -8,13 +8,6 @@ import { makeDealInfo } from "../typedTestBuilders.js";
 
 import realUtilities from "../../shared/utilities.js";
 
-const latestHandlerModule = require("../../features/command-handlers/latestInteractionHandler").default as {
-  createLatestInteractionHandler?: (deps: unknown) => unknown;
-  buildCommandHandler: (target: Record<string, unknown>) => {
-    canHandle: (interaction: unknown) => boolean;
-    handle: (interaction: unknown, games?: TestGame[]) => Promise<unknown>;
-  };
-};
 
 type Recorded = { name: string; args: unknown[] };
 type TestGame = { key: string; name?: string };
@@ -105,10 +98,10 @@ function makeContext(overrides: Partial<Record<string, unknown>> = {}) {
 
   for (const [k, v] of Object.entries(overrides)) (context as Record<string, unknown>)[k] = v;
   const previousHandleInteraction = context.handleInteraction;
-  const { canHandle, handle } = latestHandlerModule.buildCommandHandler(context as Record<string, unknown>);
+  const { canHandle, handle } = latestHandlerModule.buildCommandHandler(moduleContext<Parameters<typeof latestHandlerModule.buildCommandHandler>[0]>(context as Record<string, unknown>));
   const chainedHandleInteraction = async (interaction: { commandName: string }, games?: TestGame[]) => {
     if (!canHandle(interaction)) return previousHandleInteraction(interaction);
-    return handle(interaction, games);
+    return handle(interaction, (games ?? []).map(game => moduleContext<Parameters<typeof handle>[1][number]>(game as Record<string, unknown>)));
   };
   (context as Record<string, unknown>).handleInteraction = chainedHandleInteraction;
   return { context: context as typeof context & LatestRuntime, calls, safeEditPayloads };

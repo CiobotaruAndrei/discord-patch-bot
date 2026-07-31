@@ -3,8 +3,26 @@
 Acest document pastreaza runbook-ul autoritar folosit pentru migrarea
 codebase-ului de la CommonJS (`export =` / `require()`) la module ECMAScript.
 Codul de productie este integral ESM (`NodeNext` + `"type": "module"`), si asta
-nu mai are exceptii. Ce NU e terminat, si documentul spunea pana acum ca ar fi:
-**incarcarea modulelor in teste**. Au ramas 16 de fisiere din `src/test` care isi incarca modulele prin `createRequire`. Doisprezece au fost convertite: cele in care `import` static (sau `await import()` acolo unde ordinea chiar conta) nu schimba nimic altceva. Restul raman fiindca acolo `import` chiar schimba tipul si scoate la iveala forme scrise de mana care nu se potrivesc cu modulul real: conversia lor lasa 13 fisiere care NU compileaza, cu zeci de erori toate de forma "dublura de test nu satisface contractul real". Adica `require` + cast scris de mana nu era doar un stil vechi, ci ascundea ca harness-urile trec obiecte incomplete. Un exemplu masurat pe `updatesSource.functional.test.ts`, deja convertit: fixture-urile lui foloseau un `GameConfig` fara `name` si un `NormalizedUpdate` cu doua campuri din opt. Cele ramase asteapta aceeasi tratare, fisier cu fisier: `adminGuardTestKit`, `app/appRuntimeSchedulers`, `app/bootMigrations`, `auditFixesMay26`, `auditFixesMay28`, `commands/canSendEmbedsPermissions`, `commands/commandRegistry.functional`, `commands/latestInteractionHandler.functional`, `outbox/outboxE2E.functional`, `outbox/outboxPauseResumeFlow`, `security/adminCommandRouterGuard`, `sources/sourceFixtures`, `sources/steamSource.functional`. E o curatare de contracte de test, nu de incarcare de module.
+nu mai are exceptii. **Nici incarcarea modulelor in teste nu mai are.** Au ramas 1 fisier
+din `src/test` care contine numele `createRequire`, si acela e gate-ul care
+interzice shim-ul in `src/features` — il numeste ca sir, nu il foloseste. Zero apeluri
+`require(...)` reale in suita de teste.
+
+Migrarea a avut doua etape, si a doua a fost partea grea. `require(...) as { ... }`
+nu era doar un stil vechi: casturile scrise de mana ascundeau ca dublurile de test nu
+satisfac contractele reale. Conversia a scos la iveala peste 90 de nepotriviri, toate
+de forma "harness-ul trece un obiect incomplet" - de exemplu fixture-urile din
+`updatesSource.functional` foloseau un `GameConfig` fara `name` si un `NormalizedUpdate`
+cu doua campuri din opt. Fiecare a primit forma reala: fie tipul adevarat importat din
+modul, fie `moduleContext<T>()` (un singur `as`, ingustare dintr-un bag dinamic la
+contractul pe care dublura chiar il satisface).
+
+Conversia a gasit si o slabiciune de tipare in codul de productie:
+`adminPermissionGuard` isi atasa helperele prin `Object.assign(fn, {...})` fara sa
+lege rezultatul, deci tipul exportat era doar functia si `requireGuildAdmin.isGuildAdmin`
+nu avea tip pentru niciun consumator. Acum exportul e valoarea intoarsa de
+`Object.assign`, deci poarta intersectia reala.
+
 Numarul are un plafon descrescator in `testModuleLoading.test.ts` si doua reguli
 care blocheaza formele deja sigure (built-in-uri Node si `require(x) as typeof
 import(x)`). Sectiunile de plan si dry-run de mai jos raman context istoric pentru

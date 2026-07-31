@@ -1,5 +1,6 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import { createOutboundChannelResolver } from "../../features/notifications/outboundChannel.js";
+import { moduleContext } from "../moduleContextStub.js";
+import type { OutboundHistoryEntry } from "../../features/notifications/outboundChannel.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -15,9 +16,6 @@ type OutboxModelMock = OutboxRuntimeDeps["NotificationOutboxModel"];
 type OutboxSentModelMock = OutboxRuntimeDeps["NotificationOutboxSentModel"];
 import type { OutboxDeliveryClient } from "../../features/notifications/outboxDelivery.js";
 
-const { createOutboundChannelResolver } = require("../../features/notifications/outboundChannel") as {
-  createOutboundChannelResolver: (deps: Record<string, unknown>) => (args: Record<string, unknown>) => Promise<{ channel: { send: (payload: unknown, meta?: { historyEntries?: unknown[] }) => Promise<unknown> } | null; abort: boolean }>;
-};
 
 type OutboxJobDoc = OutboxJob & {
   _id: string;
@@ -87,11 +85,11 @@ test("E2E outbox: cron -> enqueue (cu recoveryVerify) -> drain -> delivery -> ma
     logger: () => undefined
   });
 
-  const resolveOutboundChannel = createOutboundChannelResolver({
+  const resolveOutboundChannel = createOutboundChannelResolver(moduleContext<Parameters<typeof createOutboundChannelResolver>[0]>({
     logger: () => undefined,
     canSendEmbeds: () => true,
     enqueueOutbox: runtime.enqueueOutbox
-  });
+  }));
 
   const resolverClient = {
     user: { id: "bot-1" },
@@ -186,12 +184,12 @@ test("E2E outbox: istoricul nu se scrie la enqueue, ci abia dupa livrarea reala 
   const historyWrites: Array<{ guildId: string; entries: unknown }> = [];
   const recordSentHistory = async (guildId: string, entries: unknown) => { historyWrites.push({ guildId, entries }); };
 
-  const resolveOutboundChannel = createOutboundChannelResolver({
+  const resolveOutboundChannel = createOutboundChannelResolver(moduleContext<Parameters<typeof createOutboundChannelResolver>[0]>({
     logger: () => undefined,
     canSendEmbeds: () => true,
     enqueueOutbox: runtime.enqueueOutbox,
     recordSentHistory
-  });
+  }));
 
   const resolverClient = {
     user: { id: "bot-1" },
@@ -205,7 +203,7 @@ test("E2E outbox: istoricul nu se scrie la enqueue, ci abia dupa livrarea reala 
     disableFn: async () => undefined
   });
 
-  const entries = [{ kind: "update", gameKey: "cs2", title: "Patch 1.3", link: "https://example.com/patch" }];
+  const entries = [moduleContext<OutboundHistoryEntry>({ kind: "update", gameKey: "cs2", title: "Patch 1.3", link: "https://example.com/patch" })];
   await resolved.channel!.send({ embeds: [{ title: "Patch 1.3" }] }, { historyEntries: entries });
 
   assert.equal(historyWrites.length, 0, "enqueue NU scrie istoric");

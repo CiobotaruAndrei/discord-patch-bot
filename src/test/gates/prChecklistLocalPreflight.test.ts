@@ -2,11 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { spawnSync } from "child_process";
-import { createRequire } from "module";
 import path from "path";
 import { pathToFileURL } from "node:url";
 
-const require = createRequire(import.meta.url);
 const srcRoot = process.cwd();
 const repoRoot = path.resolve(srcRoot, "..");
 

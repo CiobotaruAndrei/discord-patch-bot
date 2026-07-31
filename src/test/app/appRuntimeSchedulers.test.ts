@@ -1,14 +1,11 @@
-import { createRequire as __createRequire } from "node:module";
 import { createMetrics } from "../../app/health/metrics.js";
 import { createMetricRecorders } from "../../app/health/metricRecorders.js";
-const require = __createRequire(import.meta.url);
+import { createSchedulers } from "../../app/appRuntime.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import { stubRuntimePorts } from "./runtimePortStubs.js";
 import assert from "node:assert/strict";
 
-const { createSchedulers } = require("../../app/appRuntime") as {
-  createSchedulers: (deps: unknown, services: unknown) => { cronController: unknown; outboxWorker: unknown; outboxEnabled: boolean };
-};
 
 interface OutboxWorkerOpts { isPaused: () => Promise<boolean> }
 
@@ -35,7 +32,7 @@ function buildDeps(getOutboxPaused: unknown, outboxEnabled = false) {
 
 test("createSchedulers cu outbox activ (flag injectat in env): isPaused e cablat din getOutboxPaused si nu crapa", async () => {
   const { deps, services, getCaptured } = buildDeps(async () => true, true);
-  const schedulers = createSchedulers(deps, services);
+  const schedulers = createSchedulers(moduleContext<Parameters<typeof createSchedulers>[0]>(deps), moduleContext<Parameters<typeof createSchedulers>[1]>(services));
   assert.equal(schedulers.outboxEnabled, true, "env.NOTIFICATION_OUTBOX_ENABLED=true -> outboxEnabled (citit din env injectat, nu din process.env)");
   const isPaused = getCaptured();
   assert.equal(typeof isPaused, "function", "isPaused este cablat in worker");
@@ -45,13 +42,13 @@ test("createSchedulers cu outbox activ (flag injectat in env): isPaused e cablat
 
 test("createSchedulers cu outbox dezactivat (flag absent in env): outboxEnabled e false", () => {
   const { deps, services } = buildDeps(async () => false);
-  const schedulers = createSchedulers(deps, services);
+  const schedulers = createSchedulers(moduleContext<Parameters<typeof createSchedulers>[0]>(deps), moduleContext<Parameters<typeof createSchedulers>[1]>(services));
   assert.equal(schedulers.outboxEnabled, false, "fara flag in env -> outboxEnabled false");
 });
 
 test("createSchedulers: fara getOutboxPaused in mongo, isPaused() arunca (clasa de bug P0.1 — dep lipsa in main.ts)", async () => {
   const { deps, services, getCaptured } = buildDeps(undefined);
-  createSchedulers(deps, services);
+  createSchedulers(moduleContext<Parameters<typeof createSchedulers>[0]>(deps), moduleContext<Parameters<typeof createSchedulers>[1]>(services));
   const isPaused = getCaptured();
   assert.equal(typeof isPaused, "function");
   await assert.rejects(async () => isPaused!(), /is not a function|getOutboxPaused/,
