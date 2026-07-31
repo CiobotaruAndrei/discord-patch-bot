@@ -2,6 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import attachPlayerCountSnapshots from "../../features/player-count/playerCountSnapshotService.js";
+import type { PlayerCountWatchRecord } from "../../features/player-count/playerCountWatchRepository.js";
+
+function watchModelStub(records: PlayerCountWatchRecord[] = []) {
+  return {
+    find: () => ({ lean: async () => records }),
+    updateOne: async () => ({ matchedCount: 1, modifiedCount: 1 })
+  };
+}
+
 
 type UpsertCall = { filter: Record<string, unknown>; update: Record<string, unknown>; options?: Record<string, unknown> };
 type LeanDoc = { _id: string; gameKey?: string; playerCount?: number; fetchedAt?: Date | string };
@@ -28,6 +37,7 @@ function makeModel(docs: LeanDoc[] = []) {
 test("refreshPlayerCountSnapshots: salveaza doar rezultatele valide, continua la esec per joc si sare jocurile fara appId", async () => {
   const { model, upserts } = makeModel();
   const service = attachPlayerCountSnapshots.createPlayerCountSnapshotService({
+    PlayerCountWatchModel: watchModelStub(),
     PlayerCountSnapshotModel: model,
     fetchSteamCurrentPlayers: async (appId: string | number) => {
       const id = String(appId);
@@ -60,6 +70,7 @@ test("refreshPlayerCountSnapshots: shouldAbort opreste refresh-ul fara scrieri",
   const { model, upserts } = makeModel();
   let fetches = 0;
   const service = attachPlayerCountSnapshots.createPlayerCountSnapshotService({
+    PlayerCountWatchModel: watchModelStub(),
     PlayerCountSnapshotModel: model,
     fetchSteamCurrentPlayers: async (appId: string | number) => {
       fetches += 1;
@@ -86,6 +97,7 @@ test("readPlayerCountSnapshots: intoarce map-ul pe appId si ignora documentele c
     { _id: "30", gameKey: "fara-data", playerCount: 7 }
   ]);
   const service = attachPlayerCountSnapshots.createPlayerCountSnapshotService({
+    PlayerCountWatchModel: watchModelStub(),
     PlayerCountSnapshotModel: model,
     fetchSteamCurrentPlayers: async () => { throw new Error("nu trebuie apelat la read"); },
     logger: () => undefined
@@ -104,6 +116,7 @@ test("readPlayerCountSnapshots: intoarce map-ul pe appId si ignora documentele c
 test("readPlayerCountSnapshots: lista goala nu atinge baza de date", async () => {
   const { model, findFilters } = makeModel();
   const service = attachPlayerCountSnapshots.createPlayerCountSnapshotService({
+    PlayerCountWatchModel: watchModelStub(),
     PlayerCountSnapshotModel: model,
     fetchSteamCurrentPlayers: async () => { throw new Error("nu trebuie apelat"); },
     logger: () => undefined
@@ -121,6 +134,7 @@ test("refreshPlayerCountSnapshots salveaza istoricul si anunta automat un record
   const recordWrites: Array<Record<string, unknown>> = [];
   const sends: unknown[] = [];
   const service = attachPlayerCountSnapshots.createPlayerCountSnapshotService({
+    PlayerCountWatchModel: watchModelStub(),
     PlayerCountSnapshotModel: model,
     PlayerCountHistoryModel: {
       create: async doc => { history.push(doc); return doc; },
@@ -162,36 +176,46 @@ test("notificarile player-count folosesc watchlist-ul, baseline persistent, cool
   const state: WatchState[] = [];
   const sends: unknown[] = [];
   let current = 1000;
+  const watchModel = {
+    find: (filter: Record<string, unknown>) => ({
+      lean: async () => state
+        .filter(entry => entry.gameKey === filter.gameKey)
+        .map(entry => ({ ...entry, guildId: "guild-1" }))
+    }),
+    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
+      const gameKey = String(filter.gameKey);
+      const inserted = (update.$setOnInsert as WatchState | undefined);
+      if (inserted) {
+        if (state.some(entry => entry.gameKey === gameKey)) return { matchedCount: 1, modifiedCount: 0, upsertedCount: 0 };
+        state.push({ ...inserted });
+        return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
+      }
+      const set = update.$set as Record<string, Date | number | string>;
+      const entry = state.find(item => item.gameKey === gameKey);
+      const sameCount = entry && entry.playerCount === Number(filter.playerCount);
+      const sameMoment = entry && entry.fetchedAt.getTime() === (filter.fetchedAt as Date).getTime();
+      if (!entry || !sameCount || !sameMoment) return { matchedCount: 0, modifiedCount: 0 };
+      entry.appId = String(set.appId);
+      entry.playerCount = Number(set.playerCount);
+      entry.fetchedAt = set.fetchedAt as Date;
+      if (set.lastNotifiedAt instanceof Date) entry.lastNotifiedAt = set.lastNotifiedAt;
+      if (set.lastDirection === "up" || set.lastDirection === "down") entry.lastDirection = set.lastDirection;
+      return { matchedCount: 1, modifiedCount: 1 };
+    }
+  };
   const guildModel = {
     find: () => ({
       lean: async () => [{
         _id: "guild-1",
         playerCountSubscribed: true,
         playerCountChannelId: "channel-1",
-        enabledGames: ["cs2"],
-        playerCountWatchState: state.map(entry => ({ ...entry }))
+        enabledGames: ["cs2"]
       }]
     }),
-    updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>) => {
-      const pushed = (update.$push as { playerCountWatchState?: WatchState } | undefined)?.playerCountWatchState;
-      if (pushed) {
-        if (state.some(entry => entry.gameKey === pushed.gameKey)) return { modifiedCount: 0 };
-        state.push({ ...pushed });
-        return { modifiedCount: 1 };
-      }
-      const set = update.$set as Record<string, Date | number | string>;
-      const expected = ((_filter.playerCountWatchState as { $elemMatch?: { gameKey?: string; playerCount?: number; fetchedAt?: Date } })?.$elemMatch);
-      const entry = state.find(item => item.gameKey === expected?.gameKey);
-      if (!entry || entry.playerCount !== expected?.playerCount || entry.fetchedAt.getTime() !== expected.fetchedAt?.getTime()) return { modifiedCount: 0 };
-      entry.appId = String(set["playerCountWatchState.$[entry].appId"]);
-      entry.playerCount = Number(set["playerCountWatchState.$[entry].playerCount"]);
-      entry.fetchedAt = set["playerCountWatchState.$[entry].fetchedAt"] as Date;
-      if (set["playerCountWatchState.$[entry].lastNotifiedAt"] instanceof Date) entry.lastNotifiedAt = set["playerCountWatchState.$[entry].lastNotifiedAt"] as Date;
-      if (set["playerCountWatchState.$[entry].lastDirection"] === "up" || set["playerCountWatchState.$[entry].lastDirection"] === "down") entry.lastDirection = set["playerCountWatchState.$[entry].lastDirection"] as "up" | "down";
-      return { modifiedCount: 1 };
-    }
+    updateOne: async () => ({ matchedCount: 0, modifiedCount: 0 })
   };
   const buildService = () => attachPlayerCountSnapshots.createPlayerCountSnapshotService({
+    PlayerCountWatchModel: watchModel,
     PlayerCountSnapshotModel: makeModel().model,
     PlayerCountHistoryModel: { create: async doc => doc, find: () => ({ sort: () => ({ lean: async () => [] }) }) },
     PlayerCountRecordModel: {
@@ -238,6 +262,7 @@ test("interogarile player-count selecteaza si guild-urile cu watchlist implicit 
     updateOne: async () => ({ modifiedCount: 0 })
   };
   const service = attachPlayerCountSnapshots.createPlayerCountSnapshotService({
+    PlayerCountWatchModel: watchModelStub(),
     PlayerCountSnapshotModel: makeModel().model,
     PlayerCountHistoryModel: { create: async doc => doc, find: () => ({ sort: () => ({ lean: async () => [] }) }) },
     PlayerCountRecordModel: { findById: () => ({ lean: async () => null }), find: () => ({ lean: async () => [] }), updateOne: async () => ({}) },

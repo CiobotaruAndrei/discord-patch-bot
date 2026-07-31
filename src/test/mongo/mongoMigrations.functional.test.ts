@@ -277,6 +277,13 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       return { matchedCount: 1, modifiedCount: 1, upsertedCount: 0 };
     }
   };
+  const playerCountWatchUpdates: Array<{ filter: Record<string, unknown>; update: Record<string, unknown> }> = [];
+  const guildPlayerCountWatchCollection = {
+    async updateOne(filter: Record<string, unknown>, update: Record<string, unknown>) {
+      playerCountWatchUpdates.push({ filter, update });
+      return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
+    }
+  };
   const securityUpdates: Array<{ filter: Record<string, unknown>; update: Record<string, unknown> }> = [];
   const guildSecurityCollection = {
     async updateOne(filter: Record<string, unknown>, update: Record<string, unknown>) {
@@ -307,6 +314,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
       if (name === "guildModeration") return fakeCollection(guildModerationCollection);
       if (name === "guildYoutubeState") return fakeCollection(guildYoutubeStateCollection);
       if (name === "guildSecurity") return fakeCollection(guildSecurityCollection);
+      if (name === "guildPlayerCountWatch") return fakeCollection(guildPlayerCountWatchCollection);
       if (name === "notificationOutbox") return fakeCollection([]);
       throw new Error(`Unexpected collection ${name}`);
     }
@@ -326,7 +334,7 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     throw new Error("attachMigrations trebuie sa ataseze runMigrations + ALL_MIGRATIONS");
   }
   const runtime = Object.assign(context, { runMigrations, ALL_MIGRATIONS });
-  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps, auditBulkOps, backupBulkOps, suggestedBulkOps, youtubeErrorBulkOps, deadLetterBulkOps, moderationUpdates, youtubeStateUpdates, securityUpdates };
+  return { context: runtime, guilds, get migrationState() { return migrationState; }, updateManyCalls, releaseCalls, seenDiscountBulkOps, seenUpdateBulkOps, auditBulkOps, backupBulkOps, suggestedBulkOps, youtubeErrorBulkOps, deadLetterBulkOps, moderationUpdates, youtubeStateUpdates, securityUpdates, playerCountWatchUpdates };
 }
 
 const ALL_MIGRATION_IDS = REGISTRY_MIGRATIONS.map(migration => migration.id);
@@ -344,8 +352,8 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   assert.equal(result.skipped, 0);
   assert.equal(
     fixture.updateManyCalls.length,
-    8,
-    "m1-m4 + m7 folosesc updateMany, m5 si m6 folosesc find + bulkWrite, iar m16 mai face cate un updateMany de $unset pentru fiecare dintre cele trei domenii"
+    9,
+    "m1-m4 + m7 folosesc updateMany, m5 si m6 folosesc find + bulkWrite, m16 mai face cate un updateMany de $unset pentru fiecare dintre cele trei domenii, iar m17 unul pentru starea de player-count"
   );
   const m4Call = fixture.updateManyCalls[3];
   assert.deepEqual(m4Call.filter, { "seenDiscounts.500": { $exists: true } });
@@ -419,11 +427,17 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
     1,
     "m16 completeaza si felia de securitate, care nu avusese o migrare proprie de mutare"
   );
-  const sliceUnsets = fixture.updateManyCalls.slice(5);
+  const sliceUnsets = fixture.updateManyCalls.slice(5, 8);
   assert.deepEqual(
     sliceUnsets.map(call => Object.keys((call.update as { $unset: Record<string, string> }).$unset).length),
     [4, 12, 8],
     "m16 scoate din documentul guild exact campurile celor trei domenii: moderare, securitate, YouTube"
+  );
+  const watchUnset = fixture.updateManyCalls[8];
+  assert.deepEqual(
+    watchUnset.update,
+    { $unset: { playerCountWatchState: "" } },
+    "m17 scoate starea de player-count din documentul guild, dupa ce a mutat-o in colectia dedicata"
   );
   assert.ok(
     sliceUnsets.every(call => Object.prototype.hasOwnProperty.call(call.filter, "$or")),

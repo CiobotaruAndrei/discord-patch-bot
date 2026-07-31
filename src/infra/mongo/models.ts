@@ -201,6 +201,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     newAccountAlertDeliverySchema,
     channelLockRecoverySchema,
     playerCountRecordSchema,
+    playerCountWatchSchema,
     bugReportSchema,
     userComplaintSchema,
     feedbackReportSchema,
@@ -218,6 +219,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const NewAccountAlertDeliveryModel = mongoose.model("NewAccountAlertDelivery", newAccountAlertDeliverySchema, "newAccountAlertDeliveries");
   const ChannelLockRecoveryModel = mongoose.model("ChannelLockRecovery", channelLockRecoverySchema, "channelLockRecoveries");
   const PlayerCountRecordModel = mongoose.model("PlayerCountRecord", playerCountRecordSchema, "playerCountRecords");
+  const PlayerCountWatchModel = mongoose.model("PlayerCountWatch", playerCountWatchSchema, "guildPlayerCountWatch");
   const BugReportModel = mongoose.model("BugReport", bugReportSchema, "bugReports");
   const UserComplaintModel = mongoose.model("UserComplaint", userComplaintSchema, "userComplaints");
   const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchema, "feedbackReports");
@@ -282,6 +284,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     NewAccountAlertDeliveryModel,
     ChannelLockRecoveryModel,
     PlayerCountRecordModel,
+    PlayerCountWatchModel,
     BugReportModel,
     OperationJournalModel,
     UserComplaintModel,

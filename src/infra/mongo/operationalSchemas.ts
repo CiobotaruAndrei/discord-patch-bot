@@ -121,6 +121,17 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     reachedAt: { type: Date, required: true }
   }, { minimize: false });
 
+  const playerCountWatchSchema = new mongoose.Schema({
+    guildId: { type: String, required: true },
+    gameKey: { type: String, required: true },
+    appId: { type: String, default: "" },
+    playerCount: { type: Number, required: true, min: 0 },
+    fetchedAt: { type: Date, required: true },
+    lastNotifiedAt: { type: Date, default: null },
+    lastDirection: { type: String, enum: ["up", "down", null], default: null }
+  }, { minimize: false });
+  playerCountWatchSchema.index({ guildId: 1, gameKey: 1 }, { unique: true });
+
   const bugReportSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
     reportType: { type: String, required: true },
@@ -197,6 +208,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     newAccountAlertDeliverySchema,
     channelLockRecoverySchema,
     playerCountRecordSchema,
+    playerCountWatchSchema,
     bugReportSchema,
     userComplaintSchema,
     feedbackReportSchema,

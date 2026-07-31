@@ -8,6 +8,8 @@ import { evaluatePlayerCountChange, type PlayerCountChange } from "./playerCount
 import { watchlistGameFilter } from "./playerCountWatchlist.js";
 import { updatedDocument } from "../../shared/persistenceOutcome.js";
 import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
+import { createPlayerCountWatchRepository } from "./playerCountWatchRepository.js";
+import type { PlayerCountWatchModelLike, PlayerCountWatchRecord } from "./playerCountWatchRepository.js";
 const { mapWithConcurrency } = ________shared_utilities;
 
 export interface PlayerCountSnapshot {
@@ -68,14 +70,6 @@ interface MilestoneGuildDoc {
   playerCountChannelId?: string | null;
   enabledGames?: string[];
   playerCountSubscribed?: boolean;
-  playerCountWatchState?: Array<{
-    gameKey: string;
-    appId: string;
-    playerCount: number;
-    fetchedAt: Date | string;
-    lastNotifiedAt?: Date | string | null;
-    lastDirection?: "up" | "down" | null;
-  }>;
 }
 
 interface GuildModelLike {
@@ -95,6 +89,7 @@ interface SteamCurrentPlayersLike {
 
 interface PlayerCountSnapshotDeps {
   PlayerCountSnapshotModel: PlayerCountSnapshotModelLike;
+  PlayerCountWatchModel: PlayerCountWatchModelLike;
   PlayerCountHistoryModel?: PlayerCountHistoryModelLike;
   PlayerCountRecordModel?: PlayerCountRecordModelLike;
   GuildModel?: GuildModelLike;
@@ -132,6 +127,7 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
     fetchSteamCurrentPlayers,
     logger
   } = deps;
+  const watchRepository = createPlayerCountWatchRepository(deps.PlayerCountWatchModel);
   const PlayerCountHistoryModel: PlayerCountHistoryModelLike = deps.PlayerCountHistoryModel || {
     create: async () => undefined,
     find: () => ({ sort: () => ({ lean: async () => [] }) })
@@ -149,65 +145,29 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
     guild: MilestoneGuildDoc,
     game: GameConfig,
     playerCount: number,
-    fetchedAt: Date
+    fetchedAt: Date,
+    watched: PlayerCountWatchRecord | undefined
   ): Promise<PlayerCountChange | null> {
-    if (!GuildModel.updateOne) return null;
-    const state = guild.playerCountWatchState?.find(entry => entry.gameKey === game.key);
-    if (!state) {
-      await GuildModel.updateOne(
-        {
-          _id: guild._id,
-          playerCountSubscribed: true,
-          "playerCountWatchState.gameKey": { $ne: game.key },
-          ...watchlistGameFilter(game.key)
-        },
-        {
-          $push: {
-            playerCountWatchState: {
-              gameKey: game.key,
-              appId: String(game.appId),
-              playerCount,
-              fetchedAt
-            }
-          }
-        }
-      );
+    const appId = String(game.appId);
+    if (!watched) {
+      await watchRepository.startWatching({ guildId: guild._id, gameKey: game.key, appId, playerCount, fetchedAt });
       return null;
     }
-    const previousAt = validDate(state.fetchedAt);
-    const previousCount = validCount(state.playerCount);
+    const previousAt = validDate(watched.fetchedAt);
+    const previousCount = validCount(watched.playerCount);
     if (!previousAt || previousCount === null) return null;
     const change = evaluatePlayerCountChange(previousCount, playerCount);
-    const lastNotifiedAt = validDate(state.lastNotifiedAt ?? undefined);
-    const cooldownActive = change.direction === state.lastDirection
+    const lastNotifiedAt = validDate(watched.lastNotifiedAt ?? undefined);
+    const cooldownActive = change.direction === watched.lastDirection
       && Boolean(lastNotifiedAt && fetchedAt.getTime() - lastNotifiedAt.getTime() < CHANGE_COOLDOWN_MS);
     const notify = change.significant && change.direction !== "flat" && !cooldownActive;
-    const set: Record<string, unknown> = {
-      "playerCountWatchState.$[entry].appId": String(game.appId),
-      "playerCountWatchState.$[entry].playerCount": playerCount,
-      "playerCountWatchState.$[entry].fetchedAt": fetchedAt
-    };
-    if (notify) {
-      set["playerCountWatchState.$[entry].lastNotifiedAt"] = fetchedAt;
-      set["playerCountWatchState.$[entry].lastDirection"] = change.direction;
-    }
-    const result = await GuildModel.updateOne(
-      {
-        _id: guild._id,
-        playerCountSubscribed: true,
-        playerCountWatchState: {
-          $elemMatch: {
-            gameKey: game.key,
-            playerCount: previousCount,
-            fetchedAt: previousAt
-          }
-        },
-        ...watchlistGameFilter(game.key)
-      },
-      { $set: set },
-      { arrayFilters: [{ "entry.gameKey": game.key, "entry.playerCount": previousCount, "entry.fetchedAt": previousAt }] }
+    const claimed = await watchRepository.claimObservation(
+      guild._id,
+      game.key,
+      { playerCount: previousCount, fetchedAt: previousAt },
+      { playerCount, fetchedAt, appId, notifiedDirection: notify && change.direction !== "flat" ? change.direction : null }
     );
-    return notify && updatedDocument(result) ? change : null;
+    return notify && claimed ? change : null;
   }
 
   async function notifyPlayerCountChanges(
@@ -221,8 +181,9 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
       playerCountChannelId: { $ne: null },
       ...watchlistGameFilter(game.key)
     }).lean();
+    const watched = await watchRepository.listForGuilds(guilds.map(guild => guild._id), game.key);
     await mapWithConcurrency(guilds, REFRESH_CONCURRENCY, async guild => {
-      const change = await claimPlayerCountChange(guild, game, playerCount, fetchedAt);
+      const change = await claimPlayerCountChange(guild, game, playerCount, fetchedAt, watched.get(guild._id));
       if (!change || !client) return null;
       let channel = null;
       try {
@@ -384,6 +345,7 @@ export default attachPlayerCountSnapshots;
 
 export const PLAYER_COUNT_SNAPSHOT_KEYS = [
   "PlayerCountSnapshotModel",
+  "PlayerCountWatchModel",
   "PlayerCountHistoryModel",
   "PlayerCountRecordModel",
   "GuildModel",

@@ -47,6 +47,7 @@ type MongoRuntimeContext = {
   NewAccountAlertDeliveryModel: ReturnType<typeof attachModelsModule.buildFrom>["NewAccountAlertDeliveryModel"];
   ChannelLockRecoveryModel: ReturnType<typeof attachModelsModule.buildFrom>["ChannelLockRecoveryModel"];
   PlayerCountRecordModel: ReturnType<typeof attachModelsModule.buildFrom>["PlayerCountRecordModel"];
+  PlayerCountWatchModel: ReturnType<typeof attachModelsModule.buildFrom>["PlayerCountWatchModel"];
   BugReportModel: ReturnType<typeof attachModelsModule.buildFrom>["BugReportModel"];
   UserComplaintModel: ReturnType<typeof attachModelsModule.buildFrom>["UserComplaintModel"];
   GuildSeenDiscountModel: ReturnType<typeof attachModelsModule.buildFrom>["GuildSeenDiscountModel"];
@@ -144,6 +145,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     NewAccountAlertDeliveryModel: context.NewAccountAlertDeliveryModel,
     ChannelLockRecoveryModel: context.ChannelLockRecoveryModel,
     PlayerCountRecordModel: context.PlayerCountRecordModel,
+    PlayerCountWatchModel: context.PlayerCountWatchModel,
     BugReportModel: context.BugReportModel,
     UserComplaintModel: context.UserComplaintModel,
     GuildSeenDiscountModel: context.GuildSeenDiscountModel,
