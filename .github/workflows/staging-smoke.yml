@@ -19,6 +19,7 @@ permissions:
 jobs:
   staging-smoke:
     name: Probe staging health and metrics
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     defaults:
       run:

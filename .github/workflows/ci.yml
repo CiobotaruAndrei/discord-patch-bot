@@ -26,6 +26,7 @@ jobs:
   # castiga tocmai fiindca NU are nevoie de ele: `npm ci` nu are hook-uri de install, `build:ts`
   # nu atinge Rust, iar gate-urile ruleaza fara addon-ul nativ (verificat mutand .node-ul).
   gates:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -49,6 +50,7 @@ jobs:
         run: npm run check:gates:prebuilt && npm run lint:prebuilt
 
   check:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -73,9 +75,15 @@ jobs:
           node-version: 24
 
       - name: Install native library dependencies (libarchive + libyara + libseccomp build deps)
+        timeout-minutes: 6
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake clang libclang-dev libseccomp-dev libmagic-dev libmspack-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev
+          sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer unattended-upgrades.service 2>/dev/null || true
+          for attempt in 1 2 3; do
+            sudo apt-get -o DPkg::Lock::Timeout=120 update && sudo apt-get -o DPkg::Lock::Timeout=120 install -y --no-install-recommends cmake clang libclang-dev libseccomp-dev libmagic-dev libmspack-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev && exit 0
+            echo "apt-get a esuat sau a fost intrerupt (incercarea $attempt din 3); se reia"
+            sleep 10
+          done
+          exit 1
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # master 2026-06
@@ -132,6 +140,7 @@ jobs:
   ci:
     needs: [gates, check]
     if: always()
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - name: Rezultatul agregat al CI
