@@ -173,17 +173,9 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
   return { refreshPlayerCountSnapshots, readPlayerCountSnapshots, readPlayerCountHistory, readPlayerCountRecords };
 }
 
-type PlayerCountSnapshotContext = PlayerCountSnapshotDeps & Record<string, unknown>;
+const playerCountSnapshotModule = { createPlayerCountSnapshotService };
 
-const attachPlayerCountSnapshots = ((target: PlayerCountSnapshotContext): void => {
-  Object.assign(target, createPlayerCountSnapshotService(target));
-}) as ((target: PlayerCountSnapshotContext) => void) & {
-  createPlayerCountSnapshotService: typeof createPlayerCountSnapshotService;
-};
-
-attachPlayerCountSnapshots.createPlayerCountSnapshotService = createPlayerCountSnapshotService;
-
-export default attachPlayerCountSnapshots;
+export default playerCountSnapshotModule;
 
 export const PLAYER_COUNT_SNAPSHOT_KEYS = [
   "PlayerCountSnapshotModel",
