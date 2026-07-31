@@ -539,8 +539,9 @@ test("boot-ul (app/bootstrap.ts) importa static si tipat, ca satisfies AppRuntim
   const bootstrap = loadModule("app", "bootstrap.ts");
   const bootImports = imports(bootstrap);
   assert.ok(
-    bootImports.some(entry => entry.module === "../infra/mongo/mongoContext.js" && entry.defaultName !== null),
-    "mongoContext importat static si tipat"
+    bootImports.some(entry => entry.module === "./runtimeComposition.js"),
+    "boot-ul isi ia bundle-urile din radacina de compunere, nu contextul Mongo plat: contextul are ~46 de exporturi, " +
+      "iar `satisfies AppRuntimeDeps` nu poate spune nimic despre ce ia cineva ad-hoc din el"
   );
   assert.ok(
     bootImports.some(entry => entry.module === "../features/command-registry/commandRegistry.js" && entry.defaultName !== null),
