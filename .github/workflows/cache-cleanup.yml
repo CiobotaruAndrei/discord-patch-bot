@@ -1,0 +1,44 @@
+name: Cache cleanup (PR inchis)
+
+# Cota de cache Actions e 10 GB pe repo, iar peste ea GitHub evacueaza LRU. Fara curatare,
+# intrarile unui PR raman dupa merge si consuma cota luni de zile: masurat pe acest repo, 624 de
+# intrari ramase de la PR-uri deja inchise insemnau 5,3 GB, adica jumatate din cota. Efectul nu e
+# doar "cache plin": evacuarea LRU arunca exact layerele Docker si target-ul cargo de care are
+# nevoie rularea urmatoare, iar build-ul redevine rece.
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    # Un PR dintr-un fork primeste token read-only, deci stergerea ar esua. Nu e o eroare de
+    # configurare, doar o situatie in care jobul nu are ce face.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sterge cache-urile PR-ului inchis
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          set -euo pipefail
+          total=0
+          freed=0
+          # Bucla reia interogarea dupa fiecare pagina stearsa: lista se scurteaza pe masura ce
+          # stergem, deci paginarea clasica ar sari intrari.
+          while :; do
+            page=$(gh api "repos/$REPO/actions/caches?ref=$BRANCH&per_page=100" --jq '.actions_caches[] | "\(.id) \(.size_in_bytes)"')
+            [ -z "$page" ] && break
+            while read -r id size; do
+              gh api -X DELETE "repos/$REPO/actions/caches/$id" >/dev/null
+              total=$((total + 1))
+              freed=$((freed + size))
+            done <<< "$page"
+          done
+          echo "Sterse $total intrari de cache pentru $BRANCH ($((freed / 1024 / 1024)) MB eliberati)."

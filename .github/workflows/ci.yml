@@ -55,11 +55,18 @@ jobs:
       # si qpdf (~100 fisiere .cc), plus zlib/libjpeg vendorate: ~4 minute per rulare, care
       # cresc cu fiecare librarie nativa adaugata. Cheia e derivata din Cargo.lock, deci o
       # schimbare de dependinte invalideaza corect cache-ul.
+      #
+      # `save-if` limiteaza SCRIEREA la main. Intrarea are ~400 MB, iar fara restrictie fiecare
+      # branch isi salva propria copie: masurat, 14 copii = 4,2 GB din cota de 10 GB pe repo. Odata
+      # depasita cota, GitHub evacueaza LRU si arunca fix intrarile de care depinde rularea urmatoare.
+      # Citirea ramane deschisa tuturor branch-urilor, iar main reimprospateaza intrarea la fiecare
+      # push, deci un PR pleaca mereu de la ultimul main.
       - name: Cache Rust build (dependinte + librarii C compilate din surse)
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: src/native
           cache-on-failure: "true"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install dependencies
         run: npm ci
