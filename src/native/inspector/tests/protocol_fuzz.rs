@@ -32,6 +32,7 @@ fn sample_request() -> InspectionRequest {
     max_depth: 3,
     max_entries: 64,
     max_expanded_bytes: 8 * 1024 * 1024,
+    max_compression_ratio: 100.0,
     timeout_ms: 100,
     content: b"PK\x03\x04 continut de test".to_vec(),
   }

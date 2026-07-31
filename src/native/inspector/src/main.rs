@@ -38,7 +38,7 @@ fn main() -> io::Result<()> {
       max_depth: request.max_depth,
       max_entries: request.max_entries,
       max_expanded_bytes: request.max_expanded_bytes,
-      max_compression_ratio: InspectionLimits::default().max_compression_ratio,
+      max_compression_ratio: request.max_compression_ratio,
       timeout_ms: request.timeout_ms,
     };
     let report = inspect_untrusted_content(&request.content, &request.filename, &request.mime, &request.mode, limits);
@@ -52,6 +52,8 @@ fn main() -> io::Result<()> {
         expanded_bytes: report.expanded_bytes,
         elapsed_ms: report.elapsed_ms,
         sandbox,
+        uninspectable_format: report.uninspectable_format,
+        analysis_blind_spots: report.analysis_blind_spots,
       },
     )?;
   }

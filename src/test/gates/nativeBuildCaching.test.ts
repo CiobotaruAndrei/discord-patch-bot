@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 
 import { nativeCheckCommands, parseHostTriple } from "../../scripts/check-native.js";
+import { inspectorArtifactName, inspectorArtifactPaths, inspectorBuildArgs } from "../../scripts/build-native-inspector.js";
 
 const repoRoot = path.resolve(process.cwd(), "..");
 const dockerfile = fs.readFileSync(path.join(repoRoot, "Dockerfile"), "utf8");
@@ -78,4 +79,29 @@ test("jobul de CI nu mai are nevoie de variabila per-workflow", () => {
     "alinierea se face acum in check:native, deci merge si pe Windows, si la release, si local; " +
       "o variabila repetata per workflow s-ar uita la al patrulea"
   );
+});
+
+test("binarul de inspectie se compileaza cu acelasi triplet si ajunge in imaginea de runtime", () => {
+  assert.match(
+    dockerfile,
+    /RUN npm run build:inspector:prebuilt/,
+    "`napi build` compileaza doar addon-ul cdylib, deci binarul de inspectie cere un pas separat; " +
+      "fara el, productia Linux ar cadea mereu inapoi pe addon-ul in-proces"
+  );
+  assert.match(
+    dockerfile,
+    /COPY --from=build \/app\/src\/native\/native-inspector \.\/native\//,
+    "binarul compilat in stratul de build nu exista in imaginea finala daca nu e copiat explicit"
+  );
+  const target = "x86_64-unknown-linux-gnu";
+  const args = inspectorBuildArgs(target);
+  const targetAt = args.indexOf("--target");
+  assert.notEqual(targetAt, -1, "fara --target, cargo scrie in target/release si recompila librariile C/C++ de la zero");
+  assert.equal(args[targetAt + 1], target);
+  assert.deepEqual(
+    inspectorArtifactPaths(target, "linux"),
+    { built: path.join("native", "target", target, "release", "native-inspector"), installed: path.join("native", "native-inspector") },
+    "binarul se instaleaza langa addon, acolo unde il cauta rutarea implicita"
+  );
+  assert.equal(inspectorArtifactName("win32"), "native-inspector.exe");
 });

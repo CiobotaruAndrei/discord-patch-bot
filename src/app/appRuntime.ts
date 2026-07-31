@@ -45,6 +45,7 @@ import { createSchedulers } from "./runtime/runtimeSchedulers.js";
 import { createBootSequence, connectMongoWithRetry, hydrateStartupCaches } from "./runtime/bootSequence.js";
 import { createGuildSettingsInvalidationChannel } from "../infra/redis/guildSettingsInvalidationChannel.js";
 import { createThreatEngineMonitor } from "../features/command-security/threatEngineMonitor.js";
+import { stopIsolatedInspection } from "../features/command-security/isolatedInspection.js";
 import { createModerationLifecycleRuntime } from "../features/moderation/moderationLifecycleRuntime.js";
 import { createModerationStore } from "../features/moderation/moderationStore.js";
 import { journaledSliceCopy } from "../features/admin-records/journaledSliceCopy.js";
@@ -98,6 +99,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
     redis: deps.redis, guildInvalidationChannel, stopOperationJournalRecovery: deps.stopOperationJournalRecovery,
     stopModerationCleanup: tasks.moderationCleanup ? tasks.moderationCleanup.stop : undefined,
     stopChannelLockRecovery: tasks.channelLockRecovery ? tasks.channelLockRecovery.stop : undefined,
+    stopIsolatedInspection,
     errorMessage, errorDetail
   });
 

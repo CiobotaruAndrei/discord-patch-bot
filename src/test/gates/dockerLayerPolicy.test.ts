@@ -41,6 +41,10 @@ const EXPENSIVE_LAYERS: readonly ExpensiveLayer[] = [
     reason: "are nevoie de tot arborele de surse, deci e ultimul pas scump din stage-ul de build"
   },
   {
+    match: "npm run build:inspector:prebuilt",
+    reason: "compileaza binarul de inspectie izolata, pe care napi build nu il produce; vine dupa build:ts fiindca ruleaza scriptul compilat si refoloseste target/<triplet>/release deja incalzit"
+  },
+  {
     match: "apt-get install -y --no-install-recommends libssl3",
     reason: "librariile de rulare depind doar de imaginea de baza a stage-ului de runtime"
   },

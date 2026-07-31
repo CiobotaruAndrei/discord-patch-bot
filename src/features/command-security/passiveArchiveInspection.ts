@@ -12,6 +12,7 @@ import { scanRar4Headers, scanRar5Headers, scanSevenZipHeaders } from "./rarSeve
 export type { PassiveArchiveFinding, InspectionLimits } from "./archiveInspectionBudget.js";
 export { DEFAULT_INSPECTION_LIMITS } from "./archiveInspectionBudget.js";
 import { recordAnalysisBlindSpot, recordUninspectableFormat } from "./coverageGapMetrics.js";
+import { inspectInIsolatedProcess, isolatedInspectionStatus } from "./isolatedInspection.js";
 
 
 export interface InspectionReport {
@@ -288,6 +289,12 @@ export function inspectUntrustedContentFallback(
   };
 }
 
+function recordCoverageGaps(report: InspectionReport): InspectionReport {
+  if (typeof report.uninspectableFormat === "string") recordUninspectableFormat(report.uninspectableFormat);
+  for (const spot of report.analysisBlindSpots ?? []) recordAnalysisBlindSpot(String(spot));
+  return report;
+}
+
 export async function inspectUntrustedContent(
   buffer: Buffer,
   filename: string,
@@ -295,6 +302,12 @@ export async function inspectUntrustedContent(
   mode: InspectionMode = "auto",
   limits: Partial<InspectionLimits> = {}
 ): Promise<InspectionReport> {
+  if (isolatedInspectionStatus().isolated) {
+    const isolated = await inspectInIsolatedProcess(buffer, String(filename || ""), String(mime || ""), mode, resolveLimits(limits));
+    if (isolated) return recordCoverageGaps(isolated);
+    recordNativeFallback("inspectUntrustedContent", new Error("procesul izolat nu a produs verdict"));
+    return inspectUntrustedContentFallback(buffer, filename, mime, mode, limits);
+  }
   const native = getNativeFuzzy();
   const fn = native
     ? (typeof native.inspectUntrustedContent === "function" ? native.inspectUntrustedContent : native.inspect_untrusted_content)
@@ -313,9 +326,7 @@ export async function inspectUntrustedContent(
         timeoutMs: limits.timeoutMs ?? 0
       });
       if (report && (report.status === "inspected" || report.status === "uncertain")) {
-        if (typeof report.uninspectableFormat === "string") recordUninspectableFormat(report.uninspectableFormat);
-        if (Array.isArray(report.analysisBlindSpots)) for (const spot of report.analysisBlindSpots) recordAnalysisBlindSpot(String(spot));
-        return {
+        return recordCoverageGaps({
           status: report.status,
           indicators: Array.isArray(report.indicators) ? report.indicators.map(indicator => String(indicator)) : [],
           reason: String(report.reason || ""),
@@ -324,7 +335,7 @@ export async function inspectUntrustedContent(
           elapsedMs: Number(report.elapsedMs) || 0,
           uninspectableFormat: typeof report.uninspectableFormat === "string" ? report.uninspectableFormat : undefined,
           analysisBlindSpots: Array.isArray(report.analysisBlindSpots) ? report.analysisBlindSpots.map(spot => String(spot)) : undefined
-        };
+        });
       }
       recordNativeFallback("inspectUntrustedContent", new Error("raport nativ invalid"));
     } catch (error) {

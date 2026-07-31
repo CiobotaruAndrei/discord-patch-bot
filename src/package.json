@@ -5,6 +5,8 @@
   "main": "dist/app/main.js",
   "scripts": {
     "build:rust": "cd native && napi build --platform --release --js index.js --dts index.d.ts",
+    "build:inspector": "npm run build:ts && npm run build:inspector:prebuilt",
+    "build:inspector:prebuilt": "node dist/scripts/build-native-inspector.js",
     "build:ts": "node node_modules/@typescript/native/bin/tsc",
     "build": "node scripts/run-parallel.ts build:rust build:ts",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
