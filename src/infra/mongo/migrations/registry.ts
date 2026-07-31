@@ -15,6 +15,7 @@ import { m13_backfillOutboxStatus } from "./m13_backfillOutboxStatus.js";
 import { m14_moveModerationStateIntoCollection } from "./m14_moveModerationStateIntoCollection.js";
 import { m15_moveYoutubeStateIntoCollection } from "./m15_moveYoutubeStateIntoCollection.js";
 import { m16_dropMigratedSliceFieldsFromGuilds } from "./m16_dropMigratedSliceFieldsFromGuilds.js";
+import { m17_movePlayerCountWatchIntoCollection } from "./m17_movePlayerCountWatchIntoCollection.js";
 
 const ALL_MIGRATIONS: Migration[] = [
   m1_addEnabledStores,
@@ -32,7 +33,8 @@ const ALL_MIGRATIONS: Migration[] = [
   m13_backfillOutboxStatus,
   m14_moveModerationStateIntoCollection,
   m15_moveYoutubeStateIntoCollection,
-  m16_dropMigratedSliceFieldsFromGuilds
+  m16_dropMigratedSliceFieldsFromGuilds,
+  m17_movePlayerCountWatchIntoCollection
 ];
 
 export { ALL_MIGRATIONS };
