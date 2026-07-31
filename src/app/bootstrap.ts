@@ -20,19 +20,17 @@ import type { AppRuntime, AppRuntimeDeps } from "./appRuntime.js";
 import type { BotRole } from "../types.js";
 import type { SourceRegistryApi } from "../sources/sourceRegistry.js";
 
-import mongoContext from "../infra/mongo/mongoContext.js";
-const {
-  logger, env, parseEnvNumber,
-  waitForMongoReady, cleanGuildCache, getGuildCacheSize,
-  requestContext, getOutboxPaused
-} = mongoContext;
+
 import commandRegistryFactories from "../features/command-registry/commandRegistry.js";
 import { sourceRegistry as scrapers, commandRuntimeInput, mongoContextBundles, mongoPorts, sourcePorts } from "./runtimeComposition.js";
 import { createOperationJournalRuntime } from "../features/admin-records/operationJournalRuntime.js";
 import { createDeferredTransactionRunner } from "../infra/mongo/transactionRunner.js";
 import { createScheduledTaskRunner } from "./scheduler/scheduledTaskRunner.js";
 
-const { repositories, locks, migrations, snapshots, administration } = mongoContextBundles;
+const { repositories, locks, migrations, snapshots, administration, platform, guildCache, outboxState } = mongoContextBundles;
+const { logger, env, parseEnvNumber, requestContext, guildSettingsBus, waitForMongoReady } = platform;
+const { cleanGuildCache, getGuildCacheSize } = guildCache;
+const { getOutboxPaused } = outboxState;
 
 mongoose.set("updatePipeline", true);
 
@@ -72,7 +70,7 @@ function buildAppRuntime(role: BotRole): AppRuntime {
     errorMessage, errorDetail, redis, role,
     mongo: {
       logger, env, parseEnvNumber,
-      guildSettingsBus: mongoContext.guildSettingsBus,
+      guildSettingsBus,
       ...locks,
       waitForMongoReady, cleanGuildCache, getGuildCacheSize,
       ...administration,

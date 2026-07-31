@@ -55,12 +55,27 @@ export type MongoSnapshotsBundle = Pick<
 
 export type MongoAdministrationBundle = Pick<MongoContextValue, "adminAlert" | "setAdminAlertDiscordClient">;
 
+export type MongoPlatformBundle = Pick<
+  MongoContextValue,
+  "logger" | "env" | "parseEnvNumber" | "requestContext" | "guildSettingsBus" | "waitForMongoReady"
+>;
+
+export type MongoGuildCacheBundle = Pick<
+  MongoContextValue,
+  "getGuildSettings" | "invalidateGuildCache" | "cleanGuildCache" | "getGuildCacheSize"
+>;
+
+export type MongoOutboxStateBundle = Pick<MongoContextValue, "getOutboxPaused" | "setOutboxPaused">;
+
 export interface MongoContextBundles {
   repositories: MongoRepositoriesBundle;
   locks: MongoLocksBundle;
   migrations: MongoMigrationsBundle;
   snapshots: MongoSnapshotsBundle;
   administration: MongoAdministrationBundle;
+  platform: MongoPlatformBundle;
+  guildCache: MongoGuildCacheBundle;
+  outboxState: MongoOutboxStateBundle;
 }
 
 export function selectMongoRepositories(context: MongoRepositoriesBundle): MongoRepositoriesBundle {
@@ -133,12 +148,42 @@ export function selectMongoAdministration(context: MongoAdministrationBundle): M
   };
 }
 
+export function selectMongoPlatform(context: MongoPlatformBundle): MongoPlatformBundle {
+  return {
+    logger: context.logger,
+    env: context.env,
+    parseEnvNumber: context.parseEnvNumber,
+    requestContext: context.requestContext,
+    guildSettingsBus: context.guildSettingsBus,
+    waitForMongoReady: context.waitForMongoReady
+  };
+}
+
+export function selectMongoGuildCache(context: MongoGuildCacheBundle): MongoGuildCacheBundle {
+  return {
+    getGuildSettings: context.getGuildSettings,
+    invalidateGuildCache: context.invalidateGuildCache,
+    cleanGuildCache: context.cleanGuildCache,
+    getGuildCacheSize: context.getGuildCacheSize
+  };
+}
+
+export function selectMongoOutboxState(context: MongoOutboxStateBundle): MongoOutboxStateBundle {
+  return {
+    getOutboxPaused: context.getOutboxPaused,
+    setOutboxPaused: context.setOutboxPaused
+  };
+}
+
 export function composeMongoContextBundles(context: MongoContextValue): MongoContextBundles {
   return {
     repositories: selectMongoRepositories(context),
     locks: selectMongoLocks(context),
     migrations: selectMongoMigrations(context),
     snapshots: selectMongoSnapshots(context),
-    administration: selectMongoAdministration(context)
+    administration: selectMongoAdministration(context),
+    platform: selectMongoPlatform(context),
+    guildCache: selectMongoGuildCache(context),
+    outboxState: selectMongoOutboxState(context)
   };
 }
