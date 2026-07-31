@@ -1,9 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fileURLToPath as __fileURLToPath } from "node:url";
-import { dirname as __pathDirname } from "node:path";
-import fs from "node:fs";
-import path from "node:path";
+
+import { loadModule, calls, identifierNames, imports, typeAliasTarget } from "./sourceStructureQueries.js";
+
 import {
   ALLOWED_GAME_TYPES,
   SOURCE_TYPE_VALIDATORS,
@@ -12,19 +11,35 @@ import {
   type SourceRefinement
 } from "../../config/sourceTypeValidators.js";
 
-const __filename = __fileURLToPath(import.meta.url);
-const __dirname = __pathDirname(__filename);
-const configRoot = path.join(__dirname, "..", "..", "..", "config");
+const schemas = loadModule("config", "gameConfigSchemas.ts");
+const validator = loadModule("config", "configValidator.ts");
+
+const DISCRIMINATED_TYPES = ["steam", "minecraft", "epic_games", "roblox", "listing_based", "nvidia", "amd", "intel", "rss"];
 
 test("schemele Zod per source type traiesc separat, iar configValidator consuma configuratia normalizata", () => {
-  const schemas = fs.readFileSync(path.join(configRoot, "gameConfigSchemas.ts"), "utf8");
-  for (const type of ["steam", "minecraft", "epic_games", "roblox", "listing_based", "nvidia", "amd", "intel", "rss"]) {
-    assert.ok(schemas.includes(`z.literal("${type}")`), `${type} are schema discriminata`);
+  const literals = new Set(
+    calls(schemas)
+      .filter(call => call.callee === "z.literal")
+      .map(call => call.args[0]?.replace(/^["']|["']$/g, ""))
+  );
+  const missing = DISCRIMINATED_TYPES.filter(type => !literals.has(type));
+  assert.deepEqual(missing, [], `fiecare tip are schema discriminata; lipsesc: ${missing.join(", ")}`);
+
+  assert.equal(
+    typeAliasTarget(schemas, "NormalizedGameConfig"),
+    "z.output<typeof GameSchema>",
+    "configuratia normalizata isi ia forma din schema, nu dintr-un tip scris separat care poate devia"
+  );
+
+  const fromSchemas = imports(validator).find(entry => entry.module.endsWith("gameConfigSchemas.js"));
+  assert.ok(fromSchemas, "validatorul importa schemele de joc");
+  for (const name of ["GameSchema", "GameTypeSchema"]) {
+    assert.ok(fromSchemas.named.includes(name), `validatorul ia ${name} din modulul de scheme`);
   }
-  assert.match(schemas, /type NormalizedGameConfig = z\.output<typeof GameSchema>/);
-  const validator = fs.readFileSync(path.join(configRoot, "configValidator.ts"), "utf8");
-  assert.match(validator, /import \{ GameSchema, GameTypeSchema \} from "\.\/gameConfigSchemas\.js"/);
-  assert.ok(!validator.includes("validateSteamSource"));
+  assert.ok(
+    !identifierNames(validator).has("validateSteamSource"),
+    "validatorul de config nu mai cunoaste validatoarele per tip de sursa"
+  );
 });
 
 test("dispatch-ul acopera exact tipurile cu reguli dedicate, iar lista de tipuri permise e sursa unica", () => {

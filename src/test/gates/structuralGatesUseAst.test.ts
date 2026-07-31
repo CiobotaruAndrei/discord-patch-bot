@@ -20,7 +20,11 @@ const MIGRATED_GATES: readonly string[] = [
   "guildSettingsBusOwnership.test.ts",
   "notificationCycleReuse.test.ts",
   "metricsOnlyThroughRecorders.test.ts",
-  "runConcurrentSingleContract.test.ts"
+  "runConcurrentSingleContract.test.ts",
+  "mongoSchemaDomains.test.ts",
+  "gameCatalogSeparation.test.ts",
+  "notificationKindRegistry.test.ts",
+  "sourceTypeValidatorsLocality.test.ts"
 ];
 
 const DOC_ONLY_GATES: readonly string[] = ["docsClaimsMatchCode.test.ts"];
@@ -161,8 +165,8 @@ test("gate-urile care inca citesc text sunt numarate, ca restul migrarii sa nu s
     return source.includes("readFileSync") && /\.ts"|\.ts'|"\.ts|endsWith\("\.ts"\)/.test(source);
   });
   assert.ok(
-    remaining.length <= 17,
-    `${remaining.length} gate-uri citesc inca sursa TypeScript ca text; plafonul e 17 si poate doar sa scada: ` +
+    remaining.length <= 13,
+    `${remaining.length} gate-uri citesc inca sursa TypeScript ca text; plafonul e 13 si poate doar sa scada: ` +
       remaining.join(", ")
   );
 });
