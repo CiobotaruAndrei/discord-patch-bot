@@ -13,7 +13,14 @@ Motivul: installer-ul primeste dependintele reale de care are nevoie si poate ad
 
 Starea curenta:
 
-- `commandCache` foloseste `CommandCacheRuntime = ReturnType<typeof createCommandCache>`.
-- `commandPresentation` foloseste `CommandUiRuntime = ReturnType<typeof createCommandPresentation>`.
+- `commandPresentation` foloseste `CommandUiRuntime = ReturnType<typeof createCommandPresentation>`, deci inca are
+  target derivat din runtime.
+- `commandCache` a trecut mai departe si e **factory-only**: nu mai are installer si nici target, exporta doar
+  `createCommandCache` plus helper-ele pure, iar `commandRegistry` il compune prin valoarea returnata. La fel
+  `features/notifications/index` (`createNotificationRuntime`) si `infra/mongo/models` (`buildFrom`).
 
-Guard-ul `commandInstallerTargetContracts.test.ts` blocheaza revenirea acestor doua module la `Deps & Record<string, unknown>`.
+Cu alte cuvinte, target-ul derivat din runtime e treapta intermediara, nu destinatia: modulele care au putut
+renunta complet la atasare au facut-o, iar `commandPresentation` e singurul care o mai foloseste.
+
+Guard-ul `commandInstallerTargetContracts.test.ts` blocheaza si revenirea la `Deps & Record<string, unknown>`, si
+reaparitia unui installer care muta `target` in modulele trecute pe factory-only.

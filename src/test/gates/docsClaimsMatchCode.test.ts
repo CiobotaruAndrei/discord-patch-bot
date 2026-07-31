@@ -4,12 +4,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { loadModule, stringLiteralsIn, comparisonUpperBounds } from "./sourceStructureQueries.js";
+import { loadModule, loadModulesUnder, stringLiteralsIn, comparisonUpperBounds, calls, namedObjectProperties, typeReferenceTexts } from "./sourceStructureQueries.js";
 
 const repoRoot = path.resolve(process.cwd(), "..");
 const CONTEXT_DOC = path.join(repoRoot, "docs", "architecture", "CONTEXT_REPO_CLEAN.md");
 const ESM_DOC = path.join(repoRoot, "docs", "architecture", "ESM_MIGRATION_PLAN.md");
 const SCALING_DOC = path.join(repoRoot, "docs", "architecture", "scaling-readiness.md");
+const FUNCTION_MAP_DOC = path.join(repoRoot, "docs", "architecture", "FUNCTION_MAP_CLEAN.md");
 
 const LEGACY_LOADER = "create" + "Require";
 
@@ -98,4 +99,75 @@ test("planul ESM nu mai declara migrarea incheiata fara sa spuna ce a ramas", ()
     !/^Migrarea este completa;/m.test(esm),
     "afirmatia neconditionata a fost inlocuita cu una care distinge productia de teste"
   );
+});
+
+test("target-ul adaptoarelor ramase nu mai e o punga de chei, exact cum spune documentatia", () => {
+  const bags: string[] = [];
+  for (const root of ["features", "infra", "sources", "shared", "domain", "app"]) {
+    for (const query of loadModulesUnder([root])) {
+      const mutates = calls(query).some(call => call.callee === "Object.assign" && call.args[0] === "target");
+      if (!mutates) continue;
+      const widened = typeReferenceTexts(query).filter(text => /Deps & Record<string, unknown>/.test(text));
+      if (widened.length > 0) bags.push(`${query.relativePath}: ${widened.join(", ")}`);
+    }
+  }
+  assert.deepEqual(
+    bags,
+    [],
+    "README si CONTEXT_REPO_CLEAN spun ca niciun target de installer nu mai e `Deps & Record<string, unknown>`; " +
+      "un target latit la loc face afirmatia falsa: " + bags.join(" | ")
+  );
+  assert.match(
+    readDoc(path.join(repoRoot, "README.md")),
+    /niciun target nu mai e `XDeps & Record<string, unknown>`/,
+    "README descrie exact ce a disparut (punga), nu ce a ramas (adaptorul)"
+  );
+});
+
+test("straturile din care se compune contextul Mongo sunt exact cele enumerate in documentatie", () => {
+  const context = loadModule("infra", "mongo", "mongoContext.ts");
+  const composed = calls(context)
+    .filter(call => /^attach[A-Za-z]+Module\.buildFrom$/.test(call.callee))
+    .map(call => call.callee.replace(/^attach/, "").replace(/Module\.buildFrom$/, ""));
+  assert.ok(composed.length > 0, "contextul se compune prin buildFrom pe straturi");
+
+  const doc = readDoc(FUNCTION_MAP_DOC);
+  const listed = /in ordinea dependentelor \(`([^`]+)`\)/.exec(doc);
+  assert.ok(listed, "documentatia enumera ordinea straturilor");
+  const declared = listed[1].split(" -> ").map(name => name.trim());
+  assert.deepEqual(
+    declared.map(name => name.toLowerCase()),
+    composed.map(name => name.charAt(0).toLowerCase() + name.slice(1)).map(name => name.toLowerCase()),
+    "un strat adaugat in cod fara sa apara in text lasa documentatia sa descrie o compunere care nu mai exista"
+  );
+});
+
+test("familiile de surse nu sunt descrise cu wrappere pe care nu le mai exporta", () => {
+  const doc = readDoc(FUNCTION_MAP_DOC);
+  for (const [family, forbidden] of [["updates", "attachUpdates"], ["deals", "attachDeals"]] as const) {
+    const module = loadModule("sources", family, "index.ts");
+    const exported = Object.keys(namedObjectProperties(module, `${family}SourceModule`));
+    assert.ok(exported.length > 0, `${family} isi declara exportul public ca obiect`);
+    assert.equal(exported.includes("buildFrom"), false, `${family} nu mai exporta buildFrom`);
+    assert.equal(
+      doc.includes(`\`${forbidden}\` ramane adaptorul public`),
+      false,
+      `documentatia nu mai are voie sa numeasca ${forbidden} adaptor public: modulul exporta ${exported.join(", ")}`
+    );
+  }
+});
+
+test("allowlist-ul de teste bug-catching din documentatie e fisierul real din gate", () => {
+  const gate = loadModule("scripts", "check-no-weakening-types.ts");
+  const declared = stringLiteralsIn(gate, "bugCatchingTestFiles");
+  assert.deepEqual(declared, ["test", "gates", "checkNoWeakeningTypes.test.ts"], "gate-ul isi declara allowlist-ul pe segmente de cale");
+  const real = declared.join("/");
+  for (const file of [path.join(repoRoot, "README.md"), CONTEXT_DOC]) {
+    const text = readDoc(file);
+    if (!text.includes("bug-catching")) continue;
+    assert.ok(
+      text.includes(`src/${real}`),
+      `${path.basename(file)} citeaza calea reala a allowlist-ului (src/${real}); o cale gresita trimite cititorul intr-un fisier inexistent`
+    );
+  }
 });
