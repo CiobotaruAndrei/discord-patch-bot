@@ -17,6 +17,9 @@ import { errorDetail } from "../../shared/errors.js";
 import moderationRepository from "../moderation/moderationRepository.js";
 import type { ModerationGuildModel } from "../moderation/moderationRepository.js";
 import { createModerationStore } from "../moderation/moderationStore.js";
+import { journaledSliceCopy } from "../admin-records/journaledSliceCopy.js";
+
+import type { OperationJournalModelLike } from "../../shared/operationJournalEngine.js";
 import { attachmentLabel, validateModerationText, type DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import { sendTextPages } from "../command-presentation/textPagination.js";
 import {
@@ -49,6 +52,7 @@ type Interaction = ChatInputInteraction<
 type Deps = {
   GuildModel: Parameters<typeof moderationRepository.getModerationState>[0];
   GuildModerationModel?: ModerationGuildModel;
+  OperationJournalModel?: OperationJournalModelLike;
   MessageFlags: { Ephemeral: number };
   getGuildSettings(guildId: string): Promise<{ warningChannelId?: string | null } | null>;
   safeDefer(interaction: Interaction, ephemeral?: boolean): Promise<void>;
@@ -67,9 +71,19 @@ function optionAttachment(interaction: Interaction): DirectAttachment | null { r
 function createModerationInteractionHandler(deps: Deps) {
   const { MessageFlags, safeDefer, safeEdit } = deps;
   const GuildModel = deps.GuildModerationModel
-    ? createModerationStore(deps.GuildModel, deps.GuildModerationModel, guildId => {
-      deps.logger?.("INFO", "MODERATION_STORE", "Starea de moderare a fost mutata in colectia dedicata", { guildId });
-    })
+    ? createModerationStore(
+      deps.GuildModel,
+      deps.GuildModerationModel,
+      guildId => {
+        deps.logger?.("INFO", "MODERATION_STORE", "Starea de moderare a fost mutata in colectia dedicata", { guildId });
+      },
+      journaledSliceCopy({
+        OperationJournalModel: deps.OperationJournalModel,
+        domain: "moderation",
+        dedicatedModel: deps.GuildModerationModel,
+        logger: deps.logger
+      })
+    )
     : deps.GuildModel;
 
   async function handleLists(interaction: Interaction, command: string, guildId: string): Promise<unknown> {

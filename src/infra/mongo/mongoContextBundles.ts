@@ -10,6 +10,9 @@ export type MongoRepositoriesBundle = Pick<
   | "GuildAuditLogModel"
   | "GuildConfigBackupModel"
   | "GuildSuggestedCommandModel"
+  | "GuildModerationModel"
+  | "GuildSecurityModel"
+  | "GuildYoutubeStateModel"
   | "GuildYoutubeErrorModel"
   | "GuildDeadLetterModel"
   | "CircuitBreakerModel"
@@ -66,6 +69,9 @@ export function selectMongoRepositories(context: MongoRepositoriesBundle): Mongo
     GuildAuditLogModel: context.GuildAuditLogModel,
     GuildConfigBackupModel: context.GuildConfigBackupModel,
     GuildSuggestedCommandModel: context.GuildSuggestedCommandModel,
+    GuildModerationModel: context.GuildModerationModel,
+    GuildSecurityModel: context.GuildSecurityModel,
+    GuildYoutubeStateModel: context.GuildYoutubeStateModel,
     GuildYoutubeErrorModel: context.GuildYoutubeErrorModel,
     GuildDeadLetterModel: context.GuildDeadLetterModel,
     CircuitBreakerModel: context.CircuitBreakerModel,
