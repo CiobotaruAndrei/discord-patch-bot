@@ -126,7 +126,7 @@ async function requireGuildAdmin(interaction: AdminGuardInteraction): Promise<bo
   return false;
 }
 
-Object.assign(requireGuildAdmin, {
+const adminPermissionGuard = Object.assign(requireGuildAdmin, {
   ADMIN_REQUIRED_MESSAGE,
   isGuildAdmin,
   hasAllowedAdminRole,
@@ -136,4 +136,4 @@ Object.assign(requireGuildAdmin, {
   rejectNonAdmin
 });
 
-export default requireGuildAdmin;
+export default adminPermissionGuard;

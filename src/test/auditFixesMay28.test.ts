@@ -1,7 +1,7 @@
-import { createRequire as __createRequire } from "node:module";
 import { createMetrics } from "../app/health/metrics.js";
 import { createMetricRecorders } from "../app/health/metricRecorders.js";
-const require = __createRequire(import.meta.url);
+import attachCommandUi from "../features/command-presentation/commandPresentation.js";
+import { moduleContext } from "./moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { BotMetrics } from "../app/health/metricsTypes.js";
@@ -15,9 +15,6 @@ type CommandPresentation = {
 };
 type RecordingEmbed = Record<string, unknown> & { _state: Record<string, unknown> };
 
-const attachCommandUi = require("../features/command-presentation/commandPresentation").default as {
-  createCommandPresentation: (context: Record<string, unknown>) => CommandPresentation;
-};
 
 function makeRecordingEmbed() {
   const state: Record<string, unknown> = {};
@@ -52,7 +49,7 @@ function makePresentationContext() {
     MAX_FUZZY_SEARCH_INPUT: 100,
     httpReq: async () => ({ data: {} })
   };
-  const ui = attachCommandUi.createCommandPresentation(context);
+  const ui = attachCommandUi.createCommandPresentation(moduleContext<Parameters<typeof attachCommandUi.createCommandPresentation>[0]>(context));
   return { ui, embeds };
 }
 
@@ -89,7 +86,7 @@ test("buildDealEmbed: savings undefined/null/NaN nu produce 'undefined%' sau 'Na
   for (const badSavings of [undefined, null, NaN, "abc"]) {
     embeds.length = 0;
     ui.buildDealEmbed(
-      { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: badSavings, link: "https://x" },
+      moduleContext<Parameters<typeof ui.buildDealEmbed>[0]>({ title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: badSavings, link: "https://x" }),
       "detailed",
       "USD"
     );
@@ -127,7 +124,7 @@ test("buildDealEmbed: savings peste 100 e clampat la 100% (snapshot corupt nu pr
 test("buildDealEmbed: qualityScore string nu produce 'NaN% aprecieri'", () => {
   const { ui, embeds } = makePresentationContext();
   ui.buildDealEmbed(
-    { title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: 50, qualityScore: "bogus", totalReviews: "bad", link: "https://x" },
+    moduleContext<Parameters<typeof ui.buildDealEmbed>[0]>({ title: "Game", store: "Steam", salePrice: "10", normalPrice: "20", savings: 50, qualityScore: "bogus", totalReviews: "bad", link: "https://x" }),
     "detailed",
     "USD"
   );
@@ -140,7 +137,7 @@ test("buildDealEmbed: qualityScore string nu produce 'NaN% aprecieri'", () => {
 test("buildSteamPriceEmbed: price_overview cu initial/final lipsa → 'Pretul nu este disponibil'", () => {
   const { ui, embeds } = makePresentationContext();
   ui.buildSteamPriceEmbed(
-    { type: "game", name: "Demo", is_free: false, price_overview: { discount_percent: 50 } },
+    moduleContext<Parameters<typeof ui.buildSteamPriceEmbed>[0]>({ type: "game", name: "Demo", is_free: false, price_overview: { discount_percent: 50 } }),
     "100",
     null,
     "USD"
@@ -153,7 +150,7 @@ test("buildSteamPriceEmbed: price_overview cu initial/final lipsa → 'Pretul nu
 test("buildSteamPriceEmbed: discount_percent lipsa dar final < initial → derivat din preturi", () => {
   const { ui, embeds } = makePresentationContext();
   ui.buildSteamPriceEmbed(
-    { type: "game", name: "Demo", is_free: false, price_overview: { initial: 2000, final: 1000 } },
+    moduleContext<Parameters<typeof ui.buildSteamPriceEmbed>[0]>({ type: "game", name: "Demo", is_free: false, price_overview: { initial: 2000, final: 1000 } }),
     "100",
     null,
     "USD"

@@ -1,5 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import attachSteam from "../../sources/steam/index.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -22,11 +22,10 @@ interface SteamSourceApiShape {
   extractSteamOfferEndDate: (appId: string | number, currencyCode?: string) => Promise<string | null>;
 }
 
-const attachSteam = require("../../sources/steam").default as {
-  createSteamSource: (deps: SteamSourceDepsShape) => SteamSourceApiShape;
-};
 
-function makeDeps(overrides: Partial<SteamSourceDepsShape> = {}): { deps: SteamSourceDepsShape; calls: string[] } {
+type SteamSourceDeps = Parameters<typeof attachSteam.createSteamSource>[0];
+
+function makeDeps(overrides: Partial<SteamSourceDepsShape> = {}): { deps: SteamSourceDeps; calls: string[] } {
   const calls: string[] = [];
   const deps: SteamSourceDepsShape = {
     logger: () => undefined,
@@ -35,7 +34,7 @@ function makeDeps(overrides: Partial<SteamSourceDepsShape> = {}): { deps: SteamS
     safeCheerioLoad: () => { throw new Error("no cheerio in this test"); },
     ...overrides
   };
-  return { deps, calls };
+  return { deps: moduleContext<SteamSourceDeps>({ ...deps }), calls };
 }
 
 test("createSteamSource: factory decuplat cu deps explicit tipate (fara target/Object.assign)", () => {

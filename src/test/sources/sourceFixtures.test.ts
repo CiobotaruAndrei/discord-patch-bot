@@ -1,5 +1,6 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import attachDeals from "../../sources/deals/index.js";
+import attachUpdates from "../../sources/updates/index.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -8,19 +9,6 @@ import path from "path";
 import Parser from "rss-parser";
 
 type FixtureUpdate = Record<string, unknown>;
-const attachUpdates = require("../../sources/updates").default as {
-  createUpdates: (deps: Record<string, unknown>) => {
-    fetchSteamUpdate: (game: Record<string, unknown>) => Promise<FixtureUpdate>;
-    fetchMinecraftUpdate: () => Promise<FixtureUpdate>;
-    fetchRobloxUpdate: () => Promise<FixtureUpdate>;
-    fetchNvidiaUpdate: (game: Record<string, unknown>) => Promise<FixtureUpdate>;
-    fetchAmdUpdate: (game: Record<string, unknown>) => Promise<FixtureUpdate>;
-    fetchIntelUpdate: (game: Record<string, unknown>) => Promise<FixtureUpdate>;
-  };
-};
-const attachDeals = require("../../sources/deals").default as {
-  createDeals: (deps: Record<string, unknown>) => { fetchDeals: (opts?: { currency?: string }) => Promise<Array<Record<string, unknown>>> };
-};
 
 const fixturesDir = path.join(process.cwd(), "test", "fixtures");
 
@@ -74,7 +62,7 @@ test("fixture Steam ISteamNews real: fetchSteamUpdate extrage gid-ul si titlul p
   const deps = makeUpdatesDeps({
     conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(fixture)
   });
-  const api = attachUpdates.createUpdates(deps);
+  const api = attachUpdates.createUpdates(moduleContext<Parameters<typeof attachUpdates.createUpdates>[0]>(deps));
   const fetchSteamUpdate = api.fetchSteamUpdate;
   const update = await fetchSteamUpdate({ key: "cs2", name: "CS2", appId: "730" });
   const fixtureGids = fixture.appnews.newsitems.map(item => item.gid);
@@ -88,7 +76,7 @@ test("fixture Minecraft piston-meta real: fetchMinecraftUpdate citeste latest.re
   const deps = makeUpdatesDeps({
     conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(fixture)
   });
-  const api = attachUpdates.createUpdates(deps);
+  const api = attachUpdates.createUpdates(moduleContext<Parameters<typeof attachUpdates.createUpdates>[0]>(deps));
   const update = await api.fetchMinecraftUpdate();
   assert.equal(update.id, fixture.latest.release);
   assert.equal(update.title, `Minecraft ${fixture.latest.release}`);
@@ -99,7 +87,7 @@ test("fixture Roblox client-version real: fetchRobloxUpdate citeste clientVersio
   const deps = makeUpdatesDeps({
     conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(fixture)
   });
-  const api = attachUpdates.createUpdates(deps);
+  const api = attachUpdates.createUpdates(moduleContext<Parameters<typeof attachUpdates.createUpdates>[0]>(deps));
   const update = await api.fetchRobloxUpdate();
   assert.equal(update.id, fixture.clientVersionUpload);
 });
@@ -113,7 +101,7 @@ test("fixture Google News RSS real (NVIDIA): fetchNvidiaUpdate parseaza feed-ul 
   const deps = makeUpdatesDeps({
     conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(xml)
   });
-  const api = attachUpdates.createUpdates(deps);
+  const api = attachUpdates.createUpdates(moduleContext<Parameters<typeof attachUpdates.createUpdates>[0]>(deps));
   const fetchNvidiaUpdate = api.fetchNvidiaUpdate;
   const update = await fetchNvidiaUpdate({ key: "nvidia", name: "NVIDIA" });
   assert.equal(update.title, expectedTitle);
@@ -129,7 +117,7 @@ test("fixture AMD: RSS-ul real e sursa PRIMARA — pagina oficiala (care nu mai 
     conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(xml),
     fetchWithProxy: async () => { proxyCalls++; return "<html><body>pagina amd fara versiune in html static</body></html>"; }
   });
-  const api = attachUpdates.createUpdates(deps);
+  const api = attachUpdates.createUpdates(moduleContext<Parameters<typeof attachUpdates.createUpdates>[0]>(deps));
   const fetchAmdUpdate = api.fetchAmdUpdate;
   const update = await fetchAmdUpdate({ key: "amd", name: "AMD" });
   assert.equal(update.title, expectedTitle);
@@ -147,7 +135,7 @@ test("fixture Intel: RSS-ul real e sursa PRIMARA — pagina oficiala nu e atinsa
     conditionalGet: async <T>(_url: string, parse: (raw: unknown) => T | Promise<T>) => parse(xml),
     fetchWithProxy: async () => { proxyCalls++; return "<html><body>pagina intel fara versiune in html static</body></html>"; }
   });
-  const api = attachUpdates.createUpdates(deps);
+  const api = attachUpdates.createUpdates(moduleContext<Parameters<typeof attachUpdates.createUpdates>[0]>(deps));
   const fetchIntelUpdate = api.fetchIntelUpdate;
   const update = await fetchIntelUpdate({ key: "intelgameon", name: "Intel", url: "https://www.intel.com/x" });
   assert.equal(update.title, expectedTitle);
@@ -159,7 +147,7 @@ test("driver AMD: cand RSS-ul primar pica, pagina oficiala ramane fallback (vers
     conditionalGet: async () => { throw new Error("Google News indisponibil"); },
     fetchWithProxy: async () => "<html>AMD Software: Adrenalin Edition 25.12.1 Release Notes</html>"
   });
-  const api = attachUpdates.createUpdates(deps);
+  const api = attachUpdates.createUpdates(moduleContext<Parameters<typeof attachUpdates.createUpdates>[0]>(deps));
   const fetchAmdUpdate = api.fetchAmdUpdate;
   const update = await fetchAmdUpdate({ key: "amd", name: "AMD" });
   assert.equal(update.id, "25.12.1", "fallback-ul pe pagina extrage versiunea cu acelasi regex si acelasi id ca inainte");
@@ -170,7 +158,7 @@ test("driver Intel: RSS picat + pagina fara versiune -> eroare clara (ambele cai
     conditionalGet: async () => { throw new Error("Google News indisponibil"); },
     fetchWithProxy: async () => "<html><body>nimic util</body></html>"
   });
-  const api = attachUpdates.createUpdates(deps);
+  const api = attachUpdates.createUpdates(moduleContext<Parameters<typeof attachUpdates.createUpdates>[0]>(deps));
   const fetchIntelUpdate = api.fetchIntelUpdate;
   await assert.rejects(
     () => fetchIntelUpdate({ key: "intelgameon", name: "Intel", url: "https://www.intel.com/x" }),
@@ -204,7 +192,7 @@ test("fixture deals reale: fetchDeals combina Steam specials + Epic GraphQL si c
     EPIC_SPECIALS_LIMIT: 10,
     MAX_DEALS: 50
   };
-  const api = attachDeals.createDeals(deps);
+  const api = attachDeals.createDeals(moduleContext<Parameters<typeof attachDeals.createDeals>[0]>(deps));
   const deals = await api.fetchDeals({ currency: "USD" });
 
   const firstSpecial = featured.specials.items[0];

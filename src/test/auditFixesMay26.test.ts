@@ -1,8 +1,10 @@
 import { findGameKeys } from "../native/fuzzy.js";
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import ________shared_utilities from "../shared/utilities.js";
+import { moduleContext } from "./moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
+
+const { validatePendingDiscountSnapshot } = ________shared_utilities.buildFrom(moduleContext<Parameters<typeof ________shared_utilities.buildFrom>[0]>({}));
 import * as cheerio from "cheerio";
 import type { ValidatedDealInfo } from "../sources/sourceTypes.js";
 
@@ -97,7 +99,6 @@ test("native/fuzzy: findGameKeys trunchiaza input multi-codepoint (emoji) determ
 });
 
 test("validatePendingDiscountSnapshot: accepta savings ca numar finit", () => {
-  const { validatePendingDiscountSnapshot } = require("../shared/utilities").default as UtilitiesModule;
   const base = { title: "Game", store: "Steam", link: "https://x", salePrice: "10", normalPrice: "20" };
 
   assert.equal(validatePendingDiscountSnapshot({ ...base, savings: 50 }), true);
@@ -113,7 +114,6 @@ test("validatePendingDiscountSnapshot: accepta savings ca numar finit", () => {
 });
 
 test("validatePendingDiscountSnapshot: narrow-uie la deal validat cu savings numeric sau string", () => {
-  const { validatePendingDiscountSnapshot } = require("../shared/utilities").default as UtilitiesModule;
   const candidate: unknown = { title: "Game", store: "Steam", link: "https://x", salePrice: "10", normalPrice: "20", savings: "33" };
   if (!validatePendingDiscountSnapshot(candidate)) throw new Error("snapshot invalid in fixture");
   const validated: ValidatedDealInfo = candidate;
@@ -122,7 +122,6 @@ test("validatePendingDiscountSnapshot: narrow-uie la deal validat cu savings num
 });
 
 test("validatePendingDiscountSnapshot: pastreaza restul validarilor stricte", () => {
-  const { validatePendingDiscountSnapshot } = require("../shared/utilities").default as UtilitiesModule;
   const base = { title: "Game", store: "Steam", link: "https://x", salePrice: "10", normalPrice: "20", savings: 50 };
 
   assert.equal(validatePendingDiscountSnapshot({ ...base, title: undefined }), false);

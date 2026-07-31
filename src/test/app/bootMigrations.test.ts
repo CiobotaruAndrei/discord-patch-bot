@@ -1,11 +1,8 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import { createBootSequence } from "../../app/appRuntime.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { createBootSequence } = require("../../app/appRuntime") as {
-  createBootSequence: (deps: unknown, ctx: unknown) => () => Promise<void>;
-};
 
 function buildBoot(runMigrations: () => Promise<{ applied: number[] }>, continueOnError = false) {
   const calls = { login: 0, listen: 0 };
@@ -29,7 +26,7 @@ function buildBoot(runMigrations: () => Promise<{ applied: number[] }>, continue
     client: { login: async () => { calls.login++; } },
     httpServer: { on() { }, listen: (_p: number, cb?: () => void) => { calls.listen++; if (cb) cb(); }, close() { } }
   };
-  return { start: createBootSequence(deps, { ...ctx, guildInvalidationChannel: { start: async () => undefined } }), calls };
+  return { start: createBootSequence(moduleContext<Parameters<typeof createBootSequence>[0]>(deps), moduleContext<Parameters<typeof createBootSequence>[1]>({ ...ctx, guildInvalidationChannel: { start: async () => undefined } })), calls };
 }
 
 test("P1.1: migrare esuata la boot -> fail-fast (start respinge, nu se ajunge la login)", async () => {

@@ -1,16 +1,13 @@
-import { createRequire as __createRequire } from "node:module";
 import { createMetrics } from "../../app/health/metrics.js";
 import { createMetricRecorders } from "../../app/health/metricRecorders.js";
-const require = __createRequire(import.meta.url);
+import { createSchedulers } from "../../app/appRuntime.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import { stubRuntimePorts } from "../app/runtimePortStubs.js";
 import assert from "node:assert/strict";
 import { createOutboxWorker } from "../../app/scheduler/outboxWorker.js";
 
 import attachSystemState from "../../infra/mongo/systemState.js";
-const { createSchedulers } = require("../../app/appRuntime") as {
-  createSchedulers: (deps: unknown, services: unknown) => { outboxEnabled: boolean };
-};
 
 function makeSystemModel() {
   let doc: { _id: string; outboxPaused?: boolean } | null = null;
@@ -98,7 +95,7 @@ test("P2.3: NOTIFICATION_OUTBOX_ENABLED=true -> scheduler activeaza worker-ul si
   };
   const services = { client: {}, metrics: createMetrics(), recorders: createMetricRecorders(createMetrics()), lifecycle: { isShuttingDown: false }, config: {}, games: [], rateLimiter: { check: () => true, prune() { }, size: 0, retryAfterSeconds: 1 } };
 
-  const schedulers = createSchedulers(deps, services);
+  const schedulers = createSchedulers(moduleContext<Parameters<typeof createSchedulers>[0]>(deps), moduleContext<Parameters<typeof createSchedulers>[1]>(services));
   assert.equal(schedulers.outboxEnabled, true, "flag-ul (injectat in env) activeaza outbox-ul");
   assert.equal(typeof capturedIsPaused, "function", "isPaused cablat in worker");
   assert.equal(await capturedIsPaused!(), false, "initial nu e pe pauza");

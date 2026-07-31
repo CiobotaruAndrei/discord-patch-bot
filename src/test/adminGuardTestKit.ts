@@ -1,5 +1,6 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import requireGuildAdmin from "../features/command-security/adminPermissionGuard.js";
+import { moduleContext } from "./moduleContextStub.js";
+import adminCommandGuard from "../features/command-security/adminCommandRouterGuard.js";
 import assert from "node:assert/strict";
 
 export type TestInteraction = {
@@ -65,22 +66,27 @@ export type AdminCommandGuardModule = {
   isGuildOwner: (interaction: TestInteraction) => Promise<boolean>;
 };
 
-export const requireGuildAdmin = require("../features/command-security/adminPermissionGuard").default as AdminGuardModule;
-export const adminCommandGuard = require("../features/command-security/adminCommandRouterGuard").default as AdminCommandGuardModule;
 
 type GuardedTarget = Record<string, unknown> & {
   handleInteraction: (interaction: TestInteraction, games: TestGame[]) => Promise<unknown>;
 };
 
+type GuardContext = Parameters<typeof adminCommandGuard.createAdminCommandGuard>[1];
+type GuardInteraction = Parameters<typeof adminCommandGuard.isAdminProtectedCommand>[0];
+type GuardGames = Parameters<ReturnType<typeof adminCommandGuard.createAdminCommandGuard>["handleAdminProtectedCommand"]>[1];
+type GuardNext = NonNullable<Parameters<ReturnType<typeof adminCommandGuard.createAdminCommandGuard>["handleAdminProtectedCommand"]>[2]>;
+
 export function buildGuardedHandleInteraction(target: GuardedTarget) {
   const next = target.handleInteraction;
+  const guardedNext: GuardNext = (interaction, games) => next(interaction as TestInteraction, games as TestGame[]);
+  const context = moduleContext<NonNullable<GuardContext>>(target as Record<string, unknown>);
   const guard = adminCommandGuard.createAdminCommandGuard({
-    requireGuildAdmin: interaction => adminCommandGuard.requireGuildAdminWithConfiguredAccess(target, interaction),
-    authorizeGuildAdmin: interaction => adminCommandGuard.authorizeGuildAdminWithConfiguredAccess(target, interaction)
-  }, target);
+    requireGuildAdmin: interaction => adminCommandGuard.requireGuildAdminWithConfiguredAccess(context, interaction),
+    authorizeGuildAdmin: interaction => adminCommandGuard.authorizeGuildAdminWithConfiguredAccess(context, interaction)
+  }, context);
   return async (interaction: TestInteraction, games: TestGame[]) =>
-    adminCommandGuard.isAdminProtectedCommand(interaction)
-      ? guard.handleAdminProtectedCommand(interaction, games, next)
+    adminCommandGuard.isAdminProtectedCommand(moduleContext<GuardInteraction>(interaction as Record<string, unknown>))
+      ? guard.handleAdminProtectedCommand(moduleContext<GuardInteraction>(interaction as Record<string, unknown>), games.map(game => moduleContext<GuardGames[number]>(game as Record<string, unknown>)), guardedNext)
       : next(interaction, games);
 }
 export { default as globalAccessCode } from "../features/command-security/globalAccessCode.js";
@@ -136,3 +142,4 @@ export function attachAccessCodeModal(interaction: TestInteraction, code: string
   };
 }
 
+export { requireGuildAdmin, adminCommandGuard };

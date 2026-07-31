@@ -1,16 +1,13 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import attachCommandCache from "../../features/command-cache/commandCache.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const attachCommandCache = require("../../features/command-cache/commandCache").default as {
-  createCommandCache: (target: Record<string, unknown>) => { canSendEmbeds: (channel: unknown, botId: string) => boolean };
-};
 
 const FLAGS = { ViewChannel: 4, SendMessages: 1, EmbedLinks: 2 };
 
 function makeCacheApi() {
-  return attachCommandCache.createCommandCache({
+  return attachCommandCache.createCommandCache(moduleContext<Parameters<typeof attachCommandCache.createCommandCache>[0]>({
     crypto: { randomBytes: () => ({ toString: () => "00" }) },
     PermissionsBitField: { Flags: FLAGS },
     logger: () => undefined,
@@ -26,7 +23,7 @@ function makeCacheApi() {
       GUILD_PROCESS_CONCURRENCY: 3, MAX_FUZZY_SEARCH_INPUT: 100,
       USER_COMMAND_COOLDOWN_MS: 0, COLLECTOR_TIMEOUT_MS: 60_000
     }
-  });
+  }));
 }
 
 function makeChannel(granted: number[]) {

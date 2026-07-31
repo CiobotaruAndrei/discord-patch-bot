@@ -1,24 +1,28 @@
 import { handledCommandError } from "../../features/command-security/commandOutcome.js";
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
 import { adminCommandGuard, attachAccessCodeModal, buildGuardedHandleInteraction, globalAccessCode, makeInteraction, requireGuildAdmin } from "../adminGuardTestKit.js";
 import type { AdminCommandGuardModule, TestGame, TestInteraction } from "../adminGuardTestKit.js";
+import { moduleContext } from "../moduleContextStub.js";
+
+type GuardInteraction = Parameters<typeof adminCommandGuard.isAdminProtectedCommand>[0];
+function asGuardInteraction(interaction: TestInteraction): GuardInteraction {
+  return moduleContext<GuardInteraction>(interaction as Record<string, unknown>);
+}
 
 test("admin command guard blocks protected commands before delegating", async () => {
   const { interaction } = makeInteraction(false);
   const delegated: string[] = [];
   const guard = adminCommandGuard.createAdminCommandGuard({ requireGuildAdmin: async () => false });
 
-  const result = await guard.handleAdminProtectedCommand(interaction, [], async handledInteraction => {
-    delegated.push(handledInteraction.commandName);
+  const result = await guard.handleAdminProtectedCommand(asGuardInteraction(interaction), [], async handledInteraction => {
+    delegated.push(String(handledInteraction.commandName));
     return "delegated";
   });
 
   assert.equal(result, undefined);
   assert.deepEqual(delegated, []);
-  assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true);
+  assert.equal(adminCommandGuard.isAdminProtectedCommand(asGuardInteraction(interaction)), true);
 });
 
 test("admin command guard blocks sensitive commands for users outside BOT_SENSITIVE_USER_IDS", async () => {
@@ -35,13 +39,13 @@ test("admin command guard blocks sensitive commands for users outside BOT_SENSIT
     };
     const guard = adminCommandGuard.createAdminCommandGuard({ requireGuildAdmin: async () => true });
 
-    const result = await guard.handleAdminProtectedCommand(interaction, [], async handledInteraction => {
-      delegated.push(handledInteraction.commandName);
+    const result = await guard.handleAdminProtectedCommand(asGuardInteraction(interaction), [], async handledInteraction => {
+      delegated.push(String(handledInteraction.commandName));
       return "delegated";
     });
 
-    assert.equal(adminCommandGuard.isSensitiveAdminCommand(interaction), true);
-    assert.equal(adminCommandGuard.hasSensitiveUserAccess(interaction), false);
+    assert.equal(adminCommandGuard.isSensitiveAdminCommand(asGuardInteraction(interaction)), true);
+    assert.equal(adminCommandGuard.hasSensitiveUserAccess(asGuardInteraction(interaction)), false);
     assert.equal(result, undefined);
     assert.deepEqual(delegated, []);
     assert.deepEqual(replies, [{ content: "Access denied.", flags: 64 }]);
@@ -55,7 +59,7 @@ test("admin command guard delegates protected commands for admins", async () => 
   const { interaction } = makeInteraction(true);
   const guard = adminCommandGuard.createAdminCommandGuard({ requireGuildAdmin: async () => true });
 
-  const result = await guard.handleAdminProtectedCommand(interaction, [{ key: "cs2" }], async (_handledInteraction, games) => games[0].key);
+  const result = await guard.handleAdminProtectedCommand(asGuardInteraction(interaction), [moduleContext<Parameters<typeof guard.handleAdminProtectedCommand>[1][number]>({ key: "cs2" })], async (_handledInteraction, games) => games[0].key);
 
   assert.equal(result, "cs2");
 });
@@ -129,13 +133,13 @@ test("admin command guard lasa ownerul serverului sa configureze accesul admin f
       updateOne: async () => ({ modifiedCount: 1 })
     },
     handleInteraction: async handledInteraction => {
-      delegated.push(handledInteraction.commandName);
+      delegated.push(String(handledInteraction.commandName));
       return "delegated";
     }
   };
 
-  assert.equal(adminCommandGuard.isOwnerOnlyAdminAccessCommand(interaction), true);
-  assert.equal(await adminCommandGuard.isGuildOwner(interaction), true);
+  assert.equal(adminCommandGuard.isOwnerOnlyAdminAccessCommand(asGuardInteraction(interaction)), true);
+  assert.equal(await adminCommandGuard.isGuildOwner(asGuardInteraction(interaction)), true);
   const handleGuarded = buildGuardedHandleInteraction(target);
   const result = await handleGuarded(interaction, []);
 
@@ -200,7 +204,7 @@ test("admin command guard delegates protected commands for configured role acces
       updateOne: async () => ({ modifiedCount: 1 })
     },
     handleInteraction: async (handledInteraction: TestInteraction, _games: TestGame[]) => {
-      delegated.push(handledInteraction.commandName);
+      delegated.push(String(handledInteraction.commandName));
       return "delegated";
     }
   };
@@ -287,9 +291,9 @@ test("admin command guard refuza explicit comenzile admin in DM (fara guild) si 
     requireGuildAdmin: async () => { requireGuildAdminCalled = true; return true; }
   });
 
-  const result = await guard.handleAdminProtectedCommand(dmInteraction, [], async () => { delegated.push("ran"); return "delegated"; });
+  const result = await guard.handleAdminProtectedCommand(asGuardInteraction(dmInteraction), [], async () => { delegated.push("ran"); return "delegated"; });
 
-  assert.equal(adminCommandGuard.isAdminProtectedCommand(dmInteraction), true, "/health in DM ramane comanda admin (match pe nume, nu pe guild)");
+  assert.equal(adminCommandGuard.isAdminProtectedCommand(asGuardInteraction(dmInteraction)), true, "/health in DM ramane comanda admin (match pe nume, nu pe guild)");
   assert.equal(result, undefined);
   assert.deepEqual(delegated, [], "handler-ul NU ruleaza fara guild (fix bypass)");
   assert.equal(requireGuildAdminCalled, false, "refuzat inainte de verificarea de admin (in DM nu exista permisiuni de server)");
@@ -307,12 +311,12 @@ test("toate comenzile administrative sunt protejate runtime, iar comenzile publi
   ]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
-    assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} trebuie sa treaca prin guard-ul de admin runtime`);
+    assert.equal(adminCommandGuard.isAdminProtectedCommand(asGuardInteraction(interaction)), true, `/${cmd} trebuie sa treaca prin guard-ul de admin runtime`);
   }
   for (const cmd of ["ping", "games", "help", "report", "game", "status", "latest", "price-check", "deal-score", "player-count", "top", "suggest-command", "watchlist-game"]) {
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
-    assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), false, `/${cmd} ramane public (fara guard de admin)`);
+    assert.equal(adminCommandGuard.isAdminProtectedCommand(asGuardInteraction(interaction)), false, `/${cmd} ramane public (fara guard de admin)`);
   }
 });
 
@@ -325,20 +329,16 @@ test("comenzile verb /add si /remove sunt protejate runtime, exceptie /add sugge
     const { interaction } = makeInteraction(false);
     interaction.commandName = cmd;
     interaction.options!.getSubcommand = () => sub;
-    assert.equal(adminCommandGuard.isAdminProtectedCommand(interaction), true, `/${cmd} ${sub} trece prin guard-ul de admin runtime`);
+    assert.equal(adminCommandGuard.isAdminProtectedCommand(asGuardInteraction(interaction)), true, `/${cmd} ${sub} trece prin guard-ul de admin runtime`);
   }
   const { interaction: pub } = makeInteraction(false);
   pub.commandName = "add";
   pub.options!.getSubcommand = () => "suggestion";
-  assert.equal(adminCommandGuard.isAdminProtectedCommand(pub), false, "/add suggestion ramane public (oricine poate propune o comanda)");
+  assert.equal(adminCommandGuard.isAdminProtectedCommand(asGuardInteraction(pub)), false, "/add suggestion ramane public (oricine poate propune o comanda)");
 });
 
 test("guard: handler care intoarce handledCommandError e auditat ca 'Command error.', nu 'Access granted.' (R[P2] audit onest)", async () => {
-  const mod = require("../../features/command-security/adminCommandRouterGuard").default as AdminCommandGuardModule & {
-    createAdminCommandGuard: (deps: { requireGuildAdmin: (interaction: TestInteraction) => Promise<boolean> }, target?: { GuildModel?: unknown }) => {
-      handleAdminProtectedCommand: (interaction: TestInteraction, games: TestGame[], next?: (interaction: TestInteraction, games: TestGame[]) => Promise<unknown>) => Promise<unknown>;
-    };
-  };
+  const mod = (await import("../../features/command-security/adminCommandRouterGuard.js")).default;
 
   const audits: string[] = [];
   const target = {
@@ -364,8 +364,8 @@ test("guard: handler care intoarce handledCommandError e auditat ca 'Command err
     followUp: async () => undefined
   } satisfies TestInteraction;
 
-  await guard.handleAdminProtectedCommand(interaction, [], async () => handledCommandError("mongo down"));
-  await guard.handleAdminProtectedCommand(interaction, [], async () => ({ content: "ok" }));
+  await guard.handleAdminProtectedCommand(asGuardInteraction(interaction), [], async () => handledCommandError("mongo down"));
+  await guard.handleAdminProtectedCommand(asGuardInteraction(interaction), [], async () => ({ content: "ok" }));
 
   assert.deepEqual(audits, ["Command error.", "Access granted."], "un handler care si-a tratat eroarea intern e auditat onest, nu ca succes");
 });
