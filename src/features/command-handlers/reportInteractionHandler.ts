@@ -1,6 +1,8 @@
 "use strict";
 
 import type { DiscordReplyPayload } from "../../types.js";
+import type { GameConfig } from "../../config/configTypes.js";
+import type { InteractionMessage } from "../../features/command-presentation/paginationTypes.js";
 import type {
   ChatInputInteraction,
   StringOption,
@@ -8,7 +10,7 @@ import type {
   SubcommandOption,
   UserOption
 } from "./discordInteractionPorts.js";
-import type { GameConfig, InteractionMessage } from "../../types.js";
+
 import type { BugReportRecord, SaveReportResult, UserComplaintRecord } from "../feedback/reportRepository.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { matchesCommand } from "../command-registry/commandMatch.js";

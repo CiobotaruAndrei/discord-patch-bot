@@ -1,7 +1,6 @@
 import type { CheerioAPI } from "cheerio";
 import type { RunConcurrent } from "../../shared/concurrencyPort.js";
-
-import type { BotMetrics, LoggerFunction } from "../../types.js";
+import type { LoggerFunction } from "../../types.js";
 import type { GameConfig } from "../../config/configTypes.js";
 import type { HttpRequestOptions } from "../httpRequestTypes.js";
 import type { FetchResult, NormalizedUpdate, PatchUpdate } from "../sourceTypes.js";
@@ -49,7 +48,7 @@ export interface UpdatesDeps {
   normalizeUpdate: (data: PatchUpdate) => NormalizedUpdate;
   safeCheerioLoad: (html: unknown) => CheerioAPI;
   crypto: typeof import("crypto");
-  getHttpMetrics(): Pick<BotMetrics, "fetchSuccess" | "fetchFail">;
+  getHttpMetrics(): { fetchSuccess: number; fetchFail: number };
   executeFetchWithCircuitBreaker?: (game: GameConfig) => Promise<FetchResult>;
 }
 
