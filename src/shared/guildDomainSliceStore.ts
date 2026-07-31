@@ -43,12 +43,47 @@ export function sliceOf(fields: readonly string[], document: SliceDoc): Record<s
   return slice;
 }
 
+export interface SliceStoreReporters {
+  onBackfill?: (guildId: string) => void;
+  onCopied?: (guildId: string) => void;
+  onCopyFailed?: (guildId: string, error: unknown) => void;
+}
+
+export async function writeCanonicalThenCopy<T>(
+  guildId: string | null,
+  touchesSlice: boolean,
+  canonical: () => Promise<T>,
+  copy: () => Promise<unknown>,
+  reporters?: SliceStoreReporters
+): Promise<T> {
+  const result = await canonical();
+  if (!guildId || !touchesSlice) return result;
+  try {
+    await copy();
+    reporters?.onCopied?.(guildId);
+  } catch (error: unknown) {
+    reporters?.onCopyFailed?.(guildId, error);
+  }
+  return result;
+}
+
 export function createGuildDomainSliceStore(
   fields: readonly string[],
   legacyModel: GuildSliceModel,
   dedicatedModel: GuildSliceModel,
-  onBackfill?: (guildId: string) => void
+  reporters?: ((guildId: string) => void) | SliceStoreReporters
 ) {
+  const { onBackfill, onCopied, onCopyFailed } = typeof reporters === "function" ? { onBackfill: reporters, onCopied: undefined, onCopyFailed: undefined } : (reporters ?? {});
+
+  async function copyToDedicated(guildId: string, write: () => Promise<unknown>): Promise<void> {
+    try {
+      await write();
+      onCopied?.(guildId);
+    } catch (error: unknown) {
+      onCopyFailed?.(guildId, error);
+    }
+  }
+
   function guildIdOf(filter: Record<string, unknown>): string | null {
     const raw = filter._id ?? filter.guildId;
     return typeof raw === "string" ? raw : null;
@@ -71,10 +106,11 @@ export function createGuildDomainSliceStore(
 
     async findOneAndUpdate(filter: Record<string, unknown>, update: SliceUpdate, options?: Record<string, unknown>): Promise<SliceDoc> {
       const guildId = guildIdOf(filter);
+      const result = await resolve(legacyModel.findOneAndUpdate(filter, update, options));
       if (guildId && updateTouchesSlice(fields, update)) {
-        await dedicatedModel.findOneAndUpdate({ _id: guildId }, update, { ...options, upsert: true });
+        await copyToDedicated(guildId, () => Promise.resolve(dedicatedModel.findOneAndUpdate({ _id: guildId }, update, { ...options, upsert: true })));
       }
-      return await resolve(legacyModel.findOneAndUpdate(filter, update, options));
+      return result;
     },
 
     async updateOne(
@@ -83,17 +119,21 @@ export function createGuildDomainSliceStore(
       options?: Record<string, unknown>
     ): Promise<WriteCounts | null | undefined> {
       const guildId = guildIdOf(filter);
+      const result = await legacyModel.updateOne(filter, update, options);
       if (guildId && updateTouchesSlice(fields, update)) {
-        await dedicatedModel.updateOne({ _id: guildId }, update, { ...options, upsert: true });
+        await copyToDedicated(guildId, () => dedicatedModel.updateOne({ _id: guildId }, update, { ...options, upsert: true }));
       }
-      return await legacyModel.updateOne(filter, update, options);
+      return result;
     },
 
     async updateMany(filter: Record<string, unknown>, update: SliceUpdate): Promise<WriteCounts | null | undefined> {
+      const result = legacyModel.updateMany ? await legacyModel.updateMany(filter, update) : null;
       if (updateTouchesSlice(fields, update) && dedicatedModel.updateMany) {
-        await dedicatedModel.updateMany(filter, update);
+        await copyToDedicated(guildIdOf(filter) ?? "*", async () => {
+          if (dedicatedModel.updateMany) await dedicatedModel.updateMany(filter, update);
+        });
       }
-      return legacyModel.updateMany ? await legacyModel.updateMany(filter, update) : null;
+      return result;
     }
   };
 }

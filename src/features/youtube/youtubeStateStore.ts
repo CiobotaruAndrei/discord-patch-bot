@@ -1,6 +1,6 @@
 "use strict";
 
-import { updateTouchesSlice } from "../../shared/guildDomainSliceStore.js";
+import { updateTouchesSlice, writeCanonicalThenCopy } from "../../shared/guildDomainSliceStore.js";
 import { YOUTUBE_FIELDS } from "../../shared/guildYoutubeFields.js";
 
 import type { SliceUpdate } from "../../shared/guildDomainSliceStore.js";
@@ -14,38 +14,45 @@ export interface YoutubeStateModel {
 export function createYoutubeStateStore(
   guildModel: YouTubeConfigGuildModel,
   youtubeModel: YoutubeStateModel,
-  onFirstMirror?: (guildId: string) => void
+  onFirstMirror?: (guildId: string) => void,
+  onCopyFailed?: (guildId: string, error: unknown) => void
 ): YouTubeConfigGuildModel {
   const mirrored = new Set<string>();
+  const reporters = {
+    onCopied: (guildId: string) => {
+      if (mirrored.has(guildId)) return;
+      mirrored.add(guildId);
+      onFirstMirror?.(guildId);
+    },
+    onCopyFailed
+  };
 
   function guildIdOf(filter: object): string | null {
     const raw = (filter as { _id?: unknown })._id;
     return typeof raw === "string" ? raw : null;
   }
 
-  function reportMirror(guildId: string): void {
-    if (mirrored.has(guildId)) return;
-    mirrored.add(guildId);
-    onFirstMirror?.(guildId);
-  }
-
   return {
     async updateOne(filter: object, update: object, options?: object) {
       const guildId = guildIdOf(filter);
-      if (guildId && updateTouchesSlice(YOUTUBE_FIELDS, update as SliceUpdate)) {
-        await youtubeModel.updateOne({ _id: guildId }, update as SliceUpdate, { ...(options ?? {}), upsert: true });
-        reportMirror(guildId);
-      }
-      return guildModel.updateOne(filter, update, options);
+      return writeCanonicalThenCopy(
+        guildId,
+        updateTouchesSlice(YOUTUBE_FIELDS, update as SliceUpdate),
+        () => guildModel.updateOne(filter, update, options),
+        () => youtubeModel.updateOne({ _id: guildId }, update as SliceUpdate, { ...(options ?? {}), upsert: true }),
+        reporters
+      );
     },
 
     async findOneAndUpdate(filter: object, update: object, options?: object) {
       const guildId = guildIdOf(filter);
-      if (guildId && updateTouchesSlice(YOUTUBE_FIELDS, update as SliceUpdate)) {
-        await youtubeModel.findOneAndUpdate({ _id: guildId }, update as SliceUpdate, { ...(options ?? {}), upsert: true });
-        reportMirror(guildId);
-      }
-      return guildModel.findOneAndUpdate(filter, update, options);
+      return writeCanonicalThenCopy(
+        guildId,
+        updateTouchesSlice(YOUTUBE_FIELDS, update as SliceUpdate),
+        () => guildModel.findOneAndUpdate(filter, update, options),
+        () => youtubeModel.findOneAndUpdate({ _id: guildId }, update as SliceUpdate, { ...(options ?? {}), upsert: true }),
+        reporters
+      );
     }
   };
 }

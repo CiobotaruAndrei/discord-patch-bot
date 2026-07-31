@@ -1,6 +1,6 @@
 "use strict";
 
-import { updateTouchesSlice } from "../../shared/guildDomainSliceStore.js";
+import { updateTouchesSlice, writeCanonicalThenCopy } from "../../shared/guildDomainSliceStore.js";
 import { SECURITY_FIELDS } from "../../shared/guildSecurityFields.js";
 
 import type { SliceUpdate } from "../../shared/guildDomainSliceStore.js";
@@ -17,9 +17,18 @@ export interface SecurityStateModel {
 export function createSecurityStore(
   guildModel: GuildConfigWriteModelLike,
   securityModel: SecurityStateModel,
-  onFirstMirror?: (guildId: string) => void
+  onFirstMirror?: (guildId: string) => void,
+  onCopyFailed?: (guildId: string, error: unknown) => void
 ): GuildConfigWriteModelLike {
   const mirrored = new Set<string>();
+  const reporters = {
+    onCopied: (guildId: string) => {
+      if (mirrored.has(guildId)) return;
+      mirrored.add(guildId);
+      onFirstMirror?.(guildId);
+    },
+    onCopyFailed
+  };
 
   return {
     async updateOne(
@@ -29,14 +38,13 @@ export function createSecurityStore(
     ): Promise<GuildConfigWriteResult> {
       const raw = filter._id;
       const guildId = typeof raw === "string" ? raw : null;
-      if (guildId && updateTouchesSlice(SECURITY_FIELDS, update)) {
-        await securityModel.updateOne({ _id: guildId }, update, { ...options, upsert: true });
-        if (!mirrored.has(guildId)) {
-          mirrored.add(guildId);
-          onFirstMirror?.(guildId);
-        }
-      }
-      return guildModel.updateOne(filter, update, options);
+      return writeCanonicalThenCopy(
+        guildId,
+        updateTouchesSlice(SECURITY_FIELDS, update),
+        () => guildModel.updateOne(filter, update, options),
+        () => securityModel.updateOne({ _id: guildId }, update, { ...options, upsert: true }),
+        reporters
+      );
     }
   };
 }
