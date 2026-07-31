@@ -215,6 +215,55 @@ export function membersOf(query: ModuleQuery, typeName: string): MemberInfo[] {
   return found;
 }
 
+export function topLevelMembersOf(query: ModuleQuery, typeName: string): MemberInfo[] {
+  const found: MemberInfo[] = [];
+  eachNode(query, node => {
+    if (ts.isInterfaceDeclaration(node) && node.name.text === typeName) {
+      for (const member of node.members) {
+        const info = memberOf(member);
+        if (info) found.push(info);
+      }
+      return;
+    }
+    if (ts.isTypeAliasDeclaration(node) && node.name.text === typeName && ts.isTypeLiteralNode(node.type)) {
+      for (const member of node.type.members) {
+        const info = memberOf(member);
+        if (info) found.push(info);
+      }
+    }
+  });
+  return found;
+}
+
+export function compositeTypeParts(query: ModuleQuery, typeName: string): string[] {
+  const parts: string[] = [];
+  eachNode(query, node => {
+    if (ts.isTypeAliasDeclaration(node) && node.name.text === typeName && ts.isIntersectionTypeNode(node.type)) {
+      for (const member of node.type.types) {
+        if (ts.isTypeReferenceNode(member)) parts.push(normalize(member.typeName.getText()));
+      }
+    }
+    if (ts.isInterfaceDeclaration(node) && node.name.text === typeName) {
+      for (const clause of node.heritageClauses ?? []) {
+        for (const type of clause.types) parts.push(normalize(type.expression.getText()));
+      }
+    }
+  });
+  return parts;
+}
+
+export function compositeMembersOf(query: ModuleQuery, typeName: string, seen: Set<string> = new Set()): MemberInfo[] {
+  if (seen.has(typeName)) return [];
+  seen.add(typeName);
+  const inherited = compositeTypeParts(query, typeName).flatMap(part => compositeMembersOf(query, part, seen));
+  return [...topLevelMembersOf(query, typeName), ...inherited];
+}
+
+export function compositeNestedMembers(query: ModuleQuery, ownerType: string, propertyName: string): MemberInfo[] {
+  const owners = [ownerType, ...compositeTypeParts(query, ownerType)];
+  return owners.flatMap(owner => nestedMembers(query, owner, propertyName));
+}
+
 export function allMembers(query: ModuleQuery): MemberInfo[] {
   const found: MemberInfo[] = [];
   eachNode(query, node => {
@@ -229,6 +278,21 @@ export function findMember(query: ModuleQuery, typeName: string, memberName: str
   return membersOf(query, typeName).find(member => member.name === memberName);
 }
 
+function elementTypeLiteral(type: ts.TypeNode): ts.TypeLiteralNode | null {
+  if (ts.isTypeLiteralNode(type)) return type;
+  if (ts.isArrayTypeNode(type)) return elementTypeLiteral(type.elementType);
+  if (ts.isTypeReferenceNode(type) && type.typeArguments?.length === 1) {
+    return elementTypeLiteral(type.typeArguments[0]);
+  }
+  if (ts.isUnionTypeNode(type)) {
+    for (const member of type.types) {
+      const literal = elementTypeLiteral(member);
+      if (literal) return literal;
+    }
+  }
+  return null;
+}
+
 export function nestedMembers(query: ModuleQuery, ownerType: string, propertyName: string): MemberInfo[] {
   const found: MemberInfo[] = [];
   eachNode(query, node => {
@@ -238,8 +302,9 @@ export function nestedMembers(query: ModuleQuery, ownerType: string, propertyNam
     walk(node, inner => {
       if (!ts.isPropertySignature(inner)) return;
       if (!inner.name || !ts.isIdentifier(inner.name) || inner.name.text !== propertyName) return;
-      if (!inner.type || !ts.isTypeLiteralNode(inner.type)) return;
-      for (const member of inner.type.members) {
+      const literal = inner.type ? elementTypeLiteral(inner.type) : null;
+      if (!literal) return;
+      for (const member of literal.members) {
         const info = memberOf(member);
         if (info) found.push(info);
       }
@@ -596,6 +661,51 @@ export function propertyValues(query: ModuleQuery, propertyName: string): string
   return found;
 }
 
+export function allStringLiterals(query: ModuleQuery): string[] {
+  const found: string[] = [];
+  eachNode(query, node => {
+    if (ts.isStringLiteral(node)) found.push(node.text);
+    else if (ts.isNoSubstitutionTemplateLiteral(node)) found.push(node.text);
+    else if (ts.isTemplateExpression(node)) {
+      found.push(node.head.text, ...node.templateSpans.map(span => span.literal.text));
+    }
+  });
+  return found;
+}
+
+export function stringLiteralsWithin(query: ModuleQuery, functionName: string): string[] {
+  const found: string[] = [];
+  eachNode(query, node => {
+    const named =
+      (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) && node.name?.text === functionName;
+    const assigned =
+      ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === functionName;
+    if (!named && !assigned) return;
+    walk(node, inner => {
+      if (ts.isStringLiteral(inner)) found.push(inner.text);
+    });
+  });
+  return found;
+}
+
+export function linearLookupsByProperty(query: ModuleQuery, propertyName: string): string[] {
+  const found: string[] = [];
+  eachNode(query, node => {
+    if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) return;
+    if (node.expression.name.text !== "find") return;
+    const predicate = node.arguments[0];
+    if (!predicate || (!ts.isArrowFunction(predicate) && !ts.isFunctionExpression(predicate))) return;
+    let comparesProperty = false;
+    walk(predicate, inner => {
+      if (!ts.isBinaryExpression(inner)) return;
+      if (inner.operatorToken.kind !== ts.SyntaxKind.EqualsEqualsEqualsToken) return;
+      if (ts.isPropertyAccessExpression(inner.left) && inner.left.name.text === propertyName) comparesProperty = true;
+    });
+    if (comparesProperty) found.push(normalize(node.expression.getText()));
+  });
+  return found;
+}
+
 export function compositionLayers(query: ModuleQuery, functionName: string): CompositionLayer[] {
   const layers: CompositionLayer[] = [];
   eachNode(query, node => {
@@ -641,6 +751,32 @@ export function namedObjectProperties(query: ModuleQuery, variableName: string):
     for (const property of node.initializer.properties) {
       if (property.name && ts.isIdentifier(property.name)) names.push(property.name.text);
     }
+  });
+  return names;
+}
+
+export function constructorArgumentProperties(query: ModuleQuery, variableName: string): string[] {
+  const names: string[] = [];
+  eachNode(query, node => {
+    if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || node.name.text !== variableName) return;
+    const initializer = node.initializer;
+    if (!initializer || (!ts.isNewExpression(initializer) && !ts.isCallExpression(initializer))) return;
+    const first = initializer.arguments?.[0];
+    if (!first || !ts.isObjectLiteralExpression(first)) return;
+    for (const property of first.properties) {
+      if (property.name && ts.isIdentifier(property.name)) names.push(property.name.text);
+    }
+  });
+  return names;
+}
+
+export function constructedVariables(query: ModuleQuery, constructorName: string): string[] {
+  const names: string[] = [];
+  eachNode(query, node => {
+    if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name)) return;
+    if (!node.initializer || !ts.isNewExpression(node.initializer)) return;
+    if (normalize(node.initializer.expression.getText()) !== constructorName) return;
+    names.push(node.name.text);
   });
   return names;
 }

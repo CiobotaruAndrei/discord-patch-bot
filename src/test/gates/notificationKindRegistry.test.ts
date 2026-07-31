@@ -1,50 +1,68 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import fs from "node:fs";
-import path from "node:path";
+import {
+  loadModule,
+  calls,
+  callsWithin,
+  comparisons,
+  declaresType,
+  exportedConstNames,
+  importedModules,
+  reExports,
+  propertyValues,
+  stringLiteralsWithin
+} from "./sourceStructureQueries.js";
 
 import { NOTIFICATION_KINDS, NOTIFICATION_KIND_REGISTRY, subscriptionFilterFor } from "../../shared/notificationKinds.js";
 
-const srcRoot = process.cwd();
-
-function read(relative: string): string {
-  return fs.readFileSync(path.join(srcRoot, relative), "utf8");
-}
+const schemas = loadModule("infra", "mongo", "outboxSchemas.ts");
+const factory = loadModule("features", "notifications", "outboxRuntimeFactory.ts");
+const replay = loadModule("features", "notifications", "deadLetterReplayRepository.ts");
+const featureBarrel = loadModule("features", "notifications", "notificationKinds.ts");
 
 test("schemele Mongo isi iau enum-ul de kind din registru, nu dintr-o lista scrisa de mana", () => {
-  const schemas = read("infra/mongo/outboxSchemas.ts");
-  const inlineEnums = schemas.match(/kind: \{ type: String, enum: \[\s*"/g) ?? [];
+  const enums = propertyValues(schemas, "kind").filter(declared => declared.includes("enum:"));
+  assert.ok(enums.length > 0, "schemele declara enum-uri de kind");
+  const handwritten = enums.filter(declared => !declared.includes("NOTIFICATION_KINDS"));
   assert.deepEqual(
-    inlineEnums,
+    handwritten,
     [],
-    "o lista de kind-uri scrisa in schema se desincronizeaza de registru; exact asa a ramas `dlc` in afara outbox-ului"
+    "o lista de kind-uri scrisa in schema se desincronizeaza de registru; exact asa a ramas `dlc` in afara outbox-ului: " +
+      handwritten.join(" | ")
   );
-  const derived = schemas.match(/kind: \{ type: String, enum: \[\.\.\.NOTIFICATION_KINDS\]/g) ?? [];
-  assert.equal(derived.length, 4, "toate cele patru colectii cu kind deriva din registru");
+  assert.equal(
+    enums.filter(declared => declared.includes("...NOTIFICATION_KINDS")).length,
+    4,
+    "toate cele patru colectii cu kind deriva din registru"
+  );
 });
 
 test("filtrul de abonament al outbox-ului deriva din registru, fara lant de if-uri pe kind", () => {
-  const factory = read("features/notifications/outboxRuntimeFactory.ts");
-  const filterBlock = factory.slice(
-    factory.indexOf("export function outboxSubscriptionFilter"),
-    factory.indexOf("export function createIsStillSubscribed")
+  assert.ok(
+    callsWithin(factory, "outboxSubscriptionFilter").some(call => call.callee === "subscriptionFilterFor"),
+    "filtrul intreaba registrul"
   );
-  assert.match(filterBlock, /subscriptionFilterFor\(/);
-  for (const kind of NOTIFICATION_KINDS) {
-    assert.ok(
-      !filterBlock.includes(`"${kind}"`),
-      `filtrul nu mai are voie sa numeasca kind-ul "${kind}"; un kind nou ar fi cazut tacut pe ramura implicita`
-    );
-  }
+  const named = stringLiteralsWithin(factory, "outboxSubscriptionFilter")
+    .filter(literal => (NOTIFICATION_KINDS as readonly string[]).includes(literal));
+  assert.deepEqual(
+    named,
+    [],
+    "filtrul nu mai are voie sa numeasca un kind; unul nou ar fi cazut tacut pe ramura implicita: " + named.join(", ")
+  );
 });
 
 test("decodarea unui kind necunoscut trece prin registru, nu printr-un lant de ternare", () => {
-  const replay = read("features/notifications/deadLetterReplayRepository.ts");
-  assert.match(replay, /notificationKindOr\(fields\.kind\)/);
   assert.ok(
-    !/fields\.kind === "/.test(replay),
-    "compararea directa cu literale colapseaza kind-urile noi la update"
+    calls(replay).some(call => call.callee === "notificationKindOr"),
+    "decodarea trece prin registru"
+  );
+  const literalChecks = comparisons(replay).filter(entry => entry.left.endsWith(".kind") && entry.right.startsWith('"'));
+  assert.deepEqual(
+    literalChecks,
+    [],
+    "compararea directa cu literale colapseaza kind-urile noi la update: " +
+      literalChecks.map(entry => `linia ${entry.line}: ${entry.left} ${entry.operator} ${entry.right}`).join(" | ")
   );
 });
 
@@ -82,12 +100,20 @@ test("filtrul construit pentru un kind numeste doar campurile lui", () => {
 });
 
 test("registrul de kind-uri traieste in shared, ca infra si features sa poata porni din acelasi loc", () => {
-  const infra = read("infra/mongo/outboxSchemas.ts");
-  assert.match(infra, /from "\.\.\/\.\.\/shared\/notificationKinds\.js"/);
-  const featureBarrel = read("features/notifications/notificationKinds.ts");
-  assert.match(featureBarrel, /from "\.\.\/\.\.\/shared\/notificationKinds\.js"/);
   assert.ok(
-    !/NOTIFICATION_KIND_REGISTRY = \{/.test(featureBarrel),
+    importedModules(schemas).some(module => module.endsWith("shared/notificationKinds.js")),
+    "schemele Mongo pornesc din registrul comun"
+  );
+  assert.ok(
+    reExports(featureBarrel).every(entry => entry.module.endsWith("shared/notificationKinds.js")),
+    "barrel-ul din features doar re-exporta registrul comun, nu adauga o a doua sursa"
+  );
+  assert.ok(
+    !exportedConstNames(featureBarrel).includes("NOTIFICATION_KIND_REGISTRY"),
     "features nu isi mai tine propria copie a registrului"
+  );
+  assert.ok(
+    !declaresType(featureBarrel, "NotificationKindRegistry"),
+    "nici tipul registrului nu se dubleaza in features"
   );
 });

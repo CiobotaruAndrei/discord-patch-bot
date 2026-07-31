@@ -131,7 +131,7 @@ export function createDeadLetterReplayRepository(deps: DeadLetterReplayRepositor
     );
     return docs.map(doc => ({
       _id: doc._id,
-      kind: doc.kind === "discount" ? "discount" : doc.kind === "youtube" ? "youtube" : doc.kind === "future-release" ? "future-release" : "update",
+      kind: notificationKindOr(doc.kind),
       channelId: String(doc.channelId || ""),
       payload: doc.payload,
       dedupeKey: String(doc.dedupeKey || ""),
