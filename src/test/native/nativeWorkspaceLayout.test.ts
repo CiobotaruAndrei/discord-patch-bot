@@ -48,10 +48,13 @@ test("wrapper-ul N-API e subtire: deleaga la core si nu mai are teste proprii", 
   );
   assert.match(cargo, /name = "discord_patch_bot_core"/, "numele cdylib-ului ramane neschimbat (fisierul .node si napi config raman valide)");
   assert.match(cargo, /discord_patch_bot_logic = \{ path = "core" \}/, "wrapper-ul depinde de core prin path");
-  const lib = read(wrapperLibPath);
-  assert.match(lib, /use discord_patch_bot_logic as logic/, "wrapper-ul deleaga la core");
-  assert.ok(!lib.includes("#[cfg(test)]"), "wrapper-ul nu are teste (testele pure ruleaza fara build-ul N-API)");
-  assert.ok(!/fn\s+\w+_impl\b/.test(lib), "logica _impl a fost mutata in core, nu duplicata in wrapper");
+  const wrapperDir = path.dirname(wrapperLibPath);
+  const wrapperSources = fs.readdirSync(wrapperDir).filter(name => name.endsWith(".rs")).sort();
+  assert.ok(wrapperSources.length > 1, "wrapper-ul e impartit pe module de domeniu, nu un singur fisier cu tot API-ul");
+  const wrapper = wrapperSources.map(name => read(path.join(wrapperDir, name))).join("\n");
+  assert.match(wrapper, /use discord_patch_bot_logic as logic/, "wrapper-ul deleaga la core");
+  assert.ok(!wrapper.includes("#[cfg(test)]"), "wrapper-ul nu are teste (testele pure ruleaza fara build-ul N-API)");
+  assert.ok(!/fn\s+\w+_impl\b/.test(wrapper), "logica _impl a fost mutata in core, nu duplicata in wrapper");
 });
 
 test("check:native si CI testeaza core-ul pur si dau clippy pe tot workspace-ul, in profil release (partajeaza target cache cu napi build, review nou #21)", () => {
