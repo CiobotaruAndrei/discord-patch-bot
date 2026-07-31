@@ -2,8 +2,11 @@
 
 import type { GameConfig } from "../../config/configTypes.js";
 import type { RunConcurrent } from "../../shared/concurrencyPort.js";
+import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
+import type { NotificationMode } from "../../features/notifications/notificationTypes.js";
+import type { EmbeddableUpdate } from "../../sources/sourceTypes.js";
 type MongoUpdate = Record<string, unknown>;
-import type { GuildSettings, EmbeddableUpdate, MongoWriteOutcome, NotificationMode } from "../../types.js";
+import type { MongoWriteOutcome } from "../../types.js";
 import { buildPendingUpdatesQueue, PendingUpdate, UpdateFetchResult } from "./pendingUpdatesQueue.js";
 import type { NotificationEmbed } from "./notificationTypes.js";
 import { buildDeadLetterEntry, DeadLetterEntry } from "./deadLetter.js";
@@ -32,7 +35,6 @@ interface GuildModelLike {
   find(filter: Record<string, unknown>): { lean(): Promise<GuildSettingsDoc[]> };
   updateOne(filter: Record<string, unknown>, update: MongoUpdate): Promise<MongoWriteResult>;
 }
-
 
 type ResolveOutboundChannel = (opts: {
   client: NotificationDiscordClient;

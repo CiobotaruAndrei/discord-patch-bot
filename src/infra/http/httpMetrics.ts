@@ -1,6 +1,4 @@
-import type { BotMetrics } from "../../types.js";
-
-type HttpMetricsRef = Pick<BotMetrics, "fetchSuccess" | "fetchFail" | "httpRetries" | "rateLimitHits">;
+type HttpMetricsRef = { fetchSuccess: number; fetchFail: number; httpRetries: number; rateLimitHits: number };
 
 function createInitialHttpMetrics(): HttpMetricsRef {
   return { fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0 };

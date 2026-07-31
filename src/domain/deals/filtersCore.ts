@@ -1,5 +1,6 @@
-import type { DealInfo, GuildSettings, PendingDiscount, PendingUpdate } from "../../types.js";
+
 import { dealPassesFilters as nativeDealPassesFilters } from "../../native/fuzzy.js";
+import type { DealInfo, GuildSettings, PendingDiscount, PendingUpdate } from "../../types.js";
 
 export type EntrySource = Map<string, unknown> | Record<string, unknown> | { toObject(): Record<string, unknown> } | null | undefined;
 

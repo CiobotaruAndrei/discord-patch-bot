@@ -1,9 +1,10 @@
 "use strict";
 
 import type { MongoWriteOutcome } from "../../types.js";
+import type { SteamSearchItem } from "../../sources/sourceTypes.js";
 import type { FutureReleaseGameEntry } from "../admin-records/adminRecordsTypes.js";
 import type { SteamAppDetailsSummary } from "../../sources/sourceApis.js";
-import type { SteamSearchItem } from "../../types.js";
+
 import type { NotificationDiscordClient, ResolveOutboundChannelResult } from "./outboundChannel.js";
 import {
   computeFutureReleaseUpdate,

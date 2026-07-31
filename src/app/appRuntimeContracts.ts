@@ -2,6 +2,7 @@
 
 import type { GuildSettingsEventBus } from "../infra/mongo/guildSettingsEventBus.js";
 import type { HttpServerMetricRecorder, MetricRecorders } from "../shared/metricRecorderPorts.js";
+import type { HttpRequestOptions } from "../sources/httpRequestTypes.js";
 import type { ActiveLocks, BotRole, LifecycleState } from "../types.js";
 import type { BotMetrics } from "./health/metricsTypes.js";
 import type { RateLimiter } from "./health/rateLimitTypes.js";
@@ -22,7 +23,7 @@ import type { CreateShutdownControllerDeps, ShutdownController } from "./lifecyc
 import type { OutboxDiscordClient } from "../features/notifications/outboundChannel.js";
 import type { RedisRuntime } from "../infra/redis/redisClient.js";
 import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.js";
-import type { HttpRequestOptions } from "../types.js";
+
 import type { GuildAuditLogModelLike } from "../features/admin-records/auditLogRepository.js";
 import type { ModerationGuildModel } from "../features/moderation/moderationRepository.js";
 import type { GuildConfigWriteModelLike } from "../features/guild-config/guildConfigRepository.js";
