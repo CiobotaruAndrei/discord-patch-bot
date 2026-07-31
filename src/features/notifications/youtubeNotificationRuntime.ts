@@ -8,6 +8,7 @@ import { transientErrorMessage } from "./outboundChannel.js";
 import { createYouTubeSource } from "../youtube/youtubeSource.js";
 import { createYouTubeRepository } from "../youtube/youtubeRepository.js";
 import { createYouTubeNotificationService } from "../youtube/youtubeNotificationService.js";
+import { createYoutubeStateReader } from "../youtube/youtubeStateReader.js";
 
 export function createYouTubeNotificationRuntime(
   deps: NotificationsRuntimeDeps,
@@ -30,8 +31,18 @@ export function createYouTubeNotificationRuntime(
     },
     logger
   });
+  const youtubeStateReader = createYoutubeStateReader({
+    guildModel: deps.GuildModel,
+    stateModel: deps.GuildYoutubeStateModel,
+    onMissingCopy: guildId => {
+      logger("WARN", "YOUTUBE_STATE", `Copia dedicata lipsea pentru ${guildId}; se reface din documentul vechi`);
+    },
+    onRepairFailed: (guildId, error) => {
+      logger("ERROR", "YOUTUBE_STATE", `Copia dedicata nu a putut fi refacuta pentru ${guildId}`, error);
+    }
+  });
   const youtubeService = createYouTubeNotificationService({
-    GuildModel: deps.GuildModel,
+    listActiveGuilds: youtubeStateReader.listActiveGuilds,
     logger,
     runConcurrent,
     fetchYouTubeFeed: youtubeSource.fetchYouTubeFeed,
@@ -51,7 +62,7 @@ export function createYouTubeNotificationRuntime(
     reportRollbackFailure
   });
 
-  return { youtubeSource, youtubeRepository, youtubeService };
+  return { youtubeSource, youtubeRepository, youtubeService, youtubeStateReader };
 }
 
 export type YouTubeNotificationRuntime = ReturnType<typeof createYouTubeNotificationRuntime>;

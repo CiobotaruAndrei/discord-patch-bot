@@ -19,7 +19,7 @@ test("YouTube cron descarca un feed comun o singura data si livreaza per guild c
     }
   }));
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => guilds }) },
+    listActiveGuilds: async () => guilds,
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => { feedCalls++; return [video]; },
@@ -71,7 +71,7 @@ test("YouTube cron descarca metadata HTML a unui videoclip o singura data per ci
     youtubeNotificationsEnabled: true
   }));
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => guilds }) },
+    listActiveGuilds: async () => guilds,
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -105,17 +105,13 @@ test("YouTube cron marcheaza videoclipurile vazute fara livrare cand notificaril
   let claims = 0;
   let resolves = 0;
   const service = createYouTubeNotificationService({
-    GuildModel: {
-      find: () => ({
-        lean: async () => [{
+    listActiveGuilds: async () => [{
           _id: "g1",
           youtubeChannels: [channel],
           youtubeNotificationsEnabled: false,
           youtubeHasActivated: true,
           youtubeNotificationChannelId: null
-        }]
-      })
-    },
+        }],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -150,7 +146,7 @@ test("YouTube cron face rollback daca pierde lock-ul dupa claim si inainte de li
   let abortChecks = 0;
   let sends = 0;
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -200,7 +196,7 @@ test("YouTube cron face rollback la un videoclip livrat partial pe rute (A reuse
   const rolledBack: string[] = [];
   const sentTo: string[] = [];
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -259,7 +255,7 @@ test("YouTube cron imparte embed-urile si dupa bugetul Discord de caractere", as
     title: `Videoclip ${index} ${"T".repeat(230)}`
   }));
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => videos,
@@ -313,17 +309,13 @@ test("YouTube cron imparte embed-urile si dupa bugetul Discord de caractere", as
 test("YouTube cron pastreaza videoclipurile recente nevazute pana la prima activare", async () => {
   let claims = 0;
   const service = createYouTubeNotificationService({
-    GuildModel: {
-      find: () => ({
-        lean: async () => [{
+    listActiveGuilds: async () => [{
           _id: "g1",
           youtubeChannels: [channel],
           youtubeNotificationsEnabled: false,
           youtubeHasActivated: false,
           youtubeNotificationChannelId: null
-        }]
-      })
-    },
+        }],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -356,7 +348,7 @@ test("YouTube cron foloseste exclusiv rutele speciale si sablonul personalizat",
   const destinations: string[] = [];
   const payloads: unknown[] = [];
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -415,7 +407,7 @@ test("YouTube cron foloseste exclusiv rutele speciale si sablonul personalizat",
 test("YouTube cron aplica filtrul inclusiv de titlu", async () => {
   let sends = 0;
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -464,7 +456,7 @@ test("YouTube cron: NU revendica si NU descarca metadata pentru un canal recent 
   let rollbacks = 0;
   let sends = 0;
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],

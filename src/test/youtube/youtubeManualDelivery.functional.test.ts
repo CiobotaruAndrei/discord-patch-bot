@@ -6,7 +6,7 @@ test("YouTube manual: a doua rulare implicita NU repostează videoclipul deja af
   const claims = new Set<string>();
   const guild = { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: "discord-main" };
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -46,7 +46,7 @@ test("YouTube prepareManualVideos: NU descarca metadata pentru canale fara desti
   let metadataCalls = 0;
   const guild = { _id: "g1", youtubeChannels: [channel], youtubeNotificationChannelId: null, youtubeChannelRoutes: [] };
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -83,7 +83,7 @@ test("YouTube manual afiseaza numai ultima luna si claim-uieste implicit videocl
     publishedAt: "2026-04-01T06:00:00.000Z"
   };
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [oldVideo, video],
@@ -139,7 +139,7 @@ test("YouTube manual (prepareManualVideos + deliverManualVideos): la esec de liv
   const claims = new Set<string>();
   const rolledBack: string[] = [];
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -182,7 +182,7 @@ test("YouTube manual (videos show) refoloseste cache-ul de metadata per apel: ac
   const channelA = { ...channel, channelId: "UCAAAAAAAAAAAAAAAAAAAAA" };
   const channelB = { ...channel, channelId: "UCBBBBBBBBBBBBBBBBBBBBB" };
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [video],
@@ -220,7 +220,7 @@ test("YouTube manual descarca feed-urile in paralel dar pastreaza ordinea canale
   const videoB = { ...video, videoId: "bbbbbbbbbbb", channelId: channelB.channelId, title: "Video B" };
   const sentTitles: string[] = [];
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: parallelRunConcurrent,
     fetchYouTubeFeed: async channel => {
@@ -275,7 +275,7 @@ test("YouTube manual prin outbox (bypassOutbox=false): enqueue TOATE loturile im
     metadata: { durationSeconds: 120, isShort: false, isLive: false, isPremiere: false }
   }));
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [],
@@ -324,7 +324,7 @@ test("YouTube livreaza cel mult 5 videoclipuri per lot si asteapta numai intre l
     title: `Videoclip ${index}`
   }));
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => videos,
@@ -376,7 +376,7 @@ test("YouTube livreaza cel mult 5 videoclipuri per lot si asteapta numai intre l
 test("YouTube deliverManualVideos: un item fara destinatie NU e marcat ca livrat (deliverPrepared refuza intern) si claim-ul e anulat (R20 #3)", async () => {
   let rollbackId = "";
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [],
@@ -413,7 +413,7 @@ test("YouTube deliverManualVideos: un item fara destinatie NU e marcat ca livrat
 test("YouTube deliverManualVideos: cand rollback-ul claim-ului arunca, esecul e raportat (admin alert), nu inghitit (R21 #3)", async () => {
   const reported: Array<{ kind: string; itemId: string; guildId: string }> = [];
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [],
@@ -452,7 +452,7 @@ test("YouTube manual: un videoclip cu metadata defecta nu pica tot batch-ul (R[M
   const badVideo = { ...video, videoId: "badbadbad11", link: "https://www.youtube.com/watch?v=badbadbad11" };
   const goodVideo = { ...video, videoId: "goodgood111", link: "https://www.youtube.com/watch?v=goodgood111" };
   const service = createYouTubeNotificationService({
-    GuildModel: { find: () => ({ lean: async () => [] }) },
+    listActiveGuilds: async () => [],
     logger: () => undefined,
     runConcurrent: sequentialRunConcurrent,
     fetchYouTubeFeed: async () => [badVideo, goodVideo],

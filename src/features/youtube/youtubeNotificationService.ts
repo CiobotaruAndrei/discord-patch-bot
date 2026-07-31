@@ -18,16 +18,8 @@ import { createYouTubeDeliveryExecutor, type DeliveryResult } from "./youtubeDel
 import { createYouTubeRollbackPolicy } from "./youtubeRollbackPolicy.js";
 import { buildYouTubeEmbed, packYouTubeDeliveries, sortedVideos, type PreparedVideo } from "./youtubeDeliveryPlanner.js";
 
-interface GuildFindResult {
-  lean(): Promise<GuildSettings[]>;
-}
-
-interface GuildModelLike {
-  find(filter: object): GuildFindResult;
-}
-
 interface YouTubeNotificationServiceDeps {
-  GuildModel: GuildModelLike;
+  listActiveGuilds: () => Promise<GuildSettings[]>;
   logger: LoggerFunction;
   runConcurrent<T>(
     items: T[],
@@ -70,7 +62,7 @@ export interface ManualVideoBatch {
 
 export function createYouTubeNotificationService(deps: YouTubeNotificationServiceDeps) {
   const {
-    GuildModel,
+    listActiveGuilds,
     logger,
     runConcurrent,
     fetchYouTubeFeed,
@@ -234,7 +226,7 @@ export function createYouTubeNotificationService(deps: YouTubeNotificationServic
     shouldAbort: (() => boolean) | null = null
   ): Promise<void> {
     const abort = shouldAbort || (() => false);
-    const guilds = await GuildModel.find({ "youtubeChannels.0": { $exists: true } }).lean();
+    const guilds = await listActiveGuilds();
     if (!guilds.length || abort()) return;
     const feeds = await loadFeeds(guilds);
     const resolveMetadata = createMetadataCache();
