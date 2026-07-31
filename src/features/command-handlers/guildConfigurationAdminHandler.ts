@@ -16,7 +16,10 @@ import { setAdminAlertChannel } from "../guild-config/guildConfigRepository.js";
 import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import type { YoutubeErrorModelLike } from "../youtube/youtubeErrorsRepository.js";
 import type { DeadLetterModelLike } from "../notifications/deadLetterRepository.js";
+import { composeGuildSliceWriteModel } from "../guild-config/guildSliceWriteComposition.js";
+
 import type { OperationJournalModelLike } from "../../shared/operationJournalEngine.js";
+import type { GuildSliceWriteCompositionDeps } from "../guild-config/guildSliceWriteComposition.js";
 import { createOperationJournalRuntime, journalResourceVersion, OPERATION_PAYLOAD_SCHEMA_VERSION, RESET_CONFIG_KIND } from "../admin-records/operationJournalRuntime.js";
 
 import { handledCommandError } from "../command-security/commandOutcome.js";
@@ -50,6 +53,9 @@ interface GuildConfigurationAdminDeps {
   GuildYoutubeErrorModel: Pick<YoutubeErrorModelLike, "deleteMany">;
   GuildDeadLetterModel: Pick<DeadLetterModelLike, "deleteMany">;
   OperationJournalModel: OperationJournalModelLike;
+  GuildModerationModel?: GuildSliceWriteCompositionDeps["GuildModerationModel"];
+  GuildSecurityModel?: GuildSliceWriteCompositionDeps["GuildSecurityModel"];
+  GuildYoutubeStateModel?: GuildSliceWriteCompositionDeps["GuildYoutubeStateModel"];
   NotificationDeadLetterReplayModel: { deleteMany(filter: Record<string, unknown>): Promise<unknown> };
   safeDefer(interaction: DiscordInteraction, ephemeral?: boolean): Promise<void>;
   safeEdit(interaction: DiscordInteraction, payload: InteractionPayload): Promise<unknown>;
@@ -68,8 +74,17 @@ function createGuildConfigurationAdminHandler(deps: GuildConfigurationAdminDeps)
     checkChannelPermissions, DEFAULT_CURRENCY, logger
   } = deps;
 
+  const sliceWriteModel = composeGuildSliceWriteModel({
+    GuildModel,
+    GuildModerationModel: deps.GuildModerationModel,
+    GuildSecurityModel: deps.GuildSecurityModel,
+    GuildYoutubeStateModel: deps.GuildYoutubeStateModel,
+    OperationJournalModel,
+    logger
+  });
+
   const operationJournal = createOperationJournalRuntime({
-    OperationJournalModel, GuildModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel,
+    OperationJournalModel, GuildModel: sliceWriteModel, GuildAuditLogModel, GuildYoutubeErrorModel, GuildDeadLetterModel,
     NotificationDeadLetterReplayModel: deps.NotificationDeadLetterReplayModel, logger
   });
 

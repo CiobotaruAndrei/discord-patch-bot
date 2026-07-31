@@ -59,6 +59,9 @@ type SourceStatusMissing = Missing<HandlerDeps<typeof attachSourcesStatusHandler
 const sourceStatusComplete: [SourceStatusMissing] extends [never] ? true : SourceStatusMissing = true;
 
 export const CONFIGURATION_ADMIN_HANDLER_KEYS: HandlerKeys<"admin"> = [
+  "GuildModerationModel",
+  "GuildSecurityModel",
+  "GuildYoutubeStateModel",
   "DEFAULT_CURRENCY",
   "GuildAuditLogModel",
   "GuildDeadLetterModel",
@@ -130,6 +133,9 @@ type ModerationMissing = Missing<HandlerDeps<typeof attachModerationInteractionH
 const moderationComplete: [ModerationMissing] extends [never] ? true : ModerationMissing = true;
 
 export const BACKUP_HANDLER_KEYS: HandlerKeys<"admin"> = [
+  "GuildModerationModel",
+  "GuildSecurityModel",
+  "GuildYoutubeStateModel",
   "GuildAuditLogModel",
   "GuildConfigBackupModel",
   "GuildModel",

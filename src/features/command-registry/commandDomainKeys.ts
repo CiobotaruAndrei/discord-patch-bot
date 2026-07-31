@@ -41,6 +41,7 @@ export const GAME_INFO_KEYS: DomainKeys<"game-info"> = [
 
 export const ADMIN_KEYS: DomainKeys<"admin"> = [
   "ChannelLockRecoveryModel",
+  "GuildYoutubeStateModel",
   "DEFAULT_CURRENCY",
   "GuildAuditLogModel",
   "GuildConfigBackupModel",
