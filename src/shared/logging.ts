@@ -2,6 +2,8 @@ import type { AsyncLocalStorage } from "async_hooks";
 import type { LogLevel, LoggerFunction, ParseEnvNumber, ParseEnvNumberLimits } from "../types.js";
 import type { RequestContextStore } from "./requestContextTypes.js";
 
+export type { LogLevel, LoggerFunction } from "../types.js";
+
 type AsyncLocalStorageCtor = new <T>() => AsyncLocalStorage<T>;
 
 interface LoggingContext {

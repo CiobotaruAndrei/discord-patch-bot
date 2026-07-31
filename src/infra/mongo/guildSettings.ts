@@ -1,3 +1,5 @@
+import { sliceOf } from "../../shared/guildDomainSliceStore.js";
+
 import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { CacheEntry } from "../../features/command-cache/commandCacheTypes.js";
 import type { GuildSettings } from "../../features/guild-config/guildSettingsTypes.js";
@@ -7,17 +9,37 @@ interface GuildSettingsModelLike {
   findById(id: string): { lean(): Promise<(GuildSettings & Record<string, unknown>) | null> };
 }
 
+interface GuildSliceModelLike {
+  findById(id: string): { lean(): Promise<Record<string, unknown> | null> };
+  updateOne?(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown>,
+    options?: Record<string, unknown>
+  ): Promise<unknown>;
+}
+
+export interface GuildSliceSource {
+  domain: string;
+  fields: readonly string[];
+  model: GuildSliceModelLike;
+}
+
 interface GuildSettingsContext {
   env: Pick<RuntimeEnv, "GUILD_CACHE_TTL_MS" | "GUILD_CACHE_MAX_SIZE">;
   GuildModel: GuildSettingsModelLike;
   guildSettingsBus: GuildSettingsEventBus;
+  guildSlices?: readonly GuildSliceSource[];
+  onSliceCopyMissing?: (domain: string, guildId: string) => void;
+  onSliceRepairFailed?: (domain: string, guildId: string, error: unknown) => void;
   getGuildSettings?: typeof getGuildSettings;
   invalidateGuildCache?: typeof invalidateGuildCache;
   cleanGuildCache?: typeof cleanGuildCache;
   getGuildCacheSize?: typeof getGuildCacheSize;
 }
 
-let runtimeContext: Pick<GuildSettingsContext, "env" | "GuildModel">;
+let runtimeContext: Pick<GuildSettingsContext, "env" | "GuildModel" | "onSliceCopyMissing" | "onSliceRepairFailed"> & {
+  guildSlices: readonly GuildSliceSource[];
+};
 const guildSettingsCache = new Map<string, CacheEntry<GuildSettings | null>>();
 
 function maxCacheSize(): number {
@@ -39,6 +61,37 @@ function evictOldestUntilUnderCap(): void {
   }
 }
 
+async function repairSliceCopy(source: GuildSliceSource, guildId: string, slice: Record<string, unknown>): Promise<void> {
+  runtimeContext.onSliceCopyMissing?.(source.domain, guildId);
+  if (!source.model.updateOne) return;
+  try {
+    await source.model.updateOne({ _id: guildId }, { $set: slice }, { upsert: true });
+  } catch (error: unknown) {
+    runtimeContext.onSliceRepairFailed?.(source.domain, guildId, error);
+  }
+}
+
+async function loadWithSlices(guildId: string): Promise<(GuildSettings & Record<string, unknown>) | null> {
+  const sources = runtimeContext.guildSlices;
+  const [legacy, ...copies] = await Promise.all([
+    runtimeContext.GuildModel.findById(guildId).lean(),
+    ...sources.map(source => source.model.findById(guildId).lean())
+  ]);
+  let merged = legacy;
+  for (const [index, source] of sources.entries()) {
+    const copy = copies[index];
+    if (copy) {
+      const slice = sliceOf(source.fields, copy);
+      merged = merged ? { ...merged, ...slice } : { _id: guildId, ...slice };
+      continue;
+    }
+    if (!merged) continue;
+    const fromLegacy = sliceOf(source.fields, merged);
+    if (Object.keys(fromLegacy).length > 0) await repairSliceCopy(source, guildId, fromLegacy);
+  }
+  return merged;
+}
+
 async function getGuildSettings(guildId: string): Promise<GuildSettings | null> {
   const now = Date.now();
   const cached = guildSettingsCache.get(guildId);
@@ -46,7 +99,7 @@ async function getGuildSettings(guildId: string): Promise<GuildSettings | null> 
     touchEntry(guildId, cached);
     return cached.data;
   }
-  const fresh = await runtimeContext.GuildModel.findById(guildId).lean();
+  const fresh = await loadWithSlices(guildId);
   const entry = { data: fresh, expiresAt: now + runtimeContext.env.GUILD_CACHE_TTL_MS };
   guildSettingsCache.delete(guildId);
   guildSettingsCache.set(guildId, entry);
@@ -81,7 +134,10 @@ function getGuildCacheSize(): number {
 function buildGuildSettingsFrom(context: GuildSettingsContext) {
   runtimeContext = {
     env: context.env,
-    GuildModel: context.GuildModel
+    GuildModel: context.GuildModel,
+    guildSlices: context.guildSlices ?? [],
+    onSliceCopyMissing: context.onSliceCopyMissing,
+    onSliceRepairFailed: context.onSliceRepairFailed
   };
   bindGuildSettingsBus(context.guildSettingsBus);
 
