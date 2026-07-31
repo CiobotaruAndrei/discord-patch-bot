@@ -351,6 +351,17 @@ Harta responsabilitatilor pentru structura curenta a proiectului. Foloseste aces
 - Motivele accepta text fara linkuri sau atasament incarcat direct. Avertismentele publica dovada in canalul dedicat si persista numai metadatele necesare listarii, nu continutul sensibil; fiecare avertisment nou are un identificator intern, astfel incat un esec de livrare retrage exact scrierea curenta, nu un avertisment concurent.
 - Lock/unlock pastreaza starea tri-state `allow`/`deny`/`inherit`, are rollback intre Discord si Mongo si elimina canalele sterse din configuratie.
 
+### `src/features/admin-records/auditLogBatchDelivery.ts` (+ `auditLogView.ts`, `auditLogDateRange.ts`)
+
+- Livrarea in loturi a intervalelor mari de audit-log a iesit din handler (review nou, P2 #9). `deliverAuditBatches` e masina de stare completa: primul lot editeaza raspunsul initial, urmatoarele pleaca pe follow-up la interval configurabil, iar seria se opreste **explicit** in trei situatii — bugetul de loturi atins (mesaj care recomanda un interval mai mic), follow-up indisponibil, sau token expirat. Toate trei sunt raportate prin `onStopped`, deci nu exista oprire tacuta.
+- O eroare in lotul programat e prinsa in interiorul task-ului si raportata, nu ridicata dintr-un timer (unde ar fi devenit rejectie neprinsa). Anularea (`cancel`) opreste seria inainte de urmatorul lot si e idempotenta.
+- `auditLogView.ts` tine randarea (bot log, server log, incadrarea in bugetul de caractere al mesajului Discord), `auditLogDateRange.ts` parsarea intervalelor `zi`/`saptamana`/`luna` cu validare de data reala (`2026-02-30` e refuzat, nu rotunjit). Handler-ul a ramas adaptor: 282 -> 192 de linii. Acoperit de `auditLogBatchDelivery.test.ts` (10 teste) plus cele 13 teste functionale existente, nemodificate.
+
+### `src/features/game-info/gameInfoDataAssembly.ts`
+
+- Asamblarea datelor pentru `review-trend`, `player-count` si `top` a iesit din handler in trei functii peste porturi: fereastra de istoric (15 zile pentru review-uri, 24 de ore pentru player-count), alegerea intre snapshot proaspat si apel live, plafonul de candidati si concurenta pentru top.
+- Politicile de degradare sunt acum verificabile direct: un istoric indisponibil sau o scriere de snapshot esuata nu opresc comanda; un raspuns Steam nereusit **nu** devine punct de comparatie pentru tendinta (dar se inregistreaza in istoric); un joc din top care esueaza intra in lista marcat `success: false`, nu ca zero real; iar `notChecked` spune utilizatorului cate jocuri au ramas neverificate din cauza plafonului. Acoperit de `gameInfoDataAssembly.test.ts` (9 teste).
+
 ### `src/features/command-catalog/commandCatalog.ts`
 
 - Sursa unica pentru faptele per comanda: manifestul de acces (`COMMAND_ACCESS_MANIFEST`: tier public/admin, `discordAdminPermissions`, exceptii de subcomenzi publice/admin-runtime, owner-only, cai sensibile) + intrarile de help per cale (`COMMAND_CATALOG_HELP`: descriere, exemplu, note, aliases, flag `ephemeral` doar pentru caile publice ephemeral).
