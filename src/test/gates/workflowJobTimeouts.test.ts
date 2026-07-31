@@ -106,3 +106,23 @@ test("pasul de apt are propriul timeout si reia incercarea", () => {
   assert.match(body, /for attempt in/, "o retea sau un mirror cu sughit nu trebuie sa pice tot jobul din prima");
   assert.match(body, /unattended-upgrades/, "procesul care tine lock-ul dpkg e oprit inainte de instalare");
 });
+
+test("un PR primeste aceleasi verificari indiferent de branch-ul in care intra", () => {
+  const offenders: string[] = [];
+  const NEWLINE = String.fromCharCode(10);
+  for (const file of workflowFiles()) {
+    const lines = readWorkflow(file).split(NEWLINE);
+    const start = lines.findIndex(line => line === "  pull_request:");
+    if (start < 0) continue;
+    for (const line of lines.slice(start + 1)) {
+      if (!line.startsWith("    ")) break;
+      if (line.trim().startsWith("branches:")) offenders.push(file);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    "`branches:` sub `pull_request:` filtreaza dupa branch-ul TINTA, deci un PR stivuit peste alt PR pierde tacut verificarile " +
+      `(masurat: un PR cu baza pe alt branch a primit 3 check-uri in loc de 9). Workflow-urile astea inca filtreaza: ${offenders.join(", ")}`
+  );
+});
