@@ -63,6 +63,7 @@ export interface GuildConfigurationSettings {
   threatAlertChannelId?: string | null;
   threatProtectionEnabled?: boolean;
   botAddAlertChannelId?: string | null;
+  permissionRequestChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
   warningChannelId?: string | null;
   botAddPermissions?: Array<{

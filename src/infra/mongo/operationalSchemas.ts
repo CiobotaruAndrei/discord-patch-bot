@@ -1,5 +1,6 @@
 import type * as Mongoose from "mongoose";
 import type { MongoModelEnv } from "./mongoModelEnv.js";
+import { PERMISSION_REQUEST_STATUSES, PERMISSION_REQUEST_TYPES } from "../../features/command-security/permissionRequestTypes.js";
 
 export interface OperationalSchemasDeps {
   mongoose: typeof Mongoose;
@@ -132,6 +133,32 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   }, { minimize: false });
   playerCountWatchSchema.index({ guildId: 1, gameKey: 1 }, { unique: true });
 
+  const permissionRequestSchema = new mongoose.Schema({
+    _id: String,
+    guildId: { type: String, required: true },
+    type: { type: String, required: true, enum: [...PERMISSION_REQUEST_TYPES] },
+    requesterId: { type: String, required: true },
+    target: { type: String, default: "" },
+    action: { type: String, default: "" },
+    amount: { type: Number, default: null },
+    permissions: { type: [String], default: undefined },
+    botId: { type: String, default: null },
+    reason: { type: String, default: "", maxlength: 1000 },
+    status: { type: String, required: true, enum: [...PERMISSION_REQUEST_STATUSES], default: "pending" },
+    approvedTarget: { type: String, default: null },
+    approvedAction: { type: String, default: null },
+    approvedAmount: { type: Number, default: null },
+    approvedPermissions: { type: [String], default: undefined },
+    ownerId: { type: String, default: null },
+    requestedAt: { type: Date, required: true },
+    respondedAt: { type: Date, default: null },
+    usedAt: { type: Date, default: null },
+    expiresAt: { type: Date, default: null }
+  }, { minimize: false, _id: false });
+  permissionRequestSchema.index({ guildId: 1, status: 1, requestedAt: -1 });
+  permissionRequestSchema.index({ guildId: 1, type: 1, requesterId: 1, status: 1 });
+  permissionRequestSchema.index({ requestedAt: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
+
   const bugReportSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
     reportType: { type: String, required: true },
@@ -209,6 +236,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     channelLockRecoverySchema,
     playerCountRecordSchema,
     playerCountWatchSchema,
+    permissionRequestSchema,
     bugReportSchema,
     userComplaintSchema,
     feedbackReportSchema,
