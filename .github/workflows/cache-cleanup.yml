@@ -19,6 +19,7 @@ jobs:
     # Un PR dintr-un fork primeste token read-only, deci stergerea ar esua. Nu e o eroare de
     # configurare, doar o situatie in care jobul nu are ce face.
     if: github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - name: Sterge cache-urile PR-ului inchis

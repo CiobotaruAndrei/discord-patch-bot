@@ -15,6 +15,7 @@ permissions:
 jobs:
   checklist:
     name: Require PR checklist (docs, teste, no-comments, benchmark, conflict)
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

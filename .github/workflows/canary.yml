@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   canary:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     defaults:
       run:
