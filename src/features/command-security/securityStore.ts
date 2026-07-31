@@ -1,6 +1,6 @@
 "use strict";
 
-import { updateTouchesSlice, writeCanonicalThenCopy } from "../../shared/guildDomainSliceStore.js";
+import { splitUpdateBySlice, updateTouchesSlice, writeCanonicalThenCopy } from "../../shared/guildDomainSliceStore.js";
 import { SECURITY_FIELDS } from "../../shared/guildSecurityFields.js";
 
 import type { SliceCopyWriter, SliceUpdate } from "../../shared/guildDomainSliceStore.js";
@@ -11,7 +11,7 @@ export interface SecurityStateModel {
     filter: Record<string, unknown>,
     update: SliceUpdate,
     options?: Record<string, unknown>
-  ): Promise<unknown>;
+  ): Promise<GuildConfigWriteResult>;
 }
 
 export function createSecurityStore(
@@ -39,15 +39,26 @@ export function createSecurityStore(
     ): Promise<GuildConfigWriteResult> {
       const raw = filter._id;
       const guildId = typeof raw === "string" ? raw : null;
-      return writeCanonicalThenCopy(
-        guildId,
-        updateTouchesSlice(SECURITY_FIELDS, update),
-        () => guildModel.updateOne(filter, update, options),
-        () => journaledCopy && guildId
-          ? journaledCopy(guildId, update)
-          : securityModel.updateOne({ _id: guildId }, update, { ...options, upsert: true }),
-        reporters
-      );
+      if (!guildId || !updateTouchesSlice(SECURITY_FIELDS, update)) {
+        return guildModel.updateOne(filter, update, options);
+      }
+      const { own, rest } = splitUpdateBySlice(SECURITY_FIELDS, update);
+      if (!own) {
+        return writeCanonicalThenCopy(
+          guildId,
+          true,
+          () => guildModel.updateOne(filter, update, options),
+          () => journaledCopy
+            ? journaledCopy(guildId, update)
+            : securityModel.updateOne({ _id: guildId }, update, { ...options, upsert: true }),
+          reporters
+        );
+      }
+      const written = await securityModel.updateOne({ _id: guildId }, own, { ...options, upsert: true });
+      reporters.onCopied(guildId);
+      if (!rest) return written;
+      await guildModel.updateOne(filter, rest, options);
+      return written;
     }
   };
 }

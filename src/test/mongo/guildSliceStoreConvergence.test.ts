@@ -47,57 +47,64 @@ function harness(options: { legacyFails?: boolean; dedicatedFails?: boolean } = 
   return { store, state, copyFailures, backfills };
 }
 
-test("sursa canonica se scrie prima, copia dupa", async () => {
+test("un camp de felie ajunge doar in colectia dedicata", async () => {
   const { store, state } = harness();
   await store.updateOne({ _id: "g1" }, { $set: { warnBanLimit: 3 } });
   assert.deepEqual(
     state.order,
-    ["legacy.updateOne", "dedicated.updateOne"],
-    "ordinea conteaza: daca prima scriere e cea in copie si a doua pica, sursa citita ramane veche iar copia are " +
-      "deja valoarea noua - exact divergenta pe care migrarea nu si-o permite"
+    ["dedicated.updateOne"],
+    "colectia dedicata detine campul; o scriere in documentul vechi ar reinvia exact campurile pe care migrarea le scoate"
+  );
+  assert.equal(state.dedicated.warnBanLimit, 3);
+  assert.equal(state.legacy.warnBanLimit, undefined);
+});
+
+test("o scriere mixta se imparte: felia in colectia dedicata, restul in documentul vechi", async () => {
+  const { store, state } = harness();
+  await store.updateOne({ _id: "g1" }, { $set: { warnBanLimit: 3, timezone: "Europe/Bucharest" } });
+  assert.deepEqual(state.order, ["dedicated.updateOne", "legacy.updateOne"]);
+  assert.equal(state.dedicated.warnBanLimit, 3);
+  assert.equal(state.dedicated.timezone, undefined, "documentul dedicat primeste doar campurile domeniului lui");
+  assert.equal(state.legacy.timezone, "Europe/Bucharest");
+  assert.equal(state.legacy.warnBanLimit, undefined);
+});
+
+test("stergerea unui camp de felie ajunge in ambele colectii", async () => {
+  const { store, state } = harness();
+  state.legacy.warnBanLimit = 9;
+  await store.updateOne({ _id: "g1" }, { $unset: { warnBanLimit: "" } });
+  assert.deepEqual(
+    state.order,
+    ["dedicated.updateOne", "legacy.updateOne"],
+    "citirea completeaza golurile din documentul vechi, deci o stergere doar in copie ar fi anulata la prima citire"
   );
 });
 
-test("daca sursa canonica pica, copia nu se atinge deloc", async () => {
-  const { store, state, copyFailures } = harness({ legacyFails: true });
-  await assert.rejects(() => store.updateOne({ _id: "g1" }, { $set: { warnBanLimit: 3 } }), /legacy a picat/);
-  assert.deepEqual(state.order, ["legacy.updateOne"], "nu se scrie in copie o valoare pe care sursa nu a acceptat-o");
-  assert.deepEqual(state.dedicated, {});
-  assert.deepEqual(copyFailures, []);
-});
-
-test("daca doar copia pica, scrierea canonica ramane valida si esecul e raportat, nu inghitit", async () => {
+test("daca scrierea in colectia dedicata pica, documentul vechi nu se atinge", async () => {
   const { store, state, copyFailures } = harness({ dedicatedFails: true });
-  const result = await store.updateOne({ _id: "g1" }, { $set: { warnBanLimit: 5 } });
-
-  assert.deepEqual(result, { matchedCount: 1, modifiedCount: 1 }, "operatia a avut efect: sursa canonica a acceptat-o");
-  assert.equal(state.legacy.warnBanLimit, 5);
-  assert.deepEqual(state.dedicated, {}, "copia a ramas in urma");
-  assert.deepEqual(copyFailures, [{ guildId: "g1", message: "dedicated a picat" }]);
+  await assert.rejects(() => store.updateOne({ _id: "g1" }, { $set: { warnBanLimit: 3 } }), /dedicated a picat/);
+  assert.deepEqual(state.order, ["dedicated.updateOne"]);
+  assert.deepEqual(state.legacy, {}, "campul e detinut de colectia dedicata, deci un esec acolo opreste operatia");
+  assert.deepEqual(copyFailures, [], "nu mai e o copie de raportat, ci scrierea principala, care se propaga");
 });
 
-test("copia ramasa in urma se repara singura la urmatoarea citire", async () => {
-  const { store, state, backfills } = harness({ dedicatedFails: true });
-  await store.updateOne({ _id: "g1" }, { $set: { warnBanLimit: 5 } });
-  assert.deepEqual(state.dedicated, {});
-
+test("un camp ramas doar in documentul vechi se completeaza la prima citire", async () => {
   const repaired = harness();
-  Object.assign(repaired.state.legacy, state.legacy);
+  repaired.state.legacy.warnBanLimit = 5;
   await repaired.store.findOne({ _id: "g1" });
 
-  assert.equal(repaired.state.dedicated.warnBanLimit, 5, "citirea completeaza felia lipsa din sursa canonica");
+  assert.equal(repaired.state.dedicated.warnBanLimit, 5, "citirea completeaza felia lipsa din documentul vechi");
   assert.deepEqual(repaired.backfills, ["g1"]);
-  assert.deepEqual(backfills, [], "backfill-ul se raporteaza doar cand chiar se intampla");
 });
 
-test("findOneAndUpdate pastreaza aceeasi ordine si acelasi rezultat ca sursa canonica", async () => {
+test("findOneAndUpdate scrie felia in colectia dedicata si intoarce documentul ei", async () => {
   const { store, state } = harness();
   const result = await store.findOneAndUpdate({ _id: "g1" }, { $set: { warnBanLimit: 7 } });
-  assert.deepEqual(state.order, ["legacy.findOneAndUpdate", "dedicated.findOneAndUpdate"]);
-  assert.equal((result as Record<string, unknown>).warnBanLimit, 7, "apelantul primeste documentul sursei canonice");
+  assert.deepEqual(state.order, ["dedicated.findOneAndUpdate"]);
+  assert.equal((result as Record<string, unknown>).warnBanLimit, 7);
 });
 
-test("updateMany respecta aceeasi ordine", async () => {
+test("updateMany ramane scriere dubla: cheia lui nu e un singur guild", async () => {
   const { store, state } = harness();
   await store.updateMany({}, { $set: { warnBanLimit: 1 } });
   assert.deepEqual(state.order, ["legacy.updateMany", "dedicated.updateMany"]);

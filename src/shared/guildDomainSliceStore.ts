@@ -45,6 +45,39 @@ export function sliceOf(fields: readonly string[], document: SliceDoc): Record<s
 
 export type SliceCopyWriter = (guildId: string, update: SliceUpdate) => Promise<void>;
 
+export interface SplitUpdate {
+  own: Record<string, unknown> | null;
+  rest: Record<string, unknown> | null;
+}
+
+export function splitUpdateBySlice(fields: readonly string[], update: SliceUpdate): SplitUpdate {
+  if (Array.isArray(update)) return { own: null, rest: null };
+  const own: Record<string, unknown> = {};
+  const rest: Record<string, unknown> = {};
+  for (const [operator, operand] of Object.entries(update)) {
+    if (!operator.startsWith("$") || !operand || typeof operand !== "object" || Array.isArray(operand)) {
+      rest[operator] = operand;
+      continue;
+    }
+    const ownInner: Record<string, unknown> = {};
+    const restInner: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(operand as Record<string, unknown>)) {
+      if (!ownedRoot(fields, key)) {
+        restInner[key] = value;
+        continue;
+      }
+      ownInner[key] = value;
+      if (operator === "$unset") restInner[key] = value;
+    }
+    if (Object.keys(ownInner).length > 0) own[operator] = ownInner;
+    if (Object.keys(restInner).length > 0) rest[operator] = restInner;
+  }
+  return {
+    own: Object.keys(own).length > 0 ? own : null,
+    rest: Object.keys(rest).length > 0 ? rest : null
+  };
+}
+
 export interface SliceStoreReporters {
   onBackfill?: (guildId: string) => void;
   onCopied?: (guildId: string) => void;
@@ -109,13 +142,22 @@ export function createGuildDomainSliceStore(
 
     async findOneAndUpdate(filter: Record<string, unknown>, update: SliceUpdate, options?: Record<string, unknown>): Promise<SliceDoc> {
       const guildId = guildIdOf(filter);
-      const result = await resolve(legacyModel.findOneAndUpdate(filter, update, options));
-      if (guildId && updateTouchesSlice(fields, update)) {
+      if (!guildId || !updateTouchesSlice(fields, update)) {
+        return resolve(legacyModel.findOneAndUpdate(filter, update, options));
+      }
+      const { own, rest } = splitUpdateBySlice(fields, update);
+      if (!own) {
+        const result = await resolve(legacyModel.findOneAndUpdate(filter, update, options));
         await copyToDedicated(guildId, () => journaledCopy
           ? journaledCopy(guildId, update)
           : Promise.resolve(dedicatedModel.findOneAndUpdate({ _id: guildId }, update, { ...options, upsert: true })));
+        return result;
       }
-      return result;
+      const written = await resolve(dedicatedModel.findOneAndUpdate({ _id: guildId }, own, { ...options, upsert: true }));
+      onCopied?.(guildId);
+      if (!rest) return written;
+      await resolve(legacyModel.findOneAndUpdate(filter, rest, options));
+      return written;
     },
 
     async updateOne(
@@ -124,13 +166,18 @@ export function createGuildDomainSliceStore(
       options?: Record<string, unknown>
     ): Promise<WriteCounts | null | undefined> {
       const guildId = guildIdOf(filter);
-      const result = await legacyModel.updateOne(filter, update, options);
-      if (guildId && updateTouchesSlice(fields, update)) {
+      if (!guildId || !updateTouchesSlice(fields, update)) return legacyModel.updateOne(filter, update, options);
+      const { own, rest } = splitUpdateBySlice(fields, update);
+      if (!own) {
+        const result = await legacyModel.updateOne(filter, update, options);
         await copyToDedicated(guildId, () => journaledCopy
           ? journaledCopy(guildId, update)
           : dedicatedModel.updateOne({ _id: guildId }, update, { ...options, upsert: true }));
+        return result;
       }
-      return result;
+      const written = await dedicatedModel.updateOne({ _id: guildId }, own, { ...options, upsert: true });
+      onCopied?.(guildId);
+      return rest ? legacyModel.updateOne(filter, rest, options) : written;
     },
 
     async updateMany(filter: Record<string, unknown>, update: SliceUpdate): Promise<WriteCounts | null | undefined> {

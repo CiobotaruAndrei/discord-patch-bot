@@ -75,25 +75,33 @@ test("o restaurare care atinge doua domenii ajunge in ambele colectii", async ()
   assert.equal(moderation.length, 1);
 });
 
-test("documentul vechi se scrie primul, iar un esec al copiei nu il anuleaza", async () => {
-  const order: string[] = [];
-  const failures: Array<[string, string]> = [];
+test("campurile de felie nu mai ating documentul vechi, iar esecul lor se propaga", async () => {
+  const legacy: Write[] = [];
   const model = createGuildSliceWriteModel(
-    {
-      async updateOne() {
-        order.push("canonic");
-        return { matchedCount: 1, modifiedCount: 1 };
-      }
-    },
-    [{ domain: "security", fields: SECURITY_FIELDS, model: collector([], true) }],
-    { onCopyFailed: (domain, guildId) => failures.push([domain, guildId]) }
+    guildCollector(legacy),
+    [{ domain: "security", fields: SECURITY_FIELDS, model: collector([], true) }]
   );
 
-  const result = await model.updateOne({ _id: "g4" }, { $set: { threatProtectionEnabled: true } });
+  await assert.rejects(model.updateOne({ _id: "g4" }, { $set: { threatProtectionEnabled: true } }));
 
-  assert.deepEqual(order, ["canonic"]);
-  assert.equal(result.modifiedCount, 1);
-  assert.deepEqual(failures, [["security", "g4"]]);
+  assert.deepEqual(
+    legacy,
+    [],
+    "colectia dedicata detine campul, deci un esec acolo nu are voie sa lase documentul vechi cu o valoare pe care nimeni nu o mai citeste"
+  );
+});
+
+test("o scriere mixta imparte campurile intre colectia dedicata si documentul vechi", async () => {
+  const legacy: Write[] = [];
+  const security: Write[] = [];
+  const model = createGuildSliceWriteModel(guildCollector(legacy), [
+    { domain: "security", fields: SECURITY_FIELDS, model: collector(security) }
+  ]);
+
+  await model.updateOne({ _id: "g6" }, { $set: { threatProtectionEnabled: true, notificationChannelId: "canal" } });
+
+  assert.deepEqual(security[0].update, { $set: { threatProtectionEnabled: true } });
+  assert.deepEqual(legacy[0].update, { $set: { notificationChannelId: "canal" } });
 });
 
 test("o scriere fara _id de guild nu incearca sa oglindeasca nimic", async () => {
@@ -107,7 +115,7 @@ test("o scriere fara _id de guild nu incearca sa oglindeasca nimic", async () =>
   assert.deepEqual(youtube, []);
 });
 
-test("compunerea trece copia prin jurnal cand modelul de jurnal exista", async () => {
+test("o scriere de felie separabila merge direct in colectia dedicata, fara jurnal", async () => {
   const journal = fakeJournalModel();
   const youtube: Write[] = [];
   const model = composeGuildSliceWriteModel({
@@ -120,10 +128,31 @@ test("compunerea trece copia prin jurnal cand modelul de jurnal exista", async (
   await model.updateOne({ _id: "g5" }, { $set: { youtubeHasActivated: true } });
 
   assert.equal(youtube.length, 1);
+  assert.equal(
+    journal.docs.size,
+    0,
+    "dupa ce campul e detinut de colectia dedicata, scrierea nu mai e o copie de protejat, ci scrierea principala"
+  );
+});
+
+test("un pipeline de agregare nu poate fi impartit, deci ramane copie jurnalizata", async () => {
+  const journal = fakeJournalModel();
+  const youtube: Write[] = [];
+  const legacy: Write[] = [];
+  const model = composeGuildSliceWriteModel({
+    GuildModel: guildCollector(legacy),
+    GuildYoutubeStateModel: collector(youtube),
+    OperationJournalModel: journal,
+    logger: () => undefined
+  });
+
+  await model.updateOne({ _id: "g7" }, [{ $set: { youtubeChannels: [] } }]);
+
+  assert.equal(youtube.length, 1);
+  assert.equal(legacy.length, 1);
   const entries = [...journal.docs.values()];
   assert.equal(entries.length, 1);
   assert.equal(entries[0].kind, "guild-slice-copy");
-  assert.equal(entries[0].status, "done");
 });
 
 test("fara colectii dedicate compunerea intoarce exact modelul vechi", async () => {
