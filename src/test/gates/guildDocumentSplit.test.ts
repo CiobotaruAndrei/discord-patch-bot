@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { MODERATION_FIELDS } from "../../features/moderation/moderationStore.js";
 import { SECURITY_FIELDS } from "../../shared/guildSecurityFields.js";
 import { updateTouchesSlice, sliceOf } from "../../shared/guildDomainSliceStore.js";
-import { ADMIN_KEYS } from "../../features/command-registry/commandDomainKeys.js";
+import { deriveCommandDomainKeys } from "../../features/command-registry/commandDomainKeys.js";
 
 import { loadModule, calls, callsWithin, functionNames, importedModules, membersOf } from "./sourceStructureQueries.js";
 
@@ -33,7 +33,7 @@ test("modelele dedicate ajung pana la handler-e, nu se opresc in infrastructura"
   }
   for (const model of ["GuildModerationModel", "GuildSecurityModel"]) {
     assert.ok(
-      (ADMIN_KEYS as readonly string[]).includes(model),
+      deriveCommandDomainKeys().admin.includes(model),
       `${model} e in lista de chei a domeniului admin; fara el, selectorul de dependinte nu il paseaza handler-ului`
     );
   }
