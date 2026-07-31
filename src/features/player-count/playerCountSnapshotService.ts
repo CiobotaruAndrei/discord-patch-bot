@@ -1,91 +1,33 @@
 "use strict";
 
+export type { PlayerCountSnapshot, PlayerCountHistoryPoint, PlayerCountRecord } from "./playerCountTypes.js";
+
 import type { GameConfig } from "../../config/configTypes.js";
 import type { NotificationDiscordClient } from "../notifications/outboundChannel.js";
 import { errorMessage } from "../../shared/errors.js";
 import ________shared_utilities from "../../shared/utilities.js";
 import { evaluatePlayerCountChange, type PlayerCountChange } from "./playerCountChangeSignal.js";
+import { createPlayerCountNotifier } from "./playerCountNotifier.js";
+import { createPlayerCountQueryService } from "./playerCountQueryService.js";
+import { validCount, validDate } from "./playerCountTypes.js";
+import type {
+  GuildModelLike,
+  MilestoneGuildDoc,
+  PlayerCountHistoryModelLike,
+  PlayerCountHistoryPoint,
+  PlayerCountLogger,
+  PlayerCountRecord,
+  PlayerCountRecordModelLike,
+  PlayerCountSnapshot,
+  PlayerCountSnapshotModelLike,
+  SteamCurrentPlayersLike
+} from "./playerCountTypes.js";
 import { watchlistGameFilter } from "./playerCountWatchlist.js";
 import { updatedDocument } from "../../shared/persistenceOutcome.js";
 import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 import { createPlayerCountWatchRepository } from "./playerCountWatchRepository.js";
 import type { PlayerCountWatchModelLike, PlayerCountWatchRecord } from "./playerCountWatchRepository.js";
 const { mapWithConcurrency } = ________shared_utilities;
-
-export interface PlayerCountSnapshot {
-  appId: string;
-  gameKey: string;
-  playerCount: number;
-  fetchedAt: Date;
-}
-
-export interface PlayerCountHistoryPoint extends PlayerCountSnapshot {}
-
-export interface PlayerCountRecord {
-  appId: string;
-  gameKey: string;
-  playerCount: number;
-  reachedAt: Date;
-}
-
-interface PlayerCountSnapshotLeanDoc {
-  _id: string;
-  gameKey?: string;
-  playerCount?: number;
-  fetchedAt?: Date | string;
-}
-
-interface PlayerCountHistoryLeanDoc {
-  appId?: string;
-  gameKey?: string;
-  playerCount?: number;
-  fetchedAt?: Date | string;
-}
-
-interface PlayerCountRecordLeanDoc {
-  _id: string;
-  gameKey?: string;
-  playerCount?: number;
-  reachedAt?: Date | string;
-}
-
-interface PlayerCountSnapshotModelLike {
-  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
-  find(filter: Record<string, unknown>): { lean(): Promise<PlayerCountSnapshotLeanDoc[]> };
-}
-
-interface PlayerCountHistoryModelLike {
-  create(doc: Record<string, unknown>): Promise<unknown>;
-  find(filter: Record<string, unknown>): { sort(spec: Record<string, 1 | -1>): { lean(): Promise<PlayerCountHistoryLeanDoc[]> } };
-}
-
-interface PlayerCountRecordModelLike {
-  findById(id: string): { lean(): Promise<PlayerCountRecordLeanDoc | null> };
-  find(filter: Record<string, unknown>): { lean(): Promise<PlayerCountRecordLeanDoc[]> };
-  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
-}
-
-interface MilestoneGuildDoc {
-  _id: string;
-  playerCountChannelId?: string | null;
-  enabledGames?: string[];
-  playerCountSubscribed?: boolean;
-}
-
-interface GuildModelLike {
-  find(filter: Record<string, unknown>): { lean(): Promise<MilestoneGuildDoc[]> };
-  updateOne?(
-    filter: Record<string, unknown>,
-    update: Record<string, unknown>,
-    options?: Record<string, unknown>
-  ): Promise<{ modifiedCount?: number }>;
-}
-
-interface SteamCurrentPlayersLike {
-  appId: string;
-  playerCount: number;
-  success: boolean;
-}
 
 interface PlayerCountSnapshotDeps {
   PlayerCountSnapshotModel: PlayerCountSnapshotModelLike;
@@ -106,20 +48,8 @@ interface PlayerCountRefreshResult {
 const REFRESH_CONCURRENCY = 5;
 const CHANGE_COOLDOWN_MS = 6 * 60 * 60_000;
 
-function validDate(value: Date | string | undefined): Date | null {
-  if (value === undefined) return null;
-  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
-  return Number.isFinite(date.getTime()) ? date : null;
-}
 
-function validCount(value: unknown): number | null {
-  const count = Number(value);
-  return Number.isFinite(count) && count >= 0 ? Math.floor(count) : null;
-}
 
-function sendableChannel(value: unknown): value is { send(payload: unknown): Promise<unknown> } {
-  return Boolean(value) && typeof (value as { send?: unknown }).send === "function";
-}
 
 function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
   const {
@@ -170,66 +100,14 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
     return notify && claimed ? change : null;
   }
 
-  async function notifyPlayerCountChanges(
-    client: NotificationDiscordClient | null | undefined,
-    game: GameConfig,
-    playerCount: number,
-    fetchedAt: Date
-  ): Promise<void> {
-    const guilds = await GuildModel.find({
-      playerCountSubscribed: true,
-      playerCountChannelId: { $ne: null },
-      ...watchlistGameFilter(game.key)
-    }).lean();
-    const watched = await watchRepository.listForGuilds(guilds.map(guild => guild._id), game.key);
-    await mapWithConcurrency(guilds, REFRESH_CONCURRENCY, async guild => {
-      const change = await claimPlayerCountChange(guild, game, playerCount, fetchedAt, watched.get(guild._id));
-      if (!change || !client) return null;
-      let channel = null;
-      try {
-        channel = await client.channels.fetch(String(guild.playerCountChannelId || ""));
-      } catch {
-        return null;
-      }
-      if (!sendableChannel(channel)) return null;
-      const sign = change.absoluteChange > 0 ? "+" : "";
-      await channel.send({
-        embeds: [{
-          title: `Schimbare mare de player-count: ${game.name}`,
-          color: change.direction === "up" ? 0x2ecc71 : 0xe74c3c,
-          description: `Anterior: **${(playerCount - change.absoluteChange).toLocaleString("en-US")}**\nAcum: **${playerCount.toLocaleString("en-US")}**\nSchimbare: **${sign}${change.absoluteChange.toLocaleString("en-US")} (${sign}${change.percentChange.toFixed(1)}%)**`
-        }]
-      });
-      return null;
-    });
-  }
-
-  async function notifyMilestone(client: NotificationDiscordClient | null | undefined, game: GameConfig, previous: number, current: number, reachedAt: Date): Promise<void> {
-    if (!client) return;
-    const guilds = await GuildModel.find({
-      playerCountSubscribed: true,
-      playerCountChannelId: { $ne: null },
-      ...watchlistGameFilter(game.key)
-    }).lean();
-    await mapWithConcurrency(guilds, REFRESH_CONCURRENCY, async guild => {
-      const channelId = String(guild.playerCountChannelId || "");
-      if (!channelId) return null;
-      try {
-        const channel = await client.channels.fetch(channelId);
-        if (!sendableChannel(channel)) return null;
-        await channel.send({
-          embeds: [{
-            title: `Record nou de jucatori: ${game.name}`,
-            color: 0x2ecc71,
-            description: `Record vechi: **${previous.toLocaleString("en-US")}**\nRecord nou: **${current.toLocaleString("en-US")}**\nDiferenta: **+${(current - previous).toLocaleString("en-US")}**\nData: <t:${Math.floor(reachedAt.getTime() / 1000)}:F>`
-          }]
-        });
-      } catch (err: unknown) {
-        logger("WARN", "PLAYER_COUNT_MILESTONE", `Notificarea milestone a esuat pentru guild ${guild._id}`, errorMessage(err));
-      }
-      return null;
-    });
-  }
+  const notifier = createPlayerCountNotifier({
+    GuildModel,
+    logger,
+    concurrency: REFRESH_CONCURRENCY,
+    listWatched: (guildIds, gameKey) => watchRepository.listForGuilds(guildIds, gameKey),
+    claimChange: claimPlayerCountChange
+  });
+  const { notifyPlayerCountChanges, notifyMilestone } = notifier;
 
   async function persistPoint(game: GameConfig, players: SteamCurrentPlayersLike, client?: NotificationDiscordClient | null): Promise<boolean> {
     const appId = String(game.appId);
@@ -285,48 +163,12 @@ function createPlayerCountSnapshotService(deps: PlayerCountSnapshotDeps) {
     return { refreshed, failed, milestones };
   }
 
-  async function readPlayerCountSnapshots(appIds: readonly (string | number)[]): Promise<Map<string, PlayerCountSnapshot>> {
-    const ids = appIds.map(String).filter(Boolean);
-    const snapshots = new Map<string, PlayerCountSnapshot>();
-    if (!ids.length) return snapshots;
-    const docs = await PlayerCountSnapshotModel.find({ _id: { $in: ids } }).lean();
-    for (const doc of docs) {
-      const fetchedAt = validDate(doc.fetchedAt);
-      const playerCount = validCount(doc.playerCount);
-      if (!fetchedAt || playerCount === null) continue;
-      snapshots.set(String(doc._id), { appId: String(doc._id), gameKey: String(doc.gameKey || ""), playerCount, fetchedAt });
-    }
-    return snapshots;
-  }
-
-  async function readPlayerCountHistory(appIds: readonly (string | number)[], since: Date): Promise<PlayerCountHistoryPoint[]> {
-    const ids = appIds.map(String).filter(Boolean);
-    if (!ids.length || !Number.isFinite(since.getTime())) return [];
-    const docs = await PlayerCountHistoryModel.find({ appId: { $in: ids }, fetchedAt: { $gte: since } }).sort({ fetchedAt: 1 }).lean();
-    const points: PlayerCountHistoryPoint[] = [];
-    for (const doc of docs) {
-      const fetchedAt = validDate(doc.fetchedAt);
-      const playerCount = validCount(doc.playerCount);
-      const appId = String(doc.appId || "");
-      if (!appId || !fetchedAt || playerCount === null) continue;
-      points.push({ appId, gameKey: String(doc.gameKey || ""), playerCount, fetchedAt });
-    }
-    return points;
-  }
-
-  async function readPlayerCountRecords(appIds: readonly (string | number)[]): Promise<Map<string, PlayerCountRecord>> {
-    const ids = appIds.map(String).filter(Boolean);
-    const records = new Map<string, PlayerCountRecord>();
-    if (!ids.length) return records;
-    const docs = await PlayerCountRecordModel.find({ _id: { $in: ids } }).lean();
-    for (const doc of docs) {
-      const reachedAt = validDate(doc.reachedAt);
-      const playerCount = validCount(doc.playerCount);
-      if (!reachedAt || playerCount === null) continue;
-      records.set(String(doc._id), { appId: String(doc._id), gameKey: String(doc.gameKey || ""), playerCount, reachedAt });
-    }
-    return records;
-  }
+  const queries = createPlayerCountQueryService({
+    PlayerCountSnapshotModel,
+    PlayerCountHistoryModel,
+    PlayerCountRecordModel
+  });
+  const { readPlayerCountSnapshots, readPlayerCountHistory, readPlayerCountRecords } = queries;
 
   return { refreshPlayerCountSnapshots, readPlayerCountSnapshots, readPlayerCountHistory, readPlayerCountRecords };
 }
