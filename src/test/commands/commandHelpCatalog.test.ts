@@ -1,5 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import attachSlashCommands from "../../features/command-definitions/slashCommandDefinitions.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -20,8 +20,7 @@ function slashCommandPaths(): string[] {
     logger: () => undefined,
     env: {}
   };
-  const attachSlashCommands = require("../../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
-  attachSlashCommands(target);
+  attachSlashCommands(moduleContext<Parameters<typeof attachSlashCommands>[0]>(target));
   const defs = (target.buildSlashCommandDefinitions as () => SlashJsonCommand[])();
   const paths: string[] = [];
   for (const command of defs) {
@@ -51,8 +50,7 @@ function adminTopLevelCommands(): Set<string> {
     logger: () => undefined,
     env: {}
   };
-  const attachSlashCommands = require("../../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
-  attachSlashCommands(target);
+  attachSlashCommands(moduleContext<Parameters<typeof attachSlashCommands>[0]>(target));
   const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string; default_member_permissions?: string | number | null }>)();
   const admin = new Set<string>();
   for (const def of defs) {

@@ -1,5 +1,5 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
+import attachSlashCommands from "../../features/command-definitions/slashCommandDefinitions.js";
+import { moduleContext } from "../moduleContextStub.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -12,48 +12,52 @@ type HandlerModule = { buildCommandHandler: (ctx: unknown) => BuiltHandler };
 const deepStub: unknown = new Proxy({}, { get: () => deepStub });
 const stubContext = deepStub;
 
-function build(moduleName: string): BuiltHandler {
-  const mod = (require(`../../features/command-handlers/${moduleName}`) as { default: HandlerModule }).default;
+async function build(moduleName: string): Promise<BuiltHandler> {
+  const mod = ((await import(`../../features/command-handlers/${moduleName}.js`)) as { default: HandlerModule }).default;
   return mod.buildCommandHandler(stubContext);
 }
 
-const handlers: Record<string, BuiltHandler> = {
-  autocomplete: build("autocompleteInteractionHandler"),
-  dlc: build("dlcInteractionHandler"),
-  sources: build("sourcesStatusHandler"),
-  config: build("configInteractionHandler"),
-  guildConfigAdmin: build("guildConfigurationAdminHandler"),
-  adminCommandAccess: build("adminCommandAccessHandler"),
-  priceAlert: build("priceAlertInteractionHandler"),
-  backup: build("backupInteractionHandler"),
-  auditLog: build("auditLogInteractionHandler"),
-  suggestCommand: build("suggestCommandInteractionHandler"),
-  watchlistGame: build("watchlistGameSuggestionHandler"),
-  futureRelease: build("futureReleaseInteractionHandler"),
-  dealScore: build("dealScoreInteractionHandler"),
-  gameOverview: build("gameOverviewInteractionHandler"),
-  playerAnalytics: build("playerCountAnalyticsHandler"),
-  coverageAlias: build("watchlistCoverageAndAliasHandler"),
-  templatePreview: build("templateAndNotificationPreviewHandler"),
-  gameInfo: build("gameInfoInteractionHandler"),
-  maintenance: build("maintenanceInteractionHandler"),
-  priceCheck: build("priceCheckInteractionHandler"),
-  youtube: build("youtubeInteractionHandler"),
-  snooze: build("snoozeInteractionHandler"),
-  health: build("healthInteractionHandler"),
-  report: build("reportInteractionHandler"),
-  status: build("statusInteractionHandler"),
-  latest: build("latestInteractionHandler"),
-  set: build("setInteractionHandler"),
-  setRole: build("rolePingHandlers"),
-  setGames: build("gameFilterHandlers"),
-  subscription: build("subscriptionNotificationHandlers"),
-  security: build("securityInteractionHandler"),
-  moderation: build("moderationInteractionHandler"),
-  "bot-add": build("botAddInteractionHandler"),
-  help: build("helpInteractionHandler"),
-  simple: build("simpleCommandsHandler")
-};
+const handlers: Record<string, BuiltHandler> = Object.fromEntries(
+  await Promise.all(
+    ([
+      ["autocomplete", "autocompleteInteractionHandler"],
+      ["dlc", "dlcInteractionHandler"],
+      ["sources", "sourcesStatusHandler"],
+      ["config", "configInteractionHandler"],
+      ["guildConfigAdmin", "guildConfigurationAdminHandler"],
+      ["adminCommandAccess", "adminCommandAccessHandler"],
+      ["priceAlert", "priceAlertInteractionHandler"],
+      ["backup", "backupInteractionHandler"],
+      ["auditLog", "auditLogInteractionHandler"],
+      ["suggestCommand", "suggestCommandInteractionHandler"],
+      ["watchlistGame", "watchlistGameSuggestionHandler"],
+      ["futureRelease", "futureReleaseInteractionHandler"],
+      ["dealScore", "dealScoreInteractionHandler"],
+      ["gameOverview", "gameOverviewInteractionHandler"],
+      ["playerAnalytics", "playerCountAnalyticsHandler"],
+      ["coverageAlias", "watchlistCoverageAndAliasHandler"],
+      ["templatePreview", "templateAndNotificationPreviewHandler"],
+      ["gameInfo", "gameInfoInteractionHandler"],
+      ["maintenance", "maintenanceInteractionHandler"],
+      ["priceCheck", "priceCheckInteractionHandler"],
+      ["youtube", "youtubeInteractionHandler"],
+      ["snooze", "snoozeInteractionHandler"],
+      ["health", "healthInteractionHandler"],
+      ["report", "reportInteractionHandler"],
+      ["status", "statusInteractionHandler"],
+      ["latest", "latestInteractionHandler"],
+      ["set", "setInteractionHandler"],
+      ["setRole", "rolePingHandlers"],
+      ["setGames", "gameFilterHandlers"],
+      ["subscription", "subscriptionNotificationHandlers"],
+      ["security", "securityInteractionHandler"],
+      ["moderation", "moderationInteractionHandler"],
+      ["bot-add", "botAddInteractionHandler"],
+      ["help", "helpInteractionHandler"],
+      ["simple", "simpleCommandsHandler"],
+    ] as ReadonlyArray<readonly [string, string]>).map(async ([key, module]) => [key, await build(module)] as const)
+  )
+);
 
 function chatInput(commandName: string, group: string | null = null, subcommand = "x"): unknown {
   return {
@@ -92,8 +96,7 @@ function definedTopLevelCommands(): string[] {
     logger: () => undefined,
     env: {}
   };
-  const attachSlashCommands = require("../../features/command-definitions/slashCommandDefinitions").default as (t: Record<string, unknown>) => void;
-  attachSlashCommands(target);
+  attachSlashCommands(moduleContext<Parameters<typeof attachSlashCommands>[0]>(target));
   const defs = (target.buildSlashCommandDefinitions as () => Array<{ name: string }>)();
   return defs.map(def => def.name);
 }

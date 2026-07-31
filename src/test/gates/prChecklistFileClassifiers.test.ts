@@ -1,6 +1,4 @@
-import { createRequire as __createRequire } from "node:module";
-const require = __createRequire(import.meta.url);
-import { fileURLToPath as __fileURLToPath } from "node:url";
+import { fileURLToPath as __fileURLToPath, pathToFileURL } from "node:url";
 import { dirname as __pathDirname } from "node:path";
 const __filename = __fileURLToPath(import.meta.url);
 const __dirname = __pathDirname(__filename);
@@ -17,7 +15,7 @@ interface Classifiers {
 }
 
 const classifiersPath = path.resolve(__dirname, "../../../../.github/scripts/pr-checklist-file-classifiers.js");
-const { isCode, isDoc, isTest, isInfra } = require(classifiersPath) as Classifiers;
+const { isCode, isDoc, isTest, isInfra } = ((await import(pathToFileURL(classifiersPath).href)) as { default: Classifiers }).default;
 
 test("isInfra prinde config-ul real de sub src/ (R13 #3), nu doar pe cel de la root", () => {
   assert.equal(isInfra("src/config.json"), true, "src/config.json este config-ul real al botului");
