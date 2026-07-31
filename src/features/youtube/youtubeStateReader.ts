@@ -42,10 +42,6 @@ function copyField<K extends YoutubeField>(target: YoutubeSlice, source: Youtube
   if (value !== undefined) target[field] = value;
 }
 
-function clearField<K extends YoutubeField>(target: YoutubeSlice, field: K): void {
-  delete target[field];
-}
-
 function youtubeSliceOf(document: YoutubeSlice): YoutubeSlice {
   const slice: YoutubeSlice = {};
   for (const field of YOUTUBE_FIELDS) copyField(slice, document, field);
@@ -53,9 +49,7 @@ function youtubeSliceOf(document: YoutubeSlice): YoutubeSlice {
 }
 
 function withYoutubeSlice(guild: GuildSettings, slice: YoutubeSlice): GuildSettings {
-  const merged: GuildSettings = { ...guild };
-  for (const field of YOUTUBE_FIELDS) clearField(merged, field);
-  return { ...merged, ...slice };
+  return { ...guild, ...slice };
 }
 
 function idOf(value: unknown): string | null {

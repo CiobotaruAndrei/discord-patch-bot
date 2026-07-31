@@ -82,7 +82,7 @@ test("campurile de guild din afara feliei raman din documentul vechi", async () 
   assert.equal(guilds[0].notificationChannelId, "canal-general");
 });
 
-test("un camp sters din copia dedicata nu se intoarce din documentul vechi", async () => {
+test("un camp absent din copia dedicata e completat din documentul vechi", async () => {
   const reader = createYoutubeStateReader({
     guildModel: guildModelOf([{
       _id: "g1",
@@ -94,7 +94,7 @@ test("un camp sters din copia dedicata nu se intoarce din documentul vechi", asy
 
   const guilds = await reader.listActiveGuilds();
 
-  assert.equal(guilds[0].youtubeMessageTemplate, undefined);
+  assert.equal(guilds[0].youtubeMessageTemplate, "sablon vechi");
 });
 
 test("copia dedicata lipsa e raportata si refacuta din documentul vechi", async () => {
