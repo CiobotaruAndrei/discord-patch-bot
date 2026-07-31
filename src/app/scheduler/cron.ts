@@ -1,6 +1,6 @@
 import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
 import type { BotConfig, GameConfig } from "../../config/configTypes.js";
-import type { BotMetrics } from "../health/metricsTypes.js";
+import type { CronMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import type { CronController } from "./schedulerTypes.js";
 import { createCronHealthWindow } from "./cronHealthWindow.js";
 import { computeCronDelay, resolveCronScheduleConfig } from "./cronScheduleConfig.js";
@@ -77,7 +77,7 @@ interface CreateCronControllerDeps {
   client: DiscordClientLike;
   games: GameConfig[];
   config: BotConfig;
-  metrics: BotMetrics;
+  metrics: CronMetricRecorder;
   lifecycle: LifecycleState;
   errorMessage: ErrorFormatter;
   errorDetail: ErrorFormatter;
@@ -136,7 +136,7 @@ function createCronController({
       return;
     }
     if (health.shouldSkipForGlobalHealth()) {
-      metrics.cronSkippedDueToHealth = (metrics.cronSkippedDueToHealth || 0) + 1;
+      metrics.skippedByHealth();
       scheduleNextCron();
       return;
     }
@@ -146,7 +146,7 @@ function createCronController({
     try {
       lockToken = await acquireDbLock("cron_main", lockTtlMs);
     } catch (err) {
-      metrics.cronErrors++;
+      metrics.errored();
       health.recordHealth(false, Math.round(performance.now() - lockAttemptStart));
       logger("ERROR", "CRON", "Nu am putut obtine lock-ul cron", errorDetail(err));
       adminAlert("cron:lock", "Botul nu a putut obtine lock-ul cron", errorMessage(err)).catch(() => null);
@@ -155,7 +155,7 @@ function createCronController({
     }
 
     if (!lockToken) {
-      metrics.cronSkippedDueToLock++;
+      metrics.skippedByLock();
       logger("INFO", "CRON", "Lock cron detinut de alta instanta, sar peste ciclu");
       scheduleNextCron();
       return;
@@ -163,43 +163,43 @@ function createCronController({
     currentCronAbortController = new AbortController();
     heartbeat.start(lockToken);
 
-    metrics.cronRuns++;
+    metrics.ran();
     const cycleStart = performance.now();
     let success = false;
-    const cronReqId = `cron-${metrics.cronRuns}-${crypto.randomBytes(3).toString("hex")}`;
+    const cronReqId = `cron-${metrics.currentCycle()}-${crypto.randomBytes(3).toString("hex")}`;
     await requestContext.run({ requestId: cronReqId, abortSignal: currentCronAbortController.signal }, async () => {
       try {
         const shedDiscounts = shedDiscountsNextCycle;
         shedDiscountsNextCycle = false;
         if (shedDiscounts) {
           logger("WARN", "CRON",
-            `Ciclul anterior a depasit bugetul de ${cronCycleBudgetMs}ms; sar peste reduceri in ciclul #${metrics.cronRuns} pentru recuperare`);
+            `Ciclul anterior a depasit bugetul de ${cronCycleBudgetMs}ms; sar peste reduceri in ciclul #${metrics.currentCycle()} pentru recuperare`);
         }
-        logger("INFO", "CRON", `Pornire ciclu cron #${metrics.cronRuns}`);
+        logger("INFO", "CRON", `Pornire ciclu cron #${metrics.currentCycle()}`);
         const jobs = buildCronCycleJobs(commands, client, games, shedDiscounts, shouldAbortCron);
         const failures = await runCronJobs(jobs);
 
         if (failures.length) {
-          metrics.cronErrors++;
+          metrics.errored();
           for (const failure of failures) {
-            logger("ERROR", "CRON", `Eroare in ciclul cron #${metrics.cronRuns} (${failure.label})`, errorDetail(failure.reason));
+            logger("ERROR", "CRON", `Eroare in ciclul cron #${metrics.currentCycle()} (${failure.label})`, errorDetail(failure.reason));
           }
 
           const combinedMessage = failures.map(f => `${f.label}: ${errorMessage(f.reason)}`).join(" | ");
-          adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, combinedMessage).catch(() => null);
+          adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.currentCycle()}`, combinedMessage).catch(() => null);
         } else if (currentCronAbortController?.signal.aborted) {
-          metrics.cronAborted++;
+          metrics.aborted();
           logger("WARN", "CRON", "Ciclu abandonat (shutdown sau abort)");
         } else {
           success = true;
           const ms = Math.round(performance.now() - cycleStart);
-          logger("INFO", "CRON", `Ciclu cron #${metrics.cronRuns} finalizat in ${ms}ms`);
+          logger("INFO", "CRON", `Ciclu cron #${metrics.currentCycle()} finalizat in ${ms}ms`);
         }
       } catch (err) {
 
-        metrics.cronErrors++;
-        logger("ERROR", "CRON", `Eroare in ciclul cron #${metrics.cronRuns}`, errorDetail(err));
-        adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.cronRuns}`, errorMessage(err)).catch(() => null);
+        metrics.errored();
+        logger("ERROR", "CRON", `Eroare in ciclul cron #${metrics.currentCycle()}`, errorDetail(err));
+        adminAlert("cron:fatal", `Eroare cron ciclu #${metrics.currentCycle()}`, errorMessage(err)).catch(() => null);
       } finally {
         const durationMs = Math.round(performance.now() - cycleStart);
         health.recordHealth(success, durationMs);

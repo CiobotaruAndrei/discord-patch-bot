@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 import assert from "node:assert/strict";
 import { registerDiscordEvents } from "../../app/lifecycle/events.js";
 import { resolveBotRole, roleRunsSchedulers, roleRunsInteractions } from "../../shared/botRole.js";
@@ -23,7 +24,7 @@ function makeRoleHarness(role: BotRole | undefined) {
   registerDiscordEvents({
     client,
     logger: () => undefined,
-    metrics: createMetrics(),
+    metrics: createMetricRecorders(createMetrics()),
     commands: {
       registerSlashCommands: async () => { calls.registerSlashCommands++; },
       handleInteraction: () => undefined,

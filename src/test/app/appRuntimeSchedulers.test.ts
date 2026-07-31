@@ -1,4 +1,6 @@
 import { createRequire as __createRequire } from "node:module";
+import { createMetrics } from "../../app/health/metrics.js";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
 import { stubRuntimePorts } from "./runtimePortStubs.js";
@@ -27,7 +29,7 @@ function buildDeps(getOutboxPaused: unknown, outboxEnabled = false) {
       adminAlert: async () => { }, requestContext: {}, getOutboxPaused, cleanGuildCache() { }
     }
   };
-  const services = { client: {}, metrics: {}, lifecycle: { isShuttingDown: false }, config: {}, games: [], rateLimiter: { check: () => true, prune() { }, size: 0, retryAfterSeconds: 1 } };
+  const services = { client: {}, metrics: createMetrics(), recorders: createMetricRecorders(createMetrics()), lifecycle: { isShuttingDown: false }, config: {}, games: [], rateLimiter: { check: () => true, prune() { }, size: 0, retryAfterSeconds: 1 } };
   return { deps, services, getCaptured: () => capturedIsPaused };
 }
 

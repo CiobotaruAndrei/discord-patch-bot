@@ -1,4 +1,6 @@
 import test from "node:test";
+import { createMetrics } from "../../app/health/metrics.js";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 import assert from "node:assert/strict";
 import { createCronController, computeCronDelay } from "../../app/scheduler/cron.js";
 import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
@@ -26,25 +28,7 @@ test("cron cycle budget: un ciclu peste buget face urmatorul ciclu sa sara peste
     let clock = 0;
     let updatesCalls = 0;
     let discountsCalls = 0;
-    const metrics = {
-      fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0,
-      cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0, cronSkippedDueToHealth: 0,
-      cronAborted: 0, httpRateLimitDrops: 0, httpHandlerErrors: 0,
-      outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
-      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxFutureScheduledJobs: 0, outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
-      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0,
-      outboxRecoveryMarkerMissing: 0,
-      outboxMarkSentFailures: 0,
-      outboxDeleteFailures: 0,
-      outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
-      outboxRecoveryVerifyEnabledGuilds: 0,
-      outboxLastDrainAt: 0,
-      redisConnectSuccess: 0, redisConnectFailure: 0, redisCacheHit: 0, redisCacheMiss: 0, redisErrors: 0, guildSettingsListenerFailures: 0,
-      commandRuns: {},
-      commandErrors: {},
-      commandDurationMsTotal: {},
-      startedAt: 0
-    };
+    const metrics = createMetrics();;
 
     const controller = createCronController({
       mongoose: { connection: { readyState: 1 } },
@@ -67,7 +51,7 @@ test("cron cycle budget: un ciclu peste buget face urmatorul ciclu sa sara peste
       client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
-      metrics,
+      metrics: createMetricRecorders(metrics).cron,
       lifecycle: { isShuttingDown: false },
       errorMessage: (err: unknown) => String(err),
       errorDetail: (err: unknown) => String(err),
@@ -123,41 +107,7 @@ test("cron stop clears the scheduled timer handle", () => {
       client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
-      metrics: {
-        fetchSuccess: 0,
-        fetchFail: 0,
-        httpRetries: 0,
-        rateLimitHits: 0,
-        cronRuns: 0,
-        cronErrors: 0,
-        cronSkippedDueToLock: 0,
-        cronSkippedDueToHealth: 0,
-        cronAborted: 0,
-        httpRateLimitDrops: 0, httpHandlerErrors: 0,
-        outboxSent: 0,
-        outboxRetried: 0,
-        outboxDeadLettered: 0, outboxExpired: 0,
-        outboxDrains: 0,
-        outboxQueueDepth: 0,
-        outboxDeliveryMsTotal: 0,
-        outboxOldestJobAgeSeconds: 0,
-        outboxFutureScheduledJobs: 0,
-        outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
-        outboxRecoveryDuplicates: 0,
-        outboxRecoveryFetches: 0,
-        outboxRecoveryFailures: 0,
-        outboxRecoveryMarkerMissing: 0,
-        outboxMarkSentFailures: 0,
-        outboxDeleteFailures: 0,
-        outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
-        outboxRecoveryVerifyEnabledGuilds: 0,
-        outboxLastDrainAt: 0,
-      redisConnectSuccess: 0, redisConnectFailure: 0, redisCacheHit: 0, redisCacheMiss: 0, redisErrors: 0, guildSettingsListenerFailures: 0,
-      commandRuns: {},
-      commandErrors: {},
-      commandDurationMsTotal: {},
-        startedAt: 0
-      },
+      metrics: createMetricRecorders(createMetrics()).cron,
       lifecycle: { isShuttingDown: false },
       errorMessage: err => String(err),
       errorDetail: err => String(err),
@@ -190,25 +140,7 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
     let discountsFinishedAt: number | null = null;
     const adminAlertCalls: Array<{ kind: string; title: string; body: string }> = [];
     const loggedErrors: Array<{ message: string; meta: unknown }> = [];
-    const metrics = {
-      fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0,
-      cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0, cronSkippedDueToHealth: 0,
-      cronAborted: 0, httpRateLimitDrops: 0, httpHandlerErrors: 0,
-      outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
-      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxFutureScheduledJobs: 0, outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
-      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0,
-      outboxRecoveryMarkerMissing: 0,
-      outboxMarkSentFailures: 0,
-      outboxDeleteFailures: 0,
-      outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
-      outboxRecoveryVerifyEnabledGuilds: 0,
-      outboxLastDrainAt: 0,
-      redisConnectSuccess: 0, redisConnectFailure: 0, redisCacheHit: 0, redisCacheMiss: 0, redisErrors: 0, guildSettingsListenerFailures: 0,
-      commandRuns: {},
-      commandErrors: {},
-      commandDurationMsTotal: {},
-      startedAt: 0
-    };
+    const metrics = createMetrics();;
 
     const controller = createCronController({
       mongoose: { connection: { readyState: 1 } },
@@ -238,7 +170,7 @@ test("cron cycle waits for both jobs when one rejects (Promise.allSettled)", asy
       client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
-      metrics,
+      metrics: createMetricRecorders(metrics).cron,
       lifecycle: { isShuttingDown: false },
       errorMessage: (err: unknown) => (err as Error)?.message ?? String(err),
       errorDetail: (err: unknown) => (err as Error)?.message ?? String(err),
@@ -276,25 +208,7 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
 
   try {
     let renewCallCount = 0;
-    const metrics = {
-      fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0,
-      cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0, cronSkippedDueToHealth: 0,
-      cronAborted: 0, httpRateLimitDrops: 0, httpHandlerErrors: 0,
-      outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
-      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxFutureScheduledJobs: 0, outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
-      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0,
-      outboxRecoveryMarkerMissing: 0,
-      outboxMarkSentFailures: 0,
-      outboxDeleteFailures: 0,
-      outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
-      outboxRecoveryVerifyEnabledGuilds: 0,
-      outboxLastDrainAt: 0,
-      redisConnectSuccess: 0, redisConnectFailure: 0, redisCacheHit: 0, redisCacheMiss: 0, redisErrors: 0, guildSettingsListenerFailures: 0,
-      commandRuns: {},
-      commandErrors: {},
-      commandDurationMsTotal: {},
-      startedAt: 0
-    };
+    const metrics = createMetrics();;
 
     const controller = createCronController({
       mongoose: { connection: { readyState: 1 } },
@@ -327,7 +241,7 @@ test("cron heartbeat tolerates one transient renew throw but aborts on the secon
       client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
-      metrics,
+      metrics: createMetricRecorders(metrics).cron,
       lifecycle: { isShuttingDown: false },
       errorMessage: (err: unknown) => (err as Error)?.message ?? String(err),
       errorDetail: (err: unknown) => (err as Error)?.message ?? String(err),
@@ -361,25 +275,7 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
 
   try {
     let renewCallCount = 0;
-    const metrics = {
-      fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0,
-      cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0, cronSkippedDueToHealth: 0,
-      cronAborted: 0, httpRateLimitDrops: 0, httpHandlerErrors: 0,
-      outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
-      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxFutureScheduledJobs: 0, outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
-      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0,
-      outboxRecoveryMarkerMissing: 0,
-      outboxMarkSentFailures: 0,
-      outboxDeleteFailures: 0,
-      outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
-      outboxRecoveryVerifyEnabledGuilds: 0,
-      outboxLastDrainAt: 0,
-      redisConnectSuccess: 0, redisConnectFailure: 0, redisCacheHit: 0, redisCacheMiss: 0, redisErrors: 0, guildSettingsListenerFailures: 0,
-      commandRuns: {},
-      commandErrors: {},
-      commandDurationMsTotal: {},
-      startedAt: 0
-    };
+    const metrics = createMetrics();;
 
     const controller = createCronController({
       mongoose: { connection: { readyState: 1 } },
@@ -410,7 +306,7 @@ test("cron heartbeat aborts immediately when renew returns false (lock genuinely
       client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
-      metrics,
+      metrics: createMetricRecorders(metrics).cron,
       lifecycle: { isShuttingDown: false },
       errorMessage: (err: unknown) => (err as Error)?.message ?? String(err),
       errorDetail: (err: unknown) => (err as Error)?.message ?? String(err),
@@ -441,25 +337,7 @@ test("heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-
 
   try {
     let renewTotal = 0;
-    const metrics = {
-      fetchSuccess: 0, fetchFail: 0, httpRetries: 0, rateLimitHits: 0,
-      cronRuns: 0, cronErrors: 0, cronSkippedDueToLock: 0, cronSkippedDueToHealth: 0,
-      cronAborted: 0, httpRateLimitDrops: 0, httpHandlerErrors: 0,
-      outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
-      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxFutureScheduledJobs: 0, outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
-      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0,
-      outboxRecoveryMarkerMissing: 0,
-      outboxMarkSentFailures: 0,
-      outboxDeleteFailures: 0,
-      outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0,
-      outboxRecoveryVerifyEnabledGuilds: 0,
-      outboxLastDrainAt: 0,
-      redisConnectSuccess: 0, redisConnectFailure: 0, redisCacheHit: 0, redisCacheMiss: 0, redisErrors: 0, guildSettingsListenerFailures: 0,
-      commandRuns: {},
-      commandErrors: {},
-      commandDurationMsTotal: {},
-      startedAt: 0
-    };
+    const metrics = createMetrics();;
 
     const controller = createCronController({
       mongoose: { connection: { readyState: 1 } },
@@ -486,7 +364,7 @@ test("heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-
       client: { isReady: () => true, channels: { fetch: async () => null } },
       games: [],
       config: { games: [], checkIntervalMinutes: 30 },
-      metrics,
+      metrics: createMetricRecorders(metrics).cron,
       lifecycle: { isShuttingDown: false },
       errorMessage: (err: unknown) => (err as Error)?.message ?? String(err),
       errorDetail: (err: unknown) => (err as Error)?.message ?? String(err),

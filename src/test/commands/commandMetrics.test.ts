@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 import assert from "node:assert/strict";
 import { createMetrics } from "../../app/health/metrics.js";
 import { registerDiscordEvents } from "../../app/lifecycle/events.js";
@@ -23,7 +24,7 @@ function makeHarness(handleInteraction: (interaction: unknown) => Promise<unknow
   registerDiscordEvents({
     client,
     logger: () => undefined,
-    metrics,
+    metrics: createMetricRecorders(metrics),
     commands: {
       registerSlashCommands: async () => undefined,
       handleInteraction: (interaction) => handleInteraction(interaction),

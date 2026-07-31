@@ -1,5 +1,5 @@
 import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
-import type { BotMetrics } from "./metricsTypes.js";
+import type { HttpServerMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import type { RateLimitBucket, RateLimiter, RateLimitRequest } from "./rateLimitTypes.js";
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {
@@ -7,7 +7,7 @@ function firstHeaderValue(value: string | string[] | undefined): string | null {
   return value || null;
 }
 
-function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
+function createRateLimiter(env: RuntimeEnv, metrics: HttpServerMetricRecorder): RateLimiter {
   const cap = env.HTTP_RATE_LIMIT_REQ;
   const windowMs = env.HTTP_RATE_LIMIT_WINDOW_MS;
   const refillPerMs = cap / windowMs;
@@ -70,7 +70,7 @@ function createRateLimiter(env: RuntimeEnv, metrics: BotMetrics): RateLimiter {
     }
     if (buckets.size > mapMax) prune();
     if (entry.tokens < 1) {
-      metrics.httpRateLimitDrops++;
+      metrics.rateLimitDropped();
       return false;
     }
     entry.tokens -= 1;

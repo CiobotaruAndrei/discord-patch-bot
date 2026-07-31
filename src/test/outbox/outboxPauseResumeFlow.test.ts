@@ -1,4 +1,6 @@
 import { createRequire as __createRequire } from "node:module";
+import { createMetrics } from "../../app/health/metrics.js";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
 import { stubRuntimePorts } from "../app/runtimePortStubs.js";
@@ -34,12 +36,7 @@ function realState() {
 }
 
 function zeroMetrics() {
-  return {
-    outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
-    outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxFutureScheduledJobs: 0, outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
-    outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0,
-    outboxMarkSentFailures: 0, outboxDeleteFailures: 0, outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0
-  };
+  return createMetrics();
 }
 
 test("P2.3: flux pause/resume end-to-end — starea persistata controleaza drenarea worker-ului real", async () => {
@@ -55,7 +52,7 @@ test("P2.3: flux pause/resume end-to-end — starea persistata controleaza drena
     releaseDbLock: async () => undefined,
     drainOutbox: async () => { drainCalls++; return { sent: 0, retried: 0, deadLettered: 0, queued: 0 }; },
     lifecycle: { isShuttingDown: false },
-    metrics: zeroMetrics(),
+    metrics: createMetricRecorders(zeroMetrics()).outbox,
     adminAlert: async () => undefined,
     isPaused: () => getOutboxPaused(),
     errorMessage: (e: unknown) => String(e),
@@ -99,7 +96,7 @@ test("P2.3: NOTIFICATION_OUTBOX_ENABLED=true -> scheduler activeaza worker-ul si
       adminAlert: async () => { }, requestContext: {}, getOutboxPaused, cleanGuildCache() { }
     }
   };
-  const services = { client: {}, metrics: {}, lifecycle: { isShuttingDown: false }, config: {}, games: [], rateLimiter: { check: () => true, prune() { }, size: 0, retryAfterSeconds: 1 } };
+  const services = { client: {}, metrics: createMetrics(), recorders: createMetricRecorders(createMetrics()), lifecycle: { isShuttingDown: false }, config: {}, games: [], rateLimiter: { check: () => true, prune() { }, size: 0, retryAfterSeconds: 1 } };
 
   const schedulers = createSchedulers(deps, services);
   assert.equal(schedulers.outboxEnabled, true, "flag-ul (injectat in env) activeaza outbox-ul");

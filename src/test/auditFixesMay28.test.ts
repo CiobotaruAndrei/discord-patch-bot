@@ -1,4 +1,6 @@
 import { createRequire as __createRequire } from "node:module";
+import { createMetrics } from "../app/health/metrics.js";
+import { createMetricRecorders } from "../app/health/metricRecorders.js";
 const require = __createRequire(import.meta.url);
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -182,8 +184,8 @@ function makeReq(opts: { xff?: string | string[]; remote?: string }) {
 
 function makeRateLimiter(trustProxy: boolean, trustedProxyCount = 1) {
   const env = { HTTP_RATE_LIMIT_REQ: 5, HTTP_RATE_LIMIT_WINDOW_MS: 60_000, TRUST_PROXY: trustProxy, TRUSTED_PROXY_COUNT: trustedProxyCount } as RuntimeEnv;
-  const metrics = { httpRateLimitDrops: 0 } as BotMetrics;
-  return { rl: createRateLimiter(env, metrics), metrics };
+  const metrics = createMetrics();
+  return { rl: createRateLimiter(env, createMetricRecorders(metrics).httpServer), metrics };
 }
 
 test("rateLimit: 1 proxy trusted -> ia hop-ul adaugat de proxy (rightmost), spoof-ul leftmost e ignorat", () => {

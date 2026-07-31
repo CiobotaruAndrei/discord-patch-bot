@@ -4,7 +4,7 @@ import { createChannelLockRecoveryRuntime } from "../../features/command-securit
 import { setLockedChannelPermissionState } from "../../features/guild-config/guildConfigRepository.js";
 
 import type { ScheduledTaskRunner } from "../scheduler/scheduledTaskRunner.js";
-import type { BotMetrics } from "../health/metricsTypes.js";
+import type { MetricRecorders } from "../../shared/metricRecorderPorts.js";
 import type { MongoContextLike, RuntimeServices } from "../appRuntimeContracts.js";
 
 type ModerationLifecycle = ReturnType<typeof import("../../features/moderation/moderationLifecycleRuntime.js")["createModerationLifecycleRuntime"]>;
@@ -17,7 +17,7 @@ export type SchedulerFeatureTasks = {
 export type SchedulerFeatureInput = {
   readonly mongo: MongoContextLike;
   readonly client: RuntimeServices["client"];
-  readonly metrics: BotMetrics;
+  readonly recorders: MetricRecorders;
   readonly moderationLifecycleRuntime?: ModerationLifecycle;
   readonly errorMessage: (err: unknown) => string;
   readonly errorDetail: (err: unknown) => string;
@@ -26,7 +26,7 @@ export type SchedulerFeatureInput = {
 const NO_TASKS: SchedulerFeatureTasks = { moderationCleanup: null, channelLockRecovery: null };
 
 export function createSchedulerFeatureTasks(input: SchedulerFeatureInput): SchedulerFeatureTasks {
-  const { mongo, client, metrics, moderationLifecycleRuntime, errorMessage, errorDetail } = input;
+  const { mongo, client, recorders, moderationLifecycleRuntime, errorMessage, errorDetail } = input;
   const { logger, adminAlert } = mongo;
 
   const moderationCleanup = moderationLifecycleRuntime
@@ -35,7 +35,7 @@ export function createSchedulerFeatureTasks(input: SchedulerFeatureInput): Sched
         await moderationLifecycleRuntime.cleanupExpired();
         await moderationLifecycleRuntime.reconcileClient(client);
       },
-      metrics, logger, adminAlert, errorMessage, errorDetail
+      metrics: recorders.moderationCleanup, logger, adminAlert, errorMessage, errorDetail
     })
     : null;
 
@@ -50,7 +50,7 @@ export function createSchedulerFeatureTasks(input: SchedulerFeatureInput): Sched
           setLockedChannelPermissionState(lockRecoveryGuildModel, guildId, channelId, previous, locked),
         logger
       }).runRecoveryCycle(),
-      metrics, logger, adminAlert, errorMessage, errorDetail
+      metrics: recorders.channelLockRecovery, logger, adminAlert, errorMessage, errorDetail
     })
     : null;
 

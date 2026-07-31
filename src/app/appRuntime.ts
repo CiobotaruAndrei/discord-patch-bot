@@ -1,6 +1,5 @@
 "use strict";
 
-import { createMetricRecorders } from "./health/metricRecorders.js";
 import type { ActiveLocks, BotRole, LifecycleState } from "../types.js";
 import type { BotMetrics } from "./health/metricsTypes.js";
 import type { RateLimiter } from "./health/rateLimitTypes.js";
@@ -71,13 +70,13 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
   const { client, metrics, lifecycle, rateLimiter } = services;
 
   const httpServer = createHttpServer({
-    mongoose, crypto, env, client, metrics, logger, commands: deps.commands,
+    mongoose, crypto, env, client, metrics, recorders: services.recorders.httpServer, logger, commands: deps.commands,
     getGuildCacheSize, scrapers: deps.scrapers, activeLocks, rateLimiter,
     cronController: schedulers?.cronController ?? null
   });
 
   registerDiscordEvents({
-    client, logger, commands: deps.commands, metrics, env, adminAlert, requestContext, games: services.games, crypto,
+    client, logger, commands: deps.commands, metrics: services.recorders, env, adminAlert, requestContext, games: services.games, crypto,
     errorMessage, errorDetail,
     startHousekeeping: schedulers?.housekeeping.start,
     scheduleNextCron: schedulers?.cronController.scheduleNextCron,
@@ -127,7 +126,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
 }
 
 function composeGatewayFeatures(deps: AppRuntimeDeps, services: RuntimeServices): GatewayFeatureRuntimes {
-  const recorders = createMetricRecorders(services.metrics);
+  const recorders = services.recorders;
   const threatEngineMonitor = createThreatEngineMonitor({ metrics: recorders.threatEngine, logger: deps.mongo.logger });
   return createGatewayFeatureRuntimes({
     mongo: deps.mongo,
@@ -161,7 +160,7 @@ function composeSchedulerTasks(
   return createSchedulerFeatureTasks({
     mongo: deps.mongo,
     client: services.client,
-    metrics: services.metrics,
+    recorders: services.recorders,
     moderationLifecycleRuntime,
     errorMessage: deps.errorMessage,
     errorDetail: deps.errorDetail
@@ -184,7 +183,7 @@ function createWorkerRuntime(deps: Omit<AppRuntimeDeps, "role">): AppRuntime {
   const services = createRuntimeServices(workerDeps);
   const moderationLifecycleRuntime = composeModerationLifecycle(workerDeps);
   return assembleAppRuntime(workerDeps, services, {
-    gateway: createInactiveGatewayFeatureRuntimes(services.metrics),
+    gateway: createInactiveGatewayFeatureRuntimes(services.recorders.threatSurface),
     tasks: composeSchedulerTasks(workerDeps, services, moderationLifecycleRuntime),
     schedulers: createSchedulers(workerDeps, services),
     moderationLifecycleRuntime
@@ -200,7 +199,7 @@ function createAppRuntime(deps: AppRuntimeDeps): AppRuntime {
   const runsSchedulers = roleRunsSchedulers(role);
   const moderationLifecycleRuntime = composeModerationLifecycle(deps);
   return assembleAppRuntime(deps, services, {
-    gateway: runsInteractions ? composeGatewayFeatures(deps, services) : createInactiveGatewayFeatureRuntimes(services.metrics),
+    gateway: runsInteractions ? composeGatewayFeatures(deps, services) : createInactiveGatewayFeatureRuntimes(services.recorders.threatSurface),
     tasks: runsSchedulers ? composeSchedulerTasks(deps, services, moderationLifecycleRuntime) : createIdleSchedulerFeatureTasks(),
     schedulers: runsSchedulers ? createSchedulers(deps, services) : null,
     moderationLifecycleRuntime

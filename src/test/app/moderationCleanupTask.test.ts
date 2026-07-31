@@ -4,16 +4,20 @@ import assert from "node:assert/strict";
 import { createModerationCleanupTask, MODERATION_CLEANUP_INTERVAL_MS } from "../../app/scheduler/moderationCleanupTask.js";
 
 type Harness = {
-  metrics: { moderationCleanupRuns?: number; moderationCleanupFailures?: number };
+  runs: number;
+  failures: number;
   logs: Array<{ level: string; message: string }>;
   alerts: Array<{ kind: string; title: string }>;
 };
 
 function makeHarness(cleanupExpired: () => Promise<void>) {
-  const harness: Harness = { metrics: {}, logs: [], alerts: [] };
+  const harness: Harness = { runs: 0, failures: 0, logs: [], alerts: [] };
   const runner = createModerationCleanupTask({
     cleanupExpired,
-    metrics: harness.metrics,
+    metrics: {
+      ran: () => { harness.runs += 1; },
+      failed: () => { harness.failures += 1; }
+    },
     logger: (level, _context, message) => { harness.logs.push({ level, message }); },
     adminAlert: async (kind, title) => { harness.alerts.push({ kind, title }); },
     errorMessage: err => String(err),
@@ -33,8 +37,8 @@ test("curatarea periodica ruleaza la interval rezonabil si numara rularile reusi
   assert.equal(first.status, "completed");
   assert.equal(second.status, "completed");
   assert.equal(cleanups, 2, "curatarea e idempotenta si ruleaza la fiecare tick");
-  assert.equal(harness.metrics.moderationCleanupRuns, 2, "rularile reusite sunt numarate in metrica");
-  assert.equal(harness.metrics.moderationCleanupFailures ?? 0, 0);
+  assert.equal(harness.runs, 2, "rularile reusite sunt numarate in metrica");
+  assert.equal(harness.failures, 0);
   assert.equal(harness.alerts.length, 0);
 });
 
@@ -46,7 +50,7 @@ test("esecul e logat si numarat; alerta admin apare DOAR dupa esecuri repetate",
 
   await runner.runNow();
   await runner.runNow();
-  assert.equal(harness.metrics.moderationCleanupFailures, 2);
+  assert.equal(harness.failures, 2);
   assert.equal(harness.logs.filter(log => log.level === "ERROR").length, 2, "fiecare esec e logat");
   assert.equal(harness.alerts.length, 0, "sub prag nu se trimite alerta");
 
@@ -60,7 +64,7 @@ test("esecul e logat si numarat; alerta admin apare DOAR dupa esecuri repetate",
 
   shouldFail = false;
   await runner.runNow();
-  assert.equal(harness.metrics.moderationCleanupRuns, 1, "revenirea e numarata ca rulare reusita");
+  assert.equal(harness.runs, 1, "revenirea e numarata ca rulare reusita");
   shouldFail = true;
   await runner.runNow();
   await runner.runNow();

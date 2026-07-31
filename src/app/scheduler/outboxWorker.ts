@@ -6,6 +6,7 @@ type ReleaseDbLock = (jobName: string, token: string) => Promise<void>;
 type ErrorFormatter = (err: unknown) => string;
 
 import type { OutboxDiscordClient } from "../../features/notifications/outboundChannel.js";
+import type { OutboxMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import { createRearmingTimer } from "./rearmingTimer.js";
 import { createLockHeartbeat } from "./lockHeartbeat.js";
 
@@ -77,7 +78,7 @@ interface CreateOutboxWorkerDeps {
   releaseDbLock: ReleaseDbLock;
   drainOutbox: (client: DiscordClientLike, shouldAbort?: () => boolean) => Promise<OutboxDrainResult>;
   lifecycle: LifecycleState;
-  metrics: OutboxMetricsLike;
+  metrics: OutboxMetricRecorder;
   errorMessage: ErrorFormatter;
   adminAlert: AdminAlert;
   isPaused?: () => Promise<boolean>;
@@ -132,25 +133,7 @@ function createOutboxWorker({
   });
 
   function recordDrain(r: OutboxDrainResult): void {
-    metrics.outboxDrains++;
-    metrics.outboxLastDrainAt = Date.now();
-    metrics.outboxSent += r.sent ?? 0;
-    metrics.outboxRetried += r.retried ?? 0;
-    metrics.outboxDeadLettered += r.deadLettered ?? 0;
-    metrics.outboxExpired += r.expired ?? 0;
-    metrics.outboxDeliveryMsTotal += r.deliveryMsTotal ?? 0;
-    metrics.outboxRecoveryDuplicates += r.recoveryDuplicates ?? 0;
-    metrics.outboxRecoveryFetches += r.recoveryFetches ?? 0;
-    metrics.outboxRecoveryFailures += r.recoveryFailures ?? 0;
-    metrics.outboxRecoveryMarkerMissing += r.recoveryMarkerMissing ?? 0;
-    metrics.outboxMarkSentFailures += r.markSentFailures ?? 0;
-    metrics.outboxDeleteFailures += r.deleteFailures ?? 0;
-    metrics.outboxDeadLetterWriteFailures += r.deadLetterFailures ?? 0;
-    metrics.outboxHistoryWriteFailures += r.historyWriteFailures ?? 0;
-    if (typeof r.queued === "number") metrics.outboxQueueDepth = r.queued;
-    if (typeof r.oldestJobAgeMs === "number") metrics.outboxOldestJobAgeSeconds = Math.round(r.oldestJobAgeMs / 1000);
-    if (typeof r.futureScheduledCount === "number") metrics.outboxFutureScheduledJobs = r.futureScheduledCount;
-    if (typeof r.recoveryVerifyEnabledGuilds === "number") metrics.outboxRecoveryVerifyEnabledGuilds = r.recoveryVerifyEnabledGuilds;
+    metrics.drained(r, Date.now());
 
     if ((r.recoveryFailures ?? 0) > 0) {
       adminAlert("outbox:recovery-read",
@@ -190,7 +173,7 @@ function createOutboxWorker({
       try {
         paused = await isPaused();
       } catch (err) {
-        metrics.outboxPauseCheckFailures++;
+        metrics.pauseCheckFailed();
         logger("WARN", "OUTBOX", "Citirea flagului de pauza a esuat; skip cycle (fail-closed, nu drenez)", errorMessage(err));
         timer.schedule();
         return;
@@ -205,7 +188,7 @@ function createOutboxWorker({
     try {
       token = await acquireDbLock(OUTBOX_DRAIN_LOCK_NAME, lockTtlMs);
       if (!token) {
-        metrics.outboxLockAcquireFailures++;
+        metrics.lockAcquireFailed();
         return;
       }
       lostLock = false;

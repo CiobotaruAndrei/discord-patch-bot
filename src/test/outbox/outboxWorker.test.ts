@@ -1,4 +1,7 @@
 import test from "node:test";
+import type { BotMetrics } from "../../app/health/metricsTypes.js";
+import { createMetrics } from "../../app/health/metrics.js";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 import assert from "node:assert/strict";
 import { createOutboxWorker, OUTBOX_DRAIN_LOCK_NAME } from "../../app/scheduler/outboxWorker.js";
 import type { CreateOutboxWorkerDeps, OutboxDrainResult } from "../../app/scheduler/outboxWorker.js";
@@ -26,29 +29,7 @@ interface Harness {
   lockTtls: number[];
   alertKinds: string[];
   lastShouldAbort?: (() => boolean);
-  metrics: {
-    outboxSent: number;
-    outboxRetried: number;
-    outboxDeadLettered: number;
-    outboxExpired: number;
-    outboxDrains: number;
-    outboxQueueDepth: number;
-    outboxDeliveryMsTotal: number;
-    outboxOldestJobAgeSeconds: number;
-    outboxFutureScheduledJobs: number;
-    outboxLockAcquireFailures: number;
-    outboxPauseCheckFailures: number;
-    outboxRecoveryDuplicates: number;
-    outboxRecoveryFetches: number;
-    outboxRecoveryFailures: number;
-    outboxRecoveryMarkerMissing: number;
-    outboxMarkSentFailures: number;
-    outboxDeleteFailures: number;
-    outboxDeadLetterWriteFailures: number;
-    outboxHistoryWriteFailures: number;
-    outboxRecoveryVerifyEnabledGuilds: number;
-    outboxLastDrainAt: number;
-  };
+  metrics: BotMetrics;
 }
 
 function makeWorker(overrides: {
@@ -71,12 +52,7 @@ function makeWorker(overrides: {
     acquireCalls: 0,
     lockTtls: [],
     alertKinds: [],
-    metrics: {
-      outboxSent: 0, outboxRetried: 0, outboxDeadLettered: 0, outboxExpired: 0, outboxDrains: 0, outboxQueueDepth: 0,
-      outboxDeliveryMsTotal: 0, outboxOldestJobAgeSeconds: 0, outboxFutureScheduledJobs: 0, outboxLockAcquireFailures: 0, outboxPauseCheckFailures: 0,
-      outboxRecoveryDuplicates: 0, outboxRecoveryFetches: 0, outboxRecoveryFailures: 0, outboxRecoveryMarkerMissing: 0,
-      outboxMarkSentFailures: 0, outboxDeleteFailures: 0, outboxDeadLetterWriteFailures: 0, outboxHistoryWriteFailures: 0, outboxRecoveryVerifyEnabledGuilds: 0, outboxLastDrainAt: 0
-    }
+    metrics: createMetrics()
   };
   const lifecycle = { isShuttingDown: overrides.shuttingDown ?? false };
   const worker = createOutboxWorker({
@@ -101,7 +77,7 @@ function makeWorker(overrides: {
       return overrides.drainResult ?? { sent: 0, retried: 0, deadLettered: 0, queued: 0 };
     },
     lifecycle,
-    metrics: harness.metrics,
+    metrics: createMetricRecorders(harness.metrics).outbox,
     adminAlert: async (kind: string) => { harness.alertKinds.push(kind); return undefined; },
     isPaused: overrides.pauseThrows
       ? async () => { throw new Error("pause check boom"); }
