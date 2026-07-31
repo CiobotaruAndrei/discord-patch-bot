@@ -1,8 +1,9 @@
 import test from "node:test";
-import mod from "../../features/command-handlers/healthInteractionHandler.js";
 import assert from "node:assert/strict";
 
-const { buildHealthEmbed, formatUptime } = mod;
+import healthInteractionHandler from "../../features/command-handlers/healthInteractionHandler.js";
+
+const { buildHealthEmbed, formatUptime } = healthInteractionHandler;
 
 type RedisStatus = "disabled" | "connected" | "disconnected";
 

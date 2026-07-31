@@ -1,10 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import fs from "fs";
-import path from "path";
-
-const sursa = fs.readFileSync(path.join(process.cwd(), "types.ts"), "utf8");
+import { loadModule, exportedTypeNames, reExports, membersOf } from "./sourceStructureQueries.js";
 
 const PRIMITIVE_PERMISE = new Set([
   "CurrencyCode",
@@ -28,12 +25,10 @@ const PRIMITIVE_PERMISE = new Set([
   "SystemTimes"
 ]);
 
-function definitiiLocale(): string[] {
-  return [...sursa.matchAll(/^export (?:type|interface) (\w+)[ <=]/gm)].map(match => match[1]);
-}
+const barrel = loadModule("types.ts");
 
 test("barrel-ul de tipuri nu creste cu contracte de domeniu noi", () => {
-  const straine = definitiiLocale().filter(nume => !PRIMITIVE_PERMISE.has(nume));
+  const straine = exportedTypeNames(barrel).filter(nume => !PRIMITIVE_PERMISE.has(nume));
   assert.deepEqual(
     straine,
     [],
@@ -43,16 +38,14 @@ test("barrel-ul de tipuri nu creste cu contracte de domeniu noi", () => {
 });
 
 test("contractele de paginare traiesc in domeniul lor, nu in barrel", () => {
-  const domeniu = path.join(process.cwd(), "features", "command-presentation", "paginationTypes.ts");
-  assert.ok(fs.existsSync(domeniu), "formele de interactiune cu butoane apartin prezentarii de comenzi");
-
-  const text = fs.readFileSync(domeniu, "utf8");
+  const domeniu = loadModule("features", "command-presentation", "paginationTypes.ts");
+  const declarate = exportedTypeNames(domeniu);
   for (const nume of ["PaginationButtonInteraction", "ComponentCollector", "InteractionMessage"]) {
-    assert.match(text, new RegExp(`export interface ${nume}`), `${nume} se defineste in domeniu`);
+    assert.ok(declarate.includes(nume), `${nume} se defineste in domeniu`);
+    assert.ok(membersOf(domeniu, nume).length > 0, `${nume} chiar are o forma, nu doar un nume`);
   }
-  assert.match(
-    sursa,
-    /from "\.\/features\/command-presentation\/paginationTypes\.js"/,
+  assert.ok(
+    reExports(barrel).some(entry => entry.module.endsWith("command-presentation/paginationTypes.js")),
     "barrel-ul doar re-exporta, ca importurile existente sa continue sa functioneze"
   );
 });
