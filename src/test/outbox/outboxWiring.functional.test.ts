@@ -1,4 +1,5 @@
 import { createMetrics } from "../../app/health/metrics.js";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registerDiscordEvents } from "../../app/lifecycle/events.js";
@@ -21,7 +22,7 @@ function makeHarness(startOutboxWorker?: () => void) {
   registerDiscordEvents({
     client,
     logger: () => undefined,
-    metrics: createMetrics(),
+    metrics: createMetricRecorders(createMetrics()),
     commands: {
       registerSlashCommands: async () => { calls.slash++; },
       handleInteraction: () => undefined,

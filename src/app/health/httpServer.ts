@@ -1,4 +1,5 @@
 import * as http from "http";
+import type { HttpServerMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import type { IncomingMessage, Server } from "http";
 import type { LoggerFunction } from "../../types.js";
 import type { BotMetrics } from "./metricsTypes.js";
@@ -49,6 +50,7 @@ interface CreateHttpServerDeps {
   env: HttpServerEnv;
   client: DiscordClientLike;
   metrics: BotMetrics;
+  recorders: HttpServerMetricRecorder;
   logger: LoggerFunction;
   commands: CommandsLike;
   getGuildCacheSize: () => number;
@@ -66,7 +68,7 @@ function timingSafeEqualStr(crypto: CryptoLike, a: unknown, b: unknown): boolean
 }
 
 function createHttpServer({
-  mongoose, crypto, env, client, metrics, logger, commands,
+  mongoose, crypto, env, client, metrics, recorders, logger, commands,
   getGuildCacheSize, scrapers, activeLocks, rateLimiter, cronController = null
 }: CreateHttpServerDeps): Server {
   function checkMetricsAuth(req: IncomingMessage): boolean {
@@ -104,7 +106,7 @@ function createHttpServer({
         status: ok ? "ok" : "degraded",
         mongo: mongoose.connection.readyState,
         discord: client.isReady() ? "ready" : "not-ready",
-        uptimeMs: Date.now() - metrics.startedAt
+        uptimeMs: recorders.uptimeMs(Date.now())
       };
       if (typeof cronController?.getHealthSnapshot === "function") {
         body.cronHealth = cronController.getHealthSnapshot();
@@ -136,7 +138,7 @@ function createHttpServer({
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not Found");
     } catch (err) {
-      metrics.httpHandlerErrors++;
+      recorders.handlerErrored();
       logger("ERROR", "HTTP", `Handler HTTP a aruncat o eroare la ${req.method} ${req.url}`, errorMessage(err));
       try {
         if (!res.headersSent) {

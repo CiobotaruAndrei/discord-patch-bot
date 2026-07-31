@@ -1,7 +1,7 @@
 import type { BotRole } from "../../types.js";
 import type { GameConfig } from "../../config/configTypes.js";
 import type { RuntimeEnv } from "../../config/runtimeEnvTypes.js";
-import type { BotMetrics } from "../health/metricsTypes.js";
+import type { CommandMetricRecorder, SecurityMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import type { LifecycleDiscordChannel, LifecycleDiscordDeletedChannel, LifecycleDiscordGuild, LifecycleDiscordGuildMember, LifecycleDiscordInteraction, LifecycleDiscordMessage, LifecycleDiscordRole, LifecycleEventClient } from "./lifecycleContracts.js";
 import type { ModerationLifecycleGatewayRuntime, PermissionDelegationGatewayRuntime, SecurityGatewayRuntime, ServerEventLogGatewayRuntime } from "./lifecycleContracts.js";
 import { createGuildOnboarding } from "./guildOnboarding.js";
@@ -29,7 +29,7 @@ interface RegisterDiscordEventsDeps {
   client: LifecycleEventClient;
   logger: LifecycleLogger;
   commands: CommandsLike;
-  metrics: BotMetrics;
+  metrics: { security: SecurityMetricRecorder; command: CommandMetricRecorder };
   env: RuntimeEnv;
   adminAlert: AdminAlert;
   requestContext: RequestContextLike;
@@ -96,7 +96,7 @@ function registerDiscordEvents({
         try {
           await moderationLifecycleRuntime.cleanupExpired();
         } catch (err) {
-          metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+          metrics.security.runtimeErrored();
           logger("ERROR", "MODERATION_LIFECYCLE", "Curatarea sanctiunilor expirate a esuat", errorDetail(err));
           adminAlert("moderation:cleanup-failed", "Curatarea sanctiunilor expirate a esuat", errorMessage(err)).catch(() => null);
         }
@@ -138,13 +138,12 @@ function registerDiscordEvents({
           await commands.handleInteraction(interaction, games);
         });
       } catch (err) {
-        if (commandName) metrics.commandErrors[commandName] = (metrics.commandErrors[commandName] || 0) + 1;
+        if (commandName) metrics.command.errored(commandName);
         logger("ERROR", "INTERACTION", "Eroare top-level la interactionCreate", errorDetail(err));
         await replyInteractionError(interaction);
       } finally {
         if (commandName) {
-          metrics.commandRuns[commandName] = (metrics.commandRuns[commandName] || 0) + 1;
-          metrics.commandDurationMsTotal[commandName] = (metrics.commandDurationMsTotal[commandName] || 0) + (Date.now() - startedAt);
+          metrics.command.ran(commandName, Date.now() - startedAt);
         }
       }
     });
@@ -153,7 +152,7 @@ function registerDiscordEvents({
     client.on("guildCreate", (guild: LifecycleDiscordGuild) => { onboarding.handleGuildCreate(guild).catch(() => null); });
     if (securityRuntime) {
       const reportSecurityFailure = (event: string, guildId: string | undefined, err: unknown): void => {
-        metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+        metrics.security.runtimeErrored();
         logger("ERROR", "SECURITY_RUNTIME", `${event} a esuat`, errorDetail(err));
         adminAlert(`security:${event}`, `Protectia ${event} a esuat`, errorMessage(err), guildId).catch(() => null);
       };
@@ -171,7 +170,7 @@ function registerDiscordEvents({
       client.on("roleUpdate", (previous: LifecycleDiscordRole, next?: LifecycleDiscordRole) => {
         if (!next) return;
         permissionDelegationRuntime.handleRoleUpdate(previous, next).catch(err => {
-          metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+          metrics.security.runtimeErrored();
           logger("ERROR", "PERMISSION_DELEGATION", "roleUpdate a esuat", errorDetail(err));
           adminAlert("security:role-update", "Protectia rolurilor a esuat", errorMessage(err), next.guild?.id).catch(() => null);
         });
@@ -179,14 +178,14 @@ function registerDiscordEvents({
       client.on("guildMemberUpdate", (previous: LifecycleDiscordGuildMember, next?: LifecycleDiscordGuildMember) => {
         if (!next) return;
         permissionDelegationRuntime.handleGuildMemberUpdate(previous, next).catch(err => {
-          metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+          metrics.security.runtimeErrored();
           logger("ERROR", "PERMISSION_DELEGATION", "guildMemberUpdate a esuat", errorDetail(err));
           adminAlert("security:member-role-update", "Protectia rolurilor membrilor a esuat", errorMessage(err), next.guild?.id).catch(() => null);
         });
       });
       client.on("roleCreate", (role: LifecycleDiscordRole) => {
         permissionDelegationRuntime.handleRoleCreate(role).catch(err => {
-          metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+          metrics.security.runtimeErrored();
           logger("ERROR", "PERMISSION_DELEGATION", "roleCreate a esuat", errorDetail(err));
           adminAlert("security:role-create", "Protectia rolurilor noi a esuat", errorMessage(err), role.guild?.id).catch(() => null);
         });
@@ -194,14 +193,14 @@ function registerDiscordEvents({
       client.on("channelUpdate", (previous: LifecycleDiscordDeletedChannel, next?: LifecycleDiscordDeletedChannel) => {
         if (!next) return;
         permissionDelegationRuntime.handleChannelUpdate(previous, next).catch(err => {
-          metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+          metrics.security.runtimeErrored();
           logger("ERROR", "PERMISSION_DELEGATION", "channelUpdate a esuat", errorDetail(err));
           adminAlert("security:channel-update", "Protectia overwrite-urilor de canal a esuat", errorMessage(err), next.guild?.id ?? undefined).catch(() => null);
         });
       });
       client.on("webhookUpdate", (channel: LifecycleDiscordDeletedChannel) => {
         permissionDelegationRuntime.handleWebhookUpdate(channel).catch(err => {
-          metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+          metrics.security.runtimeErrored();
           logger("ERROR", "PERMISSION_DELEGATION", "webhookUpdate a esuat", errorDetail(err));
           adminAlert("security:webhook-update", "Monitorizarea webhook-urilor a esuat", errorMessage(err), channel.guild?.id ?? undefined).catch(() => null);
         });
@@ -210,7 +209,7 @@ function registerDiscordEvents({
     if (moderationLifecycleRuntime) {
       client.on("guildMemberRemove", (member: LifecycleDiscordGuildMember) => {
         moderationLifecycleRuntime.handleGuildMemberRemove(member).catch(err => {
-          metrics.securityRuntimeErrors = (metrics.securityRuntimeErrors ?? 0) + 1;
+          metrics.security.runtimeErrored();
           logger("ERROR", "MODERATION_LIFECYCLE", "guildMemberRemove a esuat", errorDetail(err));
           adminAlert("moderation:member-cleanup", "Curatarea sanctiunilor membrului a esuat", errorMessage(err), member.guild?.id).catch(() => null);
         });

@@ -1,4 +1,5 @@
 import type { AppRuntimeDeps, RuntimeServices } from "../appRuntimeContracts.js";
+import { createMetricRecorders } from "../health/metricRecorders.js";
 import { intentNamesForRole } from "../../shared/botRole.js";
 
 import ________infra_redis_redisMetrics from "../../infra/redis/redisMetrics.js";
@@ -15,8 +16,9 @@ function createRuntimeServices(deps: AppRuntimeDeps): RuntimeServices {
   const client = new Client({ intents: intentNamesForRole(env.BOT_ROLE).map(name => GatewayIntentBits[name]) });
   setAdminAlertDiscordClient(client);
   const lifecycle = { isShuttingDown: false };
-  const rateLimiter = createRateLimiter(env, metrics);
-  return { client, metrics, lifecycle, rateLimiter, config, games };
+  const recorders = createMetricRecorders(metrics);
+  const rateLimiter = createRateLimiter(env, recorders.httpServer);
+  return { client, metrics, recorders, lifecycle, rateLimiter, config, games };
 }
 
 export { createRuntimeServices };

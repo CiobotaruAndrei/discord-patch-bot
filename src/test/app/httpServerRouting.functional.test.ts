@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createMetricRecorders } from "../../app/health/metricRecorders.js";
 import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
 import { AddressInfo } from "node:net";
@@ -59,6 +60,7 @@ function startServer(
     getGuildCacheSize: () => 0,
     scrapers: { getEnrichedCacheSize: () => 0 },
     activeLocks: { size: 0 },
+    recorders: createMetricRecorders(metrics).httpServer,
     rateLimiter: { check: () => true, retryAfterSeconds: 1, size: 0, prune: () => undefined },
     cronController: null
   };

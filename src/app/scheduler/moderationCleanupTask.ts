@@ -1,12 +1,11 @@
 "use strict";
 
 import { createScheduledTaskRunner, type ScheduledTaskRunner } from "./scheduledTaskRunner.js";
-
-type CleanupMetrics = { moderationCleanupRuns?: number; moderationCleanupFailures?: number };
+import type { ScheduledTaskMetricRecorder } from "../../shared/metricRecorderPorts.js";
 
 export interface CreateModerationCleanupTaskDeps {
   cleanupExpired(): Promise<void>;
-  metrics: CleanupMetrics;
+  metrics: ScheduledTaskMetricRecorder;
   logger(level: string, context: string, message: string, meta?: unknown): void;
   adminAlert(kind: string, title: string, body: string): Promise<unknown>;
   errorMessage(err: unknown): string;
@@ -27,12 +26,12 @@ export function createModerationCleanupTask(deps: CreateModerationCleanupTaskDep
     onResult: result => {
       if (result.status === "completed") {
         consecutiveFailures = 0;
-        deps.metrics.moderationCleanupRuns = (deps.metrics.moderationCleanupRuns ?? 0) + 1;
+        deps.metrics.ran();
         return;
       }
       if (result.status !== "failed") return;
       consecutiveFailures++;
-      deps.metrics.moderationCleanupFailures = (deps.metrics.moderationCleanupFailures ?? 0) + 1;
+      deps.metrics.failed();
       deps.logger("ERROR", "MODERATION_LIFECYCLE", "Curatarea periodica a sanctiunilor expirate a esuat", deps.errorDetail(result.error));
       if (consecutiveFailures >= alertThreshold) {
         deps.adminAlert(

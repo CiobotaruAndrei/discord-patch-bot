@@ -7,7 +7,7 @@ import { createNewAccountAlertDelivery, reconcileStuckNewAccountSends } from "..
 import { loadYaraRuleset } from "../../features/command-security/yaraRuleset.js";
 
 import type { BotMetrics } from "../health/metricsTypes.js";
-import type { MetricRecorders } from "../../shared/metricRecorderPorts.js";
+import type { MetricRecorders, ThreatSurfaceMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import type {
   PermissionDelegationGatewayRuntime,
   SecurityGatewayRuntime,
@@ -32,10 +32,8 @@ export type GatewayFeatureInput = {
   readonly onThreatFailure: Parameters<typeof createReputationEngine>[0]["onFailure"];
 };
 
-function markGatewayFeaturesInactive(metrics: BotMetrics): void {
-  metrics.yaraRulesLoaded = 0;
-  metrics.yaraEngineAvailable = 0;
-  metrics.threatReputationEngineConfigured = 0;
+function markGatewayFeaturesInactive(recorders: ThreatSurfaceMetricRecorder): void {
+  recorders.reset();
 }
 
 export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): GatewayFeatureRuntimes {
@@ -49,11 +47,10 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     onDetails: input.onThreatDetails,
     onFailure: input.onThreatFailure
   }) ?? undefined;
-  metrics.threatReputationEngineConfigured = reputationScan ? 1 : 0;
+  recorders.threatSurface.reputationConfigured(Boolean(reputationScan));
 
   const yaraRuleset = loadYaraRuleset(env.YARA_RULES_PATH, logger);
-  metrics.yaraRulesLoaded = yaraRuleset.loaded ? yaraRuleset.ruleCount : 0;
-  metrics.yaraEngineAvailable = yaraRuleset.available ? 1 : 0;
+  recorders.threatSurface.yaraRulesetObserved(yaraRuleset);
 
   const newAccountAlertModel = mongo.NewAccountAlertDeliveryModel;
   const newAccountDelivery = newAccountAlertModel
@@ -104,7 +101,7 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
   return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime };
 }
 
-export function createInactiveGatewayFeatureRuntimes(metrics: BotMetrics): GatewayFeatureRuntimes {
-  markGatewayFeaturesInactive(metrics);
+export function createInactiveGatewayFeatureRuntimes(recorders: ThreatSurfaceMetricRecorder): GatewayFeatureRuntimes {
+  markGatewayFeaturesInactive(recorders);
   return {};
 }

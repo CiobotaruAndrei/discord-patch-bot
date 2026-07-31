@@ -69,19 +69,91 @@ export function createMetricRecorders(metrics: BotMetrics): MetricRecorders {
       errored: () => bump(metrics, "cronErrors"),
       skippedByLock: () => bump(metrics, "cronSkippedDueToLock"),
       skippedByHealth: () => bump(metrics, "cronSkippedDueToHealth"),
-      aborted: () => bump(metrics, "cronAborted")
+      aborted: () => bump(metrics, "cronAborted"),
+      currentCycle: () => metrics.cronRuns ?? 0
+    },
+    outbox: {
+      drained: (totals, at) => {
+        bump(metrics, "outboxDrains");
+        assign(metrics, "outboxLastDrainAt", at);
+        for (const [field, value] of [
+          ["outboxSent", totals.sent],
+          ["outboxRetried", totals.retried],
+          ["outboxDeadLettered", totals.deadLettered],
+          ["outboxExpired", totals.expired],
+          ["outboxDeliveryMsTotal", totals.deliveryMsTotal],
+          ["outboxRecoveryDuplicates", totals.recoveryDuplicates],
+          ["outboxRecoveryFetches", totals.recoveryFetches],
+          ["outboxRecoveryFailures", totals.recoveryFailures],
+          ["outboxRecoveryMarkerMissing", totals.recoveryMarkerMissing],
+          ["outboxMarkSentFailures", totals.markSentFailures],
+          ["outboxDeleteFailures", totals.deleteFailures],
+          ["outboxDeadLetterWriteFailures", totals.deadLetterFailures],
+          ["outboxHistoryWriteFailures", totals.historyWriteFailures]
+        ] as ReadonlyArray<readonly [CounterField, number | undefined]>) {
+          bump(metrics, field, value ?? 0);
+        }
+        if (typeof totals.queued === "number") assign(metrics, "outboxQueueDepth", totals.queued);
+        if (typeof totals.oldestJobAgeMs === "number") assign(metrics, "outboxOldestJobAgeSeconds", Math.round(totals.oldestJobAgeMs / 1000));
+        if (typeof totals.futureScheduledCount === "number") assign(metrics, "outboxFutureScheduledJobs", totals.futureScheduledCount);
+        if (typeof totals.recoveryVerifyEnabledGuilds === "number") assign(metrics, "outboxRecoveryVerifyEnabledGuilds", totals.recoveryVerifyEnabledGuilds);
+      },
+      pauseCheckFailed: () => bump(metrics, "outboxPauseCheckFailures"),
+      lockAcquireFailed: () => bump(metrics, "outboxLockAcquireFailures")
+    },
+    command: {
+      ran: (command, durationMs) => {
+        metrics.commandRuns[command] = (metrics.commandRuns[command] || 0) + 1;
+        metrics.commandDurationMsTotal[command] = (metrics.commandDurationMsTotal[command] || 0) + durationMs;
+      },
+      errored: command => {
+        metrics.commandErrors[command] = (metrics.commandErrors[command] || 0) + 1;
+      }
+    },
+    channelLockRecovery: {
+      ran: () => bump(metrics, "channelLockRecoveryRuns"),
+      failed: () => bump(metrics, "channelLockRecoveryFailures"),
+      converged: count => bump(metrics, "channelLockRecoveriesConverged", count)
+    },
+    moderationCleanup: {
+      ran: () => bump(metrics, "moderationCleanupRuns"),
+      failed: () => bump(metrics, "moderationCleanupFailures")
+    },
+    threatSurface: {
+      reset: () => {
+        assign(metrics, "yaraRulesLoaded", 0);
+        assign(metrics, "yaraEngineAvailable", 0);
+        assign(metrics, "threatReputationEngineConfigured", 0);
+      },
+      reputationConfigured: configured => assign(metrics, "threatReputationEngineConfigured", configured ? 1 : 0),
+      yaraRulesetObserved: ruleset => {
+        assign(metrics, "yaraRulesLoaded", ruleset.loaded ? ruleset.ruleCount : 0);
+        assign(metrics, "yaraEngineAvailable", ruleset.available ? 1 : 0);
+      }
+    },
+    httpServer: {
+      handlerErrored: () => bump(metrics, "httpHandlerErrors"),
+      rateLimitDropped: () => bump(metrics, "httpRateLimitDrops"),
+      uptimeMs: now => now - metrics.startedAt
     }
   };
 }
 
 export type {
+  ChannelLockRecoveryMetricRecorder,
+  CommandMetricRecorder,
   CronMetricRecorder,
   HttpMetricRecorder,
+  HttpServerMetricRecorder,
   InspectorMetricRecorder,
   MetricRecorders,
+  OutboxDrainTotals,
+  OutboxMetricRecorder,
   PermissionDelegationMetricRecorder,
   RedisMetricRecorder,
+  ScheduledTaskMetricRecorder,
   SecurityMetricRecorder,
+  ThreatSurfaceMetricRecorder,
   ThreatEngineMetricRecorder,
   ThreatEngineVersions
 } from "../../shared/metricRecorderPorts.js";

@@ -1,6 +1,7 @@
 "use strict";
 
 import type { GuildSettingsEventBus } from "../infra/mongo/guildSettingsEventBus.js";
+import type { HttpServerMetricRecorder, MetricRecorders } from "../shared/metricRecorderPorts.js";
 import type { ActiveLocks, BotRole, LifecycleState } from "../types.js";
 import type { BotMetrics } from "./health/metricsTypes.js";
 import type { RateLimiter } from "./health/rateLimitTypes.js";
@@ -133,7 +134,7 @@ export interface AppRuntimeDeps {
   GatewayIntentBits: typeof import("discord.js").GatewayIntentBits;
   loadConfig: () => ConfigLoadResult;
   createMetrics: () => BotMetrics;
-  createRateLimiter: (env: RuntimeEnv, metrics: BotMetrics) => RateLimiter;
+  createRateLimiter: (env: RuntimeEnv, metrics: HttpServerMetricRecorder) => RateLimiter;
   createHousekeeping: (opts: CreateHousekeepingDeps) => HousekeepingController;
   ports: RuntimePorts;
   createCronController: (opts: CreateCronControllerDeps) => CronController;
@@ -157,6 +158,7 @@ export interface AppRuntimeDeps {
 export interface RuntimeServices {
   client: DiscordClientLike;
   metrics: BotMetrics;
+  recorders: MetricRecorders;
   lifecycle: LifecycleState;
   rateLimiter: RateLimiter;
   config: BotConfig;
