@@ -7,6 +7,7 @@ import ________shared_utilities from "../../shared/utilities.js";
 import { evaluatePlayerCountChange, type PlayerCountChange } from "./playerCountChangeSignal.js";
 import { watchlistGameFilter } from "./playerCountWatchlist.js";
 import { updatedDocument } from "../../shared/persistenceOutcome.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 const { mapWithConcurrency } = ________shared_utilities;
 
 export interface PlayerCountSnapshot {
@@ -380,3 +381,17 @@ const attachPlayerCountSnapshots = ((target: PlayerCountSnapshotContext): void =
 attachPlayerCountSnapshots.createPlayerCountSnapshotService = createPlayerCountSnapshotService;
 
 export default attachPlayerCountSnapshots;
+
+export const PLAYER_COUNT_SNAPSHOT_KEYS = [
+  "PlayerCountSnapshotModel",
+  "PlayerCountHistoryModel",
+  "PlayerCountRecordModel",
+  "GuildModel",
+  "fetchSteamCurrentPlayers",
+  "logger"
+] as const;
+
+type PlayerCountSnapshotKeyCheckDeps = Parameters<typeof createPlayerCountSnapshotService>[0];
+type PlayerCountSnapshotMissing = MissingDependencyKeys<PlayerCountSnapshotKeyCheckDeps, (typeof PLAYER_COUNT_SNAPSHOT_KEYS)[number] & string>;
+type PlayerCountSnapshotExtra = ExtraDependencyKeys<PlayerCountSnapshotKeyCheckDeps, (typeof PLAYER_COUNT_SNAPSHOT_KEYS)[number] & string>;
+const playercountsnapshotKeysComplete: ExactDependencyKeys<Exclude<Extract<keyof PlayerCountSnapshotKeyCheckDeps, string>, (typeof PLAYER_COUNT_SNAPSHOT_KEYS)[number] & string>, PlayerCountSnapshotExtra> = true;

@@ -74,18 +74,19 @@ type RequiredCommandRegistry = {
   [K in RequiredCommandRegistryKey]: NonNullable<CommandRegistryContext[K]>;
 };
 
-import attachCommandCache from "../command-cache/commandCache.js";
+import attachCommandCache, { COMMAND_CACHE_KEYS } from "../command-cache/commandCache.js";
 import attachDealFilters from "../../domain/deals/filters.js";
 import attachCommandPresentation from "../command-presentation/commandPresentation.js";
 import attachNotifications from "../notifications/index.js";
-import attachPlayerCountSnapshots from "../player-count/playerCountSnapshotService.js";
+import attachPlayerCountSnapshots, { PLAYER_COUNT_SNAPSHOT_KEYS } from "../player-count/playerCountSnapshotService.js";
 import attachCachedSteamPlayerCount from "../player-count/cachedSteamPlayerCount.js";
-import { createReviewTrendSnapshotService } from "../game-info/reviewTrendSnapshotService.js";
-import { createDealPriceHistoryService } from "../game-info/dealPriceHistoryService.js";
-import attachFeedbackRepository from "../feedback/feedbackRepository.js";
-import { createReportRepository } from "../feedback/reportRepository.js";
+import { pickDeclaredKeys } from "../../shared/dependencyKeyContract.js";
+import { createReviewTrendSnapshotService, REVIEW_TREND_KEYS } from "../game-info/reviewTrendSnapshotService.js";
+import { createDealPriceHistoryService, DEAL_PRICE_HISTORY_KEYS } from "../game-info/dealPriceHistoryService.js";
+import attachFeedbackRepository, { FEEDBACK_REPOSITORY_KEYS } from "../feedback/feedbackRepository.js";
+import { createReportRepository, REPORT_REPOSITORY_KEYS } from "../feedback/reportRepository.js";
 import { mergeGuildGameAliases } from "../guild-config/gameAliasService.js";
-import attachSlashCommandDefinitions from "../command-definitions/slashCommandDefinitions.js";
+import attachSlashCommandDefinitions, { SLASH_DEFINITIONS_KEYS } from "../command-definitions/slashCommandDefinitions.js";
 import attachHelpInteractionHandler from "../command-handlers/helpInteractionHandler.js";
 import attachCommandSnoozeGuard from "../command-security/commandSnoozeGuard.js";
 import attachAdminCommandRouterGuard from "../command-security/adminCommandRouterGuard.js";
@@ -111,7 +112,7 @@ function createAppServices(
     ...dependencies.platform,
     ...overrides
   };
-  const dealPrices = createDealPriceHistoryService(baseRuntime);
+  const dealPrices = createDealPriceHistoryService(pickDeclaredKeys(baseRuntime, DEAL_PRICE_HISTORY_KEYS));
   const runtime = {
     ...baseRuntime,
     ...dealPrices,
@@ -124,7 +125,7 @@ function createAppServices(
       return deals;
     }
   };
-  const cache = { ...runtime, ...attachCommandCache.createCommandCache(runtime) };
+  const cache = { ...runtime, ...attachCommandCache.createCommandCache(pickDeclaredKeys(runtime, COMMAND_CACHE_KEYS)) };
   const filters = {
     ...cache,
     dealPassesFilters, normalizePendingUpdateArray, normalizePendingDiscountArray, toEntries, mapToObject, rotateAfter
@@ -138,14 +139,16 @@ function createAppServices(
   });
   const playerCounts = {
     ...notifications,
-    ...attachPlayerCountSnapshots.createPlayerCountSnapshotService({ ...notifications, fetchSteamCurrentPlayers: cachedFetchSteamCurrentPlayers })
+    ...attachPlayerCountSnapshots.createPlayerCountSnapshotService(
+      pickDeclaredKeys({ ...notifications, fetchSteamCurrentPlayers: cachedFetchSteamCurrentPlayers }, PLAYER_COUNT_SNAPSHOT_KEYS)
+    )
   };
   const reviewTrends = {
     ...playerCounts,
-    ...createReviewTrendSnapshotService(playerCounts)
+    ...createReviewTrendSnapshotService(pickDeclaredKeys(playerCounts, REVIEW_TREND_KEYS))
   };
-  const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(reviewTrends);
-  const reportRepository = createReportRepository(reviewTrends);
+  const feedbackRepository = attachFeedbackRepository.createFeedbackRepository(pickDeclaredKeys(reviewTrends, FEEDBACK_REPOSITORY_KEYS));
+  const reportRepository = createReportRepository(pickDeclaredKeys(reviewTrends, REPORT_REPOSITORY_KEYS));
   const feedback = {
     ...reviewTrends,
     recordFeedbackReport: feedbackRepository.recordReport,
@@ -153,7 +156,7 @@ function createAppServices(
     resolveFeedbackReport: feedbackRepository.resolveReport,
     ...reportRepository
   };
-  return { ...feedback, ...attachSlashCommandDefinitions.createSlashCommandDefinitions(feedback) };
+  return { ...feedback, ...attachSlashCommandDefinitions.createSlashCommandDefinitions(pickDeclaredKeys(feedback, SLASH_DEFINITIONS_KEYS)) };
 }
 
 export type CommandAppServices = ReturnType<typeof createAppServices>;

@@ -2,6 +2,7 @@
 
 import { REPORT_TYPES } from "./reportTypes.js";
 import type { ReportType } from "./reportTypes.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type MongoFilter = Record<string, unknown>;
 type MongoUpdate = Record<string, unknown>;
@@ -161,3 +162,14 @@ attachFeedbackRepository.reportTypeLabel = reportTypeLabel;
 attachFeedbackRepository.REPORT_TYPES = REPORT_TYPES;
 
 export default attachFeedbackRepository;
+
+export const FEEDBACK_REPOSITORY_KEYS = [
+  "FeedbackReportModel",
+  "logger",
+  "withMongoRetry"
+] as const;
+
+type FeedbackRepositoryKeyCheckDeps = Parameters<typeof createFeedbackRepository>[0];
+type FeedbackRepositoryMissing = MissingDependencyKeys<FeedbackRepositoryKeyCheckDeps, (typeof FEEDBACK_REPOSITORY_KEYS)[number] & string>;
+type FeedbackRepositoryExtra = ExtraDependencyKeys<FeedbackRepositoryKeyCheckDeps, (typeof FEEDBACK_REPOSITORY_KEYS)[number] & string>;
+const feedbackrepositoryKeysComplete: ExactDependencyKeys<Exclude<Extract<keyof FeedbackRepositoryKeyCheckDeps, string>, (typeof FEEDBACK_REPOSITORY_KEYS)[number] & string>, FeedbackRepositoryExtra> = true;

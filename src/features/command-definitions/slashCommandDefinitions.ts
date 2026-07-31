@@ -7,6 +7,7 @@ import { buildGameInfoCommandDefinitions } from "./gameInfoCommandDefinitions.js
 import { buildNotificationCommandDefinitions } from "./notificationCommandDefinitions.js";
 import { buildYouTubeCommandDefinitions } from "./youtubeCommandDefinitions.js";
 import { buildModerationCommandDefinitions } from "./moderationCommandDefinitions.js";
+import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
 type Logger = (level: string, context: string, message: string, meta?: unknown) => void;
 
@@ -90,3 +91,18 @@ const attachSlashCommands = ((target: SlashCommandContext): void => {
 attachSlashCommands.createSlashCommandDefinitions = createSlashCommandDefinitions;
 
 export default attachSlashCommands;
+
+export const SLASH_DEFINITIONS_KEYS = [
+  "PermissionsBitField",
+  "REST",
+  "Routes",
+  "SUPPORTED_CURRENCIES",
+  "SlashCommandBuilder",
+  "env",
+  "logger"
+] as const;
+
+type SlashDefinitionsKeyCheckDeps = Parameters<typeof createSlashCommandDefinitions>[0];
+type SlashDefinitionsMissing = MissingDependencyKeys<SlashDefinitionsKeyCheckDeps, (typeof SLASH_DEFINITIONS_KEYS)[number] & string>;
+type SlashDefinitionsExtra = ExtraDependencyKeys<SlashDefinitionsKeyCheckDeps, (typeof SLASH_DEFINITIONS_KEYS)[number] & string>;
+const slashdefinitionsKeysComplete: ExactDependencyKeys<Exclude<Extract<keyof SlashDefinitionsKeyCheckDeps, string>, (typeof SLASH_DEFINITIONS_KEYS)[number] & string>, SlashDefinitionsExtra> = true;
