@@ -182,6 +182,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   const raidIncidentSchema = new mongoose.Schema({
     _id: String,
     guildId: { type: String, required: true },
+    activeKey: { type: String, default: undefined },
     stage: { type: String, required: true, enum: [...RAID_STAGES], default: "suspected" },
     startedAt: { type: Date, required: true },
     confirmedAt: { type: Date, default: null },
@@ -196,6 +197,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     errors: { type: [String], default: [] },
     restoreProgress: { type: Number, default: 0 }
   }, { minimize: false, _id: false });
+  raidIncidentSchema.index({ activeKey: 1 }, { unique: true, sparse: true });
   raidIncidentSchema.index({ guildId: 1, stage: 1, startedAt: -1 });
   raidIncidentSchema.index({ guildId: 1, startedAt: -1 });
   raidIncidentSchema.index({ startedAt: 1 }, { expireAfterSeconds: 365 * 24 * 60 * 60 });

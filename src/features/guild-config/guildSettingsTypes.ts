@@ -66,6 +66,10 @@ export interface GuildConfigurationSettings {
   permissionRequestChannelId?: string | null;
   antiRaidAlertChannelId?: string | null;
   antiRaidThresholds?: Record<string, unknown> | null;
+<<<<<<< HEAD
+=======
+  antiRaidDryRunEnabled?: boolean;
+>>>>>>> feat/anti-raid-commands
   moderationGuardEnabled?: boolean;
   botAddProtectionEnabled?: boolean;
   warningChannelId?: string | null;

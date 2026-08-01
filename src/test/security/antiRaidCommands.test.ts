@@ -204,3 +204,56 @@ test("lista participantilor arata sanctiunile aplicate, cele esuate si eroarea",
   assert.match(lines, /esuate: mute, timeout, ban/);
   assert.match(lines, /ierarhie Discord/);
 });
+
+test("force-start porneste interventia, nu doar salveaza incidentul", async () => {
+  const model = raidIncidentStore();
+  const triggered: string[] = [];
+  const handler = attachAntiRaidHandler.buildCommandHandler(moduleContext<Parameters<typeof attachAntiRaidHandler.buildCommandHandler>[0]>({
+    RaidIncidentModel: model,
+    getGuildSettings: async () => ({ antiRaidThresholds: null }),
+    runRaidIntervention: async (guildId: string) => { triggered.push(guildId); return undefined; }
+  }));
+  const call = interaction("force-start");
+
+  await handler.handle(moduleContext<Parameters<typeof handler.handle>[0]>(call), moduleContext<Parameters<typeof handler.handle>[1]>({}));
+
+  assert.deepEqual(triggered, ["g1"], "un incident confirmat manual care nu porneste interventia ramane inert");
+  assert.match(String(call.replies[0]?.content), /interventia a pornit/);
+});
+
+test("force-stop porneste restaurarea, nu doar schimba etapa", async () => {
+  const model = raidIncidentStore();
+  const triggered: string[] = [];
+  const handler = attachAntiRaidHandler.buildCommandHandler(moduleContext<Parameters<typeof attachAntiRaidHandler.buildCommandHandler>[0]>({
+    RaidIncidentModel: model,
+    getGuildSettings: async () => ({ antiRaidThresholds: null }),
+    runRaidIntervention: async (guildId: string) => { triggered.push(guildId); return undefined; }
+  }));
+  await createRaidIncidentRepository(model).open({ guildId: "g1", triggerReason: "spam", stage: "containment" }, new Date(T0));
+  const call = interaction("force-stop", { booleans: { confirm: true } });
+
+  await handler.handle(moduleContext<Parameters<typeof handler.handle>[0]>(call), moduleContext<Parameters<typeof handler.handle>[1]>({}));
+
+  assert.deepEqual(triggered, ["g1"]);
+  assert.match(String(call.replies[0]?.content), /restaurarea controlata a pornit/i);
+});
+
+test("fara interventie disponibila, raspunsul spune adevarul in loc sa pretinda ca a pornit", async () => {
+  const model = raidIncidentStore();
+  const call = await run(model, "force-start");
+
+  assert.match(String(call.replies[0]?.content), /nu este disponibila in acest proces/);
+});
+
+test("un participant adaugat dupa inceperea restaurarii e refuzat, nu acceptat degeaba", async () => {
+  const model = raidIncidentStore();
+  const repository = createRaidIncidentRepository(model);
+  const incident = await repository.open({ guildId: "g1", triggerReason: "spam", stage: "containment" }, new Date(T0));
+  await repository.advance(incident?._id ?? "", "containment", "recovery", new Date(T0));
+
+  const call = await run(model, "participant-add", { target: { id: "u1" } });
+
+  assert.match(String(call.replies[0]?.content), /deja in restaurare/);
+  assert.equal((await repository.active("g1"))?.participants.length, 0,
+    "un participant pending intr-un incident care se restaureaza nu ar fi fost niciodata sanctionat");
+});
