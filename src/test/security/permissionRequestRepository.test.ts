@@ -24,11 +24,12 @@ function collection(records: PermissionRequestRecord[] = []) {
   return {
     records,
     findOne(filter: Record<string, unknown>) {
-      return { lean: async () => records.find(record => matches(record, filter)) ?? null };
+      const found = records.find(record => matches(record, filter)) ?? null;
+      return { lean: async (): Promise<Record<string, unknown> | null> => (found ? { ...found } : null) };
     },
     find(filter: Record<string, unknown>) {
       const found = records.filter(record => matches(record, filter));
-      return { sort: () => ({ limit: () => ({ lean: async () => found }) }) };
+      return { sort: () => ({ limit: () => ({ lean: async (): Promise<Array<Record<string, unknown>>> => found.map(record => ({ ...record })) }) }) };
     },
     async updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>) {
       const existing = records.find(record => matches(record, filter));

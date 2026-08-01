@@ -19,5 +19,42 @@ export function buildModerationCommandDefinitions({ SlashCommandBuilder, Permiss
     ,admin(new SlashCommandBuilder().setName("bot-add-request").setDescription("Solicita aprobarea proprietarului pentru adaugarea unui bot")
       .addStringOption(option => option.setName("bot-id").setDescription("ID-ul botului solicitat").setRequired(true).setMinLength(17).setMaxLength(20)))
     ,admin(new SlashCommandBuilder().setName("bot-add-permissions").setDescription("Afiseaza solicitarile si permisiunile de adaugare boti"))
+    ,new SlashCommandBuilder().setName("permission-request").setDescription("Cere aprobarea ownerului pentru o operatiune de securitate").setDMPermission(false)
+      .addStringOption(option => option.setName("type").setDescription("Tipul operatiunii").setRequired(true)
+        .addChoices(
+          { name: "bot-add", value: "bot-add" },
+          { name: "permission-grant", value: "permission-grant" },
+          { name: "moderation-mass", value: "moderation-mass" },
+          { name: "webhook", value: "webhook" },
+          { name: "server-structure", value: "server-structure" },
+          { name: "protected-resource-change", value: "protected-resource-change" }
+        ))
+      .addStringOption(option => option.setName("target").setDescription("Resursa vizata (ID bot, rol, canal, membru)").setRequired(true).setMaxLength(120))
+      .addStringOption(option => option.setName("action").setDescription("Actiunea ceruta (add, grant, create, delete, rename)").setRequired(true).setMaxLength(60))
+      .addStringOption(option => option.setName("reason").setDescription("Motivul cererii").setRequired(true).setMaxLength(500))
+      .addIntegerOption(option => option.setName("amount").setDescription("Cantitatea ceruta, unde se aplica").setRequired(false).setMinValue(1).setMaxValue(1000))
+      .addStringOption(option => option.setName("permissions").setDescription("Permisiunile cerute, separate prin virgula").setRequired(false).setMaxLength(300))
+      .addStringOption(option => option.setName("bot").setDescription("Botul executor, daca exista").setRequired(false).setMaxLength(20))
+      .addStringOption(option => option.setName("duration").setDescription("Valabilitatea ceruta (ex. 30m, 2h, 1d)").setRequired(false).setMaxLength(10))
+    ,admin(new SlashCommandBuilder().setName("permission-requests").setDescription("Afiseaza cererile de aprobare de securitate")
+      .addSubcommand(subcommand => subcommand.setName("list").setDescription("Listeaza cererile de securitate")
+        .addStringOption(option => option.setName("status").setDescription("Filtreaza dupa status").setRequired(false)
+          .addChoices(
+            { name: "pending", value: "pending" },
+            { name: "approved", value: "approved" },
+            { name: "rejected", value: "rejected" },
+            { name: "used", value: "used" },
+            { name: "expired", value: "expired" },
+            { name: "cancelled", value: "cancelled" }
+          ))
+        .addStringOption(option => option.setName("type").setDescription("Filtreaza dupa tipul operatiunii").setRequired(false)
+          .addChoices(
+            { name: "bot-add", value: "bot-add" },
+            { name: "permission-grant", value: "permission-grant" },
+            { name: "moderation-mass", value: "moderation-mass" },
+            { name: "webhook", value: "webhook" },
+            { name: "server-structure", value: "server-structure" },
+            { name: "protected-resource-change", value: "protected-resource-change" }
+          ))))
   ];
 }

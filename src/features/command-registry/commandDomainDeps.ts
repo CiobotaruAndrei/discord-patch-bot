@@ -36,6 +36,7 @@ import attachHelpInteractionHandler from "../command-handlers/helpInteractionHan
 import attachModerationInteractionHandler from "../command-handlers/moderationInteractionHandler.js";
 import attachSecurityInteractionHandler from "../command-handlers/securityInteractionHandler.js";
 import attachBotAddInteractionHandler from "../command-handlers/botAddInteractionHandler.js";
+import attachPermissionRequestInteractionHandler from "../command-handlers/permissionRequestInteractionHandler.js";
 
 type HandlerDeps<T> = T extends { buildCommandHandler: (context: infer D) => unknown } ? D : never;
 
@@ -51,6 +52,7 @@ export type AdminCommandDeps =
   & HandlerDeps<typeof attachGuildConfigurationAdminHandler>
   & HandlerDeps<typeof attachSecurityInteractionHandler>
   & HandlerDeps<typeof attachBotAddInteractionHandler>
+  & HandlerDeps<typeof attachPermissionRequestInteractionHandler>
   & HandlerDeps<typeof attachAdminCommandAccessHandler>
   & HandlerDeps<typeof attachModerationInteractionHandler>
   & HandlerDeps<typeof attachBackupInteractionHandler>

@@ -37,6 +37,7 @@ export type MongoRepositoriesBundle = Pick<
   | "NotificationOutboxSentModel"
   | "NotificationHistoryModel"
   | "FeedbackReportModel"
+  | "PermissionRequestModel"
   | "NotificationDeadLetterReplayModel"
   | "OperationJournalModel"
 >;
@@ -111,6 +112,7 @@ export function selectMongoRepositories(context: MongoRepositoriesBundle): Mongo
     NotificationOutboxSentModel: context.NotificationOutboxSentModel,
     NotificationHistoryModel: context.NotificationHistoryModel,
     FeedbackReportModel: context.FeedbackReportModel,
+    PermissionRequestModel: context.PermissionRequestModel,
     NotificationDeadLetterReplayModel: context.NotificationDeadLetterReplayModel,
     OperationJournalModel: context.OperationJournalModel
   };
