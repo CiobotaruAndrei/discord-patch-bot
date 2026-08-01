@@ -3,6 +3,7 @@ import type { MongoModelEnv } from "./mongoModelEnv.js";
 import { PERMISSION_REQUEST_STATUSES, PERMISSION_REQUEST_TYPES } from "../../features/command-security/permissionRequestTypes.js";
 import { PROTECTED_RESOURCE_TYPES } from "../../features/command-security/protectedResourceTypes.js";
 import { RAID_STAGES } from "../../features/command-security/antiRaidIncidentTypes.js";
+import { AD_REQUEST_STATUSES } from "../../features/command-security/adRequestTypes.js";
 
 export interface OperationalSchemasDeps {
   mongoose: typeof Mongoose;
@@ -202,6 +203,41 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   raidIncidentSchema.index({ guildId: 1, startedAt: -1 });
   raidIncidentSchema.index({ startedAt: 1 }, { expireAfterSeconds: 365 * 24 * 60 * 60 });
 
+  const adRequestSchema = new mongoose.Schema({
+    _id: String,
+    guildId: { type: String, required: true },
+    requesterId: { type: String, required: true },
+    adText: { type: String, default: "", maxlength: 2000 },
+    fingerprint: { type: String, required: true },
+    link: { type: String, default: null },
+    invite: { type: String, default: null },
+    attachmentUrl: { type: String, default: null },
+    target: { type: String, default: null },
+    status: { type: String, required: true, enum: [...AD_REQUEST_STATUSES], default: "pending" },
+    ownerId: { type: String, default: null },
+    requestedAt: { type: Date, required: true },
+    respondedAt: { type: Date, default: null },
+    usedAt: { type: Date, default: null },
+    expiresAt: { type: Date, default: null }
+  }, { minimize: false, _id: false });
+  adRequestSchema.index({ guildId: 1, status: 1, requestedAt: -1 });
+  adRequestSchema.index({ guildId: 1, requesterId: 1, status: 1 });
+  adRequestSchema.index({ requestedAt: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
+
+  const adAttemptSchema = new mongoose.Schema({
+    _id: String,
+    guildId: { type: String, required: true },
+    userId: { type: String, required: true },
+    strikes: { type: Number, default: 0, min: 0 },
+    totalDeleted: { type: Number, default: 0, min: 0 },
+    totalWarns: { type: Number, default: 0, min: 0 },
+    lastAttemptAt: { type: Date, default: null },
+    lastChannelId: { type: String, default: null },
+    history: { type: [Object], default: [] }
+  }, { minimize: false, _id: false });
+  adAttemptSchema.index({ guildId: 1, strikes: -1 });
+  adAttemptSchema.index({ guildId: 1, userId: 1 });
+
   const bugReportSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
     reportType: { type: String, required: true },
@@ -282,6 +318,8 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     permissionRequestSchema,
     protectedResourceSchema,
     raidIncidentSchema,
+    adRequestSchema,
+    adAttemptSchema,
     bugReportSchema,
     userComplaintSchema,
     feedbackReportSchema,

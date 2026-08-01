@@ -19,6 +19,7 @@ export const PROJECT_GATES: readonly GateSpec[] = [
   { name: "syntax", script: "dist/scripts/check-syntax.js", args: [] },
   { name: "comentarii", script: "dist/scripts/check-no-comments.js", args: [] },
   { name: "octeti NUL", script: "dist/scripts/check-no-nul-bytes.js", args: [] },
+  { name: "marcatori de conflict", script: "dist/scripts/check-no-conflict-markers.js", args: [] },
   { name: "tipare slabita", script: "dist/scripts/check-no-weakening-types.js", args: [] },
   { name: "config", script: "dist/scripts/check-config.js", args: [] },
   { name: "dependinte", script: "dist/scripts/check-dependencies.js", args: [] },
