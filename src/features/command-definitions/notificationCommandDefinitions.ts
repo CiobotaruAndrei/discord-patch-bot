@@ -30,7 +30,8 @@ export function buildNotificationCommandDefinitions({ SlashCommandBuilder, Permi
       .addSubcommand(subcommand => subcommand.setName("new-account-alerts").setDescription("Porneste alertele pentru conturi noi"))
       .addSubcommand(subcommand => subcommand.setName("threat-protection").setDescription("Porneste protectia la amenintari"))
       .addSubcommand(subcommand => subcommand.setName("bot-add-protection").setDescription("Porneste protectia la adaugarea botilor"))
-      .addSubcommand(subcommand => subcommand.setName("moderation-guard").setDescription("Porneste protectiile administrative bazate pe aprobare")),
+      .addSubcommand(subcommand => subcommand.setName("moderation-guard").setDescription("Porneste protectiile administrative bazate pe aprobare"))
+      .addSubcommand(subcommand => subcommand.setName("anti-raid-dry-run").setDescription("Porneste modul de testare anti-raid, care arata ce s-ar intampla fara sa modifice serverul")),
     new SlashCommandBuilder()
       .setName("stop")
       .setDescription("Opreste notificarile automate (admin)")
@@ -43,5 +44,6 @@ export function buildNotificationCommandDefinitions({ SlashCommandBuilder, Permi
       .addSubcommand(subcommand => subcommand.setName("threat-protection").setDescription("Opreste protectia la amenintari"))
       .addSubcommand(subcommand => subcommand.setName("bot-add-protection").setDescription("Opreste protectia la adaugarea botilor"))
       .addSubcommand(subcommand => subcommand.setName("moderation-guard").setDescription("Opreste protectiile administrative bazate pe aprobare"))
+      .addSubcommand(subcommand => subcommand.setName("anti-raid-dry-run").setDescription("Opreste modul de testare anti-raid si pastreaza rezultatele in istoricul incidentelor"))
   ];
 }

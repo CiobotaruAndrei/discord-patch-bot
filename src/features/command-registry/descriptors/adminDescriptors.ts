@@ -5,6 +5,7 @@ import { BACKUP_HANDLER_KEYS } from "../../command-handlers/backupInteractionHan
 import { BOT_ADD_HANDLER_KEYS } from "../../command-handlers/botAddInteractionHandler.js";
 import { PERMISSION_REQUEST_HANDLER_KEYS } from "../../command-handlers/permissionRequestInteractionHandler.js";
 import { PROTECTED_RESOURCE_HANDLER_KEYS } from "../../command-handlers/protectedResourceInteractionHandler.js";
+import { ANTI_RAID_HANDLER_KEYS } from "../../command-handlers/antiRaidInteractionHandler.js";
 import { CONFIGURATION_ADMIN_HANDLER_KEYS } from "../../command-handlers/guildConfigurationAdminHandler.js";
 import { HEALTH_HANDLER_KEYS } from "../../command-handlers/healthInteractionHandler.js";
 import { MAINTENANCE_HANDLER_KEYS } from "../../command-handlers/maintenanceInteractionHandler.js";
@@ -19,6 +20,7 @@ import attachBackupInteractionHandler from "../../command-handlers/backupInterac
 import attachBotAddInteractionHandler from "../../command-handlers/botAddInteractionHandler.js";
 import attachPermissionRequestInteractionHandler from "../../command-handlers/permissionRequestInteractionHandler.js";
 import attachProtectedResourceInteractionHandler from "../../command-handlers/protectedResourceInteractionHandler.js";
+import attachAntiRaidInteractionHandler from "../../command-handlers/antiRaidInteractionHandler.js";
 import attachGuildConfigurationAdminHandler from "../../command-handlers/guildConfigurationAdminHandler.js";
 import attachHealthInteractionHandler from "../../command-handlers/healthInteractionHandler.js";
 import attachMaintenanceInteractionHandler from "../../command-handlers/maintenanceInteractionHandler.js";
@@ -36,6 +38,7 @@ export function adminDescriptors(
     define({ id: "bot-add", needs: BOT_ADD_HANDLER_KEYS, domain: "admin", access: "admin", help: ["bot-add-request", "bot-add-permissions"], build: context => attachBotAddInteractionHandler.buildCommandHandler(context) }),
     define({ id: "permission-request", needs: PERMISSION_REQUEST_HANDLER_KEYS, domain: "admin", help: ["permission-request", "permission-requests list"], build: context => attachPermissionRequestInteractionHandler.buildCommandHandler(context) }),
     define({ id: "protected-resource", needs: PROTECTED_RESOURCE_HANDLER_KEYS, domain: "admin", help: ["protected-resource"], build: context => attachProtectedResourceInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "anti-raid", needs: ANTI_RAID_HANDLER_KEYS, domain: "admin", help: ["anti-raid status", "anti-raid participant-list", "anti-raid force-start", "anti-raid force-stop", "anti-raid participant-add", "anti-raid participant-remove"], build: context => attachAntiRaidInteractionHandler.buildCommandHandler(context) }),
     define({ id: "admin-access", needs: ADMIN_ACCESS_HANDLER_KEYS, domain: "admin", access: "owner", help: ["admin-command-access"], build: context => attachAdminCommandAccessHandler.buildCommandHandler(context) }),
     define({ id: "moderation", needs: MODERATION_HANDLER_KEYS, domain: "admin", access: "mixed", help: ["timeout", "remove-timeout", "timeout-list", "mute", "unmute", "mute-list", "kick", "ban", "unban", "warn", "remove-warn", "warn-list", "warn-ban-limit"], build: context => attachModerationInteractionHandler.buildCommandHandler(context) }),
     define({ id: "backup", needs: BACKUP_HANDLER_KEYS, domain: "admin", help: ["backup"], build: context => attachBackupInteractionHandler.buildCommandHandler(context) }),

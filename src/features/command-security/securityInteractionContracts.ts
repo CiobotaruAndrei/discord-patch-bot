@@ -69,6 +69,8 @@ export type GuildSettingsLike = {
   botAddPermissions?: unknown;
   permissionRequestChannelId?: string | null;
   moderationGuardEnabled?: boolean;
+  antiRaidAlertChannelId?: string | null;
+  antiRaidDryRunEnabled?: boolean;
   purgeAmount?: number;
   lockedChannelIds?: string[];
   lockedChannelPermissions?: Array<{ channelId: string; sendMessages: LockedChannelPermissionState }>;
@@ -93,8 +95,10 @@ export type SecurityDeps = {
   OperationJournalModel?: OperationJournalModelLike;
 };
 
-export type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "botAddAlertChannelId" | "permissionRequestChannelId";
-export type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "botAddProtectionEnabled" | "moderationGuardEnabled";
+export type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "botAddAlertChannelId" | "permissionRequestChannelId"
+  | "antiRaidAlertChannelId";
+export type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "botAddProtectionEnabled" | "moderationGuardEnabled"
+  | "antiRaidDryRunEnabled";
 
 export type OverwriteEditor = (target: object, permissions: Record<string, boolean | null>) => Promise<unknown>;
 export type SecurityLogger = NonNullable<SecurityDeps["logger"]>;

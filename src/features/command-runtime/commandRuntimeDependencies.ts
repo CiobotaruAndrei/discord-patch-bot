@@ -73,7 +73,7 @@ type CommandMongoKey =
   | "DealPriceSnapshotModel"
   | "NewAccountAlertDeliveryModel"
   | "ChannelLockRecoveryModel"
-  | "PlayerCountRecordModel" | "FeedbackReportModel" | "PermissionRequestModel" | "ProtectedResourceModel" | "BugReportModel" | "UserComplaintModel"
+  | "PlayerCountRecordModel" | "FeedbackReportModel" | "PermissionRequestModel" | "ProtectedResourceModel" | "RaidIncidentModel" | "BugReportModel" | "UserComplaintModel"
   | "GuildSeenDiscountModel" | "GuildSeenUpdateModel" | "GuildSeenYoutubeModel" | "GuildYoutubeStateModel" | "PlayerCountWatchModel"
   | "NotificationOutboxModel" | "NotificationOutboxSentModel" | "NotificationHistoryModel"
   | "NotificationDeadLetterReplayModel" | "OperationJournalModel" | "runConcurrent";
@@ -196,6 +196,7 @@ export function selectCommandMongoDependencies(source: MongoContextExports): Com
     FeedbackReportModel: source.FeedbackReportModel,
     PermissionRequestModel: source.PermissionRequestModel,
     ProtectedResourceModel: source.ProtectedResourceModel,
+    RaidIncidentModel: source.RaidIncidentModel,
     BugReportModel: source.BugReportModel,
     UserComplaintModel: source.UserComplaintModel,
     GuildSeenDiscountModel: source.GuildSeenDiscountModel,

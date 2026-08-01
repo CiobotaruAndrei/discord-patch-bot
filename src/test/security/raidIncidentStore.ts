@@ -125,7 +125,12 @@ export function raidIncidentStore(records: Doc[] = []): RaidIncidentStore {
       const existing = records.find(record => matches(record, filter));
       if (!existing) {
         if (options?.upsert && update.$setOnInsert) {
-          records.push(structuredClone(update.$setOnInsert as Doc));
+          const inserted = structuredClone(update.$setOnInsert as Doc);
+          const activeKey = inserted.activeKey;
+          if (typeof activeKey === "string" && records.some(record => record.activeKey === activeKey)) {
+            throw new Error("E11000 duplicate key error collection: activeKey");
+          }
+          records.push(inserted);
           return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
         }
         return { matchedCount: 0, modifiedCount: 0 };
@@ -133,6 +138,7 @@ export function raidIncidentStore(records: Doc[] = []): RaidIncidentStore {
       existing.__positional = positionalIndex(existing, filter);
       if (update.$push) applyPush(existing, update.$push as Doc);
       if (update.$set) applySet(existing, update.$set as Doc);
+      if (update.$unset) for (const key of Object.keys(update.$unset as Doc)) delete existing[key];
       if (update.$pull) {
         for (const [key, value] of Object.entries(update.$pull as Doc)) {
           const list = existing[key];
