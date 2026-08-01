@@ -5,56 +5,11 @@ import attachPermissionRequestHandler from "../../features/command-handlers/perm
 import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
 import { parseDurationMs, restrictionFromModal } from "../../features/command-security/permissionRequestApproval.js";
 import { moduleContext } from "../moduleContextStub.js";
+import { permissionRequestStore } from "./permissionRequestStore.js";
 import type { PermissionRequestRecord } from "../../features/command-security/permissionRequestTypes.js";
 
-type Doc = Record<string, unknown>;
-
-function store(records: Doc[] = []) {
-  function matches(record: Doc, filter: Doc): boolean {
-    for (const [key, expected] of Object.entries(filter)) {
-      const actual = record[key];
-      if (expected && typeof expected === "object" && !(expected instanceof Date)) {
-        const clause = expected as Doc;
-        if ("$in" in clause && !(clause.$in as unknown[]).includes(actual)) return false;
-        if ("$gt" in clause && !(actual instanceof Date && actual.getTime() > (clause.$gt as Date).getTime())) return false;
-        if ("$lte" in clause && !(actual instanceof Date && actual.getTime() <= (clause.$lte as Date).getTime())) return false;
-        continue;
-      }
-      if (actual !== expected) return false;
-    }
-    return true;
-  }
-  return {
-    records,
-    findOne(filter: Doc) {
-      const found = records.find(record => matches(record, filter)) ?? null;
-      return { lean: async (): Promise<Doc | null> => (found ? { ...found } : null) };
-    },
-    find(filter: Doc) {
-      const found = records.filter(record => matches(record, filter));
-      return { sort: () => ({ limit: () => ({ lean: async (): Promise<Doc[]> => found.map(record => ({ ...record })) }) }) };
-    },
-    async updateOne(filter: Doc, update: Doc, options?: Doc) {
-      const existing = records.find(record => matches(record, filter));
-      if (!existing) {
-        if (options?.upsert && update.$setOnInsert) {
-          records.push(update.$setOnInsert as Doc);
-          return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
-        }
-        return { matchedCount: 0, modifiedCount: 0 };
-      }
-      if (update.$set) Object.assign(existing, update.$set);
-      return { matchedCount: 1, modifiedCount: 1 };
-    },
-    async updateMany(filter: Doc, update: Doc) {
-      for (const record of records.filter(entry => matches(entry, filter))) Object.assign(record, update.$set);
-      return undefined;
-    }
-  };
-}
-
-function interaction(overrides: Doc = {}) {
-  const replies: Doc[] = [];
+function interaction(overrides: Record<string, unknown> = {}) {
+  const replies: Record<string, unknown>[] = [];
   const base = {
     replies,
     guild: { id: "g1", ownerId: "owner-1", channels: { fetch: async () => ({ send: async () => undefined }) }, members: { fetch: async () => null } },
@@ -62,8 +17,8 @@ function interaction(overrides: Doc = {}) {
     isChatInputCommand: () => true,
     isButton: () => false,
     commandName: "permission-request",
-    reply: async (payload: Doc) => { replies.push(payload); return undefined; },
-    update: async (payload: Doc) => { replies.push(payload); return undefined; },
+    reply: async (payload: Record<string, unknown>) => { replies.push(payload); return undefined; },
+    update: async (payload: Record<string, unknown>) => { replies.push(payload); return undefined; },
     options: {
       getString: (name: string) => (overrides.strings as Record<string, string> | undefined)?.[name] ?? null,
       getInteger: (name: string) => (overrides.integers as Record<string, number> | undefined)?.[name] ?? null
@@ -72,7 +27,7 @@ function interaction(overrides: Doc = {}) {
   return { ...base, ...overrides, replies };
 }
 
-function handlerFor(model: ReturnType<typeof store>, settings: Doc = { permissionRequestChannelId: "c1" }) {
+function handlerFor(model: ReturnType<typeof permissionRequestStore>, settings: Record<string, unknown> = { permissionRequestChannelId: "c1" }) {
   return attachPermissionRequestHandler.buildCommandHandler(moduleContext<Parameters<typeof attachPermissionRequestHandler.buildCommandHandler>[0]>({
     PermissionRequestModel: model,
     getGuildSettings: async () => settings
@@ -80,7 +35,7 @@ function handlerFor(model: ReturnType<typeof store>, settings: Doc = { permissio
 }
 
 test("/permission-request refuza un tip necunoscut inainte sa scrie ceva", async () => {
-  const model = store();
+  const model = permissionRequestStore();
   const handler = handlerFor(model);
   const call = interaction({ strings: { type: "orice", target: "x", action: "y", reason: "z" } });
 
@@ -91,7 +46,7 @@ test("/permission-request refuza un tip necunoscut inainte sa scrie ceva", async
 });
 
 test("/permission-request cere ID de bot valid pentru bot-add", async () => {
-  const model = store();
+  const model = permissionRequestStore();
   const handler = handlerFor(model);
   const call = interaction({ strings: { type: "bot-add", target: "nu-e-id", action: "add", reason: "bot" } });
 
@@ -102,7 +57,7 @@ test("/permission-request cere ID de bot valid pentru bot-add", async () => {
 });
 
 test("/permission-request refuza cand canalul de aprobare nu e configurat", async () => {
-  const model = store();
+  const model = permissionRequestStore();
   const handler = handlerFor(model, { permissionRequestChannelId: null });
   const call = interaction({ strings: { type: "webhook", target: "canal", action: "create", reason: "integrare" } });
 
@@ -113,14 +68,14 @@ test("/permission-request refuza cand canalul de aprobare nu e configurat", asyn
 });
 
 test("/permission-request salveaza cererea si o trimite in canalul configurat", async () => {
-  const model = store();
-  const sent: Doc[] = [];
+  const model = permissionRequestStore();
+  const sent: Record<string, unknown>[] = [];
   const handler = handlerFor(model);
   const call = interaction({
     strings: { type: "webhook", target: "canal-1", action: "create", reason: "integrare RSS" },
     guild: {
       id: "g1", ownerId: "owner-1",
-      channels: { fetch: async () => ({ send: async (payload: Doc) => { sent.push(payload); return undefined; } }) },
+      channels: { fetch: async () => ({ send: async (payload: Record<string, unknown>) => { sent.push(payload); return undefined; } }) },
       members: { fetch: async () => null }
     }
   });
@@ -135,7 +90,7 @@ test("/permission-request salveaza cererea si o trimite in canalul configurat", 
 });
 
 test("un non-owner nu poate decide o cerere", async () => {
-  const model = store();
+  const model = permissionRequestStore();
   const repository = createPermissionRequestRepository(model);
   await repository.create({ requestId: "r1", guildId: "g1", type: "webhook", requesterId: "u1", target: "c", action: "create", reason: "x" });
   const handler = handlerFor(model);
@@ -148,7 +103,7 @@ test("un non-owner nu poate decide o cerere", async () => {
 });
 
 test("respingerea de catre owner marcheaza cererea si nu lasa butoanele active", async () => {
-  const model = store();
+  const model = permissionRequestStore();
   const repository = createPermissionRequestRepository(model);
   await repository.create({ requestId: "r2", guildId: "g1", type: "webhook", requesterId: "u1", target: "c", action: "create", reason: "x" });
   const handler = handlerFor(model);
@@ -162,7 +117,7 @@ test("respingerea de catre owner marcheaza cererea si nu lasa butoanele active",
 });
 
 test("/permission-requests list e vizibila doar ownerului", async () => {
-  const model = store();
+  const model = permissionRequestStore();
   const handler = handlerFor(model);
   const call = interaction({ commandName: "permission-requests", user: { id: "alt-user" } });
 

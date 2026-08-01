@@ -78,6 +78,10 @@ export function stripInapplicableFields(type: PermissionRequestType, scope: Perm
   return kept;
 }
 
+export function normalizePermissionName(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 export function scopeMatchesApproval(record: PermissionRequestRecord, attempt: PermissionRequestScope): boolean {
   const target = record.approvedTarget ?? record.target;
   const action = record.approvedAction ?? record.action;
@@ -91,8 +95,8 @@ export function scopeMatchesApproval(record: PermissionRequestRecord, attempt: P
 
   const approvedPermissions = record.approvedPermissions ?? record.permissions ?? [];
   if (approvedPermissions.length > 0) {
-    const allowed = new Set(approvedPermissions);
-    if ((attempt.permissions ?? []).some(permission => !allowed.has(permission))) return false;
+    const allowed = new Set(approvedPermissions.map(normalizePermissionName));
+    if ((attempt.permissions ?? []).some(permission => !allowed.has(normalizePermissionName(permission)))) return false;
   }
   return true;
 }

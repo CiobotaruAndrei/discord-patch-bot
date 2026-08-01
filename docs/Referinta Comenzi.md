@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 157.
+Total comenzi documentate: 159.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -58,7 +58,9 @@ Total comenzi documentate: 157.
 | `/set permission-request-channel` | Admin, Ephemeral | Alege canalul unic pentru toate cererile de aprobare de securitate si deciziile ownerului. | `/set permission-request-channel canal:#aprobari` |
 | `/set warn-channel` | Admin, Ephemeral | Alege canalul dedicat in care sunt publicate warn-urile si dovezile directe. | `/set warn-channel canal:#moderation` |
 | `/start bot-add-protection` | Admin, Ephemeral | Permite doar botul si solicitantul aprobati exact printr-o aprobare owner one-time neexpirata; botii neaprobati sunt eliminati. | `/start bot-add-protection` |
+| `/start moderation-guard` | Admin, Ephemeral | Porneste unitar protectiile administrative bazate pe aprobare din afara raidurilor: bot-add, permission-grant, moderation-mass, webhook, server-structure si protected-resource-change. | `/start moderation-guard` |
 | `/stop bot-add-protection` | Admin, Ephemeral | Opreste protectia la adaugarea botilor si anuleaza toate solicitarile si aprobarile bot-add active neexpirate (devin cancelled), ca sa nu ramana aprobari valabile dupa dezactivare. | `/stop bot-add-protection` |
+| `/stop moderation-guard` | Admin, Ephemeral | Opreste protectiile administrative din afara raidurilor si anuleaza cererile si aprobarile nefolosite pentru cele sase tipuri; istoricul si canalul raman salvate. | `/stop moderation-guard` |
 | `/set admin-command-access` | Admin top-level, owner-only runtime, Ephemeral | Seteaza rolul care poate folosi comenzile admin pe langa Administrator si codul global de acces. Fara command seteaza fallback-ul global; cu command seteaza regula doar pentru acea comanda sau acel pachet, de exemplu /start updates. Perechile start/stop pentru acelasi modul folosesc aceeasi regula. Nota: Mode `role` accepta doar rolul ales, iar `role-or-higher` accepta rolul ales sau unul mai mare. Nota: O regula pentru `/start player-count` se aplica automat si la `/stop player-count`. Nota: Pana ownerul seteaza o regula de rol, rolurile nu dau acces admin; raman Administrator si codul global corect introdus prin modal ephemeral. | `/set admin-command-access role:@Moderator mode:role-or-higher command:/start player-count` |
 | `/price-alert list` | Admin, Ephemeral | Listeaza alertele de pret, pragurile, valutele si starea armata sau declansata. | `/price-alert list` |
 | `/watchlist-game add` | Public, Ephemeral | Permite unui user sa propuna un joc nou pentru lista botului. Propunerea nu activeaza jocul automat. | `/watchlist-game add game:silksong` |

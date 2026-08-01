@@ -11,6 +11,7 @@ import { createPlayerCountSubscriptionFamily } from "./playerCountSubscriptionFa
 
 import { errorDetail } from "../../shared/errors.js";
 import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
+import { START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
 
 function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps) {
   const families = {
@@ -22,10 +23,10 @@ function createSubscriptionInteractionHandlers(deps: SubscriptionInteractionDeps
   return createStartStopHandlers(deps, families);
 }
 
-function isSubscriptionCommand(interaction: SubscriptionInteraction) {
+export function isSubscriptionStartStop(interaction: SubscriptionInteraction): boolean {
   if (interaction?.isChatInputCommand?.() !== true || !interaction.guild) return false;
   if (interaction.commandName !== "start" && interaction.commandName !== "stop") return false;
-  return !["new-account-alerts", "threat-protection", "bot-add-protection"].includes(interaction.options.getSubcommand());
+  return !Object.hasOwn(START_STOP_TOGGLE_FIELDS, interaction.options.getSubcommand());
 }
 
 function createInteractionErrorPayload(MessageFlags: { Ephemeral: number }) {
@@ -61,7 +62,7 @@ function buildSubscriptionCommandHandler(target: SubscriptionContext) {
   });
 
   const command: CommandHandler<SubscriptionInteraction> = {
-    canHandle: (interaction): interaction is SubscriptionInteraction => Boolean(isSubscriptionCommand(interaction as SubscriptionInteraction)),
+    canHandle: (interaction): interaction is SubscriptionInteraction => isSubscriptionStartStop(interaction as SubscriptionInteraction),
     handle: async (interaction, games) => {
       const di = interaction;
       try {

@@ -31,7 +31,7 @@ export type ToggleProtectionDeps = {
   readConfiguredChannel: () => string | null;
   readChannelPermissions: (channelId: string) => Promise<{ viewChannel?: boolean; sendMessages?: boolean; embedLinks?: boolean } | null>;
   readinessGaps: () => readonly string[];
-  countActiveApprovals: () => number;
+  countActiveApprovals: () => number | Promise<number>;
   stopAtomically: () => Promise<void>;
   persistEnabled: (enabled: boolean) => Promise<void>;
   runBackfill: () => Promise<ProtectionBackfillResult>;
@@ -59,7 +59,7 @@ export async function toggleProtection(
   }
 
   if (input.command === "stop" && input.needsAtomicStop) {
-    const cancelled = deps.countActiveApprovals();
+    const cancelled = await deps.countActiveApprovals();
     try {
       await deps.stopAtomically();
     } catch (error: unknown) {

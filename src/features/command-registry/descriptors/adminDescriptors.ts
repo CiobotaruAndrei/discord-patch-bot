@@ -30,7 +30,7 @@ export function adminDescriptors(
   return [
     define({ id: "source-status", needs: SOURCE_STATUS_HANDLER_KEYS, domain: "admin", help: ["sources status"], build: context => attachSourcesStatusHandler.buildCommandHandler(context) }),
     define({ id: "configuration-admin", needs: CONFIGURATION_ADMIN_HANDLER_KEYS, domain: "admin", help: ["reset-config", "admin-alerts"], build: context => attachGuildConfigurationAdminHandler.buildCommandHandler(context) }),
-    define({ id: "security", needs: SECURITY_HANDLER_KEYS, domain: "admin", help: ["lock-channel", "unlock-channel", "purge", "purge-amount", "new-account-alerts", "threat-protection", "bot-add-protection"], build: context => attachSecurityInteractionHandler.buildCommandHandler(context) }),
+    define({ id: "security", needs: SECURITY_HANDLER_KEYS, domain: "admin", help: ["lock-channel", "unlock-channel", "purge", "purge-amount", "new-account-alerts", "threat-protection", "bot-add-protection", "moderation-guard"], build: context => attachSecurityInteractionHandler.buildCommandHandler(context) }),
     define({ id: "bot-add", needs: BOT_ADD_HANDLER_KEYS, domain: "admin", access: "admin", help: ["bot-add-request", "bot-add-permissions"], build: context => attachBotAddInteractionHandler.buildCommandHandler(context) }),
     define({ id: "permission-request", needs: PERMISSION_REQUEST_HANDLER_KEYS, domain: "admin", help: ["permission-request", "permission-requests list"], build: context => attachPermissionRequestInteractionHandler.buildCommandHandler(context) }),
     define({ id: "admin-access", needs: ADMIN_ACCESS_HANDLER_KEYS, domain: "admin", access: "owner", help: ["admin-command-access"], build: context => attachAdminCommandAccessHandler.buildCommandHandler(context) }),

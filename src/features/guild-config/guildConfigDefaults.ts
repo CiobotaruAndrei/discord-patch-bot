@@ -72,6 +72,7 @@ export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<s
     threatProtectionEnabled: false,
     botAddAlertChannelId: null,
     permissionRequestChannelId: null,
+    moderationGuardEnabled: false,
     botAddProtectionEnabled: false,
     warningChannelId: null,
     botAddPermissions: [],

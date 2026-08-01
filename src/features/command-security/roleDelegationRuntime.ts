@@ -11,6 +11,15 @@ export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDep
   const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   const { observeSensitiveAction, shouldSendIndividualAlert, markProcessed, processedAuditEntries } = observer;
 
+  async function authorized(guildId: string, actorId: string | null, labels: readonly string[], targetId: string): Promise<boolean> {
+    if (!deps.guard) return false;
+    const situation = await deps.guard.readSituation(guildId);
+    if (!situation.guardEnabled || situation.raidConfirmed) return true;
+    if (!actorId) return false;
+    const approval = await deps.guard.consumeApproval(guildId, actorId, labels, targetId);
+    return Boolean(approval);
+  }
+
 
   async function handleRoleUpdate(previous: RoleLike, next: RoleLike): Promise<void> {
     const granted = grantedProtectedPermissions(
@@ -26,6 +35,7 @@ export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDep
     const currentBits = requireBitfield(next.permissions, `rolul ${next.id} (stare curenta)`);
     const stillGranted = granted.filter(({ flag }) => explicitlyHas(currentBits, flag));
     if (!stillGranted.length) return;
+    if (await authorized(next.guild.id, actorId, stillGranted.map(({ label }) => label), next.id)) return;
     markProcessed(match);
     await next.setPermissions(currentBits & ~protectedMask(stillGranted), "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile");
     deps.metrics?.reverted();
@@ -55,6 +65,8 @@ export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDep
     const actorId = match.executorId;
     if (actorId && actorId === next.guild.ownerId) return;
     if (!next.roles?.remove) throw new Error(`Rolurile sensibile ale membrului ${next.id} nu pot fi restaurate.`);
+    const addedLabels = addedProtected.flatMap(role => explicitProtectedPermissions(requireBitfield(role.permissions, `rolul ${role.id}`)).map(({ label }) => label));
+    if (await authorized(next.guild.id, actorId, addedLabels, next.id)) return;
     markProcessed(match);
     for (const role of addedProtected) {
       await next.roles.remove(role.id, "Protectie anti-delegare: numai ownerul poate acorda roluri sensibile");
@@ -101,6 +113,7 @@ export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDep
     const currentBits = requireBitfield(role.permissions, `rolul nou ${role.id} (stare curenta)`);
     const stillGranted = grantedAtCreate.filter(({ flag }) => explicitlyHas(currentBits, flag));
     if (!stillGranted.length) return;
+    if (await authorized(role.guild.id, actorId, stillGranted.map(({ label }) => label), role.id)) return;
     markProcessed(match);
     await role.setPermissions(currentBits & ~protectedMask(stillGranted), "Protectie anti-delegare: numai ownerul poate crea roluri cu permisiuni sensibile");
     deps.metrics?.reverted();

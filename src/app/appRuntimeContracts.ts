@@ -26,6 +26,7 @@ import type { RedisRuntime } from "../infra/redis/redisClient.js";
 import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.js";
 
 import type { GuildAuditLogModelLike } from "../features/admin-records/auditLogRepository.js";
+import type { PermissionRequestModelLike } from "../features/command-security/permissionRequestRepository.js";
 import type { ModerationGuildModel } from "../features/moderation/moderationRepository.js";
 import type { GuildConfigWriteModelLike } from "../features/guild-config/guildConfigRepository.js";
 import type { NewAccountAlertDeliveryModelLike } from "../features/command-security/newAccountAlertDedup.js";
@@ -87,6 +88,7 @@ export interface MongoContextLike {
   GuildModerationModel?: ModerationGuildModel;
   OperationJournalModel?: OperationJournalModelLike;
   GuildAuditLogModel?: GuildAuditLogModelLike;
+  PermissionRequestModel?: PermissionRequestModelLike;
   NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
   ChannelLockRecoveryModel?: ChannelLockRecoveryModelLike;
   setAdminAlertDiscordClient(client: DiscordClientLike | null): void;
