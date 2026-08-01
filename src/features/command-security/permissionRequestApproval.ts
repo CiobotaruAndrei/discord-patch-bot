@@ -1,6 +1,6 @@
 "use strict";
 
-import { isPermissionRequestType } from "./permissionRequestTypes.js";
+import { isPermissionRequestType, normalizePermissionName } from "./permissionRequestTypes.js";
 
 import type { ApprovalRestriction } from "./permissionRequestRepository.js";
 import type { PermissionRequestRecord, PermissionRequestScope, PermissionRequestType } from "./permissionRequestTypes.js";
@@ -56,9 +56,9 @@ export function restrictionFromModal(
 
   const permissions = parsePermissionList(raw.permissions);
   if (permissions.length > 0) {
-    const requested = record.permissions ?? [];
-    restriction.permissions = requested.length > 0
-      ? permissions.filter(permission => requested.includes(permission))
+    const requested = new Set((record.permissions ?? []).map(normalizePermissionName));
+    restriction.permissions = requested.size > 0
+      ? permissions.filter(permission => requested.has(normalizePermissionName(permission)))
       : permissions;
   }
 

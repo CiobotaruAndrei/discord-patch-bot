@@ -157,6 +157,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     threatProtectionEnabled: { type: Boolean, default: false },
     botAddAlertChannelId: { type: String, default: null },
     permissionRequestChannelId: { type: String, default: null },
+    moderationGuardEnabled: { type: Boolean, default: false },
     botAddProtectionEnabled: { type: Boolean, default: false },
     warningChannelId: { type: String, default: null },
     botAddPermissions: { type: [botAddPermissionSchema], default: [] },

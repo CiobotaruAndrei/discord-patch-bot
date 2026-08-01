@@ -30,6 +30,8 @@ import {
   sendExistingAccountAlerts
 } from "../command-security/securityInteractionAdapters.js";
 import { SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
+import { createPermissionRequestRepository } from "../command-security/permissionRequestRepository.js";
+import { MODERATION_GUARD_TYPES } from "../command-security/moderationGuardDecision.js";
 import type {
   AccountAlertClaimFn,
   OverwriteEditor,
@@ -68,6 +70,9 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
       )
     }
     : deps;
+  const guardRequests = target.PermissionRequestModel
+    ? createPermissionRequestRepository(target.PermissionRequestModel)
+    : undefined;
   const accountAlertClaim: AccountAlertClaimFn | undefined = target.NewAccountAlertDeliveryModel
     ? createNewAccountAlertDelivery(target.NewAccountAlertDeliveryModel, () => randomUUID()).claim
     : undefined;
@@ -113,7 +118,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
           subcommand: sub,
           hasToggleFields: true,
           needsReadinessCheck: sub === "bot-add-protection",
-          needsAtomicStop: sub === "bot-add-protection",
+          needsAtomicStop: sub === "bot-add-protection" || (sub === "moderation-guard" && Boolean(guardRequests)),
           needsBackfill: sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true
         },
         {
@@ -123,8 +128,17 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
           },
           readChannelPermissions: channelId => target.checkChannelPermissions(interaction, channelId),
           readinessGaps: () => botAddProtectionReadiness(interaction),
-          countActiveApprovals: () => countActiveBotAddPermissions(settings?.botAddPermissions, new Date()),
-          stopAtomically: () => stopBotAddProtectionAtomically(target.GuildModel, guildId),
+          countActiveApprovals: () => (sub === "moderation-guard" && guardRequests
+            ? guardRequests.countActive(guildId)
+            : countActiveBotAddPermissions(settings?.botAddPermissions, new Date())),
+          stopAtomically: async () => {
+            if (sub === "moderation-guard" && guardRequests) {
+              await guardRequests.cancelTypes(guildId, MODERATION_GUARD_TYPES);
+              await applyGuildConfigUpdate(target.GuildModel, guildId, { [toggle.enabled]: false });
+              return;
+            }
+            await stopBotAddProtectionAtomically(target.GuildModel, guildId);
+          },
           persistEnabled: async enabled => {
             await applyGuildConfigUpdate(target.GuildModel, guildId, { [toggle.enabled]: enabled });
           },

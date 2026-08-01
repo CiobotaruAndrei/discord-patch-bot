@@ -1,6 +1,7 @@
 import { createSecurityRuntime } from "../../features/command-security/securityRuntime.js";
 import { createReputationEngine } from "../../features/command-security/reputationEngine.js";
 import { createPermissionDelegationRuntime } from "../../features/command-security/permissionDelegationRuntime.js";
+import { createModerationGuardGate } from "../../features/command-security/moderationGuardGate.js";
 import { createServerEventLogRuntime } from "../../features/command-security/serverEventLogRuntime.js";
 import { observeConfirmedBotAction } from "../../features/command-security/botObservationRepository.js";
 import { createNewAccountAlertDelivery, reconcileStuckNewAccountSends } from "../../features/command-security/newAccountAlertDedup.js";
@@ -78,12 +79,22 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     })
     : undefined;
 
+  const permissionRequestModel = mongo.PermissionRequestModel;
+  const readGuildSettings = mongo.getGuildSettings;
+  const moderationGuardGate = permissionRequestModel && readGuildSettings
+    ? createModerationGuardGate({
+      PermissionRequestModel: permissionRequestModel,
+      readGuildSettings: guildId => readGuildSettings(guildId)
+    })
+    : undefined;
+
   const permissionDelegationRuntime = mongo.GuildAuditLogModel && mongo.GuildModel
     ? createPermissionDelegationRuntime({
       GuildModel: mongo.GuildModel,
       GuildAuditLogModel: mongo.GuildAuditLogModel,
       adminAlert,
-      metrics: recorders.permissionDelegation
+      metrics: recorders.permissionDelegation,
+      guard: moderationGuardGate
     })
     : undefined;
 

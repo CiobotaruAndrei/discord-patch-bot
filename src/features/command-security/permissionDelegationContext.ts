@@ -58,6 +58,11 @@ export type GuildLike = {
 };
 export type DelegationMetrics = { permissionDelegationsReverted?: number };
 
+export interface GuardedDelegationGate {
+  readSituation(guildId: string): Promise<{ guardEnabled: boolean; raidConfirmed: boolean }>;
+  consumeApproval(guildId: string, requesterId: string, permissions: readonly string[], targetId: string): Promise<{ _id: string } | null>;
+}
+
 export interface PermissionDelegationRuntimeDeps {
   GuildModel?: BotObservationModelLike;
   GuildAuditLogModel: GuildAuditLogModelLike;
@@ -65,6 +70,7 @@ export interface PermissionDelegationRuntimeDeps {
   metrics?: PermissionDelegationMetricRecorder;
   now?: () => number;
   wait?: (ms: number) => Promise<void>;
+  guard?: GuardedDelegationGate;
 }
 
 export const AUDIT_LOG_MATCH_WINDOW_MS = 60_000;

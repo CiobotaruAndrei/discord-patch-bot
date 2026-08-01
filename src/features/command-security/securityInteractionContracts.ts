@@ -3,6 +3,7 @@
 import type { GuildConfigWriteModelLike, LockedChannelPermissionState } from "../guild-config/guildConfigRepository.js";
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import type { NewAccountAlertClaim, NewAccountAlertDeliveryModelLike } from "./newAccountAlertDedup.js";
+import type { PermissionRequestModelLike } from "./permissionRequestRepository.js";
 import type { ChannelLockRecoveryModelLike } from "./channelLockRecoveryRepository.js";
 import type { SecurityStateModel } from "./securityStore.js";
 import type { OperationJournalModelLike } from "../../shared/operationJournalEngine.js";
@@ -66,6 +67,8 @@ export type GuildSettingsLike = {
   botAddAlertChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
   botAddPermissions?: unknown;
+  permissionRequestChannelId?: string | null;
+  moderationGuardEnabled?: boolean;
   purgeAmount?: number;
   lockedChannelIds?: string[];
   lockedChannelPermissions?: Array<{ channelId: string; sendMessages: LockedChannelPermissionState }>;
@@ -86,11 +89,12 @@ export type SecurityDeps = {
   NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
   ChannelLockRecoveryModel?: Pick<ChannelLockRecoveryModelLike, "updateOne">;
   GuildSecurityModel?: SecurityStateModel;
+  PermissionRequestModel?: PermissionRequestModelLike;
   OperationJournalModel?: OperationJournalModelLike;
 };
 
-export type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "botAddAlertChannelId";
-export type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "botAddProtectionEnabled";
+export type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "botAddAlertChannelId" | "permissionRequestChannelId";
+export type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "botAddProtectionEnabled" | "moderationGuardEnabled";
 
 export type OverwriteEditor = (target: object, permissions: Record<string, boolean | null>) => Promise<unknown>;
 export type SecurityLogger = NonNullable<SecurityDeps["logger"]>;
