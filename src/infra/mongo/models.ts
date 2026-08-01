@@ -205,6 +205,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     playerCountRecordSchema,
     playerCountWatchSchema,
     permissionRequestSchema,
+    protectedResourceSchema,
     bugReportSchema,
     userComplaintSchema,
     feedbackReportSchema,
@@ -224,6 +225,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const PlayerCountRecordModel = mongoose.model("PlayerCountRecord", playerCountRecordSchema, "playerCountRecords");
   const PlayerCountWatchModel = mongoose.model("PlayerCountWatch", playerCountWatchSchema, "guildPlayerCountWatch");
   const PermissionRequestModel = mongoose.model("PermissionRequest", permissionRequestSchema, "guildPermissionRequests");
+  const ProtectedResourceModel = mongoose.model("ProtectedResource", protectedResourceSchema, "guildProtectedResources");
   const BugReportModel = mongoose.model("BugReport", bugReportSchema, "bugReports");
   const UserComplaintModel = mongoose.model("UserComplaint", userComplaintSchema, "userComplaints");
   const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchema, "feedbackReports");
@@ -290,6 +292,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     PlayerCountRecordModel,
     PlayerCountWatchModel,
     PermissionRequestModel,
+    ProtectedResourceModel,
     BugReportModel,
     OperationJournalModel,
     UserComplaintModel,

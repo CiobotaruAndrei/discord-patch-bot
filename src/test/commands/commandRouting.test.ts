@@ -54,6 +54,7 @@ const handlers: Record<string, BuiltHandler> = Object.fromEntries(
       ["moderation", "moderationInteractionHandler"],
       ["bot-add", "botAddInteractionHandler"],
       ["permissionRequest", "permissionRequestInteractionHandler"],
+      ["protectedResource", "protectedResourceInteractionHandler"],
       ["help", "helpInteractionHandler"],
       ["simple", "simpleCommandsHandler"],
     ] as ReadonlyArray<readonly [string, string]>).map(async ([key, module]) => [key, await build(module)] as const)
@@ -169,6 +170,7 @@ const expectedOwnerByCommand: Record<string, string> = {
   ,"bot-add-permissions": "bot-add"
   ,"permission-request": "permissionRequest"
   ,"permission-requests": "permissionRequest"
+  ,"protected-resource": "protectedResource"
 };
 
 const MULTIPLEXED_VERB_COMMANDS = new Set(["add", "remove", "list", "delete"]);

@@ -1,6 +1,7 @@
 import type * as Mongoose from "mongoose";
 import type { MongoModelEnv } from "./mongoModelEnv.js";
 import { PERMISSION_REQUEST_STATUSES, PERMISSION_REQUEST_TYPES } from "../../features/command-security/permissionRequestTypes.js";
+import { PROTECTED_RESOURCE_TYPES } from "../../features/command-security/protectedResourceTypes.js";
 
 export interface OperationalSchemasDeps {
   mongoose: typeof Mongoose;
@@ -159,6 +160,24 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   permissionRequestSchema.index({ guildId: 1, type: 1, requesterId: 1, status: 1 });
   permissionRequestSchema.index({ requestedAt: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
 
+  const protectedResourceSchema = new mongoose.Schema({
+    _id: String,
+    guildId: { type: String, required: true },
+    resourceId: { type: String, required: true },
+    type: { type: String, required: true, enum: [...PROTECTED_RESOURCE_TYPES] },
+    addedBy: { type: String, required: true },
+    addedAt: { type: Date, required: true },
+    snapshot: { type: Object, required: true },
+    snapshotAt: { type: Date, required: true },
+    degraded: { type: Boolean, default: false },
+    degradedReasons: { type: [String], default: [] },
+    preventionApplied: { type: Boolean, default: false },
+    lastRestoredAt: { type: Date, default: null },
+    recreatedFromId: { type: String, default: null }
+  }, { minimize: false, _id: false });
+  protectedResourceSchema.index({ guildId: 1, addedAt: 1 });
+  protectedResourceSchema.index({ guildId: 1, type: 1 });
+
   const bugReportSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
     reportType: { type: String, required: true },
@@ -237,6 +256,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     playerCountRecordSchema,
     playerCountWatchSchema,
     permissionRequestSchema,
+    protectedResourceSchema,
     bugReportSchema,
     userComplaintSchema,
     feedbackReportSchema,
