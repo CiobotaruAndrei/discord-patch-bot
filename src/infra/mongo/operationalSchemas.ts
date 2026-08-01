@@ -2,6 +2,7 @@ import type * as Mongoose from "mongoose";
 import type { MongoModelEnv } from "./mongoModelEnv.js";
 import { PERMISSION_REQUEST_STATUSES, PERMISSION_REQUEST_TYPES } from "../../features/command-security/permissionRequestTypes.js";
 import { PROTECTED_RESOURCE_TYPES } from "../../features/command-security/protectedResourceTypes.js";
+import { RAID_STAGES } from "../../features/command-security/antiRaidIncidentTypes.js";
 
 export interface OperationalSchemasDeps {
   mongoose: typeof Mongoose;
@@ -178,6 +179,27 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   protectedResourceSchema.index({ guildId: 1, addedAt: 1 });
   protectedResourceSchema.index({ guildId: 1, type: 1 });
 
+  const raidIncidentSchema = new mongoose.Schema({
+    _id: String,
+    guildId: { type: String, required: true },
+    stage: { type: String, required: true, enum: [...RAID_STAGES], default: "suspected" },
+    startedAt: { type: Date, required: true },
+    confirmedAt: { type: Date, default: null },
+    resolvedAt: { type: Date, default: null },
+    lastActivityAt: { type: Date, required: true },
+    triggerReason: { type: String, default: "", maxlength: 500 },
+    manual: { type: Boolean, default: false },
+    dryRun: { type: Boolean, default: false },
+    participants: { type: [Object], default: [] },
+    lockedChannels: { type: [Object], default: [] },
+    pendingActions: { type: [String], default: [] },
+    errors: { type: [String], default: [] },
+    restoreProgress: { type: Number, default: 0 }
+  }, { minimize: false, _id: false });
+  raidIncidentSchema.index({ guildId: 1, stage: 1, startedAt: -1 });
+  raidIncidentSchema.index({ guildId: 1, startedAt: -1 });
+  raidIncidentSchema.index({ startedAt: 1 }, { expireAfterSeconds: 365 * 24 * 60 * 60 });
+
   const bugReportSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
     reportType: { type: String, required: true },
@@ -257,6 +279,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     playerCountWatchSchema,
     permissionRequestSchema,
     protectedResourceSchema,
+    raidIncidentSchema,
     bugReportSchema,
     userComplaintSchema,
     feedbackReportSchema,
