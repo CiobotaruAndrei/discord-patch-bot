@@ -22,7 +22,7 @@ type Interaction = BaseChatInputInteraction<Guild> & AlwaysReplies & {
   options?: StringOption & {
     getSubcommand?: (required?: boolean) => string | null;
     getUser?: (name: string, required?: boolean) => { id?: string } | null;
-    getAttachment?: (name: string, required?: boolean) => { url?: string } | null;
+    getAttachment?: (name: string, required?: boolean) => { url?: string; name?: string; size?: number } | null;
   };
 };
 
@@ -72,7 +72,8 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       });
     }
 
-    const attachmentUrl = interaction.options?.getAttachment?.("atasament", false)?.url ?? null;
+    const attachment = interaction.options?.getAttachment?.("atasament", false) ?? null;
+    const attachmentUrl = attachment?.url ?? null;
     const detection = detectAd(adText, attachmentUrl ? 1 : 0);
     const requestId = newRequestId();
     const record = await repository.createRequest({
@@ -80,7 +81,7 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       guildId: guild.id,
       requesterId,
       adText,
-      fingerprint: adFingerprint(adText, attachmentUrl),
+      fingerprint: adFingerprint(adText, attachment),
       link: extractLink(adText),
       invite: extractInvite(adText),
       attachmentUrl,

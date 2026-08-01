@@ -66,9 +66,21 @@ export function normalizeAdText(text: string): string {
     .trim();
 }
 
-export function adFingerprint(text: string, attachmentUrl: string | null): string {
+export interface AdAttachmentIdentity {
+  name?: string | null;
+  size?: number | null;
+}
+
+export function attachmentIdentity(attachment: AdAttachmentIdentity | null): string {
+  if (!attachment) return "";
+  const name = typeof attachment.name === "string" ? attachment.name.toLowerCase() : "";
+  const size = typeof attachment.size === "number" && Number.isFinite(attachment.size) ? attachment.size : 0;
+  return name || size ? `${name}:${size}` : "";
+}
+
+export function adFingerprint(text: string, attachment: AdAttachmentIdentity | null): string {
   const normalized = normalizeAdText(text).replace(/\s+/g, "");
-  return `${normalized.slice(0, 300)}::${attachmentUrl ?? ""}`;
+  return `${normalized.slice(0, 300)}::${attachmentIdentity(attachment)}`;
 }
 
 export function extractInvite(text: string): string | null {
