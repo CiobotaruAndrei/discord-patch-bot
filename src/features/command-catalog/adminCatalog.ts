@@ -33,6 +33,7 @@ export const ADMIN_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   ,{ command: "bot-add-permissions", access: "admin", discordAdminPermissions: true }
   ,{ command: "permission-request", access: "public", discordAdminPermissions: false }
   ,{ command: "permission-requests", access: "admin", discordAdminPermissions: true, ownerOnly: true, ownerOnlySubcommands: ["list"], sensitiveSubcommands: "all" }
+  ,{ command: "protected-resource", access: "admin", discordAdminPermissions: true, ownerOnly: true, sensitiveSubcommands: "all" }
 ];
 
 export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
@@ -81,4 +82,5 @@ export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   ,{ command: "/bot-add-permissions", description: "Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata.", example: "/bot-add-permissions" }
   ,{ command: "/permission-request", description: "Cere aprobarea ownerului pentru o operatiune de securitate: bot-add, permission-grant, moderation-mass, webhook, server-structure sau protected-resource-change.", example: "/permission-request type:webhook target:#anunturi action:create reason:integrare RSS" }
   ,{ command: "/permission-requests list", description: "Listeaza cererile de aprobare de securitate, cu filtre optionale dupa status si tip; cele active apar inaintea istoricului.", example: "/permission-requests list status:pending" }
+  ,{ command: "/protected-resource", description: "Marcheaza canale, categorii si roluri ca resurse critice. add salveaza snapshot-ul si evalueaza daca prevenirea poate fi garantata, remove scoate resursa din protectie fara sa o stearga, list arata resursele, starea snapshot-ului si cauzele exacte pentru cele degraded.", example: "/protected-resource action:add type:channel target:123456789012345678", notes: ["Aplicarea in afara raidurilor porneste doar cand /start moderation-guard este activ.", "O resursa e marcata degraded cand prevenirea nu poate fi garantata, de exemplu roluri cu Administrator care ignora overwrite-urile canalului sau un rol protejat mai sus decat rolul botului."] }
 ];

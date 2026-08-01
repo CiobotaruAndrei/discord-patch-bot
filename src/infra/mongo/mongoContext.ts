@@ -59,6 +59,7 @@ type MongoRuntimeContext = {
   NotificationHistoryModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationHistoryModel"];
   FeedbackReportModel: ReturnType<typeof attachModelsModule.buildFrom>["FeedbackReportModel"];
   PermissionRequestModel: ReturnType<typeof attachModelsModule.buildFrom>["PermissionRequestModel"];
+  ProtectedResourceModel: ReturnType<typeof attachModelsModule.buildFrom>["ProtectedResourceModel"];
   NotificationDeadLetterReplayModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationDeadLetterReplayModel"];
   OperationJournalModel: ReturnType<typeof attachModelsModule.buildFrom>["OperationJournalModel"];
   saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
@@ -158,6 +159,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     NotificationHistoryModel: context.NotificationHistoryModel,
     FeedbackReportModel: context.FeedbackReportModel,
     PermissionRequestModel: context.PermissionRequestModel,
+    ProtectedResourceModel: context.ProtectedResourceModel,
     NotificationDeadLetterReplayModel: context.NotificationDeadLetterReplayModel,
     OperationJournalModel: context.OperationJournalModel,
     saveFetchSnapshot: context.saveFetchSnapshot,

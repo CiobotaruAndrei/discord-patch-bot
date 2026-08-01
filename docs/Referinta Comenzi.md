@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 159.
+Total comenzi documentate: 160.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -165,3 +165,4 @@ Total comenzi documentate: 159.
 | `/bot-add-permissions` | Admin, Ephemeral | Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata. | `/bot-add-permissions` |
 | `/permission-request` | Public | Cere aprobarea ownerului pentru o operatiune de securitate: bot-add, permission-grant, moderation-mass, webhook, server-structure sau protected-resource-change. | `/permission-request type:webhook target:#anunturi action:create reason:integrare RSS` |
 | `/permission-requests list` | Admin top-level, owner-only runtime, Ephemeral | Listeaza cererile de aprobare de securitate, cu filtre optionale dupa status si tip; cele active apar inaintea istoricului. | `/permission-requests list status:pending` |
+| `/protected-resource` | Admin top-level, owner-only runtime, Ephemeral | Marcheaza canale, categorii si roluri ca resurse critice. add salveaza snapshot-ul si evalueaza daca prevenirea poate fi garantata, remove scoate resursa din protectie fara sa o stearga, list arata resursele, starea snapshot-ului si cauzele exacte pentru cele degraded. Nota: Aplicarea in afara raidurilor porneste doar cand /start moderation-guard este activ. Nota: O resursa e marcata degraded cand prevenirea nu poate fi garantata, de exemplu roluri cu Administrator care ignora overwrite-urile canalului sau un rol protejat mai sus decat rolul botului. | `/protected-resource action:add type:channel target:123456789012345678` |

@@ -56,5 +56,19 @@ export function buildModerationCommandDefinitions({ SlashCommandBuilder, Permiss
             { name: "server-structure", value: "server-structure" },
             { name: "protected-resource-change", value: "protected-resource-change" }
           ))))
+    ,admin(new SlashCommandBuilder().setName("protected-resource").setDescription("Marcheaza canale, categorii si roluri ca resurse critice")
+      .addStringOption(option => option.setName("action").setDescription("Ce faci cu resursa").setRequired(true)
+        .addChoices(
+          { name: "add", value: "add" },
+          { name: "remove", value: "remove" },
+          { name: "list", value: "list" }
+        ))
+      .addStringOption(option => option.setName("type").setDescription("Tipul resursei (necesar la add si remove)").setRequired(false)
+        .addChoices(
+          { name: "channel", value: "channel" },
+          { name: "category", value: "category" },
+          { name: "role", value: "role" }
+        ))
+      .addStringOption(option => option.setName("target").setDescription("ID-ul resursei (necesar la add si remove)").setRequired(false).setMaxLength(20)))
   ];
 }
