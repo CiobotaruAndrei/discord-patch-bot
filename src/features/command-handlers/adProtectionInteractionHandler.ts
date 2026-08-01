@@ -2,7 +2,7 @@ import type { AlwaysReplies, BaseChatInputInteraction, StringOption } from "./di
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
 import type { AdAttemptModelLike, AdRequestModelLike } from "../command-security/adProtectionRepository.js";
-import { adFingerprint, detectAd, extractInvite, extractLink } from "../command-security/adRequestTypes.js";
+import { adFingerprint, detectAd, extractInvite, extractLink, quoteUntrusted } from "../command-security/adRequestTypes.js";
 import { adAttemptLines, adRequestButtons, adRequestLines } from "../command-presentation/adProtectionMessages.js";
 import { sendTextPages } from "../command-presentation/textPagination.js";
 import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
@@ -22,7 +22,7 @@ type Interaction = BaseChatInputInteraction<Guild> & AlwaysReplies & {
   options?: StringOption & {
     getSubcommand?: (required?: boolean) => string | null;
     getUser?: (name: string, required?: boolean) => { id?: string } | null;
-    getAttachment?: (name: string, required?: boolean) => { url?: string } | null;
+    getAttachment?: (name: string, required?: boolean) => { url?: string; name?: string; size?: number } | null;
   };
 };
 
@@ -32,6 +32,7 @@ type Deps = {
   getGuildSettings: (guildId: string) => Promise<{ adAlertChannelId?: string | null; adProtectionEnabled?: boolean } | null>;
 };
 
+const NEWLINE = String.fromCharCode(10);
 const AD_COMMANDS = new Set(["ad-request", "ad-permissions", "ad-attempts"]);
 
 function newRequestId(): string {
@@ -71,7 +72,8 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       });
     }
 
-    const attachmentUrl = interaction.options?.getAttachment?.("atasament", false)?.url ?? null;
+    const attachment = interaction.options?.getAttachment?.("atasament", false) ?? null;
+    const attachmentUrl = attachment?.url ?? null;
     const detection = detectAd(adText, attachmentUrl ? 1 : 0);
     const requestId = newRequestId();
     const record = await repository.createRequest({
@@ -79,7 +81,7 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       guildId: guild.id,
       requesterId,
       adText,
-      fingerprint: adFingerprint(adText, attachmentUrl),
+      fingerprint: adFingerprint(adText, attachment),
       link: extractLink(adText),
       invite: extractInvite(adText),
       attachmentUrl,
@@ -90,17 +92,26 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
     }
 
     const channel = await guild.channels?.fetch?.(channelId).catch(() => null);
-    if (!channel?.send) {
-      await repository.resolveRequest(guild.id, requestId, "rejected", "").catch(() => null);
+    const delivered = channel?.send
+      ? await channel.send({
+        content: [
+          `<@${guild.ownerId ?? ""}> cerere noua de reclama de la <@${requesterId}> (\`${requesterId}\`)`,
+          attachmentUrl ? `Atasament: ${attachmentUrl}` : "Atasament: niciunul",
+          "Textul reclamei:",
+          quoteUntrusted(adText)
+        ].join(NEWLINE),
+        components: adRequestButtons(requestId),
+        allowedMentions: { parse: [], users: guild.ownerId ? [guild.ownerId] : [] }
+      }).then(() => true).catch(() => false)
+      : false;
+
+    if (!delivered) {
+      await repository.cancelRequest(guild.id, requestId).catch(() => null);
       return interaction.reply({
         content: "Nu am putut livra cererea in canalul de reclame; cererea a fost anulata. Reincearca.",
         ephemeral: true
       });
     }
-    await channel.send({
-      content: `<@${guild.ownerId ?? ""}> cerere noua de reclama:\n${adText}`,
-      components: adRequestButtons(requestId)
-    });
     return interaction.reply({ content: "Cererea de reclama a fost trimisa proprietarului serverului.", ephemeral: true });
   }
 

@@ -182,3 +182,67 @@ test("raportul de tentative spune cate warn-uri au fost emise, nu doar contorul 
   assert.match(lines, /warn-uri automate: 2/);
   assert.match(lines, /\(warn emis\)/);
 });
+
+test("textul reclamei nu poate face botul sa mentioneze pe cineva", async () => {
+  const setup = harness();
+  await run(setup, { strings: { reclama: "@everyone @here <@&999> intra pe serverul meu" } });
+
+  const payload = setup.sent[0] as { allowedMentions?: { parse?: string[]; users?: string[] } };
+  assert.deepEqual(payload.allowedMentions?.parse, [],
+    "fara asta, orice utilizator ar putea face botul sa dea ping la @everyone printr-o comanda publica");
+  assert.deepEqual(payload.allowedMentions?.users, ["owner-1"], "doar ownerul e notificat, si acela explicit");
+});
+
+test("mesajul catre owner arata solicitantul si atasamentul, nu doar textul", async () => {
+  const setup = harness();
+  await run(setup, {
+    strings: { reclama: "Intra pe serverul meu" },
+    attachment: { url: "https://cdn.discordapp.com/x.png" }
+  });
+
+  const content = String((setup.sent[0] as { content?: string }).content);
+  assert.match(content, /<@u1>/, "ownerul trebuie sa vada pe cine acopera aprobarea de unica folosinta");
+  assert.match(content, /x\.png/, "si ce fisier aproba");
+  assert.match(content, /> Intra pe serverul meu/, "textul netrusted e citat, nu interpretat");
+});
+
+test("cand livrarea esueaza, doar cererea nelivrata e anulata, nu si a altora", async () => {
+  const setup = harness();
+  await run(setup, { strings: { reclama: "prima reclama de test" }, user: { id: "alt-user" } });
+  const otherId = String(setup.requests.records[0]._id);
+
+  const failing = interaction({
+    strings: { reclama: "Intra pe serverul meu" },
+    guild: {
+      id: "g1", ownerId: "owner-1",
+      channels: { fetch: async () => ({ send: async () => { throw new Error("Missing Access"); } }) }
+    }
+  }, setup.sent);
+  await setup.handler.handle(
+    moduleContext<Parameters<typeof setup.handler.handle>[0]>(failing),
+    moduleContext<Parameters<typeof setup.handler.handle>[1]>({})
+  );
+
+  assert.match(String(failing.replies[0]?.content), /a fost anulata/);
+  const mine = setup.requests.records.find(record => record.requesterId === "u1");
+  const other = setup.requests.records.find(record => record._id === otherId);
+  assert.equal(mine?.status, "cancelled", "un esec de livrare e o anulare, nu o respingere a ownerului");
+  assert.equal(mine?.ownerId, null, "nu se inventeaza o decizie a ownerului");
+  assert.equal(other?.status, "pending", "cererea altui utilizator ramane neatinsa");
+});
+
+test("toate protectiile si canalele de securitate sunt marcate sensibile, derivate din sursa unica", async () => {
+  const { NOTIFICATIONS_COMMAND_ACCESS } = await import("../../features/command-catalog/notificationsCatalog.js");
+  const rules = NOTIFICATIONS_COMMAND_ACCESS as ReadonlyArray<{ command: string; sensitiveSubcommands?: readonly string[] | "all" }>;
+  const startRule = rules.find(rule => rule.command === "start");
+  const setRule = rules.find(rule => rule.command === "set");
+
+  for (const subcommand of Object.keys(START_STOP_TOGGLE_FIELDS)) {
+    assert.ok(startRule?.sensitiveSubcommands !== "all" && startRule?.sensitiveSubcommands?.includes(subcommand),
+      `${subcommand} trebuie sa fie sensibila`);
+  }
+  for (const subcommand of Object.keys(SET_CHANNEL_FIELDS)) {
+    assert.ok(setRule?.sensitiveSubcommands !== "all" && setRule?.sensitiveSubcommands?.includes(subcommand),
+      `${subcommand} trebuie sa fie sensibila`);
+  }
+});

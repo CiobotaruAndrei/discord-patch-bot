@@ -1,11 +1,15 @@
 import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
+import { SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
+
+const PROTECTION_SUBCOMMANDS = Object.keys(START_STOP_TOGGLE_FIELDS);
+const SECURITY_CHANNEL_SUBCOMMANDS = Object.keys(SET_CHANNEL_FIELDS);
 
 export const NOTIFICATIONS_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "latest", access: "public", discordAdminPermissions: false },
   { command: "watchlist-game", access: "public", discordAdminPermissions: false, adminRuntimeSubcommands: ["delete"] },
-  { command: "start", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: ["new-account-alerts", "threat-protection", "bot-add-protection"] },
-  { command: "stop", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: ["new-account-alerts", "threat-protection", "bot-add-protection"] },
-  { command: "set", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], sensitiveSubcommands: ["new-account-alert-channel", "threat-alert-channel", "bot-add-alert-channel", "permission-request-channel", "warn-channel"] },
+  { command: "start", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: PROTECTION_SUBCOMMANDS },
+  { command: "stop", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: PROTECTION_SUBCOMMANDS },
+  { command: "set", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], sensitiveSubcommands: SECURITY_CHANNEL_SUBCOMMANDS },
   { command: "watchlist", access: "admin", discordAdminPermissions: true },
   { command: "price-alert", access: "admin", discordAdminPermissions: true },
   { command: "future-release", access: "admin", discordAdminPermissions: false, publicSubcommands: ["list"] },
