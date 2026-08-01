@@ -21,6 +21,7 @@ type Interaction = BaseChatInputInteraction<Guild> & AlwaysReplies & {
 type Deps = {
   RaidIncidentModel: RaidIncidentModelLike;
   getGuildSettings: (guildId: string) => Promise<{ antiRaidThresholds?: Record<string, unknown> | null } | null>;
+  runRaidIntervention?: (guildId: string) => Promise<unknown>;
 };
 
 const OWNER_ONLY_SUBCOMMANDS = ["force-start", "force-stop", "participant-add", "participant-remove"];
@@ -31,6 +32,12 @@ function isAntiRaidInteraction(interaction: Interaction): boolean {
 
 function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
   const incidents = createRaidIncidentRepository(deps.RaidIncidentModel);
+
+  async function triggerIntervention(guildId: string): Promise<boolean> {
+    if (!deps.runRaidIntervention) return false;
+    await deps.runRaidIntervention(guildId).catch(() => undefined);
+    return true;
+  }
 
   async function thresholdsFor(guildId: string) {
     const settings = await deps.getGuildSettings(guildId).catch(() => null);
@@ -79,10 +86,14 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       manual: true,
       stage: "confirmed"
     });
+    if (!incident) {
+      return interaction.reply({ content: "Nu am putut porni incidentul. Reincearca.", ephemeral: true });
+    }
+    const started = await triggerIntervention(guild.id);
     return interaction.reply({
-      content: incident
-        ? `Raid confirmat manual. Incident \`${incident._id}\`; interventia porneste imediat.`
-        : "Nu am putut porni incidentul. Reincearca.",
+      content: started
+        ? `Raid confirmat manual. Incident \`${incident._id}\`; interventia a pornit.`
+        : `Raid confirmat manual. Incident \`${incident._id}\`. Interventia automata nu este disponibila in acest proces; foloseste \`/anti-raid status\` ca sa urmaresti incidentul.`,
       ephemeral: true
     });
   }
@@ -102,10 +113,14 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       });
     }
     const moved = await incidents.advance(incident._id, incident.stage, "recovery");
+    if (!moved) {
+      return interaction.reply({ content: `Incidentul \`${incident._id}\` este deja in restaurare sau inchis.`, ephemeral: true });
+    }
+    const started = await triggerIntervention(guild.id);
     return interaction.reply({
-      content: moved
-        ? `Interventia pentru \`${incident._id}\` a fost incheiata. Restaurarea controlata porneste; sanctiunile aplicate raman.`
-        : `Incidentul \`${incident._id}\` este deja in restaurare sau inchis.`,
+      content: started
+        ? `Interventia pentru \`${incident._id}\` a fost incheiata. Restaurarea controlata a pornit; sanctiunile aplicate raman.`
+        : `Interventia pentru \`${incident._id}\` a fost incheiata. Restaurarea automata nu este disponibila in acest proces si va porni la urmatorul ciclu; sanctiunile aplicate raman.`,
       ephemeral: true
     });
   }
@@ -116,6 +131,12 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
 
     const incident = await incidents.active(guild.id);
     if (!incident) return interaction.reply({ content: "Nu exista niciun incident activ.", ephemeral: true });
+    if (incident.stage === "recovery") {
+      return interaction.reply({
+        content: `Incidentul \`${incident._id}\` este deja in restaurare, deci un participant adaugat acum nu ar mai fi sanctionat. Foloseste \`/anti-raid force-start\` pentru un incident nou daca atacul a reinceput.`,
+        ephemeral: true
+      });
+    }
     if (guild.ownerId && target.id === guild.ownerId) {
       return interaction.reply({ content: "Proprietarul serverului nu poate fi adaugat ca participant.", ephemeral: true });
     }
@@ -177,7 +198,7 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
 
 export default { buildCommandHandler };
 
-export const ANTI_RAID_HANDLER_KEYS = ["RaidIncidentModel", "getGuildSettings"] as const;
+export const ANTI_RAID_HANDLER_KEYS = ["RaidIncidentModel", "getGuildSettings", "runRaidIntervention"] as const;
 
 type AntiRaidKeyCheckDeps = Parameters<typeof buildCommandHandler>[0];
 type AntiRaidMissing = MissingDependencyKeys<AntiRaidKeyCheckDeps, (typeof ANTI_RAID_HANDLER_KEYS)[number] & string>;
