@@ -102,6 +102,8 @@ export const GUILD_SETTINGS_FIELD_ROLES: Readonly<Record<string, GuildSettingsFi
   antiRaidAlertChannelId: "security",
   antiRaidThresholds: "security",
   antiRaidDryRunEnabled: "security",
+  adAlertChannelId: "security",
+  adProtectionEnabled: "security",
   moderationGuardEnabled: "security",
   botAddProtectionEnabled: "security",
   warningChannelId: "security",

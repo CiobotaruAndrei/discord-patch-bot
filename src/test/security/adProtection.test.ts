@@ -57,7 +57,7 @@ test("normalizarea si amprenta prind aceeasi reclama scrisa usor diferit", () =>
   );
   assert.notEqual(
     adFingerprint("Intra pe serverul meu", null),
-    adFingerprint("Intra pe serverul meu", "https://cdn/x.png"),
+    adFingerprint("Intra pe serverul meu", { name: "x.png", size: 1024 }),
     "adaugarea unui atasament schimba reclama, deci invalideaza aprobarea"
   );
 });
@@ -197,4 +197,25 @@ test("/stop ad-protection anuleaza cererile si aprobarile active, pastrand istor
 
 test("limita de tentative din specificatie este trei", () => {
   assert.equal(AD_STRIKE_LIMIT, 3);
+});
+
+test("amprenta atasamentului foloseste identitatea stabila, nu URL-ul CDN", () => {
+  const uploaded = { name: "promo.png", size: 2048, url: "https://cdn.discordapp.com/ephemeral/A/promo.png" };
+  const reposted = { name: "promo.png", size: 2048, url: "https://cdn.discordapp.com/attachments/B/promo.png" };
+
+  assert.equal(
+    adFingerprint("Intra pe serverul meu", uploaded),
+    adFingerprint("Intra pe serverul meu", reposted),
+    "URL-ul CDN difera intre incarcarea din /ad-request si mesajul publicat; cu el in amprenta, o reclama aprobata cu atasament nu s-ar potrivi niciodata"
+  );
+  assert.notEqual(
+    adFingerprint("Intra pe serverul meu", uploaded),
+    adFingerprint("Intra pe serverul meu", { name: "altceva.png", size: 2048 }),
+    "un fisier diferit ramane o reclama diferita"
+  );
+  assert.notEqual(
+    adFingerprint("Intra pe serverul meu", uploaded),
+    adFingerprint("Intra pe serverul meu", { name: "promo.png", size: 9999 }),
+    "acelasi nume cu alt continut nu trece drept aceeasi reclama"
+  );
 });

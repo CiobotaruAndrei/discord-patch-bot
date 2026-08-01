@@ -71,6 +71,8 @@ export type GuildSettingsLike = {
   moderationGuardEnabled?: boolean;
   antiRaidAlertChannelId?: string | null;
   antiRaidDryRunEnabled?: boolean;
+  adAlertChannelId?: string | null;
+  adProtectionEnabled?: boolean;
   purgeAmount?: number;
   lockedChannelIds?: string[];
   lockedChannelPermissions?: Array<{ channelId: string; sendMessages: LockedChannelPermissionState }>;
@@ -96,9 +98,11 @@ export type SecurityDeps = {
 };
 
 export type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "botAddAlertChannelId" | "permissionRequestChannelId"
-  | "antiRaidAlertChannelId";
+  | "antiRaidAlertChannelId"
+  | "adAlertChannelId";
 export type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "botAddProtectionEnabled" | "moderationGuardEnabled"
-  | "antiRaidDryRunEnabled";
+  | "antiRaidDryRunEnabled"
+  | "adProtectionEnabled";
 
 export type OverwriteEditor = (target: object, permissions: Record<string, boolean | null>) => Promise<unknown>;
 export type SecurityLogger = NonNullable<SecurityDeps["logger"]>;

@@ -35,6 +35,9 @@ export const ADMIN_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   ,{ command: "permission-requests", access: "admin", discordAdminPermissions: true, ownerOnly: true, ownerOnlySubcommands: ["list"], sensitiveSubcommands: "all" }
   ,{ command: "protected-resource", access: "admin", discordAdminPermissions: true, ownerOnly: true, sensitiveSubcommands: "all" }
   ,{ command: "anti-raid", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: "all", ownerOnlySubcommands: ["force-start", "force-stop", "participant-add", "participant-remove"] }
+  ,{ command: "ad-request", access: "public", discordAdminPermissions: false }
+  ,{ command: "ad-permissions", access: "admin", discordAdminPermissions: true, ownerOnly: true, ownerOnlySubcommands: ["list"], sensitiveSubcommands: "all" }
+  ,{ command: "ad-attempts", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: "all" }
 ];
 
 export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
@@ -83,6 +86,9 @@ export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   ,{ command: "/bot-add-permissions", description: "Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata.", example: "/bot-add-permissions" }
   ,{ command: "/permission-request", description: "Cere aprobarea ownerului pentru o operatiune de securitate: bot-add, permission-grant, moderation-mass, webhook, server-structure sau protected-resource-change.", example: "/permission-request type:webhook target:#anunturi action:create reason:integrare RSS" }
   ,{ command: "/permission-requests list", description: "Listeaza cererile de aprobare de securitate, cu filtre optionale dupa status si tip; cele active apar inaintea istoricului.", example: "/permission-requests list status:pending" }
+  ,{ command: "/ad-request", description: "Cere aprobarea proprietarului inainte sa publici o reclama. Cererea salveaza utilizatorul, textul exact, linkul, invitatia si atasamentul; aprobarea e legata de reclama si utilizatorul exacte, se foloseste o singura data si expira.", example: "/ad-request reclama:Intra pe serverul meu" }
+  ,{ command: "/ad-permissions list", description: "Afiseaza cererile si aprobarile pentru reclame, cu ID, utilizator, rezumatul reclamei, status, data solicitarii, decizia ownerului, expirarea si folosirea. Cererile active apar inaintea istoricului.", example: "/ad-permissions list" }
+  ,{ command: "/ad-attempts list", description: "Afiseaza tentativele active 0/3, 1/3 sau 2/3 ale unui membru, totalul reclamelor sterse, warn-urile automate, ultima tentativa, canalul si istoricul grupurilor de trei tentative.", example: "/ad-attempts list utilizator:@membru" }
   ,{ command: "/anti-raid status", description: "Arata incidentul anti-raid activ sau ultimul: ID, etapa, canalele blocate acum, participantii opriti si cei ramasi, durata lockdown-ului, timpul ramas din perioada de siguranta, progresul restaurarii, operatiunile ramase si erorile.", example: "/anti-raid status" }
   ,{ command: "/anti-raid participant-list", description: "Listeaza participantii incidentului activ, ai ultimului raid sau ai incidentului indicat, cu sanctiunile aplicate, cele esuate si ultima eroare.", example: "/anti-raid participant-list incident-id:raid-abc" }
   ,{ command: "/anti-raid force-start", description: "Confirma manual un raid, genereaza un ID de incident si porneste interventia. Owner-only.", example: "/anti-raid force-start" }

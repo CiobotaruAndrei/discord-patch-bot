@@ -8,6 +8,7 @@ export const SET_CHANNEL_FIELDS: Record<string, string> = {
   "bot-add-alert-channel": "botAddAlertChannelId",
   "permission-request-channel": "permissionRequestChannelId",
   "anti-raid-alert-channel": "antiRaidAlertChannelId",
+  "ad-alert-channel": "adAlertChannelId",
   "warn-channel": "warningChannelId"
 };
 
@@ -16,5 +17,6 @@ export const START_STOP_TOGGLE_FIELDS: Record<string, { channel: ProtectionChann
   "threat-protection": { channel: "threatAlertChannelId", enabled: "threatProtectionEnabled" },
   "bot-add-protection": { channel: "botAddAlertChannelId", enabled: "botAddProtectionEnabled" },
   "moderation-guard": { channel: "permissionRequestChannelId", enabled: "moderationGuardEnabled" },
-  "anti-raid-dry-run": { channel: "antiRaidAlertChannelId", enabled: "antiRaidDryRunEnabled" }
+  "anti-raid-dry-run": { channel: "antiRaidAlertChannelId", enabled: "antiRaidDryRunEnabled" },
+  "ad-protection": { channel: "adAlertChannelId", enabled: "adProtectionEnabled" }
 };

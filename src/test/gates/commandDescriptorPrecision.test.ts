@@ -48,7 +48,7 @@ test("compozitia comenzilor e impartita pe domenii, nu o singura lista care le s
     module,
     ["adminDescriptors.ts", "coreDescriptors.ts", "gamesDescriptors.ts", "notificationsDescriptors.ts", "routingDescriptors.ts"],
     "fiecare grup de comenzi isi importa doar handler-ele lui; o lista unica obliga fisierul central sa " +
-      "importe toate cele 39 de handlere, deci orice comanda noua atinge acelasi fisier"
+      "importe toate cele 40 de handlere, deci orice comanda noua atinge acelasi fisier"
   );
 
   for (const name of module) {
@@ -70,7 +70,7 @@ test("compozitia comenzilor e impartita pe domenii, nu o singura lista care le s
 test("nicio comanda nu s-a pierdut la impartire", async () => {
   const { createCommandHandlerDescriptors } = await import("../../features/command-registry/commandHandlerDescriptors.js");
   const lista = createCommandHandlerDescriptors();
-  assert.equal(lista.length, 39, `impartirea trebuie sa pastreze toate comenzile; gasite ${lista.length}`);
+  assert.equal(lista.length, 40, `impartirea trebuie sa pastreze toate comenzile; gasite ${lista.length}`);
   assert.equal(new Set(lista.map(d => d.id)).size, lista.length, "identificatorii raman unici dupa concatenare");
 });
 

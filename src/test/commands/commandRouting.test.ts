@@ -56,6 +56,7 @@ const handlers: Record<string, BuiltHandler> = Object.fromEntries(
       ["permissionRequest", "permissionRequestInteractionHandler"],
       ["protectedResource", "protectedResourceInteractionHandler"],
       ["antiRaid", "antiRaidInteractionHandler"],
+      ["adProtection", "adProtectionInteractionHandler"],
       ["help", "helpInteractionHandler"],
       ["simple", "simpleCommandsHandler"],
     ] as ReadonlyArray<readonly [string, string]>).map(async ([key, module]) => [key, await build(module)] as const)
@@ -173,6 +174,9 @@ const expectedOwnerByCommand: Record<string, string> = {
   ,"permission-requests": "permissionRequest"
   ,"protected-resource": "protectedResource"
   ,"anti-raid": "antiRaid"
+  ,"ad-request": "adProtection"
+  ,"ad-permissions": "adProtection"
+  ,"ad-attempts": "adProtection"
 };
 
 const MULTIPLEXED_VERB_COMMANDS = new Set(["add", "remove", "list", "delete"]);

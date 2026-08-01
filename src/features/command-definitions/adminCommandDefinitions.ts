@@ -165,6 +165,8 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
         .addStringOption(option => option.setName("mute-duration").setDescription("Durata mute-ului (ex. 24h)").setRequired(false).setMaxLength(10))
         .addStringOption(option => option.setName("timeout-duration").setDescription("Durata timeout-ului (ex. 24h)").setRequired(false).setMaxLength(10))
         .addStringOption(option => option.setName("max-lockdown").setDescription("Durata maxima a lockdown-ului (ex. 45m)").setRequired(false).setMaxLength(10)))
+      .addSubcommand(subcommand => subcommand.setName("ad-alert-channel").setDescription("Seteaza canalul pentru cereri de reclama, reclame sterse si tentative")
+        .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru reclame").setRequired(true)))
       .addSubcommand(subcommand => subcommand.setName("warn-channel").setDescription("Seteaza canalul dedicat avertismentelor")
         .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru warn-uri").setRequired(true)))
       .addSubcommandGroup(group => group.setName("add").setDescription("Adauga in watchlist")

@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 170.
+Total comenzi documentate: 176.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -60,6 +60,9 @@ Total comenzi documentate: 170.
 | `/set anti-raid-thresholds` | Admin, Ephemeral | Modifica pragurile anti-raid. Optiunile nedate raman la valoarea curenta, iar o valoare in afara limitelor e refuzata cu motiv, fara sa piarda celelalte valori valide. Nota: Implicit: 3 mesaje identice in 8s, minimum 4 mentiuni in 10s, minimum 3 mesaje cu invitatii in 20s, minimum 4 mesaje cu linkuri in 12s, minimum 2 participanti coordonati in 15s, minimum 3 canale sau roluri in 20s. Nota: Implicit: perioada de siguranta 30m, mute 24h, timeout 24h, lockdown maxim 45m. Nota: Duratele se scriu cu s, m, h sau d, de exemplu 8s, 30m, 24h. | `/set anti-raid-thresholds identical-messages:4 safety-period:1h` |
 | `/start anti-raid-dry-run` | Admin, Ephemeral | Porneste modul de testare anti-raid: botul arata ce ar detecta si ce ar executa, fara sa blocheze canale, fara sa sanctioneze si fara sa publice anunturi de raid. | `/start anti-raid-dry-run` |
 | `/stop anti-raid-dry-run` | Admin, Ephemeral | Opreste modul de testare anti-raid si pastreaza rezultatele in istoricul incidentelor. | `/stop anti-raid-dry-run` |
+| `/set ad-alert-channel` | Admin, Ephemeral | Alege canalul pentru cererile de aprobare a reclamelor, reclamele sterse, tentativele detectate si warn-urile automate. | `/set ad-alert-channel canal:#reclame` |
+| `/start ad-protection` | Admin, Ephemeral | Porneste protectia impotriva reclamelor neaprobate de owner, inclusiv reclamele fara link: promovarea altor servere, comunitati, servicii, produse, pagini sau conturi. | `/start ad-protection` |
+| `/stop ad-protection` | Admin, Ephemeral | Opreste protectia si transforma toate cererile si aprobarile active neexpirate in cancelled. Istoricul tentativelor, warn-urile si canalul configurat raman salvate. | `/stop ad-protection` |
 | `/set warn-channel` | Admin, Ephemeral | Alege canalul dedicat in care sunt publicate warn-urile si dovezile directe. | `/set warn-channel canal:#moderation` |
 | `/start bot-add-protection` | Admin, Ephemeral | Permite doar botul si solicitantul aprobati exact printr-o aprobare owner one-time neexpirata; botii neaprobati sunt eliminati. | `/start bot-add-protection` |
 | `/start moderation-guard` | Admin, Ephemeral | Porneste unitar protectiile administrative bazate pe aprobare din afara raidurilor: bot-add, permission-grant, moderation-mass, webhook, server-structure si protected-resource-change. | `/start moderation-guard` |
@@ -169,6 +172,9 @@ Total comenzi documentate: 170.
 | `/bot-add-permissions` | Admin, Ephemeral | Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata. | `/bot-add-permissions` |
 | `/permission-request` | Public | Cere aprobarea ownerului pentru o operatiune de securitate: bot-add, permission-grant, moderation-mass, webhook, server-structure sau protected-resource-change. | `/permission-request type:webhook target:#anunturi action:create reason:integrare RSS` |
 | `/permission-requests list` | Admin top-level, owner-only runtime, Ephemeral | Listeaza cererile de aprobare de securitate, cu filtre optionale dupa status si tip; cele active apar inaintea istoricului. | `/permission-requests list status:pending` |
+| `/ad-request` | Public | Cere aprobarea proprietarului inainte sa publici o reclama. Cererea salveaza utilizatorul, textul exact, linkul, invitatia si atasamentul; aprobarea e legata de reclama si utilizatorul exacte, se foloseste o singura data si expira. | `/ad-request reclama:Intra pe serverul meu` |
+| `/ad-permissions list` | Admin top-level, owner-only runtime, Ephemeral | Afiseaza cererile si aprobarile pentru reclame, cu ID, utilizator, rezumatul reclamei, status, data solicitarii, decizia ownerului, expirarea si folosirea. Cererile active apar inaintea istoricului. | `/ad-permissions list` |
+| `/ad-attempts list` | Admin, Ephemeral | Afiseaza tentativele active 0/3, 1/3 sau 2/3 ale unui membru, totalul reclamelor sterse, warn-urile automate, ultima tentativa, canalul si istoricul grupurilor de trei tentative. | `/ad-attempts list utilizator:@membru` |
 | `/anti-raid status` | Admin, Ephemeral | Arata incidentul anti-raid activ sau ultimul: ID, etapa, canalele blocate acum, participantii opriti si cei ramasi, durata lockdown-ului, timpul ramas din perioada de siguranta, progresul restaurarii, operatiunile ramase si erorile. | `/anti-raid status` |
 | `/anti-raid participant-list` | Admin, Ephemeral | Listeaza participantii incidentului activ, ai ultimului raid sau ai incidentului indicat, cu sanctiunile aplicate, cele esuate si ultima eroare. | `/anti-raid participant-list incident-id:raid-abc` |
 | `/anti-raid force-start` | Admin top-level, owner-only runtime, Ephemeral | Confirma manual un raid, genereaza un ID de incident si porneste interventia. Owner-only. | `/anti-raid force-start` |

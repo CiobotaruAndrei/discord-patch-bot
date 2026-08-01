@@ -35,6 +35,8 @@ export interface AdAttemptRecord {
   history: Array<{ at: Date; channelId: string | null; summary: string; warned: boolean }>;
 }
 
+const NEWLINE = String.fromCharCode(10);
+
 const INVITE_PATTERN = /(?:discord(?:app)?\.com\/invite|discord\.gg|discord\.me|dsc\.gg|invite\.gg)\/[\w-]+/i;
 const LINK_PATTERN = /https?:\/\/[^\s]+|\bwww\.[^\s]+/i;
 
@@ -47,6 +49,14 @@ const PROMO_PHRASES = [
   "boost ieftin", "nitro gratis", "free nitro", "giveaway pe serverul"
 ];
 
+export function quoteUntrusted(text: string): string {
+  return text
+    .replace(/```/g, "` ``")
+    .split(NEWLINE)
+    .map(line => `> ${line}`)
+    .join(NEWLINE);
+}
+
 export function normalizeAdText(text: string): string {
   return text
     .toLowerCase()
@@ -56,9 +66,21 @@ export function normalizeAdText(text: string): string {
     .trim();
 }
 
-export function adFingerprint(text: string, attachmentUrl: string | null): string {
+export interface AdAttachmentIdentity {
+  name?: string | null;
+  size?: number | null;
+}
+
+export function attachmentIdentity(attachment: AdAttachmentIdentity | null): string {
+  if (!attachment) return "";
+  const name = typeof attachment.name === "string" ? attachment.name.toLowerCase() : "";
+  const size = typeof attachment.size === "number" && Number.isFinite(attachment.size) ? attachment.size : 0;
+  return name || size ? `${name}:${size}` : "";
+}
+
+export function adFingerprint(text: string, attachment: AdAttachmentIdentity | null): string {
   const normalized = normalizeAdText(text).replace(/\s+/g, "");
-  return `${normalized.slice(0, 300)}::${attachmentUrl ?? ""}`;
+  return `${normalized.slice(0, 300)}::${attachmentIdentity(attachment)}`;
 }
 
 export function extractInvite(text: string): string | null {

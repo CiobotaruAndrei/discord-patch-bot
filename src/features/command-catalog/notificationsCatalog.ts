@@ -1,11 +1,15 @@
 import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
+import { SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
+
+const PROTECTION_SUBCOMMANDS = Object.keys(START_STOP_TOGGLE_FIELDS);
+const SECURITY_CHANNEL_SUBCOMMANDS = Object.keys(SET_CHANNEL_FIELDS);
 
 export const NOTIFICATIONS_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "latest", access: "public", discordAdminPermissions: false },
   { command: "watchlist-game", access: "public", discordAdminPermissions: false, adminRuntimeSubcommands: ["delete"] },
-  { command: "start", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: ["new-account-alerts", "threat-protection", "bot-add-protection"] },
-  { command: "stop", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: ["new-account-alerts", "threat-protection", "bot-add-protection"] },
-  { command: "set", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], sensitiveSubcommands: ["new-account-alert-channel", "threat-alert-channel", "bot-add-alert-channel", "permission-request-channel", "warn-channel"] },
+  { command: "start", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: PROTECTION_SUBCOMMANDS },
+  { command: "stop", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: PROTECTION_SUBCOMMANDS },
+  { command: "set", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], sensitiveSubcommands: SECURITY_CHANNEL_SUBCOMMANDS },
   { command: "watchlist", access: "admin", discordAdminPermissions: true },
   { command: "price-alert", access: "admin", discordAdminPermissions: true },
   { command: "future-release", access: "admin", discordAdminPermissions: false, publicSubcommands: ["list"] },
@@ -25,6 +29,9 @@ export const NOTIFICATIONS_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/set anti-raid-thresholds", description: "Modifica pragurile anti-raid. Optiunile nedate raman la valoarea curenta, iar o valoare in afara limitelor e refuzata cu motiv, fara sa piarda celelalte valori valide.", example: "/set anti-raid-thresholds identical-messages:4 safety-period:1h", notes: ["Implicit: 3 mesaje identice in 8s, minimum 4 mentiuni in 10s, minimum 3 mesaje cu invitatii in 20s, minimum 4 mesaje cu linkuri in 12s, minimum 2 participanti coordonati in 15s, minimum 3 canale sau roluri in 20s.", "Implicit: perioada de siguranta 30m, mute 24h, timeout 24h, lockdown maxim 45m.", "Duratele se scriu cu s, m, h sau d, de exemplu 8s, 30m, 24h."] },
   { command: "/start anti-raid-dry-run", description: "Porneste modul de testare anti-raid: botul arata ce ar detecta si ce ar executa, fara sa blocheze canale, fara sa sanctioneze si fara sa publice anunturi de raid.", example: "/start anti-raid-dry-run" },
   { command: "/stop anti-raid-dry-run", description: "Opreste modul de testare anti-raid si pastreaza rezultatele in istoricul incidentelor.", example: "/stop anti-raid-dry-run" },
+  { command: "/set ad-alert-channel", description: "Alege canalul pentru cererile de aprobare a reclamelor, reclamele sterse, tentativele detectate si warn-urile automate.", example: "/set ad-alert-channel canal:#reclame" },
+  { command: "/start ad-protection", description: "Porneste protectia impotriva reclamelor neaprobate de owner, inclusiv reclamele fara link: promovarea altor servere, comunitati, servicii, produse, pagini sau conturi.", example: "/start ad-protection" },
+  { command: "/stop ad-protection", description: "Opreste protectia si transforma toate cererile si aprobarile active neexpirate in cancelled. Istoricul tentativelor, warn-urile si canalul configurat raman salvate.", example: "/stop ad-protection" },
   { command: "/set warn-channel", description: "Alege canalul dedicat in care sunt publicate warn-urile si dovezile directe.", example: "/set warn-channel canal:#moderation" },
   { command: "/start bot-add-protection", description: "Permite doar botul si solicitantul aprobati exact printr-o aprobare owner one-time neexpirata; botii neaprobati sunt eliminati.", example: "/start bot-add-protection" },
   { command: "/start moderation-guard", description: "Porneste unitar protectiile administrative bazate pe aprobare din afara raidurilor: bot-add, permission-grant, moderation-mass, webhook, server-structure si protected-resource-change.", example: "/start moderation-guard" },
