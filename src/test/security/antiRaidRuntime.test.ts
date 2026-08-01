@@ -9,7 +9,12 @@ import type { RaidGuildPort } from "../../features/command-security/antiRaidInte
 
 const T0 = Date.parse("2026-08-01T12:00:00.000Z");
 
-function harness(options: { thresholds?: Record<string, unknown> | null; resolvable?: boolean } = {}) {
+function harness(options: {
+  thresholds?: Record<string, unknown> | null;
+  resolvable?: boolean;
+  dryRun?: boolean;
+  structureActor?: { id: string; bot: boolean } | null;
+} = {}) {
   const model = raidIncidentStore();
   const incidents = createRaidIncidentRepository(model);
   const locked: string[] = [];
@@ -29,7 +34,8 @@ function harness(options: { thresholds?: Record<string, unknown> | null; resolva
 
   const runtime = createAntiRaidRuntime({
     RaidIncidentModel: model,
-    readGuildSettings: async () => ({ antiRaidThresholds: options.thresholds ?? null }),
+    readGuildSettings: async () => ({ antiRaidThresholds: options.thresholds ?? null, antiRaidDryRunEnabled: options.dryRun === true }),
+    findStructureActor: async () => options.structureActor ?? null,
     resolveGuild: async () => (options.resolvable === false ? null : guild),
     now: () => clock
   });
@@ -86,9 +92,9 @@ test("al doilea val nu deschide un incident nou, ci alimenteaza pe cel activ", a
 
 test("modificarile de structura declanseaza incidentul si numesc motivul", async () => {
   const setup = harness();
-  await setup.runtime.observeStructureChange("g1", "mod-1", false, "c1");
-  await setup.runtime.observeStructureChange("g1", "mod-1", false, "c2");
-  const outcome = await setup.runtime.observeStructureChange("g1", "mod-1", false, "c3");
+  await setup.runtime.observeStructureChange("g1", "c1", { id: "mod-1", bot: false });
+  await setup.runtime.observeStructureChange("g1", "c2", { id: "mod-1", bot: false });
+  const outcome = await setup.runtime.observeStructureChange("g1", "c3", { id: "mod-1", bot: false });
 
   assert.equal(outcome.kind, "opened");
   assert.match(outcome.kind === "opened" ? outcome.reason : "", /canale sau roluri/);
@@ -97,7 +103,7 @@ test("modificarile de structura declanseaza incidentul si numesc motivul", async
 
 test("o modificare de structura cu autor neconfirmat e ignorata", async () => {
   const setup = harness();
-  const outcome = await setup.runtime.observeStructureChange("g1", null, false, "c1");
+  const outcome = await setup.runtime.observeStructureChange("g1", "c1");
 
   assert.deepEqual(outcome, { kind: "ignored" });
   assert.equal(setup.model.records.length, 0);
@@ -184,4 +190,53 @@ test("detectorul unui server linistit e uitat, deci memoria nu creste cu fiecare
   const outcome = await setup.runtime.observeMessage("g1", message({ at: setup.clockAt() }));
 
   assert.deepEqual(outcome, { kind: "quiet" }, "dupa liniste prelungita, semnalele vechi nu mai conteaza");
+});
+
+test("identitatea de bot se pastreaza pentru fiecare participant, nu doar pentru autorul ultimului mesaj", async () => {
+  const setup = harness({ thresholds: { identicalMessages: 2 } });
+  await setup.runtime.observeMessage("g1", message({ actorId: "bot-spam", bot: true, content: "cumpara acum", at: T0 }));
+  await setup.runtime.observeMessage("g1", message({ actorId: "bot-spam", bot: true, content: "cumpara acum", at: T0 + 1_000 }));
+  await setup.runtime.observeMessage("g1", message({ actorId: "om", bot: false, content: "cumpara acum", at: T0 + 2_000 }));
+  await setup.runtime.observeMessage("g1", message({ actorId: "om", bot: false, content: "cumpara acum", at: T0 + 3_000 }));
+
+  const incident = await setup.incidents.active("g1");
+  const bot = incident?.participants.find(entry => entry.userId === "bot-spam");
+  const human = incident?.participants.find(entry => entry.userId === "om");
+
+  assert.equal(bot?.bot, true, "un bot observat mai devreme nu are voie sa intre in scara umana mute/timeout");
+  assert.equal(human?.bot, false);
+  assert.ok(setup.sanctions.some(entry => entry.userId === "bot-spam" && entry.step === "ban"));
+  assert.ok(setup.sanctions.some(entry => entry.userId === "om" && entry.step === "mute"));
+});
+
+test("modul dry-run configurat de owner ajunge pe incidentul deschis automat", async () => {
+  const setup = harness({ dryRun: true });
+  for (const offset of [0, 1_000, 2_000]) await setup.runtime.observeMessage("g1", message({ at: T0 + offset }));
+
+  const incident = await setup.incidents.active("g1");
+  assert.equal(incident?.dryRun, true, "fara asta, /start anti-raid-dry-run nu ar avea niciun efect asupra incidentelor reale");
+  assert.deepEqual(setup.locked, []);
+  assert.deepEqual(setup.sanctions, []);
+});
+
+test("sweep-ul impinge incidentele active si le ignora pe cele inchise", async () => {
+  const setup = harness();
+  await setup.incidents.open({ guildId: "g1", triggerReason: "spam" }, new Date(T0));
+  const closed = await setup.incidents.open({ guildId: "g2", triggerReason: "spam" }, new Date(T0));
+  await setup.incidents.advance(closed?._id ?? "", "suspected", "resolved", new Date(T0));
+
+  const driven = await setup.runtime.sweep();
+
+  assert.deepEqual(driven, ["g1"], "fara un ciclu periodic, un incident ramane blocat cand atacul se opreste");
+  assert.equal((await setup.incidents.active("g1"))?.stage, "containment");
+});
+
+test("modificarile de structura folosesc autorul din Audit Log cand nu e dat explicit", async () => {
+  const setup = harness({ structureActor: { id: "mod-audit", bot: false } });
+  await setup.runtime.observeStructureChange("g1", "c1");
+  await setup.runtime.observeStructureChange("g1", "c2");
+  const outcome = await setup.runtime.observeStructureChange("g1", "c3");
+
+  assert.equal(outcome.kind, "opened");
+  assert.deepEqual(setup.sanctions, [{ userId: "mod-audit", step: "mute" }]);
 });

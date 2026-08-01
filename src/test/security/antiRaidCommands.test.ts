@@ -36,7 +36,8 @@ function interaction(subcommand: string, overrides: Record<string, unknown> = {}
 function handlerFor(model: ReturnType<typeof raidIncidentStore>) {
   return attachAntiRaidHandler.buildCommandHandler(moduleContext<Parameters<typeof attachAntiRaidHandler.buildCommandHandler>[0]>({
     RaidIncidentModel: model,
-    getGuildSettings: async () => ({ antiRaidThresholds: null })
+    getGuildSettings: async () => ({ antiRaidThresholds: null }),
+    runRaidIntervention: async () => false
   }));
 }
 
@@ -211,7 +212,7 @@ test("force-start porneste interventia, nu doar salveaza incidentul", async () =
   const handler = attachAntiRaidHandler.buildCommandHandler(moduleContext<Parameters<typeof attachAntiRaidHandler.buildCommandHandler>[0]>({
     RaidIncidentModel: model,
     getGuildSettings: async () => ({ antiRaidThresholds: null }),
-    runRaidIntervention: async (guildId: string) => { triggered.push(guildId); return undefined; }
+    runRaidIntervention: async (guildId: string) => { triggered.push(guildId); return true; }
   }));
   const call = interaction("force-start");
 
@@ -227,7 +228,7 @@ test("force-stop porneste restaurarea, nu doar schimba etapa", async () => {
   const handler = attachAntiRaidHandler.buildCommandHandler(moduleContext<Parameters<typeof attachAntiRaidHandler.buildCommandHandler>[0]>({
     RaidIncidentModel: model,
     getGuildSettings: async () => ({ antiRaidThresholds: null }),
-    runRaidIntervention: async (guildId: string) => { triggered.push(guildId); return undefined; }
+    runRaidIntervention: async (guildId: string) => { triggered.push(guildId); return true; }
   }));
   await createRaidIncidentRepository(model).open({ guildId: "g1", triggerReason: "spam", stage: "containment" }, new Date(T0));
   const call = interaction("force-stop", { booleans: { confirm: true } });

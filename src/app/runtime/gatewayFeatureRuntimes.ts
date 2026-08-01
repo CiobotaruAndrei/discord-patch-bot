@@ -5,7 +5,7 @@ import { createModerationGuardGate } from "../../features/command-security/moder
 import { createProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 import { createAntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
 import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
-import { adaptRaidGuild } from "./antiRaidGuildAdapter.js";
+import { adaptRaidGuild, findRaidStructureActor } from "./antiRaidGuildAdapter.js";
 import type { AdaptableRaidGuild } from "./antiRaidGuildAdapter.js";
 import type { ProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
@@ -98,6 +98,11 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
         const cache = client.guilds?.cache as { get?: (id: string) => AdaptableRaidGuild | undefined } | undefined;
         const guild = cache?.get?.(guildId);
         return guild ? adaptRaidGuild(guild, readGuildSettings, logger) : null;
+      },
+      findStructureActor: async (guildId, resourceId) => {
+        const cache = client.guilds?.cache as { get?: (id: string) => AdaptableRaidGuild | undefined } | undefined;
+        const guild = cache?.get?.(guildId);
+        return guild ? findRaidStructureActor(guild, resourceId) : null;
       },
       logger
     })

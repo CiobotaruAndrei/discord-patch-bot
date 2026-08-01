@@ -13,7 +13,9 @@ import type { MessageObservation, RaidDetector } from "./antiRaidDetection.js";
 
 export interface AntiRaidRuntimeDeps {
   RaidIncidentModel: RaidIncidentModelLike;
-  readGuildSettings: (guildId: string) => Promise<{ antiRaidThresholds?: Record<string, unknown> | null; antiRaidAlertChannelId?: string | null } | null>;
+  readGuildSettings: (guildId: string) => Promise<{ antiRaidThresholds?: Record<string, unknown> | null; antiRaidAlertChannelId?: string | null; antiRaidDryRunEnabled?: boolean } | null>;
+  listActiveGuildIds?: () => Promise<string[]>;
+  findStructureActor?: (guildId: string, resourceId: string) => Promise<{ id: string; bot: boolean } | null>;
   resolveGuild: (guildId: string) => Promise<RaidGuildPort | null>;
   logger?: (level: string, scope: string, message: string, detail?: Record<string, unknown>) => void;
   now?: () => number;
@@ -41,6 +43,11 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
   async function thresholdsFor(guildId: string): Promise<AntiRaidThresholds> {
     const settings = await deps.readGuildSettings(guildId).catch(() => null);
     return readThresholds(settings?.antiRaidThresholds);
+  }
+
+  async function dryRunFor(guildId: string): Promise<boolean> {
+    const settings = await deps.readGuildSettings(guildId).catch(() => null);
+    return settings?.antiRaidDryRunEnabled === true;
   }
 
   function pruneDetectors(): void {
@@ -81,22 +88,35 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     await intervention.markContained(guildId).catch(() => false);
   }
 
-  async function registerParticipants(incidentId: string, actorIds: readonly string[], bots: ReadonlySet<string>): Promise<void> {
+  const botActors = new Map<string, Set<string>>();
+
+  function rememberActor(guildId: string, actorId: string, bot: boolean): void {
+    if (!bot) return;
+    const known = botActors.get(guildId);
+    if (known) known.add(actorId); else botActors.set(guildId, new Set([actorId]));
+  }
+
+  function isBotActor(guildId: string, actorId: string): boolean {
+    return botActors.get(guildId)?.has(actorId) === true;
+  }
+
+  async function registerParticipants(guildId: string, incidentId: string, actorIds: readonly string[]): Promise<void> {
     for (const actorId of actorIds) {
-      await incidents.addParticipant(incidentId, actorId, bots.has(actorId), new Date(now())).catch(() => false);
+      await incidents.addParticipant(incidentId, actorId, isBotActor(guildId, actorId), new Date(now())).catch(() => false);
     }
   }
 
   async function observeMessage(guildId: string, observation: MessageObservation): Promise<ObserveOutcome> {
     if (!observation.actorId) return { kind: "ignored" };
 
+    rememberActor(guildId, observation.actorId, observation.bot);
     const detector = await detectorFor(guildId);
     const verdict = detector.observeAll(signalsFromMessage(observation), observation.at);
 
     const active = await incidents.active(guildId).catch(() => null);
     if (active) {
       if (verdict.triggered) {
-        await registerParticipants(active._id, verdict.actorIds, new Set(observation.bot ? [observation.actorId] : []));
+        await registerParticipants(guildId, active._id, verdict.actorIds);
         await runIntervention(guildId, verdict.channelIds);
         return { kind: "existing", incidentId: active._id };
       }
@@ -105,22 +125,30 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
 
     if (!verdict.triggered) return { kind: "quiet" };
 
-    const incident = await incidents.open({ guildId, triggerReason: verdict.reason }, new Date(now()));
+    const incident = await incidents.open(
+      { guildId, triggerReason: verdict.reason, dryRun: await dryRunFor(guildId) },
+      new Date(now())
+    );
     if (!incident) return { kind: "quiet" };
 
-    await registerParticipants(incident._id, verdict.actorIds, new Set(observation.bot ? [observation.actorId] : []));
+    await registerParticipants(guildId, incident._id, verdict.actorIds);
     await runIntervention(guildId, verdict.channelIds);
     return { kind: "opened", incidentId: incident._id, reason: verdict.reason, participants: [...verdict.actorIds] };
   }
 
   async function observeStructureChange(
     guildId: string,
-    actorId: string | null,
-    bot: boolean,
-    resourceId: string
+    resourceId: string,
+    actor?: { id: string; bot: boolean } | null
   ): Promise<ObserveOutcome> {
-    if (!actorId) return { kind: "ignored" };
+    const resolved = actor ?? (deps.findStructureActor
+      ? await deps.findStructureActor(guildId, resourceId).catch(() => null)
+      : null);
+    if (!resolved?.id) return { kind: "ignored" };
+    const actorId = resolved.id;
+    const bot = resolved.bot;
 
+    rememberActor(guildId, actorId, bot);
     const detector = await detectorFor(guildId);
     const verdict = detector.observe(structureSignal(actorId, bot, resourceId, now()));
     if (!verdict.triggered) {
@@ -129,10 +157,13 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     }
 
     const active = await incidents.active(guildId).catch(() => null);
-    const incident = active ?? await incidents.open({ guildId, triggerReason: verdict.reason }, new Date(now()));
+    const incident = active ?? await incidents.open(
+      { guildId, triggerReason: verdict.reason, dryRun: await dryRunFor(guildId) },
+      new Date(now())
+    );
     if (!incident) return { kind: "quiet" };
 
-    await registerParticipants(incident._id, verdict.actorIds, new Set(bot ? [actorId] : []));
+    await registerParticipants(guildId, incident._id, verdict.actorIds);
     await runIntervention(guildId, verdict.channelIds);
     return active
       ? { kind: "existing", incidentId: incident._id }
@@ -143,6 +174,7 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     const active = await incidents.active(guildId).catch(() => null);
     if (!active || !raidConfirmed(active.stage)) return { kind: "quiet" };
 
+    rememberActor(guildId, botId, true);
     await incidents.addParticipant(active._id, botId, true, new Date(now())).catch(() => false);
     await runIntervention(guildId, []);
     return { kind: "existing", incidentId: active._id };
@@ -155,11 +187,24 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     return { kind: "existing", incidentId: active._id };
   }
 
-  function forget(guildId: string): void {
-    detectors.delete(guildId);
+  async function sweep(): Promise<string[]> {
+    const guildIds = await (deps.listActiveGuildIds
+      ? deps.listActiveGuildIds()
+      : incidents.activeGuildIds()).catch(() => []);
+    const driven: string[] = [];
+    for (const guildId of guildIds) {
+      const outcome = await tick(guildId).catch(() => ({ kind: "quiet" as const }));
+      if (outcome.kind === "existing") driven.push(guildId);
+    }
+    return driven;
   }
 
-  return { observeMessage, observeStructureChange, observeBotJoin, tick, isRaidConfirmed, forget };
+  function forget(guildId: string): void {
+    detectors.delete(guildId);
+    botActors.delete(guildId);
+  }
+
+  return { observeMessage, observeStructureChange, observeBotJoin, tick, sweep, isRaidConfirmed, forget };
 }
 
 export type AntiRaidRuntime = ReturnType<typeof createAntiRaidRuntime>;

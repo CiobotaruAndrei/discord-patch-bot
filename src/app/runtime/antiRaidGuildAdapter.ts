@@ -9,8 +9,11 @@ const RETRYABLE_CODES = new Set([500, 502, 503, 504, 429]);
 
 type Logger = (level: string, scope: string, message: string, detail?: Record<string, unknown>) => void;
 
+const AUDIT_WINDOW_MS = 60_000;
+
 export interface AdaptableRaidGuild {
   id: string;
+  fetchAuditLogs?: (options?: Record<string, unknown>) => Promise<{ entries?: Iterable<[unknown, unknown]> | { values?: () => Iterable<unknown> } } | null>;
   roles?: { everyone?: { id?: unknown } };
   channels?: { cache?: { get?: (id: string) => unknown } };
   members?: { fetch?: (id: string) => Promise<unknown> };
@@ -36,6 +39,36 @@ function failure(error: unknown): SanctionOutcome {
     retryable: isRetryable(error),
     error: error instanceof Error ? error.message : String(error)
   };
+}
+
+export async function findRaidStructureActor(
+  guild: AdaptableRaidGuild,
+  resourceId: string,
+  now: () => number = Date.now
+): Promise<{ id: string; bot: boolean } | null> {
+  if (!guild.fetchAuditLogs) return null;
+  const payload = await guild.fetchAuditLogs({ limit: 25 }).catch(() => null);
+  const raw = payload?.entries;
+  if (!raw) return null;
+  const iterable = typeof (raw as { values?: () => Iterable<unknown> }).values === "function"
+    ? (raw as { values: () => Iterable<unknown> }).values()
+    : [...(raw as Iterable<[unknown, unknown]>)].map(pair => pair[1]);
+
+  const cutoff = now() - AUDIT_WINDOW_MS;
+  let best: { id: string; bot: boolean; at: number } | null = null;
+  for (const item of iterable) {
+    const entry = item as {
+      executor?: { id?: unknown; bot?: unknown };
+      target?: { id?: unknown };
+      createdTimestamp?: unknown
+    };
+    const executorId = typeof entry.executor?.id === "string" ? entry.executor.id : null;
+    const targetId = typeof entry.target?.id === "string" ? entry.target.id : null;
+    const at = typeof entry.createdTimestamp === "number" ? entry.createdTimestamp : 0;
+    if (!executorId || targetId !== resourceId || at < cutoff) continue;
+    if (!best || at > best.at) best = { id: executorId, bot: entry.executor?.bot === true, at };
+  }
+  return best ? { id: best.id, bot: best.bot } : null;
 }
 
 export function adaptRaidGuild(

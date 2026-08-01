@@ -62,6 +62,16 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
     return asRecord(await model.findOne({ guildId }).sort({ startedAt: -1 }).lean());
   }
 
+  async function activeGuildIds(limit = 200): Promise<string[]> {
+    const documents = await model.find({ stage: { $ne: "resolved" } }).sort({ startedAt: 1 }).limit(limit).lean();
+    const guildIds = new Set<string>();
+    for (const document of documents) {
+      const guildId = document.guildId;
+      if (typeof guildId === "string" && guildId) guildIds.add(guildId);
+    }
+    return [...guildIds];
+  }
+
   async function history(guildId: string, limit = 20): Promise<RaidIncidentRecord[]> {
     const documents = await model.find({ guildId }).sort({ startedAt: -1 }).limit(limit).lean();
     return documents.map(document => asRecord(document)).filter((record): record is RaidIncidentRecord => record !== null);
@@ -202,6 +212,7 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
 
   return {
     active,
+    activeGuildIds,
     read,
     latest,
     history,
