@@ -39,6 +39,7 @@ export type MongoRepositoriesBundle = Pick<
   | "FeedbackReportModel"
   | "PermissionRequestModel"
   | "ProtectedResourceModel"
+  | "RaidIncidentModel"
   | "NotificationDeadLetterReplayModel"
   | "OperationJournalModel"
 >;
@@ -115,6 +116,7 @@ export function selectMongoRepositories(context: MongoRepositoriesBundle): Mongo
     FeedbackReportModel: context.FeedbackReportModel,
     PermissionRequestModel: context.PermissionRequestModel,
     ProtectedResourceModel: context.ProtectedResourceModel,
+    RaidIncidentModel: context.RaidIncidentModel,
     NotificationDeadLetterReplayModel: context.NotificationDeadLetterReplayModel,
     OperationJournalModel: context.OperationJournalModel
   };

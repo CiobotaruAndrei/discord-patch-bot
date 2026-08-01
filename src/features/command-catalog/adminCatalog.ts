@@ -34,6 +34,7 @@ export const ADMIN_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   ,{ command: "permission-request", access: "public", discordAdminPermissions: false }
   ,{ command: "permission-requests", access: "admin", discordAdminPermissions: true, ownerOnly: true, ownerOnlySubcommands: ["list"], sensitiveSubcommands: "all" }
   ,{ command: "protected-resource", access: "admin", discordAdminPermissions: true, ownerOnly: true, sensitiveSubcommands: "all" }
+  ,{ command: "anti-raid", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: "all", ownerOnlySubcommands: ["force-start", "force-stop", "participant-add", "participant-remove"] }
 ];
 
 export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
@@ -82,5 +83,11 @@ export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   ,{ command: "/bot-add-permissions", description: "Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata.", example: "/bot-add-permissions" }
   ,{ command: "/permission-request", description: "Cere aprobarea ownerului pentru o operatiune de securitate: bot-add, permission-grant, moderation-mass, webhook, server-structure sau protected-resource-change.", example: "/permission-request type:webhook target:#anunturi action:create reason:integrare RSS" }
   ,{ command: "/permission-requests list", description: "Listeaza cererile de aprobare de securitate, cu filtre optionale dupa status si tip; cele active apar inaintea istoricului.", example: "/permission-requests list status:pending" }
+  ,{ command: "/anti-raid status", description: "Arata incidentul anti-raid activ sau ultimul: ID, etapa, canalele blocate acum, participantii opriti si cei ramasi, durata lockdown-ului, timpul ramas din perioada de siguranta, progresul restaurarii, operatiunile ramase si erorile.", example: "/anti-raid status" }
+  ,{ command: "/anti-raid participant-list", description: "Listeaza participantii incidentului activ, ai ultimului raid sau ai incidentului indicat, cu sanctiunile aplicate, cele esuate si ultima eroare.", example: "/anti-raid participant-list incident-id:raid-abc" }
+  ,{ command: "/anti-raid force-start", description: "Confirma manual un raid, genereaza un ID de incident si porneste interventia. Owner-only.", example: "/anti-raid force-start" }
+  ,{ command: "/anti-raid force-stop", description: "Incheie manual interventia si porneste restaurarea controlata. Se poate folosi numai dupa un raid confirmat si nu anuleaza sanctiunile aplicate. Owner-only.", example: "/anti-raid force-stop confirm:true" }
+  ,{ command: "/anti-raid participant-add", description: "Adauga manual un participant omis si il introduce in fluxul Mute 24h -> Timeout 24h -> Ban. Owner-only.", example: "/anti-raid participant-add utilizator:@membru" }
+  ,{ command: "/anti-raid participant-remove", description: "Elimina din incident un participant identificat gresit. NU anuleaza automat sanctiunile deja aplicate. Owner-only.", example: "/anti-raid participant-remove utilizator:@membru" }
   ,{ command: "/protected-resource", description: "Marcheaza canale, categorii si roluri ca resurse critice. add salveaza snapshot-ul si evalueaza daca prevenirea poate fi garantata, remove scoate resursa din protectie fara sa o stearga, list arata resursele, starea snapshot-ului si cauzele exacte pentru cele degraded.", example: "/protected-resource action:add type:channel target:123456789012345678", notes: ["Aplicarea in afara raidurilor porneste doar cand /start moderation-guard este activ.", "O resursa e marcata degraded cand prevenirea nu poate fi garantata, de exemplu roluri cu Administrator care ignora overwrite-urile canalului sau un rol protejat mai sus decat rolul botului."] }
 ];

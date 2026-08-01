@@ -70,5 +70,16 @@ export function buildModerationCommandDefinitions({ SlashCommandBuilder, Permiss
           { name: "role", value: "role" }
         ))
       .addStringOption(option => option.setName("target").setDescription("ID-ul resursei (necesar la add si remove)").setRequired(false).setMaxLength(20)))
+    ,admin(new SlashCommandBuilder().setName("anti-raid").setDescription("Administreaza incidentele anti-raid")
+      .addSubcommand(subcommand => subcommand.setName("status").setDescription("Arata incidentul activ: etapa, canale blocate, participanti, sanctiuni si erori"))
+      .addSubcommand(subcommand => subcommand.setName("participant-list").setDescription("Listeaza participantii unui incident")
+        .addStringOption(option => option.setName("incident-id").setDescription("ID-ul incidentului; implicit cel activ sau ultimul").setRequired(false).setMaxLength(40)))
+      .addSubcommand(subcommand => subcommand.setName("force-start").setDescription("Confirma manual un raid si porneste interventia"))
+      .addSubcommand(subcommand => subcommand.setName("force-stop").setDescription("Incheie manual interventia si porneste restaurarea controlata")
+        .addBooleanOption(option => option.setName("confirm").setDescription("Confirma incheierea interventiei").setRequired(true)))
+      .addSubcommand(subcommand => subcommand.setName("participant-add").setDescription("Adauga manual un participant omis")
+        .addUserOption(option => option.setName("utilizator").setDescription("Membrul de adaugat in incident").setRequired(true)))
+      .addSubcommand(subcommand => subcommand.setName("participant-remove").setDescription("Elimina din incident un participant identificat gresit")
+        .addUserOption(option => option.setName("utilizator").setDescription("Membrul de scos din incident").setRequired(true))))
   ];
 }
