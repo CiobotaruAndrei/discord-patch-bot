@@ -121,3 +121,18 @@ export function channelBulkDelete(channel: SecurityChannel | null | undefined): 
   return Boolean(channel && typeof channel.bulkDelete === "function");
 }
 
+export async function backfillAccountAlerts(
+  interaction: SecurityInteraction,
+  channelId: string | null | undefined,
+  guildId: string,
+  claim: AccountAlertClaimFn | undefined,
+  logger: SecurityLogger | undefined
+): Promise<{ delivered: number; sentUnconfirmed: number; undetermined: number }> {
+  const fetched = channelId && interaction.guild?.channels?.fetch
+    ? await interaction.guild.channels.fetch(channelId)
+    : null;
+  return fetched
+    ? sendExistingAccountAlerts(interaction, fetched, guildId, claim, logger)
+    : { delivered: 0, sentUnconfirmed: 0, undetermined: 0 };
+}
+

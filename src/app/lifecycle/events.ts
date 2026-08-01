@@ -11,6 +11,7 @@ import type { AdaptableGuild } from "../runtime/protectedResourceGuildAdapter.js
 import type { ResourceLike } from "../../features/command-security/protectedResourceTypes.js";
 import type { ProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
+import type { AdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
 
 type LifecycleLogger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;
@@ -52,6 +53,7 @@ interface RegisterDiscordEventsDeps {
   serverEventLogRuntime?: ServerEventLogGatewayRuntime;
   protectedResourceRuntime?: ProtectedResourceRuntime;
   antiRaidRuntime?: AntiRaidRuntime;
+  adProtectionRuntime?: AdProtectionRuntime;
 }
 
 interface MongoConnectionLike {
@@ -83,7 +85,7 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 function registerDiscordEvents({
   client, logger, commands, metrics, env, adminAlert, requestContext,
   games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role, securityRuntime,
-  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime
+  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime
 }: RegisterDiscordEventsDeps): void {
   const effectiveRole = role ?? "all";
   const runsSchedulers = roleRunsSchedulers(effectiveRole);
@@ -220,6 +222,25 @@ function registerDiscordEvents({
           logger("ERROR", "MODERATION_LIFECYCLE", "guildMemberRemove a esuat", errorDetail(err));
           adminAlert("moderation:member-cleanup", "Curatarea sanctiunilor membrului a esuat", errorMessage(err), member.guild?.id).catch(() => null);
         });
+      });
+    }
+    if (adProtectionRuntime) {
+      client.on("messageCreate", (message: LifecycleDiscordMessage) => {
+        const guildId = message.guild?.id;
+        const authorId = message.author?.id;
+        if (!guildId || !authorId || message.author?.bot === true) return;
+        const attachments = (message as { attachments?: { size?: number; first?: () => { url?: string } | undefined } }).attachments;
+        adProtectionRuntime.handleMessage({
+          guildId,
+          authorId,
+          authorTag: message.author?.tag ?? authorId,
+          bot: false,
+          channelId: message.channel?.id ?? null,
+          content: message.content ?? "",
+          attachmentUrl: attachments?.first?.()?.url ?? null,
+          attachmentCount: attachments?.size ?? 0,
+          deleteMessage: async () => (message as { delete?: () => Promise<unknown> }).delete?.()
+        }).catch(err => logger("ERROR", "AD_PROTECTION", "Verificarea reclamelor a esuat", errorDetail(err)));
       });
     }
     if (antiRaidRuntime) {

@@ -18,6 +18,7 @@ import { readLockedChannelPermissionState } from "../command-security/channelLoc
 import { randomUUID } from "node:crypto";
 import { setSecurityChannel } from "../command-security/setSecurityChannelUseCase.js";
 import {
+  backfillAccountAlerts,
   botAddProtectionReadiness,
   botChannelPermissions,
   channelBulkDelete,
@@ -31,7 +32,8 @@ import {
 } from "../command-security/securityInteractionAdapters.js";
 import { SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
 import { createPermissionRequestRepository } from "../command-security/permissionRequestRepository.js";
-import { MODERATION_GUARD_TYPES } from "../command-security/moderationGuardDecision.js";
+import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
+import { protectionStopActions } from "../command-security/protectionStopActions.js";
 import type {
   AccountAlertClaimFn,
   OverwriteEditor,
@@ -70,6 +72,9 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
       )
     }
     : deps;
+  const adRequests = target.AdRequestModel && target.AdAttemptModel
+    ? createAdProtectionRepository(target.AdRequestModel, target.AdAttemptModel)
+    : undefined;
   const guardRequests = target.PermissionRequestModel
     ? createPermissionRequestRepository(target.PermissionRequestModel)
     : undefined;
@@ -112,13 +117,22 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
       const toggle = START_STOP_TOGGLE_FIELDS[sub];
       if (!toggle) return undefined;
       const settings = await target.getGuildSettings(guildId).catch(() => null);
+      const stopActions = protectionStopActions(sub, guildId, {
+        guardRequests,
+        adRequests,
+        countBotAddApprovals: () => countActiveBotAddPermissions(settings?.botAddPermissions, new Date()),
+        stopBotAddAtomically: () => stopBotAddProtectionAtomically(target.GuildModel, guildId),
+        disableProtection: async () => {
+          await applyGuildConfigUpdate(target.GuildModel, guildId, { [toggle.enabled]: false });
+        }
+      });
       const outcome = await toggleProtection(
         {
           command,
           subcommand: sub,
           hasToggleFields: true,
           needsReadinessCheck: sub === "bot-add-protection",
-          needsAtomicStop: sub === "bot-add-protection" || (sub === "moderation-guard" && Boolean(guardRequests)),
+          needsAtomicStop: stopActions.needsAtomicStop,
           needsBackfill: sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true
         },
         {
@@ -128,29 +142,12 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
           },
           readChannelPermissions: channelId => target.checkChannelPermissions(interaction, channelId),
           readinessGaps: () => botAddProtectionReadiness(interaction),
-          countActiveApprovals: () => (sub === "moderation-guard" && guardRequests
-            ? guardRequests.countActive(guildId)
-            : countActiveBotAddPermissions(settings?.botAddPermissions, new Date())),
-          stopAtomically: async () => {
-            if (sub === "moderation-guard" && guardRequests) {
-              await guardRequests.cancelTypes(guildId, MODERATION_GUARD_TYPES);
-              await applyGuildConfigUpdate(target.GuildModel, guildId, { [toggle.enabled]: false });
-              return;
-            }
-            await stopBotAddProtectionAtomically(target.GuildModel, guildId);
-          },
+          countActiveApprovals: () => stopActions.countActiveApprovals(),
+          stopAtomically: () => stopActions.stopAtomically(),
           persistEnabled: async enabled => {
             await applyGuildConfigUpdate(target.GuildModel, guildId, { [toggle.enabled]: enabled });
           },
-          runBackfill: async () => {
-            const channelId = settings?.newAccountAlertChannelId;
-            const fetched = channelId && interaction.guild?.channels?.fetch
-              ? await interaction.guild.channels.fetch(channelId)
-              : null;
-            return fetched
-              ? await sendExistingAccountAlerts(interaction, fetched, guildId, accountAlertClaim, target.logger)
-              : { delivered: 0, sentUnconfirmed: 0, undetermined: 0 };
-          }
+          runBackfill: () => backfillAccountAlerts(interaction, settings?.newAccountAlertChannelId, guildId, accountAlertClaim, target.logger)
         }
       );
       if (outcome.kind === "atomic-stop-failed") {

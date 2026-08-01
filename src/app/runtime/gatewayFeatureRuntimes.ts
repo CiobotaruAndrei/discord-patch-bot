@@ -4,6 +4,9 @@ import { createPermissionDelegationRuntime } from "../../features/command-securi
 import { createModerationGuardGate } from "../../features/command-security/moderationGuardGate.js";
 import { createProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 import { createAntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
+import { createAdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
+import type { AdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
+import { addWarning } from "../../features/moderation/moderationRepository.js";
 import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
 import { adaptRaidGuild, findRaidStructureActor } from "./antiRaidGuildAdapter.js";
 import type { AdaptableRaidGuild } from "./antiRaidGuildAdapter.js";
@@ -29,6 +32,7 @@ export type GatewayFeatureRuntimes = {
   readonly serverEventLogRuntime?: ServerEventLogGatewayRuntime;
   readonly protectedResourceRuntime?: ProtectedResourceRuntime;
   readonly antiRaidRuntime?: AntiRaidRuntime;
+  readonly adProtectionRuntime?: AdProtectionRuntime;
 };
 
 export type GatewayFeatureInput = {
@@ -108,6 +112,38 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     })
     : undefined;
 
+  const adRequestModel = mongo.AdRequestModel;
+  const adAttemptModel = mongo.AdAttemptModel;
+  const moderationGuildModel = mongo.GuildModel;
+  const adProtectionRuntime = adRequestModel && adAttemptModel && readGuildSettings && moderationGuildModel
+    ? createAdProtectionRuntime({
+      AdRequestModel: adRequestModel,
+      AdAttemptModel: adAttemptModel,
+      readGuildSettings: guildId => readGuildSettings(guildId),
+      readOwnerId: guildId => {
+        const cache = client.guilds?.cache as { get?: (id: string) => { ownerId?: unknown } | undefined } | undefined;
+        const ownerId = cache?.get?.(guildId)?.ownerId;
+        return typeof ownerId === "string" ? ownerId : null;
+      },
+      isRaidConfirmed: antiRaidRuntime ? guildId => antiRaidRuntime.isRaidConfirmed(guildId) : undefined,
+      issueWarn: async (guildId, userId, username, reason) => addWarning(moderationGuildModel, guildId, {
+        warningId: `ad-${Date.now().toString(36)}`,
+        userId,
+        username: `${username} (${reason})`,
+        moderatorId: client.user?.id ?? "",
+        warnedAt: new Date()
+      }).catch(() => null),
+      publish: async (guildId, body) => {
+        const settings = await readGuildSettings(guildId).catch(() => null);
+        const channelId = settings?.adAlertChannelId;
+        if (!channelId) return undefined;
+        const channel = await Promise.resolve(client.channels?.fetch?.(channelId)).catch(() => null);
+        return channel?.send ? channel.send({ content: body }) : undefined;
+      },
+      logger
+    })
+    : undefined;
+
   const moderationGuardGate = permissionRequestModel && readGuildSettings
     ? createModerationGuardGate({
       PermissionRequestModel: permissionRequestModel,
@@ -157,7 +193,7 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     })
     : undefined;
 
-  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime };
+  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime };
 }
 
 export function createInactiveGatewayFeatureRuntimes(recorders: ThreatSurfaceMetricRecorder): GatewayFeatureRuntimes {
