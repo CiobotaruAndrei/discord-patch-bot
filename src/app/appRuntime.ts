@@ -88,7 +88,8 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
     permissionDelegationRuntime: gateway.permissionDelegationRuntime,
     moderationLifecycleRuntime,
     serverEventLogRuntime: gateway.serverEventLogRuntime,
-    protectedResourceRuntime: gateway.protectedResourceRuntime
+    protectedResourceRuntime: gateway.protectedResourceRuntime,
+    antiRaidRuntime: gateway.antiRaidRuntime
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 

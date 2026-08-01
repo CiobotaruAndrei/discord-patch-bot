@@ -64,6 +64,8 @@ export interface GuildConfigurationSettings {
   threatProtectionEnabled?: boolean;
   botAddAlertChannelId?: string | null;
   permissionRequestChannelId?: string | null;
+  antiRaidAlertChannelId?: string | null;
+  antiRaidThresholds?: Record<string, unknown> | null;
   moderationGuardEnabled?: boolean;
   botAddProtectionEnabled?: boolean;
   warningChannelId?: string | null;

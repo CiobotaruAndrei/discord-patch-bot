@@ -7,6 +7,7 @@ export const SET_CHANNEL_FIELDS: Record<string, string> = {
   "threat-alert-channel": "threatAlertChannelId",
   "bot-add-alert-channel": "botAddAlertChannelId",
   "permission-request-channel": "permissionRequestChannelId",
+  "anti-raid-alert-channel": "antiRaidAlertChannelId",
   "warn-channel": "warningChannelId"
 };
 
