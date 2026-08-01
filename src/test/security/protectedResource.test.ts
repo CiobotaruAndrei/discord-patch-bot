@@ -13,9 +13,8 @@ import {
   createProtectedResourceRepository
 } from "../../features/command-security/protectedResourceRepository.js";
 import { protectedResourceLines } from "../../features/command-presentation/protectedResourceMessages.js";
+import { protectedResourceStore } from "./protectedResourceStore.js";
 import type { ProtectedResourceRecord } from "../../features/command-security/protectedResourceTypes.js";
-
-type Doc = Record<string, unknown>;
 
 const FULL_CAPABILITY = {
   botHighestRolePosition: 50,
@@ -23,41 +22,6 @@ const FULL_CAPABILITY = {
   botCanManageRoles: true,
   botCanViewAuditLog: true
 };
-
-function store(records: Doc[] = []) {
-  function matches(record: Doc, filter: Doc): boolean {
-    return Object.entries(filter).every(([key, expected]) => record[key] === expected);
-  }
-  return {
-    records,
-    findOne(filter: Doc) {
-      const found = records.find(record => matches(record, filter)) ?? null;
-      return { lean: async (): Promise<Doc | null> => (found ? { ...found } : null) };
-    },
-    find(filter: Doc) {
-      const found = records.filter(record => matches(record, filter));
-      return { sort: () => ({ limit: (count: number) => ({ lean: async (): Promise<Doc[]> => found.slice(0, count).map(record => ({ ...record })) }) }) };
-    },
-    async updateOne(filter: Doc, update: Doc, options?: Doc) {
-      const existing = records.find(record => matches(record, filter));
-      if (!existing) {
-        if (options?.upsert && update.$setOnInsert) {
-          records.push(update.$setOnInsert as Doc);
-          return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
-        }
-        return { matchedCount: 0, modifiedCount: 0 };
-      }
-      if (update.$set) Object.assign(existing, update.$set);
-      return { matchedCount: 1, modifiedCount: 1 };
-    },
-    async deleteOne(filter: Doc) {
-      const index = records.findIndex(record => matches(record, filter));
-      if (index < 0) return { deletedCount: 0 };
-      records.splice(index, 1);
-      return { deletedCount: 1 };
-    }
-  };
-}
 
 function channelLike(overrides: Record<string, unknown> = {}) {
   return {
@@ -180,7 +144,7 @@ test("fara Manage Roles, protectia rolului nu porneste deloc", () => {
 });
 
 test("adaugarea salveaza snapshot-ul, iar a doua adaugare nu il suprascrie", async () => {
-  const model = store();
+  const model = protectedResourceStore();
   const repository = createProtectedResourceRepository(model);
   const input = {
     guildId: "g1", resourceId: "c1", type: "channel" as const, addedBy: "owner-1",
@@ -197,7 +161,7 @@ test("adaugarea salveaza snapshot-ul, iar a doua adaugare nu il suprascrie", asy
 });
 
 test("scoaterea din protectie nu sterge resursa si e idempotenta", async () => {
-  const model = store();
+  const model = protectedResourceStore();
   const repository = createProtectedResourceRepository(model);
   await repository.add({
     guildId: "g1", resourceId: "c1", type: "channel", addedBy: "owner-1",
@@ -210,7 +174,7 @@ test("scoaterea din protectie nu sterge resursa si e idempotenta", async () => {
 });
 
 test("resursele a doua servere nu se amesteca", async () => {
-  const model = store();
+  const model = protectedResourceStore();
   const repository = createProtectedResourceRepository(model);
   const base = { type: "channel" as const, addedBy: "o", snapshot: emptySnapshot(), degraded: false, degradedReasons: [], preventionApplied: true };
   await repository.add({ ...base, guildId: "g1", resourceId: "c1" });
@@ -223,7 +187,7 @@ test("resursele a doua servere nu se amesteca", async () => {
 });
 
 test("recrearea leaga inregistrarea de ID-ul nou si pastreaza snapshot-ul", async () => {
-  const model = store();
+  const model = protectedResourceStore();
   const repository = createProtectedResourceRepository(model);
   await repository.add({
     guildId: "g1", resourceId: "vechi", type: "role", addedBy: "owner-1",
@@ -239,7 +203,7 @@ test("recrearea leaga inregistrarea de ID-ul nou si pastreaza snapshot-ul", asyn
 });
 
 test("limita de resurse protejate este respectata", async () => {
-  const model = store();
+  const model = protectedResourceStore();
   const repository = createProtectedResourceRepository(model);
   const base = { guildId: "g1", type: "channel" as const, addedBy: "o", snapshot: emptySnapshot(), degraded: false, degradedReasons: [], preventionApplied: true };
   for (let index = 0; index < PROTECTED_RESOURCE_LIMIT; index += 1) {

@@ -2,6 +2,9 @@ import { createSecurityRuntime } from "../../features/command-security/securityR
 import { createReputationEngine } from "../../features/command-security/reputationEngine.js";
 import { createPermissionDelegationRuntime } from "../../features/command-security/permissionDelegationRuntime.js";
 import { createModerationGuardGate } from "../../features/command-security/moderationGuardGate.js";
+import { createProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
+import type { ProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
+import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
 import { createServerEventLogRuntime } from "../../features/command-security/serverEventLogRuntime.js";
 import { observeConfirmedBotAction } from "../../features/command-security/botObservationRepository.js";
 import { createNewAccountAlertDelivery, reconcileStuckNewAccountSends } from "../../features/command-security/newAccountAlertDedup.js";
@@ -20,6 +23,7 @@ export type GatewayFeatureRuntimes = {
   readonly securityRuntime?: SecurityGatewayRuntime;
   readonly permissionDelegationRuntime?: PermissionDelegationGatewayRuntime;
   readonly serverEventLogRuntime?: ServerEventLogGatewayRuntime;
+  readonly protectedResourceRuntime?: ProtectedResourceRuntime;
 };
 
 export type GatewayFeatureInput = {
@@ -88,6 +92,26 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     })
     : undefined;
 
+  const protectedResourceRuntime = mongo.ProtectedResourceModel && permissionRequestModel && readGuildSettings && moderationGuardGate
+    ? createProtectedResourceRuntime({
+      ProtectedResourceModel: mongo.ProtectedResourceModel,
+      guard: {
+        readSituation: guildId => moderationGuardGate.readSituation(guildId),
+        consumeResourceApproval: (guildId, requesterId, resourceId, action) =>
+          createPermissionRequestRepository(permissionRequestModel)
+            .consume(guildId, "protected-resource-change", requesterId, { target: resourceId, action })
+      },
+      publish: async (guildId, body) => {
+        const settings = await readGuildSettings(guildId).catch(() => null);
+        const channelId = settings?.permissionRequestChannelId;
+        if (!channelId) return undefined;
+        const channel = await Promise.resolve(client.channels?.fetch?.(channelId)).catch(() => null);
+        return channel?.send ? channel.send({ content: body }) : undefined;
+      },
+      logger
+    })
+    : undefined;
+
   const permissionDelegationRuntime = mongo.GuildAuditLogModel && mongo.GuildModel
     ? createPermissionDelegationRuntime({
       GuildModel: mongo.GuildModel,
@@ -109,7 +133,7 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     })
     : undefined;
 
-  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime };
+  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime };
 }
 
 export function createInactiveGatewayFeatureRuntimes(recorders: ThreatSurfaceMetricRecorder): GatewayFeatureRuntimes {
