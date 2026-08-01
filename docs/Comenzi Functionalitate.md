@@ -274,7 +274,7 @@ Concepte utile pentru admini:
 | `/anti-raid force-stop confirm:true` | Owner-only, Ephemeral, Guild-only | Incheie manual interventia si porneste restaurarea controlata. Se poate folosi numai dupa ce a existat un raid confirmat; un incident doar suspectat este refuzat. Nu anuleaza sanctiunile aplicate si pastreaza istoricul incidentului. |
 | `/anti-raid participant-add utilizator:<membru>` | Owner-only, Ephemeral, Guild-only | Adauga manual un participant omis si il introduce in fluxul Mute 24h -> Timeout 24h -> Ban. Proprietarul serverului nu poate fi adaugat ca participant. |
 | `/anti-raid participant-remove utilizator:<membru>` | Owner-only, Ephemeral, Guild-only | Elimina din incident un participant identificat gresit. Raspunsul enumera sanctiunile deja aplicate si spune explicit ca acelea NU au fost anulate automat. |
-| `/start anti-raid-dry-run` | Admin, Ephemeral, Guild-only | Porneste modul de testare: botul arata ce ar detecta si ce ar executa, fara sa blocheze canale, fara sa sanctioneze si fara sa publice anunturi de raid pe server. |
+| `/start anti-raid-dry-run` | Admin, Ephemeral, Guild-only | Porneste modul de testare: botul arata ce ar detecta si ce ar executa, fara sa blocheze canale, fara sa sanctioneze si fara sa publice anunturi de raid pe server. Cere canalul din `/set anti-raid-alert-channel`, cu permisiunile View Channel, Send Messages si Embed Links. |
 | `/stop anti-raid-dry-run` | Admin, Ephemeral, Guild-only | Opreste modul de testare si pastreaza rezultatele in istoricul incidentelor. |
 =======
 >>>>>>> origin/main

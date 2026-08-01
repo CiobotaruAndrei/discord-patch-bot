@@ -18,6 +18,7 @@ import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { handledCommandError } from "../command-security/commandOutcome.js";
 import { errorDetail, errorMessage } from "../../shared/errors.js";
 import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
+import { SET_CHANNEL_FIELDS } from "../command-security/securityCommandFields.js";
 
 type MaybePromise<T> = T | Promise<T>;
 type GameConfig = { key: string; name: string } & Record<string, unknown>;
@@ -113,7 +114,7 @@ function isDirectSetCommand(interaction: DiscordInteraction): boolean {
   return group !== "games" && group !== "role"
     && !((group === "add" || group === "remove") && subcommand === "games")
     && subcommand !== "admin-command-access"
-    && !["new-account-alert-channel", "threat-alert-channel", "bot-add-alert-channel", "permission-request-channel", "warn-channel"].includes(subcommand);
+    && !Object.hasOwn(SET_CHANNEL_FIELDS, subcommand ?? "");
 }
 
 function buildSetCommandHandler(target: SetContext) {

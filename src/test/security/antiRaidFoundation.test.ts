@@ -21,6 +21,7 @@ import {
 } from "../../features/command-security/antiRaidIncidentTypes.js";
 import { createRaidIncidentRepository } from "../../features/command-security/antiRaidIncidentRepository.js";
 import { raidIncidentStore } from "./raidIncidentStore.js";
+import { START_STOP_TOGGLE_FIELDS } from "../../features/command-security/securityCommandFields.js";
 
 test("pragurile implicite sunt exact cele scrise in specificatie", () => {
   assert.equal(DEFAULT_ANTI_RAID_THRESHOLDS.identicalMessages, 3);
@@ -221,4 +222,37 @@ test("incidentul activ e regasit dupa repornire, cu sanctiunile deja aplicate", 
   assert.equal(resumed?._id, id);
   assert.equal(resumed?.stage, "containment");
   assert.deepEqual(resumed?.participants[0].appliedSteps, ["mute"], "repornirea nu are voie sa repete sanctiunile deja aplicate");
+});
+
+test("doua force-start concurente nu pot crea doua incidente active", async () => {
+  const model = raidIncidentStore();
+  const repository = createRaidIncidentRepository(model);
+
+  const [first, second] = await Promise.all([
+    repository.open({ guildId: "g1", triggerReason: "primul" }),
+    repository.open({ guildId: "g1", triggerReason: "al doilea" })
+  ]);
+
+  assert.equal([first, second].filter(Boolean).length, 1,
+    "cheia unica pe server opreste al doilea incident chiar daca amandoua citesc simultan ca nu exista niciunul");
+  assert.equal(model.records.length, 1);
+});
+
+test("dupa inchidere, cheia de unicitate se elibereaza pentru urmatorul incident", async () => {
+  const model = raidIncidentStore();
+  const repository = createRaidIncidentRepository(model);
+  const first = await repository.open({ guildId: "g1", triggerReason: "primul" });
+  await repository.advance(first?._id ?? "", "suspected", "resolved");
+
+  const second = await repository.open({ guildId: "g1", triggerReason: "al doilea val" });
+
+  assert.ok(second, "un incident inchis nu are voie sa blocheze pentru totdeauna serverul");
+  assert.equal(model.records.filter(record => record.activeKey === "g1").length, 1);
+});
+
+test("anti-raid-dry-run este o protectie reala, cu canal si comutator propriu", () => {
+  const toggle = START_STOP_TOGGLE_FIELDS["anti-raid-dry-run"];
+  assert.ok(toggle, "fara intrare in tabel, /start anti-raid-dry-run ar cadea pe handlerul de abonamente si ar raspunde subcomanda necunoscuta");
+  assert.equal(toggle.channel, "antiRaidAlertChannelId");
+  assert.equal(toggle.enabled, "antiRaidDryRunEnabled");
 });

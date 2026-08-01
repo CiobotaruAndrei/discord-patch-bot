@@ -68,11 +68,9 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
   }
 
   async function open(input: OpenIncidentInput, now = new Date(), random?: () => number): Promise<RaidIncidentRecord | null> {
-    const existing = await active(input.guildId);
-    if (existing) return null;
-
     const record: RaidIncidentRecord = {
       _id: newIncidentId(now.getTime(), random),
+      activeKey: input.guildId,
       guildId: input.guildId,
       stage: input.stage ?? "suspected",
       startedAt: now,
@@ -88,7 +86,8 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
       errors: [],
       restoreProgress: 0
     };
-    const result = await model.updateOne({ _id: record._id }, { $setOnInsert: record }, { upsert: true });
+    const result = await model.updateOne({ _id: record._id }, { $setOnInsert: record }, { upsert: true })
+      .catch(() => null);
     return createdDocument(result) ? record : null;
   }
 
@@ -97,7 +96,9 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
     const set: Record<string, unknown> = { stage: to, lastActivityAt: now };
     if (to === "confirmed") set.confirmedAt = now;
     if (to === "resolved") set.resolvedAt = now;
-    return updatedDocument(await model.updateOne({ _id: incidentId, stage: from }, { $set: set }));
+    const update: Record<string, unknown> = { $set: set };
+    if (to === "resolved") update.$unset = { activeKey: "" };
+    return updatedDocument(await model.updateOne({ _id: incidentId, stage: from }, update));
   }
 
   async function touch(incidentId: string, now = new Date()): Promise<boolean> {

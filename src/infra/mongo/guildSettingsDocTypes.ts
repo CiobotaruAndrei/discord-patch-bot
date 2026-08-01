@@ -180,6 +180,9 @@ export interface GuildDoc {
   threatProtectionEnabled?: boolean;
   botAddAlertChannelId?: string | null;
   permissionRequestChannelId?: string | null;
+  antiRaidAlertChannelId?: string | null;
+  antiRaidThresholds?: Record<string, unknown> | null;
+  antiRaidDryRunEnabled?: boolean;
   moderationGuardEnabled?: boolean;
   botAddProtectionEnabled?: boolean;
   botObservations?: Array<{

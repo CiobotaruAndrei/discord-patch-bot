@@ -29,6 +29,7 @@ export interface LockedChannel {
 export interface RaidIncidentRecord {
   _id: string;
   guildId: string;
+  activeKey?: string;
   stage: RaidStage;
   startedAt: Date;
   confirmedAt: Date | null;
