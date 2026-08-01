@@ -1,6 +1,6 @@
 "use strict";
 
-import type { GuildConfigWriteModelLike, LockedChannelPermissionState } from "../guild-config/guildConfigRepository.js";
+import type { GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import type { NewAccountAlertClaim, NewAccountAlertDeliveryModelLike } from "./newAccountAlertDedup.js";
 import type { PermissionRequestModelLike } from "./permissionRequestRepository.js";
