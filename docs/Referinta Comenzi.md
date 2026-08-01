@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 170.
+Total comenzi documentate: 162.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -58,8 +58,6 @@ Total comenzi documentate: 170.
 | `/set permission-request-channel` | Admin, Ephemeral | Alege canalul unic pentru toate cererile de aprobare de securitate si deciziile ownerului. | `/set permission-request-channel canal:#aprobari` |
 | `/set anti-raid-alert-channel` | Admin, Ephemeral | Seteaza canalul anti-raid in care botul publica alertele, interventiile, participantii si erorile incidentului. | `/set anti-raid-alert-channel canal:#anti-raid` |
 | `/set anti-raid-thresholds` | Admin, Ephemeral | Modifica pragurile anti-raid. Optiunile nedate raman la valoarea curenta, iar o valoare in afara limitelor e refuzata cu motiv, fara sa piarda celelalte valori valide. Nota: Implicit: 3 mesaje identice in 8s, minimum 4 mentiuni in 10s, minimum 3 mesaje cu invitatii in 20s, minimum 4 mesaje cu linkuri in 12s, minimum 2 participanti coordonati in 15s, minimum 3 canale sau roluri in 20s. Nota: Implicit: perioada de siguranta 30m, mute 24h, timeout 24h, lockdown maxim 45m. Nota: Duratele se scriu cu s, m, h sau d, de exemplu 8s, 30m, 24h. | `/set anti-raid-thresholds identical-messages:4 safety-period:1h` |
-| `/start anti-raid-dry-run` | Admin, Ephemeral | Porneste modul de testare anti-raid: botul arata ce ar detecta si ce ar executa, fara sa blocheze canale, fara sa sanctioneze si fara sa publice anunturi de raid. | `/start anti-raid-dry-run` |
-| `/stop anti-raid-dry-run` | Admin, Ephemeral | Opreste modul de testare anti-raid si pastreaza rezultatele in istoricul incidentelor. | `/stop anti-raid-dry-run` |
 | `/set warn-channel` | Admin, Ephemeral | Alege canalul dedicat in care sunt publicate warn-urile si dovezile directe. | `/set warn-channel canal:#moderation` |
 | `/start bot-add-protection` | Admin, Ephemeral | Permite doar botul si solicitantul aprobati exact printr-o aprobare owner one-time neexpirata; botii neaprobati sunt eliminati. | `/start bot-add-protection` |
 | `/start moderation-guard` | Admin, Ephemeral | Porneste unitar protectiile administrative bazate pe aprobare din afara raidurilor: bot-add, permission-grant, moderation-mass, webhook, server-structure si protected-resource-change. | `/start moderation-guard` |
@@ -169,10 +167,4 @@ Total comenzi documentate: 170.
 | `/bot-add-permissions` | Admin, Ephemeral | Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata. | `/bot-add-permissions` |
 | `/permission-request` | Public | Cere aprobarea ownerului pentru o operatiune de securitate: bot-add, permission-grant, moderation-mass, webhook, server-structure sau protected-resource-change. | `/permission-request type:webhook target:#anunturi action:create reason:integrare RSS` |
 | `/permission-requests list` | Admin top-level, owner-only runtime, Ephemeral | Listeaza cererile de aprobare de securitate, cu filtre optionale dupa status si tip; cele active apar inaintea istoricului. | `/permission-requests list status:pending` |
-| `/anti-raid status` | Admin, Ephemeral | Arata incidentul anti-raid activ sau ultimul: ID, etapa, canalele blocate acum, participantii opriti si cei ramasi, durata lockdown-ului, timpul ramas din perioada de siguranta, progresul restaurarii, operatiunile ramase si erorile. | `/anti-raid status` |
-| `/anti-raid participant-list` | Admin, Ephemeral | Listeaza participantii incidentului activ, ai ultimului raid sau ai incidentului indicat, cu sanctiunile aplicate, cele esuate si ultima eroare. | `/anti-raid participant-list incident-id:raid-abc` |
-| `/anti-raid force-start` | Admin top-level, owner-only runtime, Ephemeral | Confirma manual un raid, genereaza un ID de incident si porneste interventia. Owner-only. | `/anti-raid force-start` |
-| `/anti-raid force-stop` | Admin top-level, owner-only runtime, Ephemeral | Incheie manual interventia si porneste restaurarea controlata. Se poate folosi numai dupa un raid confirmat si nu anuleaza sanctiunile aplicate. Owner-only. | `/anti-raid force-stop confirm:true` |
-| `/anti-raid participant-add` | Admin top-level, owner-only runtime, Ephemeral | Adauga manual un participant omis si il introduce in fluxul Mute 24h -> Timeout 24h -> Ban. Owner-only. | `/anti-raid participant-add utilizator:@membru` |
-| `/anti-raid participant-remove` | Admin top-level, owner-only runtime, Ephemeral | Elimina din incident un participant identificat gresit. NU anuleaza automat sanctiunile deja aplicate. Owner-only. | `/anti-raid participant-remove utilizator:@membru` |
 | `/protected-resource` | Admin top-level, owner-only runtime, Ephemeral | Marcheaza canale, categorii si roluri ca resurse critice. add salveaza snapshot-ul si evalueaza daca prevenirea poate fi garantata, remove scoate resursa din protectie fara sa o stearga, list arata resursele, starea snapshot-ului si cauzele exacte pentru cele degraded. Nota: Aplicarea in afara raidurilor porneste doar cand /start moderation-guard este activ. Nota: O resursa e marcata degraded cand prevenirea nu poate fi garantata, de exemplu roluri cu Administrator care ignora overwrite-urile canalului sau un rol protejat mai sus decat rolul botului. | `/protected-resource action:add type:channel target:123456789012345678` |
