@@ -15,9 +15,11 @@ export const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 export const APPROVED_TTL_MS = 60 * 60 * 1000;
 
 export interface PermissionRequestModelLike {
-  findOne(filter: Record<string, unknown>): { lean(): Promise<PermissionRequestRecord | null> };
-  find(filter: Record<string, unknown>): {
-    sort(spec: Record<string, number>): { limit(count: number): { lean(): Promise<PermissionRequestRecord[]> } };
+  findOne(filter: Record<string, unknown>, projection?: Record<string, unknown>): {
+    lean(): Promise<Record<string, unknown> | null>;
+  };
+  find(filter: Record<string, unknown>, projection?: Record<string, unknown>): {
+    sort(spec: unknown): { limit(count: number): { lean(): Promise<Array<Record<string, unknown>>> } };
   };
   updateOne(
     filter: Record<string, unknown>,
@@ -25,6 +27,14 @@ export interface PermissionRequestModelLike {
     options?: Record<string, unknown>
   ): Promise<WriteCounts | null | undefined>;
   updateMany(filter: Record<string, unknown>, update: Record<string, unknown>): Promise<unknown>;
+}
+
+function asRecord(document: Record<string, unknown> | null): PermissionRequestRecord | null {
+  return document ? (document as Record<string, unknown> & PermissionRequestRecord) : null;
+}
+
+function asRecords(documents: Array<Record<string, unknown>>): PermissionRequestRecord[] {
+  return documents.map(document => document as Record<string, unknown> & PermissionRequestRecord);
 }
 
 export interface CreatePermissionRequestInput extends PermissionRequestScope {
@@ -71,7 +81,7 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
   }
 
   async function read(guildId: string, requestId: string): Promise<PermissionRequestRecord | null> {
-    return model.findOne({ _id: requestId, guildId }).lean();
+    return asRecord(await model.findOne({ _id: requestId, guildId }).lean());
   }
 
   async function list(
@@ -84,7 +94,7 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
     const filter: Record<string, unknown> = { guildId };
     if (filters.status) filter.status = filters.status;
     if (filters.type) filter.type = filters.type;
-    return model.find(filter).sort({ requestedAt: -1 }).limit(limit).lean();
+    return asRecords(await model.find(filter).sort({ requestedAt: -1 }).limit(limit).lean());
   }
 
   async function resolve(
@@ -124,11 +134,11 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
     now = new Date()
   ): Promise<PermissionRequestRecord | null> {
     await expireStale(guildId, now);
-    const candidates = await model
+    const candidates = asRecords(await model
       .find({ guildId, type, requesterId, status: "approved", expiresAt: { $gt: now } })
       .sort({ respondedAt: 1 })
       .limit(20)
-      .lean();
+      .lean());
     for (const candidate of candidates) {
       if (!scopeMatchesApproval(candidate, attempt)) continue;
       const claimed = await model.updateOne(
@@ -149,11 +159,11 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
 
   async function countActive(guildId: string, now = new Date()): Promise<number> {
     await expireStale(guildId, now);
-    const active = await model
+    const active = asRecords(await model
       .find({ guildId, status: { $in: ["pending", "approved"] }, expiresAt: { $gt: now } })
       .sort({ requestedAt: -1 })
       .limit(1000)
-      .lean();
+      .lean());
     return active.length;
   }
 
