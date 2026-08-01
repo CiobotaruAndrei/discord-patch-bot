@@ -6,6 +6,10 @@ import type { LifecycleDiscordChannel, LifecycleDiscordDeletedChannel, Lifecycle
 import type { ModerationLifecycleGatewayRuntime, PermissionDelegationGatewayRuntime, SecurityGatewayRuntime, ServerEventLogGatewayRuntime } from "./lifecycleContracts.js";
 import { createGuildOnboarding } from "./guildOnboarding.js";
 import { roleRunsSchedulers, roleRunsInteractions } from "../../shared/botRole.js";
+import { adaptProtectedResourceGuild } from "../runtime/protectedResourceGuildAdapter.js";
+import type { AdaptableGuild } from "../runtime/protectedResourceGuildAdapter.js";
+import type { ResourceLike } from "../../features/command-security/protectedResourceTypes.js";
+import type { ProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 
 type LifecycleLogger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;
@@ -45,6 +49,7 @@ interface RegisterDiscordEventsDeps {
   permissionDelegationRuntime?: PermissionDelegationGatewayRuntime;
   moderationLifecycleRuntime?: ModerationLifecycleGatewayRuntime;
   serverEventLogRuntime?: ServerEventLogGatewayRuntime;
+  protectedResourceRuntime?: ProtectedResourceRuntime;
 }
 
 interface MongoConnectionLike {
@@ -76,7 +81,7 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 function registerDiscordEvents({
   client, logger, commands, metrics, env, adminAlert, requestContext,
   games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role, securityRuntime,
-  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime
+  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime
 }: RegisterDiscordEventsDeps): void {
   const effectiveRole = role ?? "all";
   const runsSchedulers = roleRunsSchedulers(effectiveRole);
@@ -213,6 +218,34 @@ function registerDiscordEvents({
           logger("ERROR", "MODERATION_LIFECYCLE", "guildMemberRemove a esuat", errorDetail(err));
           adminAlert("moderation:member-cleanup", "Curatarea sanctiunilor membrului a esuat", errorMessage(err), member.guild?.id).catch(() => null);
         });
+      });
+    }
+    if (protectedResourceRuntime) {
+      const guardResource = (event: string, rawGuild: unknown, rawResourceId: unknown, current: unknown): void => {
+        const guild = rawGuild as AdaptableGuild | null | undefined;
+        const resourceId = typeof rawResourceId === "string" ? rawResourceId : null;
+        if (!guild || typeof guild.id !== "string" || !resourceId) return;
+        const guildId = guild.id;
+        const adapted = adaptProtectedResourceGuild(guild);
+        const run = current === null
+          ? protectedResourceRuntime.handleResourceDelete(adapted, resourceId)
+          : protectedResourceRuntime.handleResourceUpdate(adapted, resourceId, current as ResourceLike);
+        run.catch(err => {
+          logger("ERROR", "PROTECTED_RESOURCE", `Protectia resursei la ${event} a esuat`, errorDetail(err));
+          adminAlert("security:protected-resource", "Protectia resurselor critice a esuat", errorMessage(err), guildId).catch(() => null);
+        });
+      };
+      client.on("channelUpdate", (_previous: LifecycleDiscordDeletedChannel, next?: LifecycleDiscordDeletedChannel) => {
+        if (next) guardResource("channelUpdate", next.guild, next.id, next);
+      });
+      client.on("channelDelete", (channel: LifecycleDiscordDeletedChannel) => {
+        guardResource("channelDelete", channel?.guild, channel?.id, null);
+      });
+      client.on("roleUpdate", (_previous: LifecycleDiscordRole, next?: LifecycleDiscordRole) => {
+        if (next) guardResource("roleUpdate", next.guild, next.id, next);
+      });
+      client.on("roleDelete", (role: LifecycleDiscordRole) => {
+        guardResource("roleDelete", role?.guild, role?.id, null);
       });
     }
     if (serverEventLogRuntime) {

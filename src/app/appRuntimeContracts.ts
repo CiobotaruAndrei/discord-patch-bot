@@ -27,6 +27,7 @@ import type { GuildSettings } from "../features/guild-config/guildSettingsTypes.
 
 import type { GuildAuditLogModelLike } from "../features/admin-records/auditLogRepository.js";
 import type { PermissionRequestModelLike } from "../features/command-security/permissionRequestRepository.js";
+import type { ProtectedResourceModelLike } from "../features/command-security/protectedResourceRepository.js";
 import type { ModerationGuildModel } from "../features/moderation/moderationRepository.js";
 import type { GuildConfigWriteModelLike } from "../features/guild-config/guildConfigRepository.js";
 import type { NewAccountAlertDeliveryModelLike } from "../features/command-security/newAccountAlertDedup.js";
@@ -89,6 +90,7 @@ export interface MongoContextLike {
   OperationJournalModel?: OperationJournalModelLike;
   GuildAuditLogModel?: GuildAuditLogModelLike;
   PermissionRequestModel?: PermissionRequestModelLike;
+  ProtectedResourceModel?: ProtectedResourceModelLike;
   NewAccountAlertDeliveryModel?: NewAccountAlertDeliveryModelLike;
   ChannelLockRecoveryModel?: ChannelLockRecoveryModelLike;
   setAdminAlertDiscordClient(client: DiscordClientLike | null): void;
