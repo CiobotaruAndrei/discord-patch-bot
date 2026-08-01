@@ -210,6 +210,8 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     permissionRequestSchema,
     protectedResourceSchema,
     raidIncidentSchema,
+    adRequestSchema,
+    adAttemptSchema,
     bugReportSchema,
     userComplaintSchema,
     feedbackReportSchema,
@@ -231,6 +233,8 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const PermissionRequestModel = mongoose.model("PermissionRequest", permissionRequestSchema, "guildPermissionRequests");
   const ProtectedResourceModel = mongoose.model("ProtectedResource", protectedResourceSchema, "guildProtectedResources");
   const RaidIncidentModel = mongoose.model("RaidIncident", raidIncidentSchema, "guildRaidIncidents");
+  const AdRequestModel = mongoose.model("AdRequest", adRequestSchema, "guildAdRequests");
+  const AdAttemptModel = mongoose.model("AdAttempt", adAttemptSchema, "guildAdAttempts");
   const BugReportModel = mongoose.model("BugReport", bugReportSchema, "bugReports");
   const UserComplaintModel = mongoose.model("UserComplaint", userComplaintSchema, "userComplaints");
   const FeedbackReportModel = mongoose.model("FeedbackReport", feedbackReportSchema, "feedbackReports");
@@ -299,6 +303,8 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     PermissionRequestModel,
     ProtectedResourceModel,
     RaidIncidentModel,
+    AdRequestModel,
+    AdAttemptModel,
     BugReportModel,
     OperationJournalModel,
     UserComplaintModel,
