@@ -179,6 +179,7 @@ export interface GuildDoc {
   threatAlertChannelId?: string | null;
   threatProtectionEnabled?: boolean;
   botAddAlertChannelId?: string | null;
+  permissionRequestChannelId?: string | null;
   botAddProtectionEnabled?: boolean;
   botObservations?: Array<{
     botId: string;

@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 154.
+Total comenzi documentate: 155.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -55,6 +55,7 @@ Total comenzi documentate: 154.
 | `/start threat-protection` | Admin, Ephemeral | Inspecteaza linkurile si atasamentele. Sterge automat DOAR amenintarile confirmate de motorul extern de reputatie; fisierele executabile/script, incalcarile de politica (@everyone, invitatii) si resursele incerte doar alerteaza, fara stergere. | `/start threat-protection` |
 | `/stop threat-protection` | Admin, Ephemeral | Opreste protectia la amenintari. | `/stop threat-protection` |
 | `/set bot-add-alert-channel` | Admin, Ephemeral | Alege canalul pentru solicitarile si alertele de adaugare boti. | `/set bot-add-alert-channel canal:#security` |
+| `/set permission-request-channel` | Admin, Ephemeral | Alege canalul unic pentru toate cererile de aprobare de securitate si deciziile ownerului. | `/set permission-request-channel canal:#aprobari` |
 | `/set warn-channel` | Admin, Ephemeral | Alege canalul dedicat in care sunt publicate warn-urile si dovezile directe. | `/set warn-channel canal:#moderation` |
 | `/start bot-add-protection` | Admin, Ephemeral | Permite doar botul si solicitantul aprobati exact printr-o aprobare owner one-time neexpirata; botii neaprobati sunt eliminati. | `/start bot-add-protection` |
 | `/stop bot-add-protection` | Admin, Ephemeral | Opreste protectia la adaugarea botilor si anuleaza toate solicitarile si aprobarile bot-add active neexpirate (devin cancelled), ca sa nu ramana aprobari valabile dupa dezactivare. | `/stop bot-add-protection` |

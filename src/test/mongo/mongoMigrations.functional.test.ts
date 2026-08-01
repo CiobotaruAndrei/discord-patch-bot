@@ -299,10 +299,19 @@ function createFakeMigrationContext(overrides: FakeMigrationOverrides = {}) {
     }
   };
 
+  const permissionRequestWrites: unknown[] = [];
+  const permissionRequestCollection = {
+    async updateOne(filter: unknown, update: unknown, options?: unknown) {
+      permissionRequestWrites.push({ filter, update, options });
+      return { upsertedCount: 1 };
+    }
+  };
+
   const connection = {
     db: {},
     collection(name: string): MigrationCollection {
       if (name === "guilds") return fakeCollection(guildCollection);
+      if (name === "guildPermissionRequests") return fakeCollection(permissionRequestCollection);
       if (name === "system") return fakeCollection(systemCollection);
       if (name === "guildSeenDiscounts") return fakeCollection(guildSeenDiscountCollection);
       if (name === "guildSeenUpdates") return fakeCollection(guildSeenUpdateCollection);
@@ -352,8 +361,8 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   assert.equal(result.skipped, 0);
   assert.equal(
     fixture.updateManyCalls.length,
-    9,
-    "m1-m4 + m7 folosesc updateMany, m5 si m6 folosesc find + bulkWrite, m16 mai face cate un updateMany de $unset pentru fiecare dintre cele trei domenii, iar m17 unul pentru starea de player-count"
+    10,
+    "m1-m4 + m7 folosesc updateMany, m5 si m6 folosesc find + bulkWrite, m16 mai face cate un updateMany de $unset pentru fiecare dintre cele trei domenii, m17 unul pentru starea de player-count, iar m18 unul care copiaza canalul de aprobari"
   );
   const m4Call = fixture.updateManyCalls[3];
   assert.deepEqual(m4Call.filter, { "seenDiscounts.500": { $exists: true } });
