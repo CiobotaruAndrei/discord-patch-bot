@@ -183,6 +183,8 @@ export interface GuildDoc {
   antiRaidAlertChannelId?: string | null;
   antiRaidThresholds?: Record<string, unknown> | null;
   antiRaidDryRunEnabled?: boolean;
+  adAlertChannelId?: string | null;
+  adProtectionEnabled?: boolean;
   moderationGuardEnabled?: boolean;
   botAddProtectionEnabled?: boolean;
   botObservations?: Array<{

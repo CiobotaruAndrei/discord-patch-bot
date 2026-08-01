@@ -40,6 +40,8 @@ export type MongoRepositoriesBundle = Pick<
   | "PermissionRequestModel"
   | "ProtectedResourceModel"
   | "RaidIncidentModel"
+  | "AdRequestModel"
+  | "AdAttemptModel"
   | "runRaidIntervention"
   | "raidIntervention"
   | "NotificationDeadLetterReplayModel"
@@ -119,6 +121,8 @@ export function selectMongoRepositories(context: MongoRepositoriesBundle): Mongo
     PermissionRequestModel: context.PermissionRequestModel,
     ProtectedResourceModel: context.ProtectedResourceModel,
     RaidIncidentModel: context.RaidIncidentModel,
+    AdRequestModel: context.AdRequestModel,
+    AdAttemptModel: context.AdAttemptModel,
     runRaidIntervention: context.runRaidIntervention,
     raidIntervention: context.raidIntervention,
     NotificationDeadLetterReplayModel: context.NotificationDeadLetterReplayModel,

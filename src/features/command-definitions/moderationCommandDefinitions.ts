@@ -81,5 +81,14 @@ export function buildModerationCommandDefinitions({ SlashCommandBuilder, Permiss
         .addUserOption(option => option.setName("utilizator").setDescription("Membrul de adaugat in incident").setRequired(true)))
       .addSubcommand(subcommand => subcommand.setName("participant-remove").setDescription("Elimina din incident un participant identificat gresit")
         .addUserOption(option => option.setName("utilizator").setDescription("Membrul de scos din incident").setRequired(true))))
+    ,new SlashCommandBuilder().setName("ad-request").setDescription("Cere aprobarea proprietarului inainte sa publici o reclama")
+      .setDMPermission(false)
+      .addStringOption(option => option.setName("reclama").setDescription("Textul exact al reclamei").setRequired(true).setMaxLength(1000))
+      .addAttachmentOption(option => option.setName("atasament").setDescription("Imaginea sau fisierul reclamei").setRequired(false))
+    ,admin(new SlashCommandBuilder().setName("ad-permissions").setDescription("Afiseaza cererile si aprobarile pentru reclame")
+      .addSubcommand(subcommand => subcommand.setName("list").setDescription("Listeaza cererile de reclama")))
+    ,admin(new SlashCommandBuilder().setName("ad-attempts").setDescription("Afiseaza tentativele de reclama neautorizata")
+      .addSubcommand(subcommand => subcommand.setName("list").setDescription("Listeaza tentativele unui membru")
+        .addUserOption(option => option.setName("utilizator").setDescription("Membrul verificat").setRequired(true))))
   ];
 }

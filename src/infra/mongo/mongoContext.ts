@@ -61,6 +61,8 @@ type MongoRuntimeContext = {
   PermissionRequestModel: ReturnType<typeof attachModelsModule.buildFrom>["PermissionRequestModel"];
   ProtectedResourceModel: ReturnType<typeof attachModelsModule.buildFrom>["ProtectedResourceModel"];
   RaidIncidentModel: ReturnType<typeof attachModelsModule.buildFrom>["RaidIncidentModel"];
+  AdRequestModel: ReturnType<typeof attachModelsModule.buildFrom>["AdRequestModel"];
+  AdAttemptModel: ReturnType<typeof attachModelsModule.buildFrom>["AdAttemptModel"];
   raidIntervention: RaidInterventionSeam;
   runRaidIntervention: (guildId: string) => Promise<boolean>;
   NotificationDeadLetterReplayModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationDeadLetterReplayModel"];
@@ -166,6 +168,8 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     PermissionRequestModel: context.PermissionRequestModel,
     ProtectedResourceModel: context.ProtectedResourceModel,
     RaidIncidentModel: context.RaidIncidentModel,
+    AdRequestModel: context.AdRequestModel,
+    AdAttemptModel: context.AdAttemptModel,
     runRaidIntervention: context.runRaidIntervention,
     raidIntervention: context.raidIntervention,
     NotificationDeadLetterReplayModel: context.NotificationDeadLetterReplayModel,
