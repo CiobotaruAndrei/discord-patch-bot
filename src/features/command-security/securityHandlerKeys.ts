@@ -7,6 +7,8 @@ export const SECURITY_HANDLER_KEYS = [
   "GuildSecurityModel",
   "NewAccountAlertDeliveryModel",
   "PermissionRequestModel",
+  "AdRequestModel",
+  "AdAttemptModel",
   "checkChannelPermissions",
   "formatUserError",
   "getGuildSettings",

@@ -1,12 +1,14 @@
 "use strict";
 
-import type { GuildConfigWriteModelLike, LockedChannelPermissionState } from "../guild-config/guildConfigRepository.js";
+import type { GuildConfigWriteModelLike } from "../guild-config/guildConfigRepository.js";
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import type { NewAccountAlertClaim, NewAccountAlertDeliveryModelLike } from "./newAccountAlertDedup.js";
 import type { PermissionRequestModelLike } from "./permissionRequestRepository.js";
+import type { AdRequestModelLike, AdAttemptModelLike } from "./adProtectionRepository.js";
 import type { ChannelLockRecoveryModelLike } from "./channelLockRecoveryRepository.js";
 import type { SecurityStateModel } from "./securityStore.js";
 import type { OperationJournalModelLike } from "../../shared/operationJournalEngine.js";
+import type { GuildSettingsLike } from "./securitySettingsContracts.js";
 
 export type AccountAlertClaimFn = (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
 
@@ -59,25 +61,6 @@ export type SecurityInteraction = {
 
 export type GuildModelLike = GuildConfigWriteModelLike;
 
-export type GuildSettingsLike = {
-  newAccountAlertChannelId?: string | null;
-  newAccountAlertsEnabled?: boolean;
-  threatAlertChannelId?: string | null;
-  threatProtectionEnabled?: boolean;
-  botAddAlertChannelId?: string | null;
-  botAddProtectionEnabled?: boolean;
-  botAddPermissions?: unknown;
-  permissionRequestChannelId?: string | null;
-  moderationGuardEnabled?: boolean;
-  antiRaidAlertChannelId?: string | null;
-  antiRaidDryRunEnabled?: boolean;
-  adAlertChannelId?: string | null;
-  adProtectionEnabled?: boolean;
-  purgeAmount?: number;
-  lockedChannelIds?: string[];
-  lockedChannelPermissions?: Array<{ channelId: string; sendMessages: LockedChannelPermissionState }>;
-} | null;
-
 export type SecurityDeps = {
   GuildModel: GuildModelLike;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLike>;
@@ -94,15 +77,10 @@ export type SecurityDeps = {
   ChannelLockRecoveryModel?: Pick<ChannelLockRecoveryModelLike, "updateOne">;
   GuildSecurityModel?: SecurityStateModel;
   PermissionRequestModel?: PermissionRequestModelLike;
+  AdRequestModel?: AdRequestModelLike;
+  AdAttemptModel?: AdAttemptModelLike;
   OperationJournalModel?: OperationJournalModelLike;
 };
-
-export type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "botAddAlertChannelId" | "permissionRequestChannelId"
-  | "antiRaidAlertChannelId"
-  | "adAlertChannelId";
-export type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "botAddProtectionEnabled" | "moderationGuardEnabled"
-  | "antiRaidDryRunEnabled"
-  | "adProtectionEnabled";
 
 export type OverwriteEditor = (target: object, permissions: Record<string, boolean | null>) => Promise<unknown>;
 export type SecurityLogger = NonNullable<SecurityDeps["logger"]>;

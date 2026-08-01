@@ -1,6 +1,6 @@
 "use strict";
 
-import type { ProtectionChannelField, ProtectionEnabledField } from "./securityInteractionContracts.js";
+import type { ProtectionChannelField, ProtectionEnabledField } from "./securitySettingsContracts.js";
 
 export const SET_CHANNEL_FIELDS: Record<string, string> = {
   "new-account-alert-channel": "newAccountAlertChannelId",
