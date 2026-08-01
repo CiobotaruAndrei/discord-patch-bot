@@ -229,7 +229,10 @@ function registerDiscordEvents({
         const guildId = message.guild?.id;
         const authorId = message.author?.id;
         if (!guildId || !authorId || message.author?.bot === true) return;
-        const attachments = (message as { attachments?: { size?: number; first?: () => { url?: string } | undefined } }).attachments;
+        const attachments = (message as {
+          attachments?: { size?: number; first?: () => { url?: string; name?: string; size?: number } | undefined }
+        }).attachments;
+        const firstAttachment = attachments?.first?.() ?? null;
         adProtectionRuntime.handleMessage({
           guildId,
           authorId,
@@ -237,7 +240,9 @@ function registerDiscordEvents({
           bot: false,
           channelId: message.channel?.id ?? null,
           content: message.content ?? "",
-          attachmentUrl: attachments?.first?.()?.url ?? null,
+          attachmentUrl: firstAttachment?.url ?? null,
+          attachmentName: firstAttachment?.name ?? null,
+          attachmentSize: firstAttachment?.size ?? null,
           attachmentCount: attachments?.size ?? 0,
           deleteMessage: async () => (message as { delete?: () => Promise<unknown> }).delete?.()
         }).catch(err => logger("ERROR", "AD_PROTECTION", "Verificarea reclamelor a esuat", errorDetail(err)));

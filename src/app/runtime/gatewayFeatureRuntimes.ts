@@ -112,6 +112,21 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     })
     : undefined;
 
+
+async function applyWarnBan(
+  guildId: string,
+  userId: string,
+  limit: number,
+  count: number
+): Promise<"applied" | "failed" | "not-reached"> {
+  if (limit <= 0 || count < limit) return "not-reached";
+  const cache = client.guilds?.cache as { get?: (id: string) => { members?: { fetch?: (id: string) => Promise<unknown> } } | undefined } | undefined;
+  const member = await Promise.resolve(cache?.get?.(guildId)?.members?.fetch?.(userId)).catch(() => null);
+  const bannable = member as { bannable?: boolean; ban?: (options?: Record<string, unknown>) => Promise<unknown> } | null;
+  if (!bannable?.ban || bannable.bannable === false) return "failed";
+  return bannable.ban({ reason: `Limita de warn-uri atinsa (${limit})` }).then(() => "applied" as const).catch(() => "failed" as const);
+}
+
   const adRequestModel = mongo.AdRequestModel;
   const adAttemptModel = mongo.AdAttemptModel;
   const moderationGuildModel = mongo.GuildModel;
@@ -126,13 +141,17 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
         return typeof ownerId === "string" ? ownerId : null;
       },
       isRaidConfirmed: antiRaidRuntime ? guildId => antiRaidRuntime.isRaidConfirmed(guildId) : undefined,
-      issueWarn: async (guildId, userId, username, reason) => addWarning(moderationGuildModel, guildId, {
-        warningId: `ad-${Date.now().toString(36)}`,
-        userId,
-        username: `${username} (${reason})`,
-        moderatorId: client.user?.id ?? "",
-        warnedAt: new Date()
-      }).catch(() => null),
+      issueWarn: async (guildId, userId, username, reason) => {
+        const result = await addWarning(moderationGuildModel, guildId, {
+          warningId: `ad-${Date.now().toString(36)}`,
+          userId,
+          username: `${username} (${reason})`,
+          moderatorId: client.user?.id ?? "",
+          warnedAt: new Date()
+        }).catch(() => null);
+        if (!result) return null;
+        return { ...result, autoBan: await applyWarnBan(guildId, userId, result.limit, result.count) };
+      },
       publish: async (guildId, body) => {
         const settings = await readGuildSettings(guildId).catch(() => null);
         const channelId = settings?.adAlertChannelId;

@@ -14,6 +14,8 @@ export interface AdMessage {
   channelId: string | null;
   content: string;
   attachmentUrl: string | null;
+  attachmentName: string | null;
+  attachmentSize: number | null;
   attachmentCount: number;
   deleteMessage: () => Promise<unknown>;
 }
@@ -24,7 +26,7 @@ export interface AdProtectionRuntimeDeps {
   readGuildSettings: (guildId: string) => Promise<{ adAlertChannelId?: string | null; adProtectionEnabled?: boolean } | null>;
   readOwnerId: (guildId: string) => string | null;
   isRaidConfirmed?: (guildId: string) => Promise<boolean>;
-  issueWarn: (guildId: string, userId: string, username: string, reason: string) => Promise<{ count: number; limit: number } | null>;
+  issueWarn: (guildId: string, userId: string, username: string, reason: string) => Promise<{ count: number; limit: number; autoBan: "applied" | "failed" | "not-reached" } | null>;
   publish: (guildId: string, body: string) => Promise<unknown>;
   logger?: (level: string, scope: string, message: string, detail?: Record<string, unknown>) => void;
   now?: () => number;
@@ -57,7 +59,9 @@ export function createAdProtectionRuntime(deps: AdProtectionRuntimeDeps) {
 
     if (deps.readOwnerId(message.guildId) === message.authorId) return { kind: "allowed-owner" };
 
-    const fingerprint = adFingerprint(message.content, message.attachmentUrl);
+    const fingerprint = adFingerprint(message.content, message.attachmentName || message.attachmentSize
+      ? { name: message.attachmentName, size: message.attachmentSize }
+      : null);
     const approval = await repository
       .consumeApproval(message.guildId, message.authorId, fingerprint, new Date(now()))
       .catch(() => null);
@@ -82,11 +86,21 @@ export function createAdProtectionRuntime(deps: AdProtectionRuntimeDeps) {
     );
 
     let warned = false;
+    let banNote = "";
     if (outcome.kind === "warn-issued") {
       const result = await deps
         .issueWarn(message.guildId, message.authorId, message.authorTag, "Reclame neautorizate: 3 tentative")
         .catch(() => null);
       warned = result !== null;
+      if (result?.autoBan === "failed") {
+        deps.logger?.("ERROR", "AD_PROTECTION", "Banul automat la limita de warn-uri a esuat", {
+          guildId: message.guildId,
+          authorId: message.authorId,
+          limit: result.limit
+        });
+      }
+      if (result?.autoBan === "applied") banNote = ` Limita de ${result.limit} warn-uri a fost atinsa: ban automat aplicat.`;
+      if (result?.autoBan === "failed") banNote = ` Limita de ${result.limit} warn-uri a fost atinsa, dar banul automat NU a putut fi aplicat; verificare manuala necesara.`;
       if (!warned) {
         deps.logger?.("ERROR", "AD_PROTECTION", "Warn-ul automat nu a putut fi emis", {
           guildId: message.guildId,
@@ -98,7 +112,7 @@ export function createAdProtectionRuntime(deps: AdProtectionRuntimeDeps) {
     const suffix = deleteFailed ? " Mesajul NU a putut fi sters; verificare manuala necesara." : "";
     const warnNote = outcome.kind === "warn-issued" && !warned
       ? " Warn-ul automat NU a putut fi emis; verificare manuala necesara."
-      : "";
+      : banNote;
     await deps
       .publish(
         message.guildId,

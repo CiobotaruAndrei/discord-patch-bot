@@ -18,6 +18,7 @@ function harness(options: {
   ownerId?: string;
   deleteFails?: boolean;
   warnFails?: boolean;
+  autoBan?: "applied" | "failed" | "not-reached";
 } = {}) {
   const requests = adStore();
   const attempts = adStore();
@@ -34,7 +35,7 @@ function harness(options: {
     issueWarn: async (_guildId, userId, _username, reason) => {
       if (options.warnFails) return null;
       warns.push({ userId, reason });
-      return { count: warns.length, limit: 3 };
+      return { count: warns.length, limit: 3, autoBan: options.autoBan ?? ("not-reached" as const) };
     },
     publish: async (_guildId, body) => { published.push(body); return undefined; },
     now: () => T0
@@ -52,6 +53,8 @@ function message(setup: ReturnType<typeof harness>, overrides: Partial<AdMessage
     channelId: "c1",
     content: "Intra pe serverul meu discord.gg/abcd",
     attachmentUrl: null,
+    attachmentName: null,
+    attachmentSize: null,
     attachmentCount: 0,
     deleteMessage: async () => {
       if (deleteFails) throw new Error("Missing Permissions");
@@ -239,4 +242,36 @@ test("oprirea alege actiunea corecta pentru fiecare protectie", async () => {
 
   const other = protectionStopActions("threat-protection", "g1", moduleContext<Parameters<typeof protectionStopActions>[2]>(deps));
   assert.equal(other.needsAtomicStop, false, "protectiile fara aprobari nu trec pe calea de oprire atomica");
+});
+
+test("o reclama aprobata cu atasament trece si dupa repostare, cand fisierul e acelasi", async () => {
+  const setup = harness();
+  const content = "Intra pe serverul meu";
+  await setup.repo.createRequest({
+    requestId: "ad-1", guildId: "g1", requesterId: "u1", adText: content,
+    fingerprint: adFingerprint(content, { name: "promo.png", size: 2048 }),
+    link: null, invite: null, attachmentUrl: "https://cdn/ephemeral/promo.png", target: null
+  }, new Date(T0));
+  await setup.repo.resolveRequest("g1", "ad-1", "approved", "owner-1", new Date(T0));
+
+  const outcome = await setup.runtime.handleMessage(message(setup, {
+    content,
+    attachmentUrl: "https://cdn/attachments/ALT/promo.png",
+    attachmentName: "promo.png",
+    attachmentSize: 2048,
+    attachmentCount: 1
+  }));
+
+  assert.equal(outcome.kind, "allowed-approval", "URL-ul CDN difera intre incarcare si repostare; cu el in amprenta, aprobarea nu s-ar fi potrivit niciodata");
+  assert.deepEqual(setup.deleted, []);
+});
+
+test("banul automat la limita de warn-uri e raportat in incident", async () => {
+  const banned = harness({ autoBan: "applied" });
+  for (let index = 0; index < 3; index += 1) await banned.runtime.handleMessage(message(banned));
+  assert.match(banned.published[2], /ban automat aplicat/);
+
+  const failed = harness({ autoBan: "failed" });
+  for (let index = 0; index < 3; index += 1) await failed.runtime.handleMessage(message(failed));
+  assert.match(failed.published[2], /banul automat NU a putut fi aplicat/);
 });
