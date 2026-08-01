@@ -139,6 +139,14 @@ export function createAdProtectionRepository(requests: AdRequestModelLike, attem
     return null;
   }
 
+  async function cancelRequest(guildId: string, requestId: string): Promise<boolean> {
+    const result = await requests.updateOne(
+      { _id: requestId, guildId, status: "pending" },
+      { $set: { status: "cancelled" } }
+    );
+    return updatedDocument(result);
+  }
+
   async function cancelActiveRequests(guildId: string): Promise<void> {
     await requests.updateMany(
       { guildId, status: { $in: ["pending", "approved"] } },
@@ -198,6 +206,7 @@ export function createAdProtectionRepository(requests: AdRequestModelLike, attem
     readRequest,
     listRequests,
     resolveRequest,
+    cancelRequest,
     consumeApproval,
     cancelActiveRequests,
     readAttempts,

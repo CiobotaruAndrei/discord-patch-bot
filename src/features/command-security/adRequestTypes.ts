@@ -35,6 +35,8 @@ export interface AdAttemptRecord {
   history: Array<{ at: Date; channelId: string | null; summary: string; warned: boolean }>;
 }
 
+const NEWLINE = String.fromCharCode(10);
+
 const INVITE_PATTERN = /(?:discord(?:app)?\.com\/invite|discord\.gg|discord\.me|dsc\.gg|invite\.gg)\/[\w-]+/i;
 const LINK_PATTERN = /https?:\/\/[^\s]+|\bwww\.[^\s]+/i;
 
@@ -46,6 +48,14 @@ const PROMO_PHRASES = [
   "vand", "vinde", "vandut", "cumpara de la", "reducere la magazinul", "cont de vanzare",
   "boost ieftin", "nitro gratis", "free nitro", "giveaway pe serverul"
 ];
+
+export function quoteUntrusted(text: string): string {
+  return text
+    .replace(/```/g, "` ``")
+    .split(NEWLINE)
+    .map(line => `> ${line}`)
+    .join(NEWLINE);
+}
 
 export function normalizeAdText(text: string): string {
   return text
