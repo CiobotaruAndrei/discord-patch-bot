@@ -187,10 +187,11 @@ export function createRaidIntervention(deps: InterventionDeps) {
     const current = await incidents.read(incident._id);
     if (!current) return steps;
 
+    if (current.stage !== "resolved") steps.push(...await sanctionParticipants(guild, current, thresholds));
+
     if (current.stage === "confirmed" || current.stage === "containment") {
       if (current.stage === "confirmed") await incidents.advance(current._id, "confirmed", "containment", new Date(moment));
       steps.push(await lockAffectedChannels(guild, current, channelIds));
-      steps.push(...await sanctionParticipants(guild, current, thresholds));
 
       if (lockdownOverdue(current, thresholds.maxLockdownMs, moment)) {
         await guild.alertOwner(
@@ -230,6 +231,7 @@ export function createRaidIntervention(deps: InterventionDeps) {
   async function markContained(guildId: string): Promise<boolean> {
     const incident = await incidents.active(guildId);
     if (!incident || incident.stage !== "containment") return false;
+    if (incident.participants.length === 0) return false;
     const unsettled = incident.participants.filter(entry => !participantSettled(entry));
     if (unsettled.length > 0) return false;
     return incidents.advance(incident._id, "containment", "cleanup", new Date(now()));

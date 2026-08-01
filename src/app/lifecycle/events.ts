@@ -10,6 +10,7 @@ import { adaptProtectedResourceGuild } from "../runtime/protectedResourceGuildAd
 import type { AdaptableGuild } from "../runtime/protectedResourceGuildAdapter.js";
 import type { ResourceLike } from "../../features/command-security/protectedResourceTypes.js";
 import type { ProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
+import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
 
 type LifecycleLogger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;
@@ -50,6 +51,7 @@ interface RegisterDiscordEventsDeps {
   moderationLifecycleRuntime?: ModerationLifecycleGatewayRuntime;
   serverEventLogRuntime?: ServerEventLogGatewayRuntime;
   protectedResourceRuntime?: ProtectedResourceRuntime;
+  antiRaidRuntime?: AntiRaidRuntime;
 }
 
 interface MongoConnectionLike {
@@ -81,7 +83,7 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 function registerDiscordEvents({
   client, logger, commands, metrics, env, adminAlert, requestContext,
   games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role, securityRuntime,
-  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime
+  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime
 }: RegisterDiscordEventsDeps): void {
   const effectiveRole = role ?? "all";
   const runsSchedulers = roleRunsSchedulers(effectiveRole);
@@ -219,6 +221,47 @@ function registerDiscordEvents({
           adminAlert("moderation:member-cleanup", "Curatarea sanctiunilor membrului a esuat", errorMessage(err), member.guild?.id).catch(() => null);
         });
       });
+    }
+    if (antiRaidRuntime) {
+      const watchRaid = (event: string, guildId: string | undefined, run: () => Promise<unknown>): void => {
+        if (!guildId) return;
+        run().catch(err => logger("ERROR", "ANTI_RAID", `Observarea ${event} a esuat`, errorDetail(err)));
+      };
+      const structureEvent = (event: string, rawGuild: unknown, rawResourceId: unknown): void => {
+        const guild = rawGuild as { id?: string } | null | undefined;
+        const resourceId = typeof rawResourceId === "string" ? rawResourceId : null;
+        if (!guild?.id || !resourceId) return;
+        const guildId = guild.id;
+        watchRaid(event, guildId, () => antiRaidRuntime.observeStructureChange(guildId, resourceId));
+      };
+      client.on("messageCreate", (message: LifecycleDiscordMessage) => {
+        const guildId = message.guild?.id;
+        const actorId = message.author?.id;
+        if (!guildId || !actorId) return;
+        const mentions = message.mentions;
+        const mentionCount = (mentions?.users?.size ?? 0)
+          + (mentions?.roles?.size ?? 0)
+          + (mentions?.everyone === true ? 1 : 0);
+        watchRaid("messageCreate", guildId, () => antiRaidRuntime.observeMessage(guildId, {
+          actorId,
+          bot: message.author?.bot === true,
+          channelId: message.channel?.id ?? null,
+          content: message.content ?? "",
+          mentionCount,
+          attachmentCount: (message as { attachments?: { size?: number } }).attachments?.size ?? 0,
+          at: Date.now()
+        }));
+      });
+      client.on("guildMemberAdd", (member: LifecycleDiscordGuildMember) => {
+        const guildId = member.guild?.id;
+        const memberId = member.user?.id ?? member.id;
+        if (!guildId || !memberId || member.user?.bot !== true) return;
+        watchRaid("guildMemberAdd", guildId, () => antiRaidRuntime.observeBotJoin(guildId, memberId));
+      });
+      client.on("channelCreate", (channel: LifecycleDiscordDeletedChannel) => structureEvent("channelCreate", channel?.guild, channel?.id));
+      client.on("channelDelete", (channel: LifecycleDiscordDeletedChannel) => structureEvent("channelDelete", channel?.guild, channel?.id));
+      client.on("roleCreate", (role: LifecycleDiscordRole) => structureEvent("roleCreate", role?.guild, role?.id));
+      client.on("roleDelete", (role: LifecycleDiscordRole) => structureEvent("roleDelete", role?.guild, role?.id));
     }
     if (protectedResourceRuntime) {
       const guardResource = (event: string, rawGuild: unknown, rawResourceId: unknown, current: unknown): void => {

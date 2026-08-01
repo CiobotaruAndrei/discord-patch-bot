@@ -61,6 +61,8 @@ type MongoRuntimeContext = {
   PermissionRequestModel: ReturnType<typeof attachModelsModule.buildFrom>["PermissionRequestModel"];
   ProtectedResourceModel: ReturnType<typeof attachModelsModule.buildFrom>["ProtectedResourceModel"];
   RaidIncidentModel: ReturnType<typeof attachModelsModule.buildFrom>["RaidIncidentModel"];
+  raidIntervention: RaidInterventionSeam;
+  runRaidIntervention: (guildId: string) => Promise<boolean>;
   NotificationDeadLetterReplayModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationDeadLetterReplayModel"];
   OperationJournalModel: ReturnType<typeof attachModelsModule.buildFrom>["OperationJournalModel"];
   saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
@@ -109,6 +111,8 @@ import attachFetchSnapshotsModule from "./fetchSnapshots.js";
 import attachSourceHealthModule from "./sourceHealth.js";
 import { createGuildSettingsEventBus } from "./guildSettingsEventBus.js";
 import type { GuildSettingsEventBus } from "./guildSettingsEventBus.js";
+import { createRaidInterventionSeam } from "../../features/command-security/antiRaidInterventionSeam.js";
+import type { RaidInterventionSeam } from "../../features/command-security/antiRaidInterventionSeam.js";
 
 function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeContext {
   return {
@@ -162,6 +166,8 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     PermissionRequestModel: context.PermissionRequestModel,
     ProtectedResourceModel: context.ProtectedResourceModel,
     RaidIncidentModel: context.RaidIncidentModel,
+    runRaidIntervention: context.runRaidIntervention,
+    raidIntervention: context.raidIntervention,
     NotificationDeadLetterReplayModel: context.NotificationDeadLetterReplayModel,
     OperationJournalModel: context.OperationJournalModel,
     saveFetchSnapshot: context.saveFetchSnapshot,
@@ -204,6 +210,7 @@ function requireBootEnv(env: RuntimeEnv): RuntimeEnv & { MONGO_URI: string; DISC
 
 function createMongoContext(): MongoRuntimeContext {
   const guildSettingsBus = createGuildSettingsEventBus();
+  const raidIntervention = createRaidInterventionSeam();
   const base = { ...runtimeContextModule };
   const withLogging = { ...base, ...attachLoggingModule.buildFrom(base) };
   const withDomain = { ...withLogging, ...attachDomainModule.buildFrom({}) };
@@ -221,7 +228,12 @@ function createMongoContext(): MongoRuntimeContext {
   guildSettingsBus.setErrorReporter((guildId, error) => {
     withSourceHealth.logger("WARN", "GUILD_EVENTS", `Listener GuildSettingsChanged a esuat pentru guild ${guildId}`, error);
   });
-  return assertNoUndefinedExports(buildMongoContextExports({ ...withSourceHealth, env: requireBootEnv(withSourceHealth.env) }), "mongoContext");
+  return assertNoUndefinedExports(buildMongoContextExports({
+    ...withSourceHealth,
+    env: requireBootEnv(withSourceHealth.env),
+    raidIntervention,
+    runRaidIntervention: raidIntervention.run
+  }), "mongoContext");
 }
 
 const mongoContext = Object.freeze({ ...createMongoContext(), createMongoContext });

@@ -3,6 +3,10 @@ import { createReputationEngine } from "../../features/command-security/reputati
 import { createPermissionDelegationRuntime } from "../../features/command-security/permissionDelegationRuntime.js";
 import { createModerationGuardGate } from "../../features/command-security/moderationGuardGate.js";
 import { createProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
+import { createAntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
+import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
+import { adaptRaidGuild, findRaidStructureActor } from "./antiRaidGuildAdapter.js";
+import type { AdaptableRaidGuild } from "./antiRaidGuildAdapter.js";
 import type { ProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
 import { createServerEventLogRuntime } from "../../features/command-security/serverEventLogRuntime.js";
@@ -24,6 +28,7 @@ export type GatewayFeatureRuntimes = {
   readonly permissionDelegationRuntime?: PermissionDelegationGatewayRuntime;
   readonly serverEventLogRuntime?: ServerEventLogGatewayRuntime;
   readonly protectedResourceRuntime?: ProtectedResourceRuntime;
+  readonly antiRaidRuntime?: AntiRaidRuntime;
 };
 
 export type GatewayFeatureInput = {
@@ -85,10 +90,29 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
 
   const permissionRequestModel = mongo.PermissionRequestModel;
   const readGuildSettings = mongo.getGuildSettings;
+  const antiRaidRuntime = mongo.RaidIncidentModel && readGuildSettings
+    ? createAntiRaidRuntime({
+      RaidIncidentModel: mongo.RaidIncidentModel,
+      readGuildSettings: guildId => readGuildSettings(guildId),
+      resolveGuild: async guildId => {
+        const cache = client.guilds?.cache as { get?: (id: string) => AdaptableRaidGuild | undefined } | undefined;
+        const guild = cache?.get?.(guildId);
+        return guild ? adaptRaidGuild(guild, readGuildSettings, logger) : null;
+      },
+      findStructureActor: async (guildId, resourceId) => {
+        const cache = client.guilds?.cache as { get?: (id: string) => AdaptableRaidGuild | undefined } | undefined;
+        const guild = cache?.get?.(guildId);
+        return guild ? findRaidStructureActor(guild, resourceId) : null;
+      },
+      logger
+    })
+    : undefined;
+
   const moderationGuardGate = permissionRequestModel && readGuildSettings
     ? createModerationGuardGate({
       PermissionRequestModel: permissionRequestModel,
-      readGuildSettings: guildId => readGuildSettings(guildId)
+      readGuildSettings: guildId => readGuildSettings(guildId),
+      isRaidConfirmed: antiRaidRuntime ? guildId => antiRaidRuntime.isRaidConfirmed(guildId) : undefined
     })
     : undefined;
 
@@ -133,7 +157,7 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     })
     : undefined;
 
-  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime };
+  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime };
 }
 
 export function createInactiveGatewayFeatureRuntimes(recorders: ThreatSurfaceMetricRecorder): GatewayFeatureRuntimes {

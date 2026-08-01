@@ -21,7 +21,7 @@ type Interaction = BaseChatInputInteraction<Guild> & AlwaysReplies & {
 type Deps = {
   RaidIncidentModel: RaidIncidentModelLike;
   getGuildSettings: (guildId: string) => Promise<{ antiRaidThresholds?: Record<string, unknown> | null } | null>;
-  runRaidIntervention?: (guildId: string) => Promise<unknown>;
+  runRaidIntervention: (guildId: string) => Promise<boolean>;
 };
 
 const OWNER_ONLY_SUBCOMMANDS = ["force-start", "force-stop", "participant-add", "participant-remove"];
@@ -34,9 +34,7 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
   const incidents = createRaidIncidentRepository(deps.RaidIncidentModel);
 
   async function triggerIntervention(guildId: string): Promise<boolean> {
-    if (!deps.runRaidIntervention) return false;
-    await deps.runRaidIntervention(guildId).catch(() => undefined);
-    return true;
+    return deps.runRaidIntervention(guildId).catch(() => false);
   }
 
   async function thresholdsFor(guildId: string) {

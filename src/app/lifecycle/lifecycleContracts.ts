@@ -48,6 +48,11 @@ export interface LifecycleDiscordMessage {
   author?: { id?: string; tag?: string; bot?: boolean } | null;
   channel?: { id?: string } | null;
   content?: string;
+  mentions?: {
+    users?: { size?: number };
+    roles?: { size?: number };
+    everyone?: boolean;
+  } | null;
 }
 
 export interface LifecycleEventClient {

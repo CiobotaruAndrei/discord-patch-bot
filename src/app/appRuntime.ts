@@ -54,6 +54,7 @@ import { createGatewayFeatureRuntimes, createInactiveGatewayFeatureRuntimes } fr
 import { createIdleSchedulerFeatureTasks, createSchedulerFeatureTasks } from "./runtime/schedulerFeatureTasks.js";
 import type { GatewayFeatureRuntimes } from "./runtime/gatewayFeatureRuntimes.js";
 import type { SchedulerFeatureTasks } from "./runtime/schedulerFeatureTasks.js";
+import { createAntiRaidSweepTask } from "../features/command-security/antiRaidSweepTask.js";
 
 type ModerationLifecycle = ReturnType<typeof createModerationLifecycleRuntime>;
 
@@ -88,11 +89,17 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
     permissionDelegationRuntime: gateway.permissionDelegationRuntime,
     moderationLifecycleRuntime,
     serverEventLogRuntime: gateway.serverEventLogRuntime,
-    protectedResourceRuntime: gateway.protectedResourceRuntime
+    protectedResourceRuntime: gateway.protectedResourceRuntime,
+    antiRaidRuntime: gateway.antiRaidRuntime
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 
   const guildInvalidationChannel = createGuildSettingsInvalidationChannel({ redis: deps.redis, logger, bus: mongo.guildSettingsBus });
+
+  const antiRaidRuntime = gateway.antiRaidRuntime;
+  const antiRaidSweep = antiRaidRuntime
+    ? createAntiRaidSweepTask({ sweep: () => antiRaidRuntime.sweep(), logger })
+    : null;
 
   const shutdownController = createShutdownController({
     lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
@@ -101,6 +108,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
     stopModerationCleanup: tasks.moderationCleanup ? tasks.moderationCleanup.stop : undefined,
     stopChannelLockRecovery: tasks.channelLockRecovery ? tasks.channelLockRecovery.stop : undefined,
     stopIsolatedInspection,
+    stopAntiRaidSweep: antiRaidSweep ? antiRaidSweep.stop : undefined,
     errorMessage, errorDetail
   });
 
@@ -116,6 +124,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
     await moderationLifecycleRuntime?.reconcileClient(client);
     tasks.moderationCleanup?.start();
     tasks.channelLockRecovery?.start();
+    antiRaidSweep?.start();
   }
 
   return {
@@ -132,7 +141,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
 function composeGatewayFeatures(deps: AppRuntimeDeps, services: RuntimeServices): GatewayFeatureRuntimes {
   const recorders = services.recorders;
   const threatEngineMonitor = createThreatEngineMonitor({ metrics: recorders.threatEngine, logger: deps.mongo.logger });
-  return createGatewayFeatureRuntimes({
+  const gateway = createGatewayFeatureRuntimes({
     mongo: deps.mongo,
     client: services.client,
     metrics: services.metrics,
@@ -142,6 +151,9 @@ function composeGatewayFeatures(deps: AppRuntimeDeps, services: RuntimeServices)
     onThreatDetails: threatEngineMonitor.onDetails,
     onThreatFailure: threatEngineMonitor.onFailure
   });
+  const antiRaid = gateway.antiRaidRuntime;
+  if (antiRaid) deps.mongo.raidIntervention?.bind(guildId => antiRaid.tick(guildId));
+  return gateway;
 }
 
 function composeModerationLifecycle(deps: AppRuntimeDeps): ModerationLifecycle | undefined {
