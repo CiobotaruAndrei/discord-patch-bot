@@ -5,20 +5,14 @@ import { auditMatch, channelOverwriteMatch, matchWithRetry, explicitProtectedPer
 import { recordServerAuditEntry } from "../admin-records/auditLogRepository.js";
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 import type { SensitiveActionObserver } from "./sensitiveActionObserver.js";
+import { createDelegationAuthorizer } from "./delegationAuthorization.js";
 
 export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDeps, observer: SensitiveActionObserver) {
   const now = deps.now ?? Date.now;
   const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   const { observeSensitiveAction, shouldSendIndividualAlert, markProcessed, processedAuditEntries } = observer;
 
-  async function authorized(guildId: string, actorId: string | null, labels: readonly string[], targetId: string): Promise<boolean> {
-    if (!deps.guard) return false;
-    const situation = await deps.guard.readSituation(guildId);
-    if (!situation.guardEnabled || situation.raidConfirmed) return true;
-    if (!actorId) return false;
-    const approval = await deps.guard.consumeApproval(guildId, actorId, labels, targetId);
-    return Boolean(approval);
-  }
+  const authorized = createDelegationAuthorizer(deps);
 
 
   async function handleRoleUpdate(previous: RoleLike, next: RoleLike): Promise<void> {

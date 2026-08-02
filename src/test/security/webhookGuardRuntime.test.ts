@@ -1,0 +1,259 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { createWebhookGuardRuntime } from "../../features/command-security/webhookGuardRuntime.js";
+import { diffWebhooks } from "../../features/command-security/webhookGuardTypes.js";
+import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
+import { permissionRequestStore } from "./permissionRequestStore.js";
+import { moduleContext } from "../moduleContextStub.js";
+import type { WebhookGuardChannel, WebhookGuardDeps } from "../../features/command-security/webhookGuardRuntime.js";
+import type { WebhookSnapshotEntry } from "../../features/command-security/webhookGuardTypes.js";
+import type { WebhookSnapshotModelLike } from "../../features/command-security/webhookSnapshotRepository.js";
+
+const NOW = Date.parse("2026-08-02T11:00:00.000Z");
+
+function hook(webhookId: string, name: string, avatar: string | null = null): WebhookSnapshotEntry {
+  return { webhookId, channelId: "chan-1", name, avatar, creatorId: "mod-1" };
+}
+
+function snapshotModel(seeded: readonly WebhookSnapshotEntry[] | null): WebhookSnapshotModelLike & { stored: WebhookSnapshotEntry[] | null } {
+  const state: { stored: WebhookSnapshotEntry[] | null } = { stored: seeded ? [...seeded] : null };
+  return {
+    get stored() { return state.stored; },
+    set stored(value: WebhookSnapshotEntry[] | null) { state.stored = value; },
+    findOne() {
+      return {
+        lean: async () => (state.stored ? { _id: "g1:chan-1", entries: state.stored, capturedAt: new Date(NOW - 1000) } : null)
+      };
+    },
+    async updateOne(_filter: Record<string, unknown>, update: Record<string, unknown>) {
+      const set = update.$set as { entries?: WebhookSnapshotEntry[] };
+      state.stored = [...(set.entries ?? [])];
+      return { matchedCount: 1, modifiedCount: 1 };
+    },
+    async deleteMany() { state.stored = null; return { deletedCount: 1 }; }
+  };
+}
+
+interface Harness {
+  runtime: ReturnType<typeof createWebhookGuardRuntime>;
+  channel: WebhookGuardChannel;
+  deleted: string[];
+  edited: Array<{ webhookId: string; name: string }>;
+  recreated: string[];
+  removedRoles: string[];
+  published: string[];
+  audits: Array<{ action: string; details: string }>;
+  model: ReturnType<typeof snapshotModel>;
+}
+
+function harness(options: {
+  before: readonly WebhookSnapshotEntry[] | null;
+  after: readonly WebhookSnapshotEntry[];
+  actorId?: string | null;
+  ownerId?: string | null;
+  guardEnabled?: boolean;
+  raidConfirmed?: boolean;
+  approvals?: ReturnType<typeof permissionRequestStore>;
+}): Harness {
+  const deleted: string[] = [];
+  const edited: Array<{ webhookId: string; name: string }> = [];
+  const recreated: string[] = [];
+  const removedRoles: string[] = [];
+  const published: string[] = [];
+  const audits: Array<{ action: string; details: string }> = [];
+  const model = snapshotModel(options.before);
+  const approvals = options.approvals ?? permissionRequestStore();
+  const requests = createPermissionRequestRepository(approvals);
+
+  let live = [...options.after];
+
+  const deps: WebhookGuardDeps = {
+    WebhookSnapshotModel: model,
+    gate: {
+      readSituation: async () => ({
+        guardEnabled: options.guardEnabled ?? true,
+        raidConfirmed: options.raidConfirmed ?? false
+      }),
+      consumeApproval: (guildId, actorId, channelId, action) =>
+        requests.consume(guildId, "webhook", actorId, { target: channelId, action }, new Date(NOW))
+    },
+    publish: async (_guildId, message) => { published.push(message); },
+    recordAudit: async (_guildId, entry) => { audits.push({ action: entry.action, details: entry.details }); },
+    now: () => NOW
+  };
+
+  const channel = moduleContext<WebhookGuardChannel>({
+    guildId: "g1",
+    channelId: "chan-1",
+    channelName: "anunturi",
+    ownerId: options.ownerId ?? "owner-1",
+    botHighestRolePosition: 10,
+    everyoneRoleId: "everyone",
+    listWebhooks: async () => [...live],
+    findAuditActor: async () => (options.actorId === undefined ? "mod-1" : options.actorId),
+    deleteWebhook: async (webhookId: string) => {
+      deleted.push(webhookId);
+      live = live.filter(entry => entry.webhookId !== webhookId);
+    },
+    editWebhook: async (webhookId: string, patch: { name: string }) => {
+      edited.push({ webhookId, name: patch.name });
+      live = live.map(entry => (entry.webhookId === webhookId ? { ...entry, name: patch.name } : entry));
+    },
+    recreateWebhook: async (entry: WebhookSnapshotEntry) => {
+      recreated.push(entry.webhookId);
+      live = [...live, { ...entry, webhookId: `${entry.webhookId}-nou` }];
+      return `${entry.webhookId}-nou`;
+    },
+    resolveActor: async () => ({
+      roles: [{ id: "role-mod", name: "Moderator", position: 5, managed: false, elevated: true }],
+      removeRoles: async (ids: readonly string[]) => { removedRoles.push(...ids); }
+    })
+  });
+
+  return { runtime: createWebhookGuardRuntime(deps), channel, deleted, edited, recreated, removedRoles, published, audits, model };
+}
+
+async function webhookApproval(action: string) {
+  const model = permissionRequestStore();
+  const repository = createPermissionRequestRepository(model);
+  await repository.create({
+    requestId: `req-${action}`, guildId: "g1", type: "webhook", requesterId: "mod-1",
+    target: "chan-1", action, reason: "integrare"
+  }, new Date(NOW - 60_000));
+  await repository.resolve("g1", `req-${action}`, "approved", "owner-1", { target: "chan-1", action }, new Date(NOW - 60_000));
+  return model;
+}
+
+test("diferenta de webhook-uri distinge creare, editare si stergere", () => {
+  const changes = diffWebhooks(
+    [hook("w1", "vechi"), hook("w2", "sters")],
+    [hook("w1", "redenumit"), hook("w3", "nou")]
+  );
+
+  assert.deepEqual(changes.map(change => [change.kind, change.webhookId]), [
+    ["update", "w1"],
+    ["delete", "w2"],
+    ["create", "w3"]
+  ]);
+});
+
+test("prima observatie a unui canal doar captureaza baseline-ul, fara interventie", async () => {
+  const setup = harness({ before: null, after: [hook("w1", "existent")] });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "baseline-captured");
+  assert.deepEqual(setup.deleted, []);
+  assert.deepEqual(setup.model.stored?.map(entry => entry.webhookId), ["w1"]);
+});
+
+test("cu moderation-guard oprit, webhook-urile sunt doar urmarite, nu corectate", async () => {
+  const setup = harness({ before: [hook("w1", "vechi")], after: [hook("w1", "vechi"), hook("w2", "nou")], guardEnabled: false });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "guard-disabled");
+  assert.deepEqual(setup.deleted, [], "fara poarta activa nu se modifica nimic pe server");
+  assert.deepEqual(setup.model.stored?.map(entry => entry.webhookId), ["w1", "w2"], "baseline-ul urmeaza realitatea");
+});
+
+test("un webhook creat fara aprobare este sters si autorul sanctionat", async () => {
+  const setup = harness({ before: [hook("w1", "vechi")], after: [hook("w1", "vechi"), hook("w2", "malitios")] });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "reverted");
+  assert.deepEqual(setup.deleted, ["w2"]);
+  assert.deepEqual(setup.removedRoles, ["role-mod"], "autorul pierde rolurile cu permisiuni ridicate");
+  assert.equal(setup.audits[0]?.action, "webhook-change-reverted");
+  assert.match(setup.published[0] ?? "", /<@mod-1>/);
+  assert.deepEqual(setup.model.stored?.map(entry => entry.webhookId), ["w1"], "snapshotul revine la starea aprobata");
+});
+
+test("un webhook editat fara aprobare este restaurat din snapshot", async () => {
+  const setup = harness({ before: [hook("w1", "Anunturi")], after: [hook("w1", "Payouts oficiale")] });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "reverted");
+  assert.deepEqual(setup.edited, [{ webhookId: "w1", name: "Anunturi" }]);
+});
+
+test("un webhook sters fara aprobare este recreat, cu avertisment despre URL-ul nou", async () => {
+  const setup = harness({ before: [hook("w1", "Anunturi")], after: [] });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "reverted");
+  assert.deepEqual(setup.recreated, ["w1"]);
+  assert.match(setup.published[0] ?? "", /URL nou/);
+});
+
+test("ownerul serverului poate modifica webhook-uri fara aprobare", async () => {
+  const setup = harness({ before: [hook("w1", "vechi")], after: [hook("w1", "vechi"), hook("w2", "nou")], actorId: "owner-1" });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "allowed-owner");
+  assert.deepEqual(setup.deleted, []);
+});
+
+test("o aprobare de tip webhook pentru actiunea exacta lasa modificarea sa treaca si se consuma", async () => {
+  const approvals = await webhookApproval("create");
+  const setup = harness({ before: [hook("w1", "vechi")], after: [hook("w1", "vechi"), hook("w2", "integrare")], approvals });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "allowed-approval");
+  assert.deepEqual(setup.deleted, []);
+  assert.equal(approvals.records[0].status, "used", "aprobarea este de unica folosinta");
+});
+
+test("o aprobare pentru o singura actiune nu acopera si celelalte modificari din acelasi eveniment", async () => {
+  const approvals = await webhookApproval("create");
+  const setup = harness({
+    before: [hook("w1", "Anunturi"), hook("w2", "Statistici")],
+    after: [hook("w1", "Anunturi"), hook("w2", "Payouts"), hook("w3", "integrare")],
+    approvals
+  });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "reverted");
+  assert.deepEqual(setup.deleted, [], "crearea aprobata ramane");
+  assert.deepEqual(setup.edited, [{ webhookId: "w2", name: "Statistici" }], "editarea neaprobata este revenita");
+});
+
+test("in timpul unui raid confirmat, protectia de webhook-uri cedeaza controlul catre anti-raid", async () => {
+  const setup = harness({ before: [hook("w1", "vechi")], after: [hook("w1", "vechi"), hook("w2", "nou")], raidConfirmed: true });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "raid-active");
+  assert.deepEqual(setup.deleted, []);
+});
+
+test("cand autorul nu poate fi identificat din Audit Log, nu se sanctioneaza nimeni", async () => {
+  const setup = harness({ before: [hook("w1", "vechi")], after: [hook("w1", "vechi"), hook("w2", "nou")], actorId: null });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "actor-unknown");
+  assert.deepEqual(setup.removedRoles, []);
+  assert.deepEqual(setup.deleted, []);
+});
+
+test("o corectie esuata este raportata explicit, fara sa opreasca restul", async () => {
+  const setup = harness({ before: [hook("w1", "Anunturi"), hook("w2", "Statistici")], after: [] });
+  const channel = moduleContext<WebhookGuardChannel>({
+    ...setup.channel,
+    recreateWebhook: async (entry: WebhookSnapshotEntry) => (entry.webhookId === "w1" ? null : "w2-nou")
+  });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(channel);
+
+  assert.equal(outcome.kind, "reverted");
+  assert.equal(outcome.kind === "reverted" ? outcome.failed : -1, 1);
+  assert.match(setup.published[0] ?? "", /1 din 2 modificari NU au putut fi corectate/);
+});

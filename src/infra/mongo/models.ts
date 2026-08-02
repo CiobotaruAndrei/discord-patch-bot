@@ -208,6 +208,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     playerCountWatchSchema,
     permissionRequestSchema,
     protectedResourceSchema,
+    webhookSnapshotSchema,
     raidIncidentSchema,
     adRequestSchema,
     adAttemptSchema,
@@ -231,6 +232,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const PlayerCountWatchModel = mongoose.model("PlayerCountWatch", playerCountWatchSchema, "guildPlayerCountWatch");
   const PermissionRequestModel = mongoose.model("PermissionRequest", permissionRequestSchema, "guildPermissionRequests");
   const ProtectedResourceModel = mongoose.model("ProtectedResource", protectedResourceSchema, "guildProtectedResources");
+  const WebhookSnapshotModel = mongoose.model("WebhookSnapshot", webhookSnapshotSchema, "guildWebhookSnapshots");
   const RaidIncidentModel = mongoose.model("RaidIncident", raidIncidentSchema, "guildRaidIncidents");
   const AdRequestModel = mongoose.model("AdRequest", adRequestSchema, "guildAdRequests");
   const AdAttemptModel = mongoose.model("AdAttempt", adAttemptSchema, "guildAdAttempts");
@@ -301,6 +303,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     PlayerCountWatchModel,
     PermissionRequestModel,
     ProtectedResourceModel,
+    WebhookSnapshotModel,
     RaidIncidentModel,
     AdRequestModel,
     AdAttemptModel,

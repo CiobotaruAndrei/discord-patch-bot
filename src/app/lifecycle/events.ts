@@ -12,6 +12,8 @@ import type { ResourceLike } from "../../features/command-security/protectedReso
 import type { ProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
 import type { AdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
+import type { WebhookGuardRuntime } from "../../features/command-security/webhookGuardRuntime.js";
+import type { AdaptableWebhookChannel } from "../runtime/webhookGuardChannelAdapter.js";
 
 type LifecycleLogger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;
@@ -54,6 +56,7 @@ interface RegisterDiscordEventsDeps {
   protectedResourceRuntime?: ProtectedResourceRuntime;
   antiRaidRuntime?: AntiRaidRuntime;
   adProtectionRuntime?: AdProtectionRuntime;
+  webhookGuardRuntime?: WebhookGuardRuntime<AdaptableWebhookChannel>;
 }
 
 interface MongoConnectionLike {
@@ -85,7 +88,7 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 function registerDiscordEvents({
   client, logger, commands, metrics, env, adminAlert, requestContext,
   games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role, securityRuntime,
-  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime
+  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime, webhookGuardRuntime
 }: RegisterDiscordEventsDeps): void {
   const effectiveRole = role ?? "all";
   const runsSchedulers = roleRunsSchedulers(effectiveRole);
@@ -212,6 +215,11 @@ function registerDiscordEvents({
           metrics.security.runtimeErrored();
           logger("ERROR", "PERMISSION_DELEGATION", "webhookUpdate a esuat", errorDetail(err));
           adminAlert("security:webhook-update", "Monitorizarea webhook-urilor a esuat", errorMessage(err), channel.guild?.id ?? undefined).catch(() => null);
+        });
+        webhookGuardRuntime?.handleWebhookUpdate(channel).catch(err => {
+          metrics.security.runtimeErrored();
+          logger("ERROR", "WEBHOOK_GUARD", "protectia webhook-urilor a esuat", errorDetail(err));
+          adminAlert("security:webhook-guard", "Protectia webhook-urilor a esuat", errorMessage(err), channel.guild?.id ?? undefined).catch(() => null);
         });
       });
     }
