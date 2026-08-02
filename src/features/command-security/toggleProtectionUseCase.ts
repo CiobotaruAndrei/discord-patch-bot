@@ -18,7 +18,7 @@ export type ToggleProtectionOutcome =
   | { kind: "atomic-stop-failed"; subcommand: string; error: unknown }
   | { kind: "stopped-with-cancellations"; subcommand: string; cancelled: number }
   | { kind: "started-with-backfill"; subcommand: string; result: ProtectionBackfillResult }
-  | { kind: "toggled"; subcommand: string; command: ProtectionCommand };
+  | { kind: "toggled"; subcommand: string; command: ProtectionCommand; degraded: string | null };
 
 export type ToggleProtectionInput = {
   command: ProtectionCommand;
@@ -34,7 +34,7 @@ export type ToggleProtectionInput = {
 
 export type ToggleProtectionDeps = {
   readConfiguredChannel: () => string | null;
-  readinessGaps: () => readonly string[];
+  readiness: { readinessGaps: () => readonly string[]; degradedReport: () => string | null };
   readChannelPermissions: (channelId: string) => Promise<{ viewChannel?: boolean; sendMessages?: boolean; embedLinks?: boolean } | null>;
   countActiveApprovals: () => number | Promise<number>;
   stopAtomically: () => Promise<void>;
@@ -63,7 +63,7 @@ export async function toggleProtection(
     }
 
     if (input.needsReadinessCheck) {
-      const missing = deps.readinessGaps();
+      const missing = deps.readiness.readinessGaps();
       if (missing.length > 0) return { kind: "not-ready", missing };
     }
   }
@@ -90,5 +90,10 @@ export async function toggleProtection(
     }
   }
 
-  return { kind: "toggled", subcommand: input.subcommand, command: input.command };
+  return {
+    kind: "toggled",
+    subcommand: input.subcommand,
+    command: input.command,
+    degraded: input.command === "start" ? deps.readiness.degradedReport() : null
+  };
 }
