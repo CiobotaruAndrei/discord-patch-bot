@@ -60,6 +60,9 @@ type MongoRuntimeContext = {
   FeedbackReportModel: ReturnType<typeof attachModelsModule.buildFrom>["FeedbackReportModel"];
   PermissionRequestModel: ReturnType<typeof attachModelsModule.buildFrom>["PermissionRequestModel"];
   ProtectedResourceModel: ReturnType<typeof attachModelsModule.buildFrom>["ProtectedResourceModel"];
+  WebhookSnapshotModel: ReturnType<typeof attachModelsModule.buildFrom>["WebhookSnapshotModel"];
+  MassModerationModel: ReturnType<typeof attachModelsModule.buildFrom>["MassModerationModel"];
+  RaidSnapshotModel: ReturnType<typeof attachModelsModule.buildFrom>["RaidSnapshotModel"];
   RaidIncidentModel: ReturnType<typeof attachModelsModule.buildFrom>["RaidIncidentModel"];
   AdRequestModel: ReturnType<typeof attachModelsModule.buildFrom>["AdRequestModel"];
   AdAttemptModel: ReturnType<typeof attachModelsModule.buildFrom>["AdAttemptModel"];
@@ -167,6 +170,9 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     FeedbackReportModel: context.FeedbackReportModel,
     PermissionRequestModel: context.PermissionRequestModel,
     ProtectedResourceModel: context.ProtectedResourceModel,
+    WebhookSnapshotModel: context.WebhookSnapshotModel,
+    MassModerationModel: context.MassModerationModel,
+    RaidSnapshotModel: context.RaidSnapshotModel,
     RaidIncidentModel: context.RaidIncidentModel,
     AdRequestModel: context.AdRequestModel,
     AdAttemptModel: context.AdAttemptModel,

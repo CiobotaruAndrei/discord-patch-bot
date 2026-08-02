@@ -346,3 +346,60 @@ test("schimbarea pragurilor rebuildeaza detectorul, chiar pe un server activ (re
 
   assert.notEqual(await incidents.active("g1"), null, "pragul nou se aplica imediat, nu dupa 10 minute de inactivitate");
 });
+
+test("incidentul NU se inchide cat timp restaurarea structurii cere interventia ownerului (F-32)", async () => {
+  const setup = harness();
+  setup.guildPort.restoreStructure = async () => ({ complete: false, blocked: 2 });
+
+  await setup.incidents.open({ guildId: "g1", triggerReason: "spam" }, new Date(T0));
+  const incident = await setup.incidents.active("g1");
+  const id = incident?._id ?? "";
+  await setup.incidents.advance(id, "suspected", "confirmed", new Date(T0));
+  await setup.incidents.advance(id, "confirmed", "containment", new Date(T0));
+  await setup.incidents.advance(id, "containment", "cleanup", new Date(T0));
+  await setup.incidents.advance(id, "cleanup", "recovery", new Date(T0));
+  setup.advance(60 * 60_000);
+
+  await setup.runtime.tick("g1");
+
+  const after = await setup.incidents.read(id);
+  assert.equal(after?.stage, "recovery", "un server ramas deteriorat nu poate fi marcat rezolvat");
+  assert.ok(setup.published.some(entry => entry.includes("2 operatiuni cer interventia ownerului")));
+});
+
+test("cu structura restaurata complet, incidentul se inchide (F-32)", async () => {
+  const setup = harness();
+  setup.guildPort.restoreStructure = async () => ({ complete: true, blocked: 0 });
+
+  await setup.incidents.open({ guildId: "g1", triggerReason: "spam" }, new Date(T0));
+  const incident = await setup.incidents.active("g1");
+  const id = incident?._id ?? "";
+  await setup.incidents.advance(id, "suspected", "confirmed", new Date(T0));
+  await setup.incidents.advance(id, "confirmed", "containment", new Date(T0));
+  await setup.incidents.advance(id, "containment", "cleanup", new Date(T0));
+  await setup.incidents.advance(id, "cleanup", "recovery", new Date(T0));
+  setup.advance(60 * 60_000);
+
+  await setup.runtime.tick("g1");
+
+  assert.equal((await setup.incidents.read(id))?.stage, "resolved");
+});
+
+test("snapshotul structurii se captureaza la trecerea in containment, inainte de lockdown (F-31)", async () => {
+  const setup = harness();
+  const captured: string[] = [];
+  setup.guildPort.captureStructureSnapshot = async (incidentId: string) => {
+    assert.deepEqual(setup.locked, [], "snapshotul trebuie luat INAINTE sa blocam canale");
+    captured.push(incidentId);
+    return undefined;
+  };
+
+  await setup.incidents.open({ guildId: "g1", triggerReason: "spam" }, new Date(T0));
+  const incident = await setup.incidents.active("g1");
+  const id = incident?._id ?? "";
+  await setup.incidents.advance(id, "suspected", "confirmed", new Date(T0));
+
+  await setup.runtime.tick("g1");
+
+  assert.deepEqual(captured, [id]);
+});
