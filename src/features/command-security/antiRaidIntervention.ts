@@ -47,6 +47,7 @@ const DEFAULT_RETRY_DELAY_MS = 500;
 export type InterventionStep =
   | { kind: "no-incident" }
   | { kind: "dry-run"; incidentId: string; wouldLock: string[]; wouldSanction: string[] }
+  | { kind: "dry-run-finished"; incidentId: string; closed: number }
   | { kind: "locked"; incidentId: string; channelIds: string[] }
   | { kind: "sanctioned"; incidentId: string; userId: string; step: SanctionStep; applied: boolean }
   | { kind: "escalation-exhausted"; incidentId: string; userId: string }
@@ -173,6 +174,13 @@ export function createRaidIntervention(deps: InterventionDeps) {
     const moment = now();
 
     if (incident.dryRun) {
+      if (safetyPeriodElapsed(incident, thresholds.safetyPeriodMs, moment)) {
+        const closed = await incidents.resolveDryRuns(guild.id, new Date(moment));
+        await guild.publish(
+          `Anti-raid ${incident._id}: simularea s-a incheiat dupa perioada de siguranta si a fost inchisa. Nicio actiune reala nu a fost aplicata.`
+        );
+        return [{ kind: "dry-run-finished", incidentId: incident._id, closed: closed.length }];
+      }
       return [{
         kind: "dry-run",
         incidentId: incident._id,

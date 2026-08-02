@@ -30,6 +30,7 @@ import {
   revertOverwriteWithRetry,
   sendExistingAccountAlerts
 } from "../command-security/securityInteractionAdapters.js";
+import { securityRepositories } from "../command-security/securityCommandRepositories.js";
 import { SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
 import { createPermissionRequestRepository } from "../command-security/permissionRequestRepository.js";
 import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
@@ -72,12 +73,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
       )
     }
     : deps;
-  const adRequests = target.AdRequestModel && target.AdAttemptModel
-    ? createAdProtectionRepository(target.AdRequestModel, target.AdAttemptModel)
-    : undefined;
-  const guardRequests = target.PermissionRequestModel
-    ? createPermissionRequestRepository(target.PermissionRequestModel)
-    : undefined;
+  const { adRequests, guardRequests, raidIncidents } = securityRepositories(target);
   const accountAlertClaim: AccountAlertClaimFn | undefined = target.NewAccountAlertDeliveryModel
     ? createNewAccountAlertDelivery(target.NewAccountAlertDeliveryModel, () => randomUUID()).claim
     : undefined;
@@ -130,6 +126,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
       const stopActions = protectionStopActions(sub, guildId, {
         guardRequests,
         adRequests,
+        raidIncidents,
         disableProtection: async () => {
           await applyGuildConfigUpdate(target.GuildModel, guildId, { [toggle.enabled]: false });
         }

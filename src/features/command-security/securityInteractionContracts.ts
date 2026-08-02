@@ -4,6 +4,7 @@ import type { GuildConfigWriteModelLike } from "../guild-config/guildConfigRepos
 import type { DirectAttachment } from "../moderation/moderationInputPolicy.js";
 import type { NewAccountAlertClaim, NewAccountAlertDeliveryModelLike } from "./newAccountAlertDedup.js";
 import type { PermissionRequestModelLike } from "./permissionRequestRepository.js";
+import type { RaidIncidentModelLike } from "./antiRaidIncidentRepository.js";
 import type { AdRequestModelLike, AdAttemptModelLike } from "./adProtectionRepository.js";
 import type { ChannelLockRecoveryModelLike } from "./channelLockRecoveryRepository.js";
 import type { SecurityStateModel } from "./securityStore.js";
@@ -79,6 +80,7 @@ export type SecurityDeps = {
   ChannelLockRecoveryModel?: Pick<ChannelLockRecoveryModelLike, "updateOne">;
   GuildSecurityModel?: SecurityStateModel;
   PermissionRequestModel?: PermissionRequestModelLike;
+  RaidIncidentModel?: RaidIncidentModelLike;
   AdRequestModel?: AdRequestModelLike;
   AdAttemptModel?: AdAttemptModelLike;
   OperationJournalModel?: OperationJournalModelLike;

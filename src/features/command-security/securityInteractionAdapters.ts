@@ -1,5 +1,6 @@
 "use strict";
 
+
 import { PermissionFlagsBits } from "discord.js";
 
 import { readLockedChannelPermissionState } from "./channelLockRecoveryRuntime.js";
@@ -126,4 +127,3 @@ export async function backfillAccountAlerts(
     ? sendExistingAccountAlerts(interaction, fetched, guildId, claim, logger)
     : { delivered: 0, sentUnconfirmed: 0, undetermined: 0 };
 }
-

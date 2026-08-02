@@ -20,7 +20,7 @@ function toggleDeps(overrides: Partial<ToggleProtectionDeps> = {}): ToggleProtec
     readiness: { readinessGaps: () => [], degradedReport: () => null },
     readChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
     countActiveApprovals: async () => 0,
-    stopAtomically: async () => undefined,
+    stopAtomically: async () => null,
     persistEnabled: async () => undefined,
     runBackfill: async () => ({ delivered: 0, sentUnconfirmed: 0, undetermined: 0 }),
     ...overrides

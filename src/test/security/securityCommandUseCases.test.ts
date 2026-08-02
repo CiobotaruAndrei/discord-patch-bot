@@ -149,7 +149,7 @@ function toggleDeps(overrides: Partial<ToggleProtectionDeps> = {}): { deps: Togg
     readChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
     readiness: { readinessGaps: () => [], degradedReport: () => null },
     countActiveApprovals: () => 4,
-    stopAtomically: async () => { log.push("stop-atomically"); },
+    stopAtomically: async () => { log.push("stop-atomically"); return null; },
     persistEnabled: async enabled => { log.push(`persist:${enabled}`); },
     runBackfill: async () => { log.push("backfill"); return { delivered: 2, sentUnconfirmed: 0, undetermined: 0 }; },
     ...overrides
@@ -183,7 +183,7 @@ test("toggle: oprirea protectiei bot-add anuleaza atomic aprobarile active", asy
     { command: "stop", subcommand: "moderation-guard", hasToggleFields: true, needsReadinessCheck: false, needsAtomicStop: true, needsBackfill: false },
     deps
   );
-  assert.deepEqual(outcome, { kind: "stopped-with-cancellations", subcommand: "moderation-guard", cancelled: 4 });
+  assert.deepEqual(outcome, { kind: "stopped-with-cancellations", subcommand: "moderation-guard", cancelled: 4, note: null });
   assert.deepEqual(log, ["stop-atomically"], "comutatorul nu se scrie separat: oprirea e o singura operatie atomica");
 });
 
