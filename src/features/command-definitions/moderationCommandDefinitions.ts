@@ -68,6 +68,16 @@ export function buildModerationCommandDefinitions({ SlashCommandBuilder, Permiss
           { name: "role", value: "role" }
         ))
       .addStringOption(option => option.setName("target").setDescription("ID-ul resursei (necesar la add si remove)").setRequired(false).setMaxLength(20)))
+    ,admin(new SlashCommandBuilder().setName("security-log").setDescription("Afiseaza cronologia incidentelor de securitate")
+      .addStringOption(option => option.setName("sursa").setDescription("Filtreaza dupa sursa").setRequired(false)
+        .addChoices(
+          { name: "audit", value: "audit" },
+          { name: "anti-raid", value: "raid" },
+          { name: "reclame", value: "ad" },
+          { name: "aprobari", value: "approval" }
+        ))
+      .addIntegerOption(option => option.setName("pagina").setDescription("Pagina de afisat").setRequired(false).setMinValue(1).setMaxValue(100)))
+    ,admin(new SlashCommandBuilder().setName("security-status").setDescription("Arata starea fiecarei protectii si a subprotectiilor moderation-guard"))
     ,admin(new SlashCommandBuilder().setName("anti-raid").setDescription("Administreaza incidentele anti-raid")
       .addSubcommand(subcommand => subcommand.setName("status").setDescription("Arata incidentul activ: etapa, canale blocate, participanti, sanctiuni si erori"))
       .addSubcommand(subcommand => subcommand.setName("participant-list").setDescription("Listeaza participantii unui incident")
