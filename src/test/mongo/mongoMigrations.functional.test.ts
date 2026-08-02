@@ -361,8 +361,8 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   assert.equal(result.skipped, 0);
   assert.equal(
     fixture.updateManyCalls.length,
-    10,
-    "m1-m4 + m7 folosesc updateMany, m5 si m6 folosesc find + bulkWrite, m16 mai face cate un updateMany de $unset pentru fiecare dintre cele trei domenii, m17 unul pentru starea de player-count, iar m18 unul care copiaza canalul de aprobari"
+    12,
+    "m1-m4 + m7 folosesc updateMany, m5 si m6 folosesc find + bulkWrite, m16 mai face cate un updateMany de $unset pentru fiecare dintre cele trei domenii, m17 unul pentru starea de player-count, m18 unul care copiaza canalul de aprobari, iar m19 doua: unul care muta comutatorul vechi in moderation-guard si unul care sterge campurile bot-add"
   );
   const m4Call = fixture.updateManyCalls[3];
   assert.deepEqual(m4Call.filter, { "seenDiscounts.500": { $exists: true } });
@@ -439,7 +439,7 @@ test("Mongo migrations apply pending migrations and release the lock", async () 
   const sliceUnsets = fixture.updateManyCalls.slice(5, 8);
   assert.deepEqual(
     sliceUnsets.map(call => Object.keys((call.update as { $unset: Record<string, string> }).$unset).length),
-    [4, 12, 8],
+    [4, 9, 8],
     "m16 scoate din documentul guild exact campurile celor trei domenii: moderare, securitate, YouTube"
   );
   const watchUnset = fixture.updateManyCalls[8];

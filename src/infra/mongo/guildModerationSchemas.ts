@@ -27,21 +27,6 @@ export function buildGuildModerationSchemas({ mongoose }: GuildModerationSchemas
     warnedAt: { type: Date, required: true }
   }, { _id: false });
 
-  const botAddPermissionSchema = new mongoose.Schema({
-    schemaVersion: { type: Number, default: MODERATION_RECORD_SCHEMA_VERSION },
-    requestId: { type: String, required: true },
-    botId: { type: String, required: true },
-    requesterId: { type: String, required: true },
-    requestedAt: { type: Date, required: true },
-    ownerId: { type: String, default: null },
-    respondedAt: { type: Date, default: null },
-    expiresAt: { type: Date, default: null },
-    usedAt: { type: Date, default: null },
-    cancelledAt: { type: Date, default: null },
-    cancellationReason: { type: String, enum: ["protection-stopped"], default: null },
-    status: { type: String, enum: BOT_ADD_PERMISSION_STATUSES, required: true }
-  }, { _id: false });
-
   const lockedChannelPermissionSchema = new mongoose.Schema({
     channelId: { type: String, required: true },
     sendMessages: { type: String, enum: ["allow", "deny", "inherit"], required: true }
@@ -76,5 +61,5 @@ export function buildGuildModerationSchemas({ mongoose }: GuildModerationSchemas
     moderationWarnBanLimit: { type: Number, default: 0, min: 0 }
   }, { versionKey: false, timestamps: true });
 
-  return { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema, lockedChannelPermissionSchema, botObservationSchema, guildModerationStateSchema };
+  return { moderationRecordSchema, warningRecordSchema, lockedChannelPermissionSchema, botObservationSchema, guildModerationStateSchema };
 }

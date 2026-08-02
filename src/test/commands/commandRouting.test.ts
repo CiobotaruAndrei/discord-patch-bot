@@ -52,7 +52,6 @@ const handlers: Record<string, BuiltHandler> = Object.fromEntries(
       ["subscription", "subscriptionNotificationHandlers"],
       ["security", "securityInteractionHandler"],
       ["moderation", "moderationInteractionHandler"],
-      ["bot-add", "botAddInteractionHandler"],
       ["permissionRequest", "permissionRequestInteractionHandler"],
       ["protectedResource", "protectedResourceInteractionHandler"],
       ["antiRaid", "antiRaidInteractionHandler"],
@@ -168,8 +167,6 @@ const expectedOwnerByCommand: Record<string, string> = {
   ,"remove-warn": "moderation"
   ,"warn-list": "moderation"
   ,"warn-ban-limit": "moderation"
-  ,"bot-add-request": "bot-add"
-  ,"bot-add-permissions": "bot-add"
   ,"permission-request": "permissionRequest"
   ,"permission-requests": "permissionRequest"
   ,"protected-resource": "protectedResource"

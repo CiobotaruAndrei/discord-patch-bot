@@ -35,7 +35,6 @@ import attachAutocompleteInteractionHandler from "../command-handlers/autocomple
 import attachHelpInteractionHandler from "../command-handlers/helpInteractionHandler.js";
 import attachModerationInteractionHandler from "../command-handlers/moderationInteractionHandler.js";
 import attachSecurityInteractionHandler from "../command-handlers/securityInteractionHandler.js";
-import attachBotAddInteractionHandler from "../command-handlers/botAddInteractionHandler.js";
 import attachPermissionRequestInteractionHandler from "../command-handlers/permissionRequestInteractionHandler.js";
 import attachProtectedResourceInteractionHandler from "../command-handlers/protectedResourceInteractionHandler.js";
 import attachAntiRaidInteractionHandler from "../command-handlers/antiRaidInteractionHandler.js";
@@ -54,7 +53,6 @@ export type AdminCommandDeps =
   HandlerDeps<typeof attachSourcesStatusHandler>
   & HandlerDeps<typeof attachGuildConfigurationAdminHandler>
   & HandlerDeps<typeof attachSecurityInteractionHandler>
-  & HandlerDeps<typeof attachBotAddInteractionHandler>
   & HandlerDeps<typeof attachPermissionRequestInteractionHandler>
   & HandlerDeps<typeof attachProtectedResourceInteractionHandler>
   & HandlerDeps<typeof attachAntiRaidInteractionHandler>

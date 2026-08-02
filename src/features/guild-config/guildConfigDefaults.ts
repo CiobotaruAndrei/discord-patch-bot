@@ -70,7 +70,6 @@ export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<s
     newAccountAlertsEnabled: false,
     threatAlertChannelId: null,
     threatProtectionEnabled: false,
-    botAddAlertChannelId: null,
     permissionRequestChannelId: null,
     antiRaidAlertChannelId: null,
     antiRaidThresholds: null,
@@ -78,9 +77,7 @@ export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<s
     adAlertChannelId: null,
     adProtectionEnabled: false,
     moderationGuardEnabled: false,
-    botAddProtectionEnabled: false,
     warningChannelId: null,
-    botAddPermissions: [],
     purgeAmount: 50,
     lockedChannelIds: [],
     lockedChannelPermissions: []

@@ -45,7 +45,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     pendingDiscountSchema,
     priceAlertSchema
   } = buildGuildNotificationSchemas({ mongoose, SUPPORTED_CURRENCIES });
-  const { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema, lockedChannelPermissionSchema, botObservationSchema, guildModerationStateSchema } = buildGuildModerationSchemas({ mongoose });
+  const { moderationRecordSchema, warningRecordSchema, lockedChannelPermissionSchema, botObservationSchema, guildModerationStateSchema } = buildGuildModerationSchemas({ mongoose });
   const {
     youtubeChannelSchema,
     youtubeChannelRouteSchema
@@ -155,7 +155,6 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     newAccountAlertsEnabled: { type: Boolean, default: false },
     threatAlertChannelId: { type: String, default: null },
     threatProtectionEnabled: { type: Boolean, default: false },
-    botAddAlertChannelId: { type: String, default: null },
     permissionRequestChannelId: { type: String, default: null },
     antiRaidAlertChannelId: { type: String, default: null },
     antiRaidThresholds: { type: Object, default: null },
@@ -163,9 +162,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     adAlertChannelId: { type: String, default: null },
     adProtectionEnabled: { type: Boolean, default: false },
     moderationGuardEnabled: { type: Boolean, default: false },
-    botAddProtectionEnabled: { type: Boolean, default: false },
     warningChannelId: { type: String, default: null },
-    botAddPermissions: { type: [botAddPermissionSchema], default: [] },
     botObservations: { type: [botObservationSchema], default: [] },
     purgeAmount: { type: Number, default: 50, min: 1, max: 100 },
     lockedChannelIds: { type: [String], default: [] },
@@ -188,7 +185,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const GuildModerationModel = mongoose.model("GuildModeration", guildModerationStateSchema, "guildModeration");
 
   const { guildSecurityStateSchema } = buildGuildSecuritySchemas({
-    mongoose, botAddPermissionSchema, botObservationSchema, lockedChannelPermissionSchema
+    mongoose, botObservationSchema, lockedChannelPermissionSchema
   });
   const GuildSecurityModel = mongoose.model("GuildSecurity", guildSecurityStateSchema, "guildSecurity");
 

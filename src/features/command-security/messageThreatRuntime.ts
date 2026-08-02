@@ -37,8 +37,8 @@ export function createMessageThreatRuntime(deps: MessageThreatRuntimeDeps) {
   async function handleBotMessageCreate(message: MessageEvent, guildId: string, authorId: string, settings: GuildSettings): Promise<void> {
     const channelId = settings.threatProtectionEnabled && settings.threatAlertChannelId
       ? settings.threatAlertChannelId
-      : settings.botAddProtectionEnabled && settings.botAddAlertChannelId
-        ? settings.botAddAlertChannelId
+      : settings.moderationGuardEnabled && settings.permissionRequestChannelId
+        ? settings.permissionRequestChannelId
         : null;
     if (!channelId) return;
     const result = await threatInspector.inspectMessage(message.content ?? "", attachments(message));

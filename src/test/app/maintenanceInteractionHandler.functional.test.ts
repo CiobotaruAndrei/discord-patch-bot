@@ -109,16 +109,14 @@ test("buildMaintenanceReport acopera player-count, alerte cont nou, amenintari s
     newAccountAlertsEnabled: true,
     newAccountAlertChannelId: null,
     threatProtectionEnabled: true,
-    threatAlertChannelId: null,
-    botAddProtectionEnabled: true,
-    botAddAlertChannelId: null
+    threatAlertChannelId: null
   };
 
   const report = await installMaintenance.buildMaintenanceReport(makeDeps(settings, 0, false), "guild-1");
 
   assert.match(
     report,
-    /lipseste canalul pentru: player-count, alerte cont nou, protectie amenintari, protectie adaugare boti/,
+    /lipseste canalul pentru: player-count, alerte cont nou, protectie amenintari/,
     "modulele de protectie/monitorizare fara canal trebuie semnalate, nu doar cele clasice de notificare"
   );
   assert.match(
@@ -130,7 +128,7 @@ test("buildMaintenanceReport acopera player-count, alerte cont nou, amenintari s
 
 test("MAINTENANCE_MODULES include modulele de protectie ca sa nu poata fi uitate la extindere (audit 154 #9)", () => {
   const enabledFields = installMaintenance.MAINTENANCE_MODULES.map(module => module.enabledField);
-  for (const field of ["playerCountSubscribed", "newAccountAlertsEnabled", "threatProtectionEnabled", "botAddProtectionEnabled"]) {
+  for (const field of ["playerCountSubscribed", "newAccountAlertsEnabled", "threatProtectionEnabled"]) {
     assert.ok(enabledFields.includes(field as (typeof enabledFields)[number]), `inventarul de mentenanta trebuie sa contina ${field}`);
   }
 });

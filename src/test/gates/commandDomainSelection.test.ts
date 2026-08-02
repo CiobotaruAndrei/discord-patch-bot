@@ -76,9 +76,9 @@ test("selectia per handler da strict mai putin decat domeniul", () => {
     ...Object.fromEntries(domainKeys.admin.map(key => [key, () => undefined]))
   });
   const descriptors = createCommandHandlerDescriptors();
-  const botAdd = descriptors.find(descriptor => descriptor.id === "bot-add" && descriptor.domain === "admin");
-  assert.ok(botAdd, "descriptorul bot-add exista");
-  const needs: readonly (keyof CommandDomainDeps["admin"])[] = botAdd.domain === "admin" ? botAdd.needs : [];
+  const descriptor = descriptors.find(descriptor => descriptor.id === "permission-request" && descriptor.domain === "admin");
+  assert.ok(descriptor, "descriptorul permission-request exista");
+  const needs: readonly (keyof CommandDomainDeps["admin"])[] = descriptor.domain === "admin" ? descriptor.needs : [];
 
   const selected = selectHandlerDeps<"admin", keyof CommandDomainDeps["admin"]>(context, needs);
   const selectedKeys = Object.keys(fields(selected));
@@ -89,7 +89,7 @@ test("selectia per handler da strict mai putin decat domeniul", () => {
   );
   assert.ok(
     selectedKeys.length < domainKeys.admin.length,
-    `bot-add cere ${selectedKeys.length} chei dintr-un domeniu de ${domainKeys.admin.length}; ` +
+    `permission-request cere ${selectedKeys.length} chei dintr-un domeniu de ${domainKeys.admin.length}; ` +
       "daca ar primi tot domeniul, selectorul nu ar spune nimic"
   );
 });

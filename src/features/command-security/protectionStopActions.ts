@@ -8,8 +8,6 @@ import type { PermissionRequestRepository } from "./permissionRequestRepository.
 export interface ProtectionStopDeps {
   guardRequests?: PermissionRequestRepository;
   adRequests?: AdProtectionRepository;
-  countBotAddApprovals: () => number;
-  stopBotAddAtomically: () => Promise<void>;
   disableProtection: () => Promise<void>;
 }
 
@@ -28,7 +26,7 @@ export function protectionStopActions(
   const usesAds = subcommand === "ad-protection" && Boolean(deps.adRequests);
 
   return {
-    needsAtomicStop: subcommand === "bot-add-protection" || usesGuard || usesAds,
+    needsAtomicStop: usesGuard || usesAds,
 
     countActiveApprovals: async () => {
       if (usesAds && deps.adRequests) {
@@ -36,7 +34,7 @@ export function protectionStopActions(
         return listed.filter(entry => entry.status === "pending" || entry.status === "approved").length;
       }
       if (usesGuard && deps.guardRequests) return deps.guardRequests.countActive(guildId);
-      return deps.countBotAddApprovals();
+      return 0;
     },
 
     stopAtomically: async () => {
@@ -45,12 +43,8 @@ export function protectionStopActions(
         await deps.disableProtection();
         return;
       }
-      if (usesGuard && deps.guardRequests) {
-        await deps.guardRequests.cancelTypes(guildId, MODERATION_GUARD_TYPES);
-        await deps.disableProtection();
-        return;
-      }
-      await deps.stopBotAddAtomically();
+      if (usesGuard && deps.guardRequests) await deps.guardRequests.cancelTypes(guildId, MODERATION_GUARD_TYPES);
+      await deps.disableProtection();
     }
   };
 }

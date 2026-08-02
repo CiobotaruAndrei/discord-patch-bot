@@ -3,7 +3,6 @@
 import type { SecurityMetricRecorder } from "../../shared/metricRecorderPorts.js";
 import { AuditLogEvent, UserFlags } from "discord.js";
 import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
-import botAddRepository from "../moderation/botAddRepository.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import { accountAgeLabel, isRecentAccount } from "./recentAccountPolicy.js";
 import { assessBotRisk, type BotRiskRoleLike } from "./botRiskPolicy.js";
@@ -15,6 +14,7 @@ import {
   type BotObservationModelLike
 } from "./botObservationRepository.js";
 import { deliverNewAccountAlert, type NewAccountAlertClaim } from "./newAccountAlertDedup.js";
+import type { PermissionRequestModelLike } from "./permissionRequestRepository.js";
 
 export type SecurityChannel = { id?: string; send?(payload: unknown): Promise<unknown> };
 export type SendableSecurityChannel = SecurityChannel & { send(payload: unknown): Promise<unknown> };
@@ -50,8 +50,10 @@ export type MessageEvent = {
   createdTimestamp?: number;
   delete?(): Promise<unknown>;
 };
-type GuildModel = Parameters<typeof botAddRepository.getBotAddState>[0] & BotObservationModelLike;
+type GuildModel = BotObservationModelLike;
 export type SecurityRuntimeDeps = {
+  PermissionRequestModel?: PermissionRequestModelLike;
+  isRaidConfirmed?: (guildId: string) => Promise<boolean>;
   getGuildSettings: (guildId: string) => Promise<GuildSettings | null>;
   client: SecurityClient;
   GuildModel: GuildModel;

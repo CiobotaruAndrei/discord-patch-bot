@@ -7,9 +7,6 @@ export type GuildSettingsLike = {
   newAccountAlertsEnabled?: boolean;
   threatAlertChannelId?: string | null;
   threatProtectionEnabled?: boolean;
-  botAddAlertChannelId?: string | null;
-  botAddProtectionEnabled?: boolean;
-  botAddPermissions?: unknown;
   permissionRequestChannelId?: string | null;
   moderationGuardEnabled?: boolean;
   antiRaidAlertChannelId?: string | null;
@@ -21,9 +18,9 @@ export type GuildSettingsLike = {
   lockedChannelPermissions?: Array<{ channelId: string; sendMessages: LockedChannelPermissionState }>;
 } | null;
 
-export type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "botAddAlertChannelId" | "permissionRequestChannelId"
+export type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "permissionRequestChannelId"
   | "antiRaidAlertChannelId"
   | "adAlertChannelId";
-export type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "botAddProtectionEnabled" | "moderationGuardEnabled"
+export type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "moderationGuardEnabled"
   | "antiRaidDryRunEnabled"
   | "adProtectionEnabled";

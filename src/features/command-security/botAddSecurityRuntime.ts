@@ -1,7 +1,7 @@
 "use strict";
 
 import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
-import botAddRepository from "../moderation/botAddRepository.js";
+import { createPermissionRequestRepository } from "./permissionRequestRepository.js";
 import { recordServerAuditEntry } from "../admin-records/auditLogRepository.js";
 import { accountAgeLabel, isRecentAccount } from "./recentAccountPolicy.js";
 import { assessBotRisk } from "./botRiskPolicy.js";
@@ -13,6 +13,9 @@ import { alertChannel, attachments, botRequesterWithRetry, memberRoles, ownerMen
 
 export function createBotAddSecurityRuntime(deps: SecurityRuntimeDeps) {
   const now = deps.now ?? Date.now;
+  const approvals = deps.PermissionRequestModel
+    ? createPermissionRequestRepository(deps.PermissionRequestModel)
+    : null;
   const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
 
   async function beginBotObservation(
@@ -51,16 +54,21 @@ export function createBotAddSecurityRuntime(deps: SecurityRuntimeDeps) {
   }
 
   async function handleBotAdd(member: GuildMemberEvent, settings: GuildSettings, botId: string): Promise<void> {
-    if (!settings.botAddProtectionEnabled || !settings.botAddAlertChannelId) return;
+    if (!settings.moderationGuardEnabled || !settings.permissionRequestChannelId || !approvals) return;
+    const guildId = String(member.guild?.id ?? "");
+    if (deps.isRaidConfirmed && await deps.isRaidConfirmed(guildId).catch(() => false)) return;
+
     const currentTime = now();
     const requesterId = await botRequesterWithRetry(member, botId, currentTime, wait);
     const ownerId = member.guild?.ownerId;
     const addedByOwner = Boolean(requesterId) && Boolean(ownerId) && requesterId === ownerId;
     const permission = !addedByOwner && requesterId
-      ? await botAddRepository.consumeBotAddPermission(deps.GuildModel, String(member.guild?.id), botId, requesterId, new Date(currentTime))
+      ? await approvals
+        .consume(guildId, "bot-add", requesterId, { target: botId, action: "add", botId }, new Date(currentTime))
+        .catch(() => null)
       : null;
     const approved = addedByOwner || Boolean(permission);
-    const channel = await alertChannel(deps, settings.botAddAlertChannelId);
+    const channel = await alertChannel(deps, settings.permissionRequestChannelId);
     const owner = ownerMention(ownerId);
     const tag = member.user?.tag ?? botId;
     const risk = assessBotRisk({
@@ -121,7 +129,7 @@ export function createBotAddSecurityRuntime(deps: SecurityRuntimeDeps) {
       await recordServerAuditEntry(deps.GuildAuditLogModel, String(member.guild?.id), {
         userId: requesterId ?? "",
         action: "bot-add-approved-used",
-        details: `botId=${botId}; requesterId=${requesterId}; requestId=${permission.requestId}`
+        details: `botId=${botId}; requesterId=${requesterId}; requestId=${permission._id}`
       });
     }
     if (approved) {

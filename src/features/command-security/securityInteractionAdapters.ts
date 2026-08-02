@@ -27,7 +27,7 @@ export function missingChannelPermissions(perms: { has(flag: bigint): boolean },
   return required.filter(entry => perms.has(entry.flag) !== true).map(entry => entry.label);
 }
 
-export function botAddProtectionReadiness(interaction: SecurityInteraction): string[] {
+export function botRemovalReadiness(interaction: SecurityInteraction): string[] {
   const me = interaction.guild?.members?.me;
   const missing: string[] = [];
   if (me?.permissions?.has(PermissionFlagsBits.ViewAuditLog) !== true) missing.push("View Audit Log");
