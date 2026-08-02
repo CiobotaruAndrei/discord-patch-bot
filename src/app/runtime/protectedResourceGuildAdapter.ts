@@ -3,7 +3,7 @@
 import type { ProtectedResourceGuild } from "../../features/command-security/protectedResourceRuntime.js";
 import type { ProtectedResourceSnapshot } from "../../features/command-security/protectedResourceTypes.js";
 import type { SanctionRole } from "../../features/command-security/elevatedRoleSanction.js";
-import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/elevatedPermissions.js";
+import { resolveSanctionActor } from "./sanctionActorAdapter.js";
 
 const AUDIT_WINDOW_MS = 60_000;
 const CATEGORY_CHANNEL_TYPE = 4;
@@ -29,7 +29,7 @@ export interface AdaptableGuild {
   };
   members?: {
     me?: { roles?: { highest?: { position?: unknown } } } | null;
-    fetch?: (id: string) => Promise<unknown>;
+    fetch?: (options: { user: string; force: boolean }) => Promise<unknown>;
   };
   fetchAuditLogs?: (options?: Record<string, unknown>) => Promise<{ entries?: Iterable<[unknown, unknown]> | { values?: () => Iterable<unknown> } } | null>;
 }
@@ -40,12 +40,6 @@ function numberOf(value: unknown): number | null {
 
 function textOf(value: unknown): string | null {
   return typeof value === "string" && value ? value : null;
-}
-
-function hasElevated(holder: unknown): boolean {
-  const permissions = (holder as { permissions?: { has?: (flag: unknown) => boolean } } | null)?.permissions;
-  if (!permissions?.has) return false;
-  return ELEVATED_PERMISSION_FLAGS.some(flag => permissions.has?.(flag) === true);
 }
 
 function auditEntries(payload: { entries?: Iterable<[unknown, unknown]> | { values?: () => Iterable<unknown> } } | null): AuditEntry[] {
@@ -118,29 +112,8 @@ export function adaptProtectedResourceGuild(guild: AdaptableGuild, now: () => nu
     botHighestRolePosition: numberOf(guild.members?.me?.roles?.highest?.position),
     findAuditActor,
     async resolveActor(actorId) {
-      const member = await guild.members?.fetch?.(actorId).catch(() => null);
-      if (!member) return null;
-      const holder = member as {
-        roles?: { cache?: { values?: () => Iterable<unknown> }; remove?: (ids: readonly string[], reason?: string) => Promise<unknown> };
-      };
-      const roles: SanctionRole[] = [];
-      for (const item of holder.roles?.cache?.values?.() ?? []) {
-        const entry = item as { id?: unknown; name?: unknown; position?: unknown; managed?: unknown };
-        const id = textOf(entry.id);
-        if (!id) continue;
-        roles.push({
-          id,
-          name: textOf(entry.name) ?? id,
-          position: numberOf(entry.position) ?? 0,
-          managed: entry.managed === true,
-          elevated: hasElevated(entry)
-        });
-      }
-      return {
-        id: actorId,
-        roles,
-        removeRoles: async (ids, reason) => holder.roles?.remove?.(ids, reason) ?? undefined
-      };
+      const actor = await resolveSanctionActor(guild, actorId);
+      return actor ? { id: actorId, ...actor } : null;
     },
     async restoreChannel(resourceId, snapshot) {
       const channel = guild.channels?.cache?.get?.(resourceId) as { edit?: (payload: Record<string, unknown>) => Promise<unknown> } | undefined;

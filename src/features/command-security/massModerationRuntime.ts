@@ -11,7 +11,7 @@ import type { LogLevel } from "../../shared/logging.js";
 
 export interface MassModerationActor {
   roles: readonly SanctionRole[];
-  removeRoles(roleIds: readonly string[], reason: string): Promise<void>;
+  removeRoles(roleIds: readonly string[], reason: string): Promise<unknown>;
 }
 
 export interface MassModerationGuild {

@@ -5,7 +5,7 @@ import { AUDIT_LOG_MATCH_WINDOW_MS, auditMatch, channelOverwriteMatch, matchWith
 import { recordServerAuditEntry } from "../admin-records/auditLogRepository.js";
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 import type { SensitiveActionObserver } from "./sensitiveActionObserver.js";
-import { createDelegationAuthorizer, reportRaidEscalation, reverts } from "./delegationAuthorization.js";
+import { createDelegationAuthorizer, describeSanctionOutcome, reportRaidEscalation, reverts, sanctionDelegationAuthor } from "./delegationAuthorization.js";
 
 export function createChannelDelegationRuntime(deps: PermissionDelegationRuntimeDeps, observer: SensitiveActionObserver) {
   const now = deps.now ?? Date.now;
@@ -51,16 +51,17 @@ export function createChannelDelegationRuntime(deps: PermissionDelegationRuntime
       await edit(overwrite.id, restore, { reason: "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile prin overwrite de canal" });
     }
     deps.metrics?.reverted(violations.length);
+    const sanction = await sanctionDelegationAuthor(deps, guild.id, actorId);
     await recordServerAuditEntry(deps.GuildAuditLogModel, guild.id, {
       userId: actorId ?? "",
       action: "protected-channel-overwrite-reverted",
       details: `channelId=${next.id}; targets=${violations.map(entry => `${entry.overwrite.id}:${entry.granted.map(item => item.option).join("+")}`).join(",")}`
     });
     const observation = await observeSensitiveAction(guild.id, actorId, match, "channel-overwrite", eventTime);
-    if (shouldSendIndividualAlert(observation)) await deps.adminAlert(
-      "security:permission-delegation",
+    if (shouldSendIndividualAlert(observation) || sanction.ownerInterventionRequired) await deps.adminAlert(
+      sanction.ownerInterventionRequired ? "security:owner-intervention-required" : "security:permission-delegation",
       "Overwrite de canal cu permisiuni sensibile restaurat",
-      `Canal ${next.name ?? next.id}; tinte ${violations.map(entry => entry.overwrite.id).join(", ")}; actor ${actorId ?? "nedetectat"}`,
+      `Canal ${next.name ?? next.id}; tinte ${violations.map(entry => entry.overwrite.id).join(", ")}; actor ${actorId ?? "nedetectat"}. ${describeSanctionOutcome(sanction)}`,
       guild.id
     );
   }

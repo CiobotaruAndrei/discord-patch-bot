@@ -25,7 +25,7 @@ const STRUCTURE_LABELS: Record<StructureChangeKind, string> = {
 
 export interface StructureGuardActor {
   roles: readonly SanctionRole[];
-  removeRoles(roleIds: readonly string[], reason: string): Promise<void>;
+  removeRoles(roleIds: readonly string[], reason: string): Promise<unknown>;
 }
 
 export interface StructureGuardGuild {

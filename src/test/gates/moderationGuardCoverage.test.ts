@@ -95,16 +95,18 @@ test("flag-ul sanctionsAuthor corespunde codului: enforcerul declarat chiar apel
   assert.ok(shared, "helperul comun de sanctionare a delegarii nu mai foloseste executorul verificat");
 
   for (const enforcer of MODERATION_GUARD_ENFORCERS) {
-    const module = loadModule("features", "command-security", `${enforcer.module}.ts`);
-    const applies = calls(module)
-      .some(call => call.callee === "executeElevatedRoleSanction" || call.callee === "sanctionDelegationAuthor");
+    for (const name of enforcer.modules) {
+      const module = loadModule("features", "command-security", `${name}.ts`);
+      const applies = calls(module)
+        .some(call => call.callee === "executeElevatedRoleSanction" || call.callee === "sanctionDelegationAuthor");
 
-    assert.equal(
-      applies,
-      enforcer.sanctionsAuthor,
-      enforcer.sanctionsAuthor
-        ? `${enforcer.module} se declara ca sanctioneaza autorul, dar nu apeleaza executorul verificat`
-        : `${enforcer.module} sanctioneaza autorul in cod, dar registrul spune ca nu o face`
-    );
+      assert.equal(
+        applies,
+        enforcer.sanctionsAuthor,
+        enforcer.sanctionsAuthor
+          ? `${name} face parte din enforcerul ${enforcer.type}, care se declara ca sanctioneaza autorul, dar nu apeleaza executorul verificat`
+          : `${name} sanctioneaza autorul in cod, dar registrul spune ca ${enforcer.type} nu o face`
+      );
+    }
   }
 });

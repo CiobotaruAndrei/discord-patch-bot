@@ -35,12 +35,12 @@ export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDep
     markProcessed(match);
     await next.setPermissions(currentBits & ~protectedMask(stillGranted), "Protectie anti-delegare: numai ownerul poate acorda permisiuni sensibile");
     deps.metrics?.reverted();
+    const sanction = await sanctionDelegationAuthor(deps, next.guild.id, actorId);
     await recordServerAuditEntry(deps.GuildAuditLogModel, next.guild.id, {
       userId: actorId ?? "",
       action: "protected-role-permissions-reverted",
       details: `roleId=${next.id}; roleName=${next.name ?? ""}; removed=${stillGranted.map(({ label }) => label).join("+")}`
     });
-    const sanction = await sanctionDelegationAuthor(deps, next.guild.id, actorId);
     const observation = await observeSensitiveAction(next.guild.id, actorId, match, "role-permissions", eventTime);
     if (shouldSendIndividualAlert(observation) || sanction.ownerInterventionRequired) await deps.adminAlert(
       sanction.ownerInterventionRequired ? "security:owner-intervention-required" : "security:permission-delegation",
@@ -71,12 +71,12 @@ export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDep
       await next.roles.remove(role.id, "Protectie anti-delegare: numai ownerul poate acorda roluri sensibile");
     }
     deps.metrics?.reverted(addedProtected.length);
+    const sanction = await sanctionDelegationAuthor(deps, next.guild.id, actorId);
     await recordServerAuditEntry(deps.GuildAuditLogModel, next.guild.id, {
       userId: actorId ?? "",
       action: "protected-member-roles-reverted",
       details: `memberId=${next.id}; roleIds=${addedProtected.map(role => role.id).join(",")}`
     });
-    const sanction = await sanctionDelegationAuthor(deps, next.guild.id, actorId);
     const observation = await observeSensitiveAction(next.guild.id, actorId, match, "member-sensitive-role", eventTime);
     if (shouldSendIndividualAlert(observation) || sanction.ownerInterventionRequired) await deps.adminAlert(
       sanction.ownerInterventionRequired ? "security:owner-intervention-required" : "security:permission-delegation",
@@ -119,12 +119,12 @@ export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDep
     markProcessed(match);
     await role.setPermissions(currentBits & ~protectedMask(stillGranted), "Protectie anti-delegare: numai ownerul poate crea roluri cu permisiuni sensibile");
     deps.metrics?.reverted();
+    const sanction = await sanctionDelegationAuthor(deps, role.guild.id, actorId);
     await recordServerAuditEntry(deps.GuildAuditLogModel, role.guild.id, {
       userId: actorId ?? "",
       action: "protected-role-create-reverted",
       details: `roleId=${role.id}; roleName=${role.name ?? ""}; removed=${stillGranted.map(({ label }) => label).join("+")}`
     });
-    const sanction = await sanctionDelegationAuthor(deps, role.guild.id, actorId);
     const observation = await observeSensitiveAction(role.guild.id, actorId, match, "role-create", eventTime);
     if (shouldSendIndividualAlert(observation) || sanction.ownerInterventionRequired) await deps.adminAlert(
       sanction.ownerInterventionRequired ? "security:owner-intervention-required" : "security:permission-delegation",

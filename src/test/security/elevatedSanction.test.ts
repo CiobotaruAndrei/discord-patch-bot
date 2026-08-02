@@ -6,6 +6,7 @@ import { ELEVATED_PERMISSIONS, elevatedOn } from "../../features/command-securit
 import { CHANNEL_PROTECTED_PERMISSIONS, PROTECTED_PERMISSIONS } from "../../features/command-security/permissionDelegationContext.js";
 import { describeSanctionOutcome, executeElevatedRoleSanction } from "../../features/command-security/elevatedRoleSanction.js";
 import { MODERATION_GUARD_ENFORCERS } from "../../features/command-security/moderationGuardEnforcers.js";
+import { resolveSanctionActor } from "../../app/runtime/sanctionActorAdapter.js";
 
 import type { SanctionActorLike, SanctionRole } from "../../features/command-security/elevatedRoleSanction.js";
 
@@ -116,4 +117,30 @@ test("permission-grant sanctioneaza autorul, ca celelalte subprotectii (F-16)", 
   const grant = MODERATION_GUARD_ENFORCERS.find(enforcer => enforcer.type === "permission-grant");
 
   assert.equal(grant?.sanctionsAuthor, true, "autorul compromis isi pastra capacitatea de a repeta acordarea");
+});
+
+test("verificarea sanctiunii citeste membrul proaspat, nu din cache (review PR #948)", async () => {
+  const fetches: Array<{ user: string; force: boolean }> = [];
+
+  await resolveSanctionActor({
+    members: {
+      fetch: async options => {
+        fetches.push(options);
+        return { roles: { cache: { values: () => [] }, remove: async () => undefined } };
+      }
+    }
+  }, "actor-1");
+
+  assert.deepEqual(fetches, [{ user: "actor-1", force: true }],
+    "fara force, a doua citire poate intoarce acelasi membru din cache si o sanctiune reusita ar aparea ca esuata");
+});
+
+test("calea de overwrite de canal sanctioneaza autorul, ca si cea de rol (review PR #948)", () => {
+  const grant = MODERATION_GUARD_ENFORCERS.find(enforcer => enforcer.type === "permission-grant");
+
+  assert.deepEqual(
+    [...(grant?.modules ?? [])].sort(),
+    ["channelDelegationRuntime", "roleDelegationRuntime"],
+    "un atacator care acorda permisiuni prin overwrite nu are voie sa scape de sanctiune"
+  );
 });

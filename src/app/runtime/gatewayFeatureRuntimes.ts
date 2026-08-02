@@ -8,7 +8,7 @@ import type { WebhookGuardRuntime } from "../../features/command-security/webhoo
 import { adaptWebhookGuardChannel } from "./webhookGuardChannelAdapter.js";
 import { createMassModerationRuntime } from "../../features/command-security/massModerationRuntime.js";
 import { adaptMassModerationGuild } from "./massModerationGuildAdapter.js";
-import { adaptDelegationSanctionContext, type SanctionableGuild } from "./delegationSanctionAdapter.js";
+import { adaptDelegationSanctionContext, type SanctionableGuild } from "./sanctionActorAdapter.js";
 import { createServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
 import type { ServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
 import type { AdaptableWebhookChannel } from "./webhookGuardChannelAdapter.js";
