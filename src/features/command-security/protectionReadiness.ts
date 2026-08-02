@@ -4,7 +4,7 @@ import { PermissionFlagsBits } from "discord.js";
 
 import type { SecurityInteraction } from "./securityInteractionContracts.js";
 
-export function antiRaidReadiness(interaction: SecurityInteraction): string[] {
+export function antiRaidReadiness(interaction: Pick<SecurityInteraction, "guild">): string[] {
   const me = interaction.guild?.members?.me;
   const missing: string[] = [];
   if (me?.permissions?.has(PermissionFlagsBits.ViewAuditLog) !== true) missing.push("View Audit Log");
@@ -36,7 +36,7 @@ export function protectionToggleGate(interaction: SecurityInteraction, subcomman
   };
 }
 
-export function botRemovalReadiness(interaction: SecurityInteraction): string[] {
+export function botRemovalReadiness(interaction: Pick<SecurityInteraction, "guild">): string[] {
   const me = interaction.guild?.members?.me;
   const missing: string[] = [];
   if (me?.permissions?.has(PermissionFlagsBits.ViewAuditLog) !== true) missing.push("View Audit Log");

@@ -2,13 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { buildSecurityStatus, renderSecurityStatus } from "../../features/command-security/securityStatusModel.js";
-import { mergeSecurityLog, pageCount, pageOf, redact, renderSecurityLog, SECURITY_LOG_PAGE_SIZE } from "../../features/command-security/securityLogModel.js";
-import { runSecurityOverview } from "../../features/command-handlers/securityOverviewHandler.js";
+import { mergeSecurityLog, pageCount, pageOf, redact, renderSecurityLog, SECURITY_LOG_MAX_LENGTH, SECURITY_LOG_PAGE_SIZE } from "../../features/command-security/securityLogModel.js";
+import { buildCommandHandler, composeSecurityOverviewDeps, runSecurityOverview } from "../../features/command-handlers/securityOverviewHandler.js";
 import { MODERATION_GUARD_TYPES } from "../../features/command-security/moderationGuardDecision.js";
 import { moduleContext } from "../moduleContextStub.js";
+import { adStore } from "./adStore.js";
+import { permissionRequestStore } from "./permissionRequestStore.js";
+import { protectedResourceStore } from "./protectedResourceStore.js";
+import { raidIncidentStore } from "./raidIncidentStore.js";
 import type { SecurityLogEntry } from "../../features/command-security/securityLogModel.js";
 import type { SecurityStatusInput } from "../../features/command-security/securityStatusModel.js";
 import type { GuildSettingsLike } from "../../features/command-security/securitySettingsContracts.js";
+import type { SecurityOverviewContext } from "../../features/command-handlers/securityOverviewHandler.js";
 
 const NOW = Date.parse("2026-08-02T16:00:00.000Z");
 
@@ -26,6 +31,32 @@ function statusInput(overrides: Partial<SecurityStatusInput> = {}): SecurityStat
 
 function entry(overrides: Partial<SecurityLogEntry> = {}): SecurityLogEntry {
   return { source: "audit", at: new Date(NOW), action: "test", actorId: "mod-1", summary: "ceva", ...overrides };
+}
+
+function overviewContext(overrides: Partial<SecurityOverviewContext> = {}): SecurityOverviewContext {
+  return moduleContext<SecurityOverviewContext>({
+    GuildAuditLogModel: {
+      create: async () => undefined,
+      find: () => ({
+        sort: () => ({
+          skip: () => ({
+            limit: () => ({ lean: async () => [] })
+          })
+        })
+      })
+    },
+    RaidIncidentModel: raidIncidentStore(),
+    PermissionRequestModel: permissionRequestStore(),
+    ProtectedResourceModel: protectedResourceStore(),
+    RaidSnapshotModel: {
+      findOne: () => ({ lean: async () => null }),
+      updateOne: async () => ({ matchedCount: 0, modifiedCount: 0 })
+    },
+    AdRequestModel: adStore(),
+    AdAttemptModel: adStore(),
+    getGuildSettings: async () => moduleContext<GuildSettingsLike>({}),
+    ...overrides
+  });
 }
 
 test("o protectie oprita este raportata ca oprita, nu ca degradata (F-43)", () => {
@@ -120,6 +151,99 @@ test("o pagina in afara intervalului e adusa inapoi la ultima, nu produce lista 
 
 test("fara incidente, mesajul o spune in loc sa arate o lista goala (F-42)", () => {
   assert.match(renderSecurityLog([], 1), /Nu exista incidente/);
+});
+
+test("pagina de securitate ramane in limita de 2.000 de caractere Discord", () => {
+  const entries = Array.from({ length: SECURITY_LOG_PAGE_SIZE }, (_unused, index) => entry({
+    action: `incident-${index}`,
+    summary: "detaliu ".repeat(500)
+  }));
+
+  assert.ok(renderSecurityLog(entries, 1).length <= SECURITY_LOG_MAX_LENGTH);
+});
+
+test("cronologia compusa include aprobarile si tentativele de reclama", async () => {
+  const future = new Date(NOW + 60_000);
+  const permissionRequests = permissionRequestStore([{
+    _id: "permission-1", guildId: "g1", type: "bot-add", requesterId: "user-1", reason: "bot nou",
+    status: "pending", target: "bot-1", action: "add", requestedAt: new Date(NOW), expiresAt: future
+  }]);
+  const adRequests = adStore([{
+    _id: "ad-1", guildId: "g1", requesterId: "user-2", adText: "mesaj", fingerprint: "fp",
+    link: null, invite: null, attachmentUrl: null, target: "canal", status: "pending", ownerId: null,
+    requestedAt: new Date(NOW), respondedAt: null, usedAt: null, expiresAt: future
+  }]);
+  const adAttempts = adStore([{
+    _id: "g1:user-3", guildId: "g1", userId: "user-3", strikes: 1, totalDeleted: 1, totalWarns: 0,
+    lastAttemptAt: new Date(NOW), lastChannelId: "channel-1",
+    history: [{ at: new Date(NOW), channelId: "channel-1", summary: "reclama blocata", warned: false }]
+  }]);
+  const deps = composeSecurityOverviewDeps(overviewContext({
+    PermissionRequestModel: permissionRequests,
+    AdRequestModel: adRequests,
+    AdAttemptModel: adAttempts
+  }));
+
+  const log = await deps.readLog("g1");
+  assert.ok(log.some(item => item.source === "approval" && item.action.includes("bot-add")));
+  assert.ok(log.some(item => item.source === "approval" && item.action.includes("reclama")));
+  assert.ok(log.some(item => item.source === "ad" && item.summary === "reclama blocata"));
+});
+
+test("statusul numara operatiunile de recovery care cer interventia ownerului", async () => {
+  const incidents = raidIncidentStore([{
+    _id: "raid-1", guildId: "g1", stage: "containment", startedAt: new Date(NOW),
+    triggerReason: "test", participants: [], lockedChannels: [], pendingActions: [], errors: []
+  }]);
+  const snapshots = moduleContext<SecurityOverviewContext["RaidSnapshotModel"]>({
+    findOne: () => ({ lean: async () => ({
+      _id: "raid-1", guildId: "g1", snapshot: {}, operations: [
+        { kind: "recreate-role", resourceId: "role-1", label: "rol", status: "owner-intervention-required", attempts: 1, detail: "ierarhie" },
+        { kind: "recreate-channel", resourceId: "channel-1", label: "canal", status: "done", attempts: 1, detail: null }
+      ]
+    }) }),
+    updateOne: async () => ({ matchedCount: 0, modifiedCount: 0 })
+  });
+  const deps = composeSecurityOverviewDeps(overviewContext({ RaidIncidentModel: incidents, RaidSnapshotModel: snapshots }));
+
+  const status = await deps.readStatus("g1");
+  assert.equal(status.ownerInterventionOperations, 1);
+  assert.equal(status.raidStage, "containment");
+});
+
+test("statusul foloseste permisiunile Discord live pentru a marca protectia degradata", async () => {
+  const deps = composeSecurityOverviewDeps(overviewContext({
+    getGuildSettings: async () => moduleContext<GuildSettingsLike>({ antiRaidEnabled: true, antiRaidAlertChannelId: "channel-1" })
+  }));
+  const guild = moduleContext<NonNullable<Parameters<typeof deps.readStatus>[1]>>({
+    id: "g1",
+    members: { me: { permissions: { has: () => false }, roles: { highest: { position: 0 } } } },
+    channels: {
+      fetch: async () => ({ permissionsFor: () => ({ has: () => true }) })
+    }
+  });
+
+  const status = await deps.readStatus("g1", guild);
+  assert.ok(status.readinessGaps["anti-raid"]?.includes("Ban Members"));
+  assert.ok(status.readinessGaps["anti-raid"]?.some(gap => gap.includes("@everyone")));
+});
+
+test("o eroare de citire Mongo este raportata ca indisponibilitate", async () => {
+  const replies: Array<{ content: string; ephemeral: boolean }> = [];
+  const handler = buildCommandHandler(overviewContext({
+    getGuildSettings: async () => { throw new Error("mongo indisponibil"); }
+  }));
+  await handler.handle(moduleContext({
+    commandName: "security-status",
+    guild: { id: "g1" },
+    options: {},
+    isChatInputCommand: () => true,
+    reply: async (payload: { content: string; ephemeral: boolean }) => { replies.push(payload); }
+  }));
+
+  assert.equal(replies.length, 1);
+  assert.match(replies[0]?.content ?? "", /nu poate fi citita acum/);
+  assert.equal(replies[0]?.ephemeral, true);
 });
 
 test("/security-log filtreaza dupa sursa (F-42)", async () => {

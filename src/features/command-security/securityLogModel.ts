@@ -11,6 +11,8 @@ export interface SecurityLogEntry {
 }
 
 export const SECURITY_LOG_PAGE_SIZE = 10;
+export const SECURITY_LOG_MAX_LENGTH = 2000;
+const SECURITY_LOG_ROW_MAX_LENGTH = 185;
 
 const ID_PATTERN = /\b\d{17,20}\b/g;
 const TOKEN_PATTERN = /\b[A-Za-z0-9_-]{24,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b/g;
@@ -53,5 +55,10 @@ export function renderSecurityLog(entries: readonly SecurityLogEntry[], page: nu
     return `\`${entry.at.toISOString()}\` **${SOURCE_LABELS[entry.source]}** ${entry.action} — ${actor}: ${redact(entry.summary)}`;
   });
 
-  return [`Incidente de securitate (pagina ${current}/${total}, cele mai recente primele):`, ...rows].join("\n");
+  const limitedRows = rows.map(row => row.length <= SECURITY_LOG_ROW_MAX_LENGTH
+    ? row
+    : `${row.slice(0, SECURITY_LOG_ROW_MAX_LENGTH - 3)}...`);
+  return [`Incidente de securitate (pagina ${current}/${total}, cele mai recente primele):`, ...limitedRows]
+    .join("\n")
+    .slice(0, SECURITY_LOG_MAX_LENGTH);
 }

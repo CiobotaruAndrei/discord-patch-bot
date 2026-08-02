@@ -1,7 +1,12 @@
 "use strict";
 
+import { PermissionFlagsBits } from "discord.js";
 import { buildSecurityStatus, renderSecurityStatus } from "../command-security/securityStatusModel.js";
 import { mergeSecurityLog, renderSecurityLog } from "../command-security/securityLogModel.js";
+import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
+import { createRaidSnapshotRepository } from "../command-security/raidSnapshotRepository.js";
+import { antiRaidReadiness, botRemovalReadiness } from "../command-security/protectionReadiness.js";
+import { START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
 
 import type { SecurityLogEntry, SecurityLogSource } from "../command-security/securityLogModel.js";
 import type { SecurityStatusInput } from "../command-security/securityStatusModel.js";
@@ -14,11 +19,16 @@ import type { GuildAuditLogModelLike } from "../admin-records/auditLogRepository
 import type { RaidIncidentModelLike } from "../command-security/antiRaidIncidentRepository.js";
 import type { PermissionRequestModelLike } from "../command-security/permissionRequestRepository.js";
 import type { ProtectedResourceModelLike } from "../command-security/protectedResourceRepository.js";
+import type { AdAttemptModelLike, AdRequestModelLike } from "../command-security/adProtectionRepository.js";
+import type { RaidSnapshotModelLike } from "../command-security/raidSnapshotRepository.js";
 import type { GuildSettingsLike } from "../command-security/securitySettingsContracts.js";
+import type { SecurityInteraction } from "../command-security/securityInteractionContracts.js";
+
+type SecurityOverviewGuild = NonNullable<SecurityInteraction["guild"]>;
 
 export interface SecurityOverviewDeps {
   readLog: (guildId: string) => Promise<SecurityLogEntry[]>;
-  readStatus: (guildId: string) => Promise<SecurityStatusInput>;
+  readStatus: (guildId: string, guild?: SecurityOverviewGuild) => Promise<SecurityStatusInput>;
 }
 
 export interface SecurityOverviewRequest {
@@ -26,6 +36,7 @@ export interface SecurityOverviewRequest {
   command: "security-log" | "security-status";
   source: SecurityLogSource | null;
   page: number;
+  guild?: SecurityOverviewGuild;
 }
 
 export async function runSecurityOverview(
@@ -33,7 +44,7 @@ export async function runSecurityOverview(
   deps: SecurityOverviewDeps
 ): Promise<string> {
   if (request.command === "security-status") {
-    const input = await deps.readStatus(request.guildId);
+    const input = await deps.readStatus(request.guildId, request.guild);
     return renderSecurityStatus(buildSecurityStatus(input));
   }
 
@@ -44,7 +55,7 @@ export async function runSecurityOverview(
 
 interface OverviewInteraction {
   commandName?: string;
-  guild?: { id?: string } | null;
+  guild?: SecurityOverviewGuild | null;
   options?: {
     getString?: (name: string, required?: boolean) => string | null;
     getInteger?: (name: string, required?: boolean) => number | null;
@@ -68,7 +79,7 @@ export function readOverviewRequest(interaction: OverviewInteraction): SecurityO
   const source = rawSource === "audit" || rawSource === "raid" || rawSource === "ad" || rawSource === "approval"
     ? rawSource
     : null;
-  return { guildId, command, source, page: interaction.options?.getInteger?.("pagina", false) ?? 1 };
+  return { guildId, command, source, page: interaction.options?.getInteger?.("pagina", false) ?? 1, guild: interaction.guild ?? undefined };
 }
 
 export interface SecurityOverviewContext {
@@ -76,19 +87,66 @@ export interface SecurityOverviewContext {
   RaidIncidentModel: RaidIncidentModelLike;
   PermissionRequestModel: PermissionRequestModelLike;
   ProtectedResourceModel: ProtectedResourceModelLike;
+  RaidSnapshotModel: RaidSnapshotModelLike;
+  AdRequestModel: AdRequestModelLike;
+  AdAttemptModel: AdAttemptModelLike;
   getGuildSettings: (guildId: string) => Promise<GuildSettingsLike | null>;
+}
+
+const ALERT_CHANNEL_PERMISSIONS = [
+  { flag: PermissionFlagsBits.ViewChannel, label: "View Channel" },
+  { flag: PermissionFlagsBits.SendMessages, label: "Send Messages" },
+  { flag: PermissionFlagsBits.EmbedLinks, label: "Embed Links" }
+] as const;
+
+function missingGuildPermission(guild: SecurityOverviewGuild, flag: bigint, label: string): string[] {
+  return guild.members?.me?.permissions?.has(flag) === true ? [] : [label];
+}
+
+async function liveReadinessGaps(
+  settings: GuildSettingsLike | null,
+  guild?: SecurityOverviewGuild
+): Promise<Record<string, readonly string[]>> {
+  if (!settings || !guild) return {};
+  const result: Record<string, readonly string[]> = {};
+  for (const [key, fields] of Object.entries(START_STOP_TOGGLE_FIELDS)) {
+    if (settings[fields.enabled] !== true) continue;
+    const missing: string[] = [];
+    const channelId = settings[fields.channel];
+    if (typeof channelId === "string" && channelId) {
+      const channel = await guild.channels?.fetch(channelId).catch(() => null);
+      const permissions = channel && guild.members?.me && channel.permissionsFor
+        ? channel.permissionsFor(guild.members.me)
+        : null;
+      if (!channel) missing.push("canalul configurat nu mai este accesibil");
+      else if (!permissions) missing.push(...ALERT_CHANNEL_PERMISSIONS.map(entry => entry.label));
+      else missing.push(...ALERT_CHANNEL_PERMISSIONS.filter(entry => permissions.has(entry.flag) !== true).map(entry => entry.label));
+    }
+    if (key === "anti-raid" || key === "anti-raid-dry-run") missing.push(...antiRaidReadiness({ guild }));
+    if (key === "moderation-guard") missing.push(...botRemovalReadiness({ guild }));
+    if (key === "threat-protection" || key === "ad-protection") {
+      missing.push(...missingGuildPermission(guild, PermissionFlagsBits.ManageMessages, "Manage Messages"));
+    }
+    result[key] = [...new Set(missing)];
+  }
+  return result;
 }
 
 export function composeSecurityOverviewDeps(target: SecurityOverviewContext): SecurityOverviewDeps {
   const incidents = createRaidIncidentRepository(target.RaidIncidentModel);
   const approvals = createPermissionRequestRepository(target.PermissionRequestModel);
   const resources = createProtectedResourceRepository(target.ProtectedResourceModel);
+  const snapshots = createRaidSnapshotRepository(target.RaidSnapshotModel);
+  const ads = createAdProtectionRepository(target.AdRequestModel, target.AdAttemptModel);
 
   return {
     readLog: async guildId => {
-      const [audit, history] = await Promise.all([
-        listServerAuditEntries(target.GuildAuditLogModel, guildId, 200).catch(() => []),
-        incidents.history(guildId).catch(() => [])
+      const [audit, history, permissionRequests, adRequests, adAttempts] = await Promise.all([
+        listServerAuditEntries(target.GuildAuditLogModel, guildId, 200),
+        incidents.history(guildId, 200),
+        approvals.list(guildId, {}, 200),
+        ads.listRequests(guildId, 200),
+        ads.listAttempts(guildId, 200)
       ]);
       const auditEntries: SecurityLogEntry[] = audit.map(item => ({
         source: "audit" as const,
@@ -104,24 +162,46 @@ export function composeSecurityOverviewDeps(target: SecurityOverviewContext): Se
         actorId: null,
         summary: `${item.triggerReason}; participanti: ${item.participants.length}`
       }));
-      return [...auditEntries, ...raidEntries];
+      const approvalEntries: SecurityLogEntry[] = [
+        ...permissionRequests.map(item => ({
+          source: "approval" as const,
+          at: item.respondedAt ?? item.requestedAt,
+          action: `${item.type} ${item.status}`,
+          actorId: item.ownerId ?? item.requesterId,
+          summary: item.reason
+        })),
+        ...adRequests.map(item => ({
+          source: "approval" as const,
+          at: item.respondedAt ?? item.requestedAt,
+          action: `reclama ${item.status}`,
+          actorId: item.ownerId ?? item.requesterId,
+          summary: item.target ?? item.adText
+        }))
+      ];
+      const adEntries: SecurityLogEntry[] = adAttempts.flatMap(item => item.history.map(event => ({
+        source: "ad" as const,
+        at: event.at,
+        action: event.warned ? "reclama stearsa si warn emis" : "reclama stearsa",
+        actorId: item.userId,
+        summary: event.summary
+      })));
+      return [...auditEntries, ...raidEntries, ...approvalEntries, ...adEntries];
     },
 
-    readStatus: async guildId => {
+    readStatus: async (guildId, guild) => {
       const [settings, activeApprovals, protectedList, incident] = await Promise.all([
-        target.getGuildSettings(guildId).catch(() => null),
-        approvals.countActive(guildId).catch(() => 0),
-        resources.list(guildId).catch(() => []),
-        incidents.active(guildId).catch(() => null)
+        target.getGuildSettings(guildId),
+        approvals.countActive(guildId),
+        resources.list(guildId),
+        incidents.active(guildId)
       ]);
+      const snapshot = incident ? await snapshots.read(incident._id) : null;
       return {
         settings,
-        readinessGaps: Object.fromEntries(
-          protectedList.filter(item => item.degraded).map(item => [item.resourceId, item.degradedReasons])
-        ),
+        readinessGaps: await liveReadinessGaps(settings, guild),
         activeApprovals,
         degradedResources: protectedList.filter(item => item.degraded).length,
-        ownerInterventionOperations: 0,
+        ownerInterventionOperations: snapshot?.operations.filter(operation => operation.status === "owner-intervention-required").length ?? 0,
         raidStage: incident?.stage ?? null
       };
     }
@@ -136,17 +216,33 @@ export function buildCommandHandler(context: SecurityOverviewContext) {
     handle: async (interaction: OverviewInteraction): Promise<unknown> => {
       const request = readOverviewRequest(interaction);
       if (!request) return interaction.reply({ content: "Comanda este disponibila doar pe server.", ephemeral: true });
-      const content = await runSecurityOverview(request, target);
-      return interaction.reply({ content, ephemeral: true });
+      try {
+        const content = await runSecurityOverview(request, target);
+        return interaction.reply({ content, ephemeral: true });
+      } catch {
+        return interaction.reply({
+          content: "Starea de securitate nu poate fi citita acum. Verifica MongoDB si incearca din nou.",
+          ephemeral: true
+        });
+      }
     }
   };
 }
 
 export default { buildCommandHandler };
 
-export const SECURITY_OVERVIEW_HANDLER_KEYS = ["GuildAuditLogModel", "RaidIncidentModel", "PermissionRequestModel", "ProtectedResourceModel", "getGuildSettings"] as const;
+export const SECURITY_OVERVIEW_HANDLER_KEYS = [
+  "GuildAuditLogModel",
+  "RaidIncidentModel",
+  "PermissionRequestModel",
+  "ProtectedResourceModel",
+  "RaidSnapshotModel",
+  "AdRequestModel",
+  "AdAttemptModel",
+  "getGuildSettings"
+] as const;
 
 type OverviewKeyCheckDeps = Parameters<typeof buildCommandHandler>[0];
 type OverviewMissing = MissingDependencyKeys<OverviewKeyCheckDeps, (typeof SECURITY_OVERVIEW_HANDLER_KEYS)[number] & string>;
 type OverviewExtra = ExtraDependencyKeys<OverviewKeyCheckDeps, (typeof SECURITY_OVERVIEW_HANDLER_KEYS)[number] & string>;
-const overviewKeysComplete: ExactDependencyKeys<OverviewMissing, OverviewExtra> = true;
+export const overviewKeysComplete: ExactDependencyKeys<OverviewMissing, OverviewExtra> = true;
