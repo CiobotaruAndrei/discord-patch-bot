@@ -198,6 +198,25 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   }, { minimize: false, _id: false });
   webhookSnapshotSchema.index({ guildId: 1, capturedAt: -1 });
 
+  const massModerationWindowSchema = new mongoose.Schema({
+    _id: String,
+    guildId: { type: String, required: true },
+    actorId: { type: String, required: true },
+    events: {
+      type: [new mongoose.Schema({
+        auditId: { type: String, default: "" },
+        targetId: { type: String, required: true },
+        action: { type: String, required: true, enum: ["kick", "ban"] },
+        at: { type: Date, required: true }
+      }, { _id: false })],
+      default: []
+    },
+    sanctionedAt: { type: Date, default: null },
+    updatedAt: { type: Date, required: true }
+  }, { minimize: false, _id: false });
+  massModerationWindowSchema.index({ guildId: 1, actorId: 1 });
+  massModerationWindowSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 });
+
   const raidIncidentSchema = new mongoose.Schema({
     _id: String,
     guildId: { type: String, required: true },
@@ -336,6 +355,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     permissionRequestSchema,
     protectedResourceSchema,
     webhookSnapshotSchema,
+    massModerationWindowSchema,
     raidIncidentSchema,
     adRequestSchema,
     adAttemptSchema,

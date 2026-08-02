@@ -209,6 +209,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     permissionRequestSchema,
     protectedResourceSchema,
     webhookSnapshotSchema,
+    massModerationWindowSchema,
     raidIncidentSchema,
     adRequestSchema,
     adAttemptSchema,
@@ -233,6 +234,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
   const PermissionRequestModel = mongoose.model("PermissionRequest", permissionRequestSchema, "guildPermissionRequests");
   const ProtectedResourceModel = mongoose.model("ProtectedResource", protectedResourceSchema, "guildProtectedResources");
   const WebhookSnapshotModel = mongoose.model("WebhookSnapshot", webhookSnapshotSchema, "guildWebhookSnapshots");
+  const MassModerationModel = mongoose.model("MassModerationWindow", massModerationWindowSchema, "guildMassModerationWindows");
   const RaidIncidentModel = mongoose.model("RaidIncident", raidIncidentSchema, "guildRaidIncidents");
   const AdRequestModel = mongoose.model("AdRequest", adRequestSchema, "guildAdRequests");
   const AdAttemptModel = mongoose.model("AdAttempt", adAttemptSchema, "guildAdAttempts");
@@ -304,6 +306,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     PermissionRequestModel,
     ProtectedResourceModel,
     WebhookSnapshotModel,
+    MassModerationModel,
     RaidIncidentModel,
     AdRequestModel,
     AdAttemptModel,

@@ -47,6 +47,7 @@ export interface ServerEventLogDeps {
   auditRetryDelaysMs?: readonly number[];
   memberRemoveDelayMs?: number;
   observeBotAction?: (guildId: string, actorId: string, auditEntryId: string, kind: string, at: Date) => Promise<unknown>;
+  observeMassModeration?: (input: { guild: AuditGuild; actorId: string; auditId: string; targetId: string; action: "kick" | "ban" }) => Promise<unknown>;
 }
 
 function labelResource(resource: NamedResource): string {
@@ -173,6 +174,18 @@ export function createServerEventLogRuntime(deps: ServerEventLogDeps) {
     await record(id, action, actorId, affectedId, `actor=${labelUser(audit?.executor)}; tinta=${labelUser(source.user)}`, audit?.id);
   }
 
+  async function reportMassModeration(
+    member: GuildRef,
+    actorId: string,
+    auditId: string,
+    affectedId: string,
+    action: "kick" | "ban"
+  ): Promise<void> {
+    const guild = member?.guild;
+    if (!deps.observeMassModeration || !guild || !actorId) return;
+    await deps.observeMassModeration({ guild, actorId, auditId, targetId: affectedId, action }).catch(() => undefined);
+  }
+
   async function handleGuildMemberRemove(member: { user?: EventUser } & GuildRef): Promise<void> {
     const id = guildId(member);
     const affectedId = targetId(member);
@@ -185,6 +198,7 @@ export function createServerEventLogRuntime(deps: ServerEventLogDeps) {
       const actorId = String(banAudit.executor?.id ?? "");
       rememberModeration(id, affectedId, { action: "server-ban-added", actorId, auditId: String(banAudit.id ?? ""), at: now() });
       await record(id, "server-ban-added", actorId, affectedId, `actor=${labelUser(banAudit.executor)}; tinta=${labelUser(member.user)}`, banAudit.id);
+      await reportMassModeration(member, actorId, String(banAudit.id ?? ""), affectedId, "ban");
       return;
     }
     const kickAudit = await findAuditEntry(member, AuditLogEvent.MemberKick, affectedId);
@@ -192,6 +206,7 @@ export function createServerEventLogRuntime(deps: ServerEventLogDeps) {
       const actorId = String(kickAudit.executor?.id ?? "");
       rememberModeration(id, affectedId, { action: "server-member-kicked", actorId, auditId: String(kickAudit.id ?? ""), at: now() });
       await record(id, "server-member-kicked", actorId, affectedId, `actor=${labelUser(kickAudit.executor)}; tinta=${labelUser(member.user)}`, kickAudit.id);
+      await reportMassModeration(member, actorId, String(kickAudit.id ?? ""), affectedId, "kick");
       return;
     }
     await record(id, "server-member-left", "", affectedId, `actor=necunoscut; tinta=${labelUser(member.user)}`);
