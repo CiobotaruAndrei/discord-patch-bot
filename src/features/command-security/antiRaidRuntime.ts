@@ -13,7 +13,7 @@ import type { MessageObservation, RaidDetector } from "./antiRaidDetection.js";
 
 export interface AntiRaidRuntimeDeps {
   RaidIncidentModel: RaidIncidentModelLike;
-  readGuildSettings: (guildId: string) => Promise<{ antiRaidThresholds?: Record<string, unknown> | null; antiRaidAlertChannelId?: string | null; antiRaidDryRunEnabled?: boolean } | null>;
+  readGuildSettings: (guildId: string) => Promise<{ antiRaidThresholds?: Record<string, unknown> | null; antiRaidAlertChannelId?: string | null; antiRaidEnabled?: boolean; antiRaidDryRunEnabled?: boolean } | null>;
   listActiveGuildIds?: () => Promise<string[]>;
   findStructureActor?: (guildId: string, resourceId: string) => Promise<{ id: string; bot: boolean } | null>;
   resolveGuild: (guildId: string) => Promise<RaidGuildPort | null>;
@@ -48,6 +48,11 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
   async function dryRunFor(guildId: string): Promise<boolean> {
     const settings = await deps.readGuildSettings(guildId).catch(() => null);
     return settings?.antiRaidDryRunEnabled === true;
+  }
+
+  async function moduleActive(guildId: string): Promise<boolean> {
+    const settings = await deps.readGuildSettings(guildId).catch(() => null);
+    return settings?.antiRaidEnabled === true || settings?.antiRaidDryRunEnabled === true;
   }
 
   function pruneDetectors(): void {
@@ -108,6 +113,7 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
 
   async function observeMessage(guildId: string, observation: MessageObservation): Promise<ObserveOutcome> {
     if (!observation.actorId) return { kind: "ignored" };
+    if (!await moduleActive(guildId)) return { kind: "ignored" };
 
     rememberActor(guildId, observation.actorId, observation.bot);
     const detector = await detectorFor(guildId);
@@ -141,6 +147,7 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     resourceId: string,
     actor?: { id: string; bot: boolean } | null
   ): Promise<ObserveOutcome> {
+    if (!await moduleActive(guildId)) return { kind: "ignored" };
     const resolved = actor ?? (deps.findStructureActor
       ? await deps.findStructureActor(guildId, resourceId).catch(() => null)
       : null);
@@ -171,6 +178,7 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
   }
 
   async function observeBotJoin(guildId: string, botId: string): Promise<ObserveOutcome> {
+    if (!await moduleActive(guildId)) return { kind: "ignored" };
     const active = await incidents.active(guildId).catch(() => null);
     if (!active || !raidConfirmed(active.stage)) return { kind: "quiet" };
 

@@ -17,6 +17,7 @@ export type SecurityOptions = {
   getInteger(name: string, required?: boolean): number | null;
   getString(name: string, required?: boolean): string | null;
   getChannel(name: string, required?: boolean): SecurityChannel | null;
+  getBoolean?(name: string, required?: boolean): boolean | null;
   getAttachment?(name: string, required?: boolean): DirectAttachment | null;
 };
 
@@ -44,6 +45,7 @@ export type SecurityInteraction = {
   commandName?: string;
   guild?: {
     id?: string;
+    ownerId?: string;
     roles?: { everyone?: { id: string } };
     members?: { me?: (object & BotGuildMember) | null; fetch(): Promise<SecurityMemberCollection> };
     channels?: {

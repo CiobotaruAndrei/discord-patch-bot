@@ -158,6 +158,7 @@ function buildMongoModelsFrom(context: MongoModelsContext) {
     permissionRequestChannelId: { type: String, default: null },
     antiRaidAlertChannelId: { type: String, default: null },
     antiRaidThresholds: { type: Object, default: null },
+    antiRaidEnabled: { type: Boolean, default: false },
     antiRaidDryRunEnabled: { type: Boolean, default: false },
     adAlertChannelId: { type: String, default: null },
     adProtectionEnabled: { type: Boolean, default: false },

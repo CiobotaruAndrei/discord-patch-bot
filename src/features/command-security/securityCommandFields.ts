@@ -15,6 +15,13 @@ export const START_STOP_TOGGLE_FIELDS: Record<string, { channel: ProtectionChann
   "new-account-alerts": { channel: "newAccountAlertChannelId", enabled: "newAccountAlertsEnabled" },
   "threat-protection": { channel: "threatAlertChannelId", enabled: "threatProtectionEnabled" },
   "moderation-guard": { channel: "permissionRequestChannelId", enabled: "moderationGuardEnabled" },
+  "anti-raid": { channel: "antiRaidAlertChannelId", enabled: "antiRaidEnabled" },
   "anti-raid-dry-run": { channel: "antiRaidAlertChannelId", enabled: "antiRaidDryRunEnabled" },
   "ad-protection": { channel: "adAlertChannelId", enabled: "adProtectionEnabled" }
 };
+
+export const SECURITY_THRESHOLD_SUBCOMMANDS: readonly string[] = ["anti-raid-thresholds"];
+
+export function isSecuritySetSubcommand(subcommand: string): boolean {
+  return Object.hasOwn(SET_CHANNEL_FIELDS, subcommand) || SECURITY_THRESHOLD_SUBCOMMANDS.includes(subcommand);
+}

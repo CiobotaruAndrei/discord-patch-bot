@@ -10,7 +10,9 @@ export type GuildSettingsLike = {
   permissionRequestChannelId?: string | null;
   moderationGuardEnabled?: boolean;
   antiRaidAlertChannelId?: string | null;
+  antiRaidEnabled?: boolean;
   antiRaidDryRunEnabled?: boolean;
+  antiRaidThresholds?: Record<string, unknown> | null;
   adAlertChannelId?: string | null;
   adProtectionEnabled?: boolean;
   purgeAmount?: number;
@@ -21,6 +23,6 @@ export type GuildSettingsLike = {
 export type ProtectionChannelField = "newAccountAlertChannelId" | "threatAlertChannelId" | "permissionRequestChannelId"
   | "antiRaidAlertChannelId"
   | "adAlertChannelId";
-export type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "moderationGuardEnabled"
+export type ProtectionEnabledField = "newAccountAlertsEnabled" | "threatProtectionEnabled" | "moderationGuardEnabled" | "antiRaidEnabled"
   | "antiRaidDryRunEnabled"
   | "adProtectionEnabled";

@@ -11,6 +11,7 @@ const T0 = Date.parse("2026-08-01T12:00:00.000Z");
 
 function harness(options: {
   thresholds?: Record<string, unknown> | null;
+  enabled?: boolean;
   resolvable?: boolean;
   dryRun?: boolean;
   structureActor?: { id: string; bot: boolean } | null;
@@ -34,7 +35,7 @@ function harness(options: {
 
   const runtime = createAntiRaidRuntime({
     RaidIncidentModel: model,
-    readGuildSettings: async () => ({ antiRaidThresholds: options.thresholds ?? null, antiRaidDryRunEnabled: options.dryRun === true }),
+    readGuildSettings: async () => ({ antiRaidThresholds: options.thresholds ?? null, antiRaidEnabled: options.enabled !== false, antiRaidDryRunEnabled: options.dryRun === true }),
     findStructureActor: async () => options.structureActor ?? null,
     resolveGuild: async () => (options.resolvable === false ? null : guild),
     now: () => clock
@@ -239,4 +240,39 @@ test("modificarile de structura folosesc autorul din Audit Log cand nu e dat exp
 
   assert.equal(outcome.kind, "opened");
   assert.deepEqual(setup.sanctions, [{ userId: "mod-audit", step: "mute" }]);
+});
+
+test("fara activare explicita, detectorul nu acumuleaza nimic (audit, F-24)", async () => {
+  const setup = harness({ enabled: false });
+
+  for (let index = 0; index < 5; index += 1) {
+    const outcome = await setup.runtime.observeMessage("g1", {
+      actorId: "spammer",
+      bot: false,
+      channelId: "chan-1",
+      content: "acelasi mesaj",
+      mentionCount: 0,
+      attachmentCount: 0,
+      at: T0 + index * 1000
+    });
+    assert.deepEqual(outcome, { kind: "ignored" });
+  }
+
+  assert.equal(await setup.incidents.active("g1"), null, "niciun incident nu se deschide cat timp anti-raid nu e pornit");
+});
+
+test("modul de testare dry-run tine detectorul activ chiar fara /start anti-raid", async () => {
+  const setup = harness({ enabled: false, dryRun: true });
+
+  const outcome = await setup.runtime.observeMessage("g1", {
+    actorId: "spammer",
+    bot: false,
+    channelId: "chan-1",
+    content: "acelasi mesaj",
+    mentionCount: 0,
+    attachmentCount: 0,
+    at: T0
+  });
+
+  assert.notDeepEqual(outcome, { kind: "ignored" });
 });

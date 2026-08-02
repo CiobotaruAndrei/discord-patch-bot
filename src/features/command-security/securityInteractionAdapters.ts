@@ -3,7 +3,7 @@
 import { PermissionFlagsBits } from "discord.js";
 
 import { readLockedChannelPermissionState } from "./channelLockRecoveryRuntime.js";
-import { SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "./securityCommandFields.js";
+import { isSecuritySetSubcommand, SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "./securityCommandFields.js";
 
 import type { LockedChannelPermissionState } from "../guild-config/guildConfigRepository.js";
 import { accountAgeLabel, isRecentAccount } from "./recentAccountPolicy.js";
@@ -27,19 +27,10 @@ export function missingChannelPermissions(perms: { has(flag: bigint): boolean },
   return required.filter(entry => perms.has(entry.flag) !== true).map(entry => entry.label);
 }
 
-export function botRemovalReadiness(interaction: SecurityInteraction): string[] {
-  const me = interaction.guild?.members?.me;
-  const missing: string[] = [];
-  if (me?.permissions?.has(PermissionFlagsBits.ViewAuditLog) !== true) missing.push("View Audit Log");
-  if (me?.permissions?.has(PermissionFlagsBits.KickMembers) !== true) missing.push("Kick Members");
-  if ((me?.roles?.highest?.position ?? 0) <= 0) missing.push("rol pozitionat deasupra rolului @everyone (necesar pentru a elimina boti)");
-  return missing;
-}
-
 export function isSecurityInteraction(interaction: SecurityInteraction): boolean {
   if (interaction?.isChatInputCommand?.() !== true || !interaction.guild) return false;
   if (interaction.commandName === "lock-channel" || interaction.commandName === "unlock-channel" || interaction.commandName === "purge" || interaction.commandName === "purge-amount") return true;
-  if (interaction.commandName === "set") return SET_CHANNEL_FIELDS[interaction.options.getSubcommand()] !== undefined;
+  if (interaction.commandName === "set") return isSecuritySetSubcommand(interaction.options.getSubcommand());
   if (interaction.commandName === "start" || interaction.commandName === "stop") {
     return START_STOP_TOGGLE_FIELDS[interaction.options.getSubcommand()] !== undefined;
   }

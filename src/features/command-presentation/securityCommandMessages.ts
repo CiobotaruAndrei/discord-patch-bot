@@ -23,6 +23,12 @@ export function renderToggleProtectionOutcome(outcome: ToggleProtectionOutcome):
   if (outcome.kind === "not-ready") {
     return `Eroare: protectia nu poate porni - lipsesc: ${outcome.missing.join(", ")}. Acorda-le botului si reincearca.`;
   }
+  if (outcome.kind === "owner-only") {
+    return `Eroare: doar proprietarul serverului poate opri **${outcome.subcommand}**.`;
+  }
+  if (outcome.kind === "confirmation-required") {
+    return `Eroare: oprirea protectiei **${outcome.subcommand}** cere \`confirm:true\`. Serverul ramane neprotejat dupa oprire, iar un incident in curs nu se mai finalizeaza automat.`;
+  }
   if (outcome.kind === "atomic-stop-failed") {
     return `Eroare: protectia **${outcome.subcommand}** NU a fost oprita, deoarece anularea atomica a aprobarilor active a esuat. Starea anterioara a ramas activa.`;
   }

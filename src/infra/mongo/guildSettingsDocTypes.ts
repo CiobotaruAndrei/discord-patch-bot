@@ -181,6 +181,7 @@ export interface GuildDoc {
   permissionRequestChannelId?: string | null;
   antiRaidAlertChannelId?: string | null;
   antiRaidThresholds?: Record<string, unknown> | null;
+  antiRaidEnabled?: boolean;
   antiRaidDryRunEnabled?: boolean;
   adAlertChannelId?: string | null;
   adProtectionEnabled?: boolean;
