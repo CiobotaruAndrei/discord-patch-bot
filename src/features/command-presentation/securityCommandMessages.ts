@@ -33,7 +33,8 @@ export function renderToggleProtectionOutcome(outcome: ToggleProtectionOutcome):
     return `Eroare: protectia **${outcome.subcommand}** NU a fost oprita, deoarece anularea atomica a aprobarilor active a esuat. Starea anterioara a ramas activa.`;
   }
   if (outcome.kind === "stopped-with-cancellations") {
-    return `OK: protectia **${outcome.subcommand}** a fost oprita. Solicitari/aprobari active anulate: ${outcome.cancelled}.`;
+    const base = `OK: protectia **${outcome.subcommand}** a fost oprita. Solicitari/aprobari active anulate: ${outcome.cancelled}.`;
+    return outcome.note ? `${base} ${outcome.note}` : base;
   }
   if (outcome.kind === "started-with-backfill") {
     const unconfirmedNote = outcome.result.sentUnconfirmed > 0

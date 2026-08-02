@@ -54,6 +54,25 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
     return asRecord(await model.findOne({ guildId, stage: { $ne: "resolved" } }).sort({ startedAt: -1 }).lean());
   }
 
+  async function resolveDryRuns(guildId: string, now = new Date()): Promise<string[]> {
+    const documents = await model
+      .find({ guildId, dryRun: true, stage: { $ne: "resolved" } })
+      .sort({ startedAt: 1 })
+      .limit(50)
+      .lean();
+    const closed: string[] = [];
+    for (const document of documents) {
+      const record = asRecord(document);
+      if (!record) continue;
+      const done = await model.updateOne(
+        { _id: record._id, stage: { $ne: "resolved" } },
+        { $set: { stage: "resolved", resolvedAt: now, lastActivityAt: now }, $unset: { activeKey: "" } }
+      );
+      if (updatedDocument(done)) closed.push(record._id);
+    }
+    return closed;
+  }
+
   async function read(incidentId: string): Promise<RaidIncidentRecord | null> {
     return asRecord(await model.findOne({ _id: incidentId }).lean());
   }
@@ -212,6 +231,7 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
 
   return {
     active,
+    resolveDryRuns,
     activeGuildIds,
     read,
     latest,

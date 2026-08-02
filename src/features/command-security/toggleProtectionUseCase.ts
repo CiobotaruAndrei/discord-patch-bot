@@ -16,7 +16,7 @@ export type ToggleProtectionOutcome =
   | { kind: "owner-only"; subcommand: string }
   | { kind: "confirmation-required"; subcommand: string }
   | { kind: "atomic-stop-failed"; subcommand: string; error: unknown }
-  | { kind: "stopped-with-cancellations"; subcommand: string; cancelled: number }
+  | { kind: "stopped-with-cancellations"; subcommand: string; cancelled: number; note: string | null }
   | { kind: "started-with-backfill"; subcommand: string; result: ProtectionBackfillResult }
   | { kind: "toggled"; subcommand: string; command: ProtectionCommand; degraded: string | null };
 
@@ -37,7 +37,7 @@ export type ToggleProtectionDeps = {
   readiness: { readinessGaps: () => readonly string[]; degradedReport: () => string | null };
   readChannelPermissions: (channelId: string) => Promise<{ viewChannel?: boolean; sendMessages?: boolean; embedLinks?: boolean } | null>;
   countActiveApprovals: () => number | Promise<number>;
-  stopAtomically: () => Promise<void>;
+  stopAtomically: () => Promise<string | null>;
   persistEnabled: (enabled: boolean) => Promise<void>;
   runBackfill: () => Promise<ProtectionBackfillResult>;
 };
@@ -70,12 +70,13 @@ export async function toggleProtection(
 
   if (input.command === "stop" && input.needsAtomicStop) {
     const cancelled = await deps.countActiveApprovals();
+    let note: string | null = null;
     try {
-      await deps.stopAtomically();
+      note = await deps.stopAtomically();
     } catch (error: unknown) {
       return { kind: "atomic-stop-failed", subcommand: input.subcommand, error };
     }
-    return { kind: "stopped-with-cancellations", subcommand: input.subcommand, cancelled };
+    return { kind: "stopped-with-cancellations", subcommand: input.subcommand, cancelled, note };
   }
 
   await deps.persistEnabled(input.command === "start");
