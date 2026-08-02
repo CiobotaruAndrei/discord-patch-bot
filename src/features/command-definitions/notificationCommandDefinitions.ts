@@ -30,6 +30,7 @@ export function buildNotificationCommandDefinitions({ SlashCommandBuilder, Permi
       .addSubcommand(subcommand => subcommand.setName("new-account-alerts").setDescription("Porneste alertele pentru conturi noi"))
       .addSubcommand(subcommand => subcommand.setName("threat-protection").setDescription("Porneste protectia la amenintari"))
       .addSubcommand(subcommand => subcommand.setName("moderation-guard").setDescription("Porneste protectiile administrative bazate pe aprobare"))
+      .addSubcommand(subcommand => subcommand.setName("anti-raid").setDescription("Porneste protectia anti-raid"))
       .addSubcommand(subcommand => subcommand.setName("anti-raid-dry-run").setDescription("Porneste modul de testare anti-raid, care arata ce s-ar intampla fara sa modifice serverul"))
       .addSubcommand(subcommand => subcommand.setName("ad-protection").setDescription("Porneste protectia impotriva reclamelor neaprobate de owner")),
     new SlashCommandBuilder()
@@ -43,6 +44,8 @@ export function buildNotificationCommandDefinitions({ SlashCommandBuilder, Permi
       .addSubcommand(subcommand => subcommand.setName("new-account-alerts").setDescription("Opreste alertele pentru conturi noi"))
       .addSubcommand(subcommand => subcommand.setName("threat-protection").setDescription("Opreste protectia la amenintari"))
       .addSubcommand(subcommand => subcommand.setName("moderation-guard").setDescription("Opreste protectiile administrative bazate pe aprobare"))
+      .addSubcommand(subcommand => subcommand.setName("anti-raid").setDescription("Opreste protectia anti-raid; owner-only, cere confirmare")
+        .addBooleanOption(option => option.setName("confirm").setDescription("Confirma oprirea protectiei anti-raid").setRequired(true)))
       .addSubcommand(subcommand => subcommand.setName("anti-raid-dry-run").setDescription("Opreste modul de testare anti-raid si pastreaza rezultatele in istoricul incidentelor"))
       .addSubcommand(subcommand => subcommand.setName("ad-protection").setDescription("Opreste protectia la reclame si anuleaza cererile si aprobarile active"))
   ];

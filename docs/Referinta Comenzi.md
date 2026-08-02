@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 171.
+Total comenzi documentate: 173.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -63,7 +63,9 @@ Total comenzi documentate: 171.
 | `/start ad-protection` | Admin, Ephemeral | Porneste protectia impotriva reclamelor neaprobate de owner, inclusiv reclamele fara link: promovarea altor servere, comunitati, servicii, produse, pagini sau conturi. | `/start ad-protection` |
 | `/stop ad-protection` | Admin, Ephemeral | Opreste protectia si transforma toate cererile si aprobarile active neexpirate in cancelled. Istoricul tentativelor, warn-urile si canalul configurat raman salvate. | `/stop ad-protection` |
 | `/set warn-channel` | Admin, Ephemeral | Alege canalul dedicat in care sunt publicate warn-urile si dovezile directe. | `/set warn-channel canal:#moderation` |
+| `/start anti-raid` | Admin, Ephemeral | Porneste protectia anti-raid. Refuza activarea daca botul nu poate sanctiona sau bloca canale. Nota: Necesita View Audit Log, Moderate Members, Mute Members, Manage Channels, Manage Roles si un rol deasupra @everyone. Nota: Fara activare explicita detectorul nu acumuleaza semnale. | `/start anti-raid` |
 | `/start moderation-guard` | Admin, Ephemeral | Porneste unitar protectiile administrative bazate pe aprobare din afara raidurilor: bot-add, permission-grant, moderation-mass, webhook, server-structure si protected-resource-change. | `/start moderation-guard` |
+| `/stop anti-raid` | Admin, Ephemeral | Opreste modulul anti-raid; owner-only si cu confirmare obligatorie. Nota: Este alta operatiune decat /anti-raid force-stop, care doar incheie un incident in curs. Nota: Dupa oprire serverul ramane fara detectie de raid. | `/stop anti-raid confirm:true` |
 | `/stop moderation-guard` | Admin, Ephemeral | Opreste protectiile administrative din afara raidurilor si anuleaza cererile si aprobarile nefolosite pentru cele sase tipuri; istoricul si canalul raman salvate. | `/stop moderation-guard` |
 | `/set admin-command-access` | Admin top-level, owner-only runtime, Ephemeral | Seteaza rolul care poate folosi comenzile admin pe langa Administrator si codul global de acces. Fara command seteaza fallback-ul global; cu command seteaza regula doar pentru acea comanda sau acel pachet, de exemplu /start updates. Perechile start/stop pentru acelasi modul folosesc aceeasi regula. Nota: Mode `role` accepta doar rolul ales, iar `role-or-higher` accepta rolul ales sau unul mai mare. Nota: O regula pentru `/start player-count` se aplica automat si la `/stop player-count`. Nota: Pana ownerul seteaza o regula de rol, rolurile nu dau acces admin; raman Administrator si codul global corect introdus prin modal ephemeral. | `/set admin-command-access role:@Moderator mode:role-or-higher command:/start player-count` |
 | `/price-alert list` | Admin, Ephemeral | Listeaza alertele de pret, pragurile, valutele si starea armata sau declansata. | `/price-alert list` |

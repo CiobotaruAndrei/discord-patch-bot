@@ -26,6 +26,8 @@ export interface RaidGuildPort {
   purgeMessages(channelIds: readonly string[], userIds: readonly string[]): Promise<number>;
   publish(body: string): Promise<unknown>;
   alertOwner(body: string): Promise<unknown>;
+  findBotAdder?(botId: string): Promise<string | null>;
+  stripElevatedRoles?(userId: string, reason: string): Promise<{ removed: string[]; blocked: string[] }>;
 }
 
 export interface InterventionDeps {

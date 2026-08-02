@@ -16,9 +16,10 @@ import { recordChannelLockDivergence, type ChannelLockRecoveryModelLike } from "
 import { readLockedChannelPermissionState } from "../command-security/channelLockRecoveryRuntime.js";
 import { randomUUID } from "node:crypto";
 import { setSecurityChannel } from "../command-security/setSecurityChannelUseCase.js";
+import { protectionToggleGate } from "../command-security/protectionReadiness.js";
+import { runAntiRaidThresholdsCommand } from "./antiRaidThresholdsCommand.js";
 import {
   backfillAccountAlerts,
-  botRemovalReadiness,
   botChannelPermissions,
   channelBulkDelete,
   isSecurityInteraction,
@@ -90,6 +91,15 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
     const guild = interaction.guild;
     await target.safeDefer(interaction, true);
     const command = interaction.commandName;
+    if (command === "set" && interaction.options.getSubcommand() === "anti-raid-thresholds") {
+      const stored = await target.getGuildSettings(guildId).then(value => ({ ok: true as const, stored: value?.antiRaidThresholds })).catch(() => ({ ok: false as const }));
+      return respond(interaction, await runAntiRaidThresholdsCommand(interaction.options, {
+        readStored: () => stored,
+        persist: async thresholds => { await applyGuildConfigUpdate(target.GuildModel, guildId, { antiRaidThresholds: thresholds }); },
+        onSaveFailure: error => target.logger?.("WARN", "SECURITY_COMMAND", "Salvarea pragurilor anti-raid a esuat", errorDetail(error)),
+        formatError: error => target.formatUserError(error, "Eroare la salvare.")
+      }));
+    }
     if (command === "set") {
       const channel = interaction.options.getChannel("canal", false) ?? interaction.options.getChannel("channel", true);
       const outcome = await setSecurityChannel(
@@ -115,6 +125,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
       const sub = interaction.options.getSubcommand();
       const toggle = START_STOP_TOGGLE_FIELDS[sub];
       if (!toggle) return undefined;
+      const toggleGate = protectionToggleGate(interaction, sub);
       const settings = await target.getGuildSettings(guildId).catch(() => null);
       const stopActions = protectionStopActions(sub, guildId, {
         guardRequests,
@@ -125,20 +136,17 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
       });
       const outcome = await toggleProtection(
         {
-          command,
-          subcommand: sub,
-          hasToggleFields: true,
-          needsReadinessCheck: sub === "moderation-guard",
+          command, subcommand: sub, hasToggleFields: true, ...toggleGate,
           needsAtomicStop: stopActions.needsAtomicStop,
-          needsBackfill: sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true
-        },
+          needsBackfill: sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true },
         {
           readConfiguredChannel: () => {
-            const channelId = settings?.[toggle.channel];
+            const channelId = settings?.[toggle.channel]
+              ?? (sub === "anti-raid" || sub === "anti-raid-dry-run" ? settings?.permissionRequestChannelId : null);
             return typeof channelId === "string" && channelId ? channelId : null;
           },
           readChannelPermissions: channelId => target.checkChannelPermissions(interaction, channelId),
-          readinessGaps: () => botRemovalReadiness(interaction),
+          readinessGaps: toggleGate.readinessGaps,
           countActiveApprovals: () => stopActions.countActiveApprovals(),
           stopAtomically: () => stopActions.stopAtomically(),
           persistEnabled: async enabled => {

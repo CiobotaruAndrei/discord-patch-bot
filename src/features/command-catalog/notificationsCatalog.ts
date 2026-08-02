@@ -1,15 +1,15 @@
 import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
-import { SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
+import { securitySetSubcommands, START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
 
 const PROTECTION_SUBCOMMANDS = Object.keys(START_STOP_TOGGLE_FIELDS);
-const SECURITY_CHANNEL_SUBCOMMANDS = Object.keys(SET_CHANNEL_FIELDS);
+const SECURITY_SET_SUBCOMMANDS = securitySetSubcommands();
 
 export const NOTIFICATIONS_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "latest", access: "public", discordAdminPermissions: false },
   { command: "watchlist-game", access: "public", discordAdminPermissions: false, adminRuntimeSubcommands: ["delete"] },
   { command: "start", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: PROTECTION_SUBCOMMANDS },
   { command: "stop", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: PROTECTION_SUBCOMMANDS },
-  { command: "set", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], sensitiveSubcommands: SECURITY_CHANNEL_SUBCOMMANDS },
+  { command: "set", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], sensitiveSubcommands: SECURITY_SET_SUBCOMMANDS },
   { command: "watchlist", access: "admin", discordAdminPermissions: true },
   { command: "price-alert", access: "admin", discordAdminPermissions: true },
   { command: "future-release", access: "admin", discordAdminPermissions: false, publicSubcommands: ["list"] },
@@ -32,7 +32,9 @@ export const NOTIFICATIONS_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   { command: "/start ad-protection", description: "Porneste protectia impotriva reclamelor neaprobate de owner, inclusiv reclamele fara link: promovarea altor servere, comunitati, servicii, produse, pagini sau conturi.", example: "/start ad-protection" },
   { command: "/stop ad-protection", description: "Opreste protectia si transforma toate cererile si aprobarile active neexpirate in cancelled. Istoricul tentativelor, warn-urile si canalul configurat raman salvate.", example: "/stop ad-protection" },
   { command: "/set warn-channel", description: "Alege canalul dedicat in care sunt publicate warn-urile si dovezile directe.", example: "/set warn-channel canal:#moderation" },
+  { command: "/start anti-raid", description: "Porneste protectia anti-raid. Refuza activarea daca botul nu poate sanctiona sau bloca canale.", example: "/start anti-raid", notes: ["Necesita View Audit Log, Moderate Members, Mute Members, Manage Channels, Manage Roles si un rol deasupra @everyone.", "Fara activare explicita detectorul nu acumuleaza semnale."] },
   { command: "/start moderation-guard", description: "Porneste unitar protectiile administrative bazate pe aprobare din afara raidurilor: bot-add, permission-grant, moderation-mass, webhook, server-structure si protected-resource-change.", example: "/start moderation-guard" },
+  { command: "/stop anti-raid", description: "Opreste modulul anti-raid; owner-only si cu confirmare obligatorie.", example: "/stop anti-raid confirm:true", notes: ["Este alta operatiune decat /anti-raid force-stop, care doar incheie un incident in curs.", "Dupa oprire serverul ramane fara detectie de raid."] },
   { command: "/stop moderation-guard", description: "Opreste protectiile administrative din afara raidurilor si anuleaza cererile si aprobarile nefolosite pentru cele sase tipuri; istoricul si canalul raman salvate.", example: "/stop moderation-guard" },
   { command: "/set admin-command-access", description: "Seteaza rolul care poate folosi comenzile admin pe langa Administrator si codul global de acces. Fara command seteaza fallback-ul global; cu command seteaza regula doar pentru acea comanda sau acel pachet, de exemplu /start updates. Perechile start/stop pentru acelasi modul folosesc aceeasi regula.", example: "/set admin-command-access role:@Moderator mode:role-or-higher command:/start player-count", notes: ["Mode `role` accepta doar rolul ales, iar `role-or-higher` accepta rolul ales sau unul mai mare.", "O regula pentru `/start player-count` se aplica automat si la `/stop player-count`.", "Pana ownerul seteaza o regula de rol, rolurile nu dau acces admin; raman Administrator si codul global corect introdus prin modal ephemeral."] },
   { command: "/price-alert list", description: "Listeaza alertele de pret, pragurile, valutele si starea armata sau declansata.", example: "/price-alert list" },

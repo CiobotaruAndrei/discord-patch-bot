@@ -73,6 +73,7 @@ export function buildResetConfiguration(defaultCurrency: CurrencyCode): Record<s
     permissionRequestChannelId: null,
     antiRaidAlertChannelId: null,
     antiRaidThresholds: null,
+    antiRaidEnabled: false,
     antiRaidDryRunEnabled: false,
     adAlertChannelId: null,
     adProtectionEnabled: false,

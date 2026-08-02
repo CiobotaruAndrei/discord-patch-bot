@@ -13,6 +13,8 @@ export type ToggleProtectionOutcome =
   | { kind: "channel-not-set" }
   | { kind: "channel-missing-permissions" }
   | { kind: "not-ready"; missing: readonly string[] }
+  | { kind: "owner-only"; subcommand: string }
+  | { kind: "confirmation-required"; subcommand: string }
   | { kind: "atomic-stop-failed"; subcommand: string; error: unknown }
   | { kind: "stopped-with-cancellations"; subcommand: string; cancelled: number }
   | { kind: "started-with-backfill"; subcommand: string; result: ProtectionBackfillResult }
@@ -23,6 +25,9 @@ export type ToggleProtectionInput = {
   subcommand: string;
   hasToggleFields: boolean;
   needsReadinessCheck: boolean;
+  ownerOnly?: boolean;
+  isOwner?: boolean;
+  confirmed?: boolean;
   needsAtomicStop: boolean;
   needsBackfill: boolean;
 };
@@ -42,6 +47,11 @@ export async function toggleProtection(
   deps: ToggleProtectionDeps
 ): Promise<ToggleProtectionOutcome> {
   if (!input.hasToggleFields) return { kind: "unknown-subcommand" };
+
+  if (input.command === "stop" && input.ownerOnly === true) {
+    if (input.isOwner !== true) return { kind: "owner-only", subcommand: input.subcommand };
+    if (input.confirmed !== true) return { kind: "confirmation-required", subcommand: input.subcommand };
+  }
 
   if (input.command === "start") {
     const channelId = deps.readConfiguredChannel();
