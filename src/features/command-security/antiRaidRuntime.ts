@@ -246,7 +246,20 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     botActors.delete(guildId);
   }
 
-  return { observeMessage, observeStructureChange, observeBotJoin, tick, sweep, isRaidConfirmed, forget };
+  async function escalateActor(guildId: string, actorId: string, surface: string): Promise<boolean> {
+    const active = await incidents.active(guildId).catch(() => null);
+    if (!active || !raidConfirmed(active.stage)) return false;
+    rememberActor(guildId, actorId, false);
+    const added = await incidents.addParticipant(active._id, actorId, false, new Date(now())).catch(() => false);
+    if (!added) return false;
+    const guild = await deps.resolveGuild(guildId).catch(() => null);
+    await guild?.publish(
+      `Anti-raid ${active._id}: <@${actorId}> a incercat o modificare administrativa (${surface}) in timpul raidului. Modificarea a fost revenita si autorul intra in incident.`
+    ).catch(() => undefined);
+    return true;
+  }
+
+  return { observeMessage, observeStructureChange, observeBotJoin, escalateActor, tick, sweep, isRaidConfirmed, forget };
 }
 
 export type AntiRaidRuntime = ReturnType<typeof createAntiRaidRuntime>;

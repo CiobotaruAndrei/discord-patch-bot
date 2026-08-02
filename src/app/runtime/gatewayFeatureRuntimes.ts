@@ -281,6 +281,9 @@ async function applyWarnBan(
       recordAudit: async (guildId, entry) => {
         await recordServerAuditEntry(auditLogModel, guildId, entry);
       },
+      reportRaidActor: antiRaidRuntime
+        ? (guildId, actorId, surface) => antiRaidRuntime.escalateActor(guildId, actorId, surface)
+        : undefined,
       logger
     })
     : undefined;
@@ -337,7 +340,10 @@ async function applyWarnBan(
       GuildAuditLogModel: mongo.GuildAuditLogModel,
       adminAlert,
       metrics: recorders.permissionDelegation,
-      guard: moderationGuardGate
+      guard: moderationGuardGate,
+      reportRaidActor: antiRaidRuntime
+        ? (guildId, actorId, surface) => antiRaidRuntime.escalateActor(guildId, actorId, surface)
+        : undefined
     })
     : undefined;
 

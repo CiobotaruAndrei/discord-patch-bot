@@ -35,11 +35,11 @@ test("autorizarea comuna lasa sa treaca doar cand poarta e oprita, e raid sau ex
   };
   const authorize = createDelegationAuthorizer(moduleContext<PermissionDelegationRuntimeDeps>({ guard: gate }));
 
-  assert.equal(await authorize("g1", "mod-1", ["Ban Members"], "role-1"), false, "fara aprobare, actiunea nu e autorizata");
+  assert.equal(await authorize("g1", "mod-1", ["Ban Members"], "role-1"), "revert-guard", "fara aprobare, actiunea nu e autorizata");
   assert.deepEqual(calls, ["consume"], "aprobarea se incearca o singura data");
 });
 
-test("autorizarea comuna cedeaza cand poarta e oprita sau raidul e confirmat", async () => {
+test("autorizarea comuna cedeaza la poarta oprita si escaladeaza la raid confirmat", async () => {
   const offGate = {
     readSituation: async () => ({ guardEnabled: false, raidConfirmed: false }),
     consumeApproval: async () => null
@@ -52,14 +52,18 @@ test("autorizarea comuna cedeaza cand poarta e oprita sau raidul e confirmat", a
   const withoutGuard = createDelegationAuthorizer(moduleContext<PermissionDelegationRuntimeDeps>({ guard: offGate }));
   const duringRaid = createDelegationAuthorizer(moduleContext<PermissionDelegationRuntimeDeps>({ guard: raidGate }));
 
-  assert.equal(await withoutGuard("g1", "mod-1", ["Ban Members"], "role-1"), true, "cu poarta oprita nu se mai corecteaza nimic");
-  assert.equal(await duringRaid("g1", "mod-1", ["Ban Members"], "role-1"), true, "in raid decide anti-raid");
+  assert.equal(await withoutGuard("g1", "mod-1", ["Ban Members"], "role-1"), "allow", "cu poarta oprita nu se mai corecteaza nimic");
+  assert.equal(
+    await duringRaid("g1", "mod-1", ["Ban Members"], "role-1"),
+    "revert-raid",
+    "in raid corectia se produce, dar autorul e escaladat in incident (F-30)"
+  );
 });
 
 test("fara poarta configurata, autorizarea nu poate spune da", async () => {
   const authorize = createDelegationAuthorizer(moduleContext<PermissionDelegationRuntimeDeps>({}));
 
-  assert.equal(await authorize("g1", "mod-1", ["Ban Members"], "role-1"), false);
+  assert.equal(await authorize("g1", "mod-1", ["Ban Members"], "role-1"), "revert-guard");
 });
 
 test("un actor neidentificat nu poate consuma o aprobare", async () => {
@@ -70,7 +74,7 @@ test("un actor neidentificat nu poate consuma o aprobare", async () => {
   };
   const authorize = createDelegationAuthorizer(moduleContext<PermissionDelegationRuntimeDeps>({ guard: gate }));
 
-  assert.equal(await authorize("g1", null, ["Ban Members"], "role-1"), false);
+  assert.equal(await authorize("g1", null, ["Ban Members"], "role-1"), "revert-guard");
   assert.deepEqual(calls, [], "fara actor nu se atinge nicio aprobare");
 });
 

@@ -38,6 +38,7 @@ export interface WebhookGuardDeps {
   gate: WebhookGuardGate;
   publish: (guildId: string, message: string) => Promise<void>;
   recordAudit: (guildId: string, entry: { userId: string; action: string; details: string }) => Promise<void>;
+  reportRaidActor?: (guildId: string, actorId: string, surface: string) => Promise<unknown>;
   logger?: (level: LogLevel, scope: string, message: string, meta?: Record<string, unknown>) => void;
   now?: () => number;
 }
@@ -82,6 +83,15 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
       return recreated !== null;
     }
     return false;
+  }
+
+  async function revertChanges(channel: WebhookGuardChannel, changes: readonly WebhookChange[]): Promise<number> {
+    let failed = 0;
+    for (const change of changes) {
+      const done = await correct(channel, change).catch(() => false);
+      if (!done) failed += 1;
+    }
+    return failed;
   }
 
   async function sanction(
@@ -135,10 +145,7 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
       await capture(channel, current);
       return { kind: "guard-disabled" };
     }
-    if (situation.raidConfirmed) {
-      await capture(channel, current);
-      return { kind: "raid-active" };
-    }
+    const raidActive = situation.raidConfirmed;
 
     const changes = diffWebhooks(record.entries, current);
     if (changes.length === 0) return { kind: "no-change" };
@@ -151,6 +158,18 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
     if (channel.ownerId && actorId === channel.ownerId) {
       await capture(channel, current);
       return { kind: "allowed-owner" };
+    }
+
+    if (raidActive) {
+      await deps.reportRaidActor?.(channel.guildId, actorId, "webhook").catch(() => undefined);
+      const failedInRaid = await revertChanges(channel, changes);
+      await deps.recordAudit(channel.guildId, {
+        userId: actorId,
+        action: "webhook-change-reverted-in-raid",
+        details: `channelId=${channel.channelId}; modificari=${describeChanges(changes)}; necorectate=${failedInRaid}`
+      }).catch(() => undefined);
+      await capture(channel, await channel.listWebhooks().catch(() => current));
+      return { kind: "reverted", changes, corrected: changes.length - failedInRaid, failed: failedInRaid };
     }
 
     const actions = changeActions(changes);
@@ -170,11 +189,7 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
     }
 
     const unapproved = changes.filter(change => !approved.has(change.kind));
-    let failed = 0;
-    for (const change of unapproved) {
-      const done = await correct(channel, change).catch(() => false);
-      if (!done) failed += 1;
-    }
+    const failed = await revertChanges(channel, unapproved);
 
     await deps.recordAudit(channel.guildId, {
       userId: actorId,

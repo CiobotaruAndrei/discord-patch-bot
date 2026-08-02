@@ -28,14 +28,18 @@ function auditModel(records: GuildAuditLogRecord[]) {
   };
 }
 
-function roleUpdateScenario(guard: GuardedDelegationGate | undefined) {
+function roleUpdateScenario(
+  guard: GuardedDelegationGate | undefined,
+  reportRaidActor?: (guildId: string, actorId: string, surface: string) => Promise<unknown>,
+  options: { withoutActor?: boolean } = {}
+) {
   const reverts: bigint[] = [];
   const audits: GuildAuditLogRecord[] = [];
   const guild = {
     id: "g1",
     ownerId: "owner-1",
     fetchAuditLogs: async () => ({
-      entries: new Map([["e", {
+      entries: options.withoutActor ? new Map() : new Map([["e", {
         id: "audit-1",
         executor: { id: "mod-1" },
         target: { id: "role-1" },
@@ -50,7 +54,8 @@ function roleUpdateScenario(guard: GuardedDelegationGate | undefined) {
     adminAlert: async () => undefined,
     now: () => NOW,
     wait: async () => undefined,
-    guard
+    guard,
+    reportRaidActor
   });
   const previous = { id: "role-1", name: "Moderator", guild, permissions: permissions() };
   const next = {
@@ -133,17 +138,39 @@ test("aprobarea consumata o data nu mai acopera o a doua acordare", async () => 
   assert.equal(second.reverts.length, 1, "a doua acordare nu se poate ascunde in spatele aceleiasi aprobari");
 });
 
-test("in timpul unui raid confirmat, retragerea automata nu se mai suprapune peste anti-raid", async () => {
+test("in timpul unui raid confirmat, permisiunea E retrasa si autorul intra in incident (audit, F-30)", async () => {
   const gate = createModerationGuardGate({
     PermissionRequestModel: permissionRequestStore(),
     readGuildSettings: async () => ({ moderationGuardEnabled: true }),
     isRaidConfirmed: async () => true
   });
-  const scenario = roleUpdateScenario(gate);
+  const escalated: Array<{ actorId: string; surface: string }> = [];
+  const scenario = roleUpdateScenario(gate, async (_guildId: string, actorId: string, surface: string) => {
+    escalated.push({ actorId, surface });
+    return true;
+  });
 
   await scenario.runtime.handleRoleUpdate(scenario.previous, scenario.next);
 
-  assert.equal(scenario.reverts.length, 0);
+  assert.equal(scenario.reverts.length, 1, "poarta nu mai cedeaza in gol: anti-raid nu asculta roleUpdate, deci nimeni nu ar corecta");
+  assert.deepEqual(escalated, [{ actorId: "mod-1", surface: "role-permissions" }], "autorul devine participant la incident");
+});
+
+test("in raid, escaladarea nu se produce daca autorul nu poate fi identificat (F-30)", async () => {
+  const gate = createModerationGuardGate({
+    PermissionRequestModel: permissionRequestStore(),
+    readGuildSettings: async () => ({ moderationGuardEnabled: true }),
+    isRaidConfirmed: async () => true
+  });
+  const escalated: string[] = [];
+  const scenario = roleUpdateScenario(gate, async (_guildId: string, actorId: string) => {
+    escalated.push(actorId);
+    return true;
+  }, { withoutActor: true });
+
+  await scenario.runtime.handleRoleUpdate(scenario.previous, scenario.next);
+
+  assert.deepEqual(escalated, [], "fara actor nu se raporteaza nimeni la intamplare");
 });
 
 test("/stop moderation-guard anuleaza aprobarile ramase inainte sa stinga poarta", async () => {
@@ -182,7 +209,10 @@ test("orice protectie din START_STOP_TOGGLE_FIELDS este exclusa automat din hand
   })), true, "abonamentele obisnuite raman la handlerul lor");
 });
 
-function channelOverwriteScenario(guard: GuardedDelegationGate | undefined) {
+function channelOverwriteScenario(
+  guard: GuardedDelegationGate | undefined,
+  reportRaidActor?: (guildId: string, actorId: string, surface: string) => Promise<unknown>
+) {
   const edits: Array<{ targetId: string; patch: Record<string, boolean | null> }> = [];
   const audits: GuildAuditLogRecord[] = [];
   const guild = {
@@ -200,7 +230,8 @@ function channelOverwriteScenario(guard: GuardedDelegationGate | undefined) {
     adminAlert: async () => undefined,
     now: () => NOW,
     wait: async () => undefined,
-    guard
+    guard,
+    reportRaidActor
   });
   const previous = {
     id: "channel-1",
@@ -264,15 +295,20 @@ test("cu moderation-guard pornit si aprobare exacta, overwrite-ul de canal raman
   assert.equal(model.records[0].status, "used");
 });
 
-test("in timpul unui raid confirmat, overwrite-urile de canal nu se suprapun peste anti-raid", async () => {
+test("in timpul unui raid confirmat, overwrite-ul de canal E retras si autorul intra in incident (audit, F-30)", async () => {
   const gate = createModerationGuardGate({
     PermissionRequestModel: permissionRequestStore(),
     readGuildSettings: async () => ({ moderationGuardEnabled: true }),
     isRaidConfirmed: async () => true
   });
-  const scenario = channelOverwriteScenario(gate);
+  const escalated: string[] = [];
+  const scenario = channelOverwriteScenario(gate, async (_guildId: string, _actorId: string, surface: string) => {
+    escalated.push(surface);
+    return true;
+  });
 
   await scenario.runtime.handleChannelUpdate(scenario.previous, scenario.next);
 
-  assert.deepEqual(scenario.edits, []);
+  assert.equal(scenario.edits.length, 1, "anti-raid nu asculta channelUpdate, deci nimeni nu ar fi corectat");
+  assert.deepEqual(escalated, ["channel-overwrite"]);
 });
