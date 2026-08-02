@@ -147,7 +147,7 @@ function toggleDeps(overrides: Partial<ToggleProtectionDeps> = {}): { deps: Togg
   const deps: ToggleProtectionDeps = {
     readConfiguredChannel: () => "chan-1",
     readChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
-    readinessGaps: () => [],
+    readiness: { readinessGaps: () => [], degradedReport: () => null },
     countActiveApprovals: () => 4,
     stopAtomically: async () => { log.push("stop-atomically"); },
     persistEnabled: async enabled => { log.push(`persist:${enabled}`); },
@@ -215,6 +215,6 @@ test("toggle: pornirea obisnuita doar scrie comutatorul", async () => {
     { command: "start", subcommand: "threat-protection", hasToggleFields: true, needsReadinessCheck: false, needsAtomicStop: false, needsBackfill: false },
     deps
   );
-  assert.deepEqual(outcome, { kind: "toggled", subcommand: "threat-protection", command: "start" });
+  assert.deepEqual(outcome, { kind: "toggled", subcommand: "threat-protection", command: "start", degraded: null });
   assert.deepEqual(log, ["persist:true"]);
 });

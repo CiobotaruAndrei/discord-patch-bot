@@ -5,7 +5,8 @@ import { buildSecurityStatus, renderSecurityStatus } from "../command-security/s
 import { mergeSecurityLog, renderSecurityLog } from "../command-security/securityLogModel.js";
 import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
 import { createRaidSnapshotRepository } from "../command-security/raidSnapshotRepository.js";
-import { antiRaidReadiness, botRemovalReadiness } from "../command-security/protectionReadiness.js";
+import { antiRaidReadiness } from "../command-security/protectionReadiness.js";
+import { moderationGuardReadiness, readinessGapsByProtection } from "../command-security/moderationGuardReadiness.js";
 import { START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
 
 import type { SecurityLogEntry, SecurityLogSource } from "../command-security/securityLogModel.js";
@@ -123,7 +124,13 @@ async function liveReadinessGaps(
       else missing.push(...ALERT_CHANNEL_PERMISSIONS.filter(entry => permissions.has(entry.flag) !== true).map(entry => entry.label));
     }
     if (key === "anti-raid" || key === "anti-raid-dry-run") missing.push(...antiRaidReadiness({ guild }));
-    if (key === "moderation-guard") missing.push(...botRemovalReadiness({ guild }));
+    if (key === "moderation-guard") {
+      const report = moderationGuardReadiness(guild.members?.me);
+      for (const [subprotection, gaps] of Object.entries(readinessGapsByProtection(report))) {
+        if (subprotection !== "moderation-guard") result[subprotection] = gaps;
+      }
+      missing.push(...new Set(report.flatMap(entry => entry.missing)));
+    }
     if (key === "threat-protection" || key === "ad-protection") {
       missing.push(...missingGuildPermission(guild, PermissionFlagsBits.ManageMessages, "Manage Messages"));
     }

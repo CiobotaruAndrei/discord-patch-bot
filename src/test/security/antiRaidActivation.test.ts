@@ -17,7 +17,7 @@ import type { SecurityInteraction } from "../../features/command-security/securi
 function toggleDeps(overrides: Partial<ToggleProtectionDeps> = {}): ToggleProtectionDeps {
   return {
     readConfiguredChannel: () => "chan-1",
-    readinessGaps: () => [],
+    readiness: { readinessGaps: () => [], degradedReport: () => null },
     readChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
     countActiveApprovals: async () => 0,
     stopAtomically: async () => undefined,

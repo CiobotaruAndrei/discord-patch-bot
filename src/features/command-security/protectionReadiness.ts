@@ -2,6 +2,8 @@
 
 import { PermissionFlagsBits } from "discord.js";
 
+import { blockingGaps, describeGuardReadiness, moderationGuardReadiness } from "./moderationGuardReadiness.js";
+
 import type { SecurityInteraction } from "./securityInteractionContracts.js";
 
 export function antiRaidReadiness(interaction: Pick<SecurityInteraction, "guild">): string[] {
@@ -23,6 +25,7 @@ export interface ProtectionToggleGate {
   confirmed: boolean;
   needsReadinessCheck: boolean;
   readinessGaps: () => string[];
+  degradedReport: () => string | null;
 }
 
 export function protectionToggleGate(interaction: SecurityInteraction, subcommand: string): ProtectionToggleGate {
@@ -32,7 +35,12 @@ export function protectionToggleGate(interaction: SecurityInteraction, subcomman
     isOwner: ownerId !== undefined && ownerId === interaction.user?.id,
     confirmed: interaction.options.getBoolean?.("confirm", false) === true,
     needsReadinessCheck: subcommand === "moderation-guard" || subcommand === "anti-raid",
-    readinessGaps: () => (subcommand === "anti-raid" ? antiRaidReadiness(interaction) : botRemovalReadiness(interaction))
+    readinessGaps: () => (subcommand === "anti-raid"
+      ? antiRaidReadiness(interaction)
+      : blockingGaps(moderationGuardReadiness(interaction.guild?.members?.me))),
+    degradedReport: () => (subcommand === "moderation-guard"
+      ? describeGuardReadiness(moderationGuardReadiness(interaction.guild?.members?.me))
+      : null)
   };
 }
 

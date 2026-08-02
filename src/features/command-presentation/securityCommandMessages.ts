@@ -44,7 +44,9 @@ export function renderToggleProtectionOutcome(outcome: ToggleProtectionOutcome):
       : "";
     return `OK: protectia **${outcome.subcommand}** a fost pornita. Au fost verificate conturile existente si trimise ${outcome.result.delivered} alerte confirmate.${unconfirmedNote}${undeterminedNote}`;
   }
-  return `OK: protectia **${outcome.subcommand}** a fost ${outcome.command === "start" ? "pornita" : "oprita"}.`;
+  const status = `OK: protectia **${outcome.subcommand}** a fost ${outcome.command === "start" ? "pornita" : "oprita"}.`;
+  return outcome.degraded ? `${status}
+${outcome.degraded}` : status;
 }
 
 export function renderChannelLockOutcome(
