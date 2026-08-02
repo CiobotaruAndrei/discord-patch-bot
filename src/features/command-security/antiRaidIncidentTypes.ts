@@ -83,6 +83,12 @@ export function participantSettled(participant: Pick<RaidParticipant, "bot" | "a
   return nextSanctionStep(participant) === null;
 }
 
+export const COORDINATION_MINIMUM_PARTICIPANTS = 2;
+
+export function coordinatedRaid(incident: Pick<RaidIncidentRecord, "participants">): boolean {
+  return incident.participants.length >= COORDINATION_MINIMUM_PARTICIPANTS;
+}
+
 export function safetyPeriodElapsed(incident: Pick<RaidIncidentRecord, "lastActivityAt">, safetyPeriodMs: number, now: number): boolean {
   return now - new Date(incident.lastActivityAt).getTime() >= safetyPeriodMs;
 }

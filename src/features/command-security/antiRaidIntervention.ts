@@ -5,6 +5,7 @@ import {
   lockdownOverdue,
   nextSanctionStep,
   participantSettled,
+  coordinatedRaid,
   safetyPeriodElapsed
 } from "./antiRaidIncidentTypes.js";
 
@@ -199,14 +200,15 @@ export function createRaidIntervention(deps: InterventionDeps) {
     const current = await incidents.read(incident._id);
     if (!current) return steps;
 
-    if (current.stage !== "resolved") steps.push(...await sanctionParticipants(guild, current, thresholds));
-
     if (current.stage === "confirmed" || current.stage === "containment") {
       if (current.stage === "confirmed") {
         if (guild.captureStructureSnapshot) await guild.captureStructureSnapshot(current._id).catch(() => undefined);
         await incidents.advance(current._id, "confirmed", "containment", new Date(moment));
       }
-      steps.push(await lockAffectedChannels(guild, current, channelIds));
+      const lockFirst = coordinatedRaid(current);
+      if (lockFirst) steps.push(await lockAffectedChannels(guild, current, channelIds));
+      steps.push(...await sanctionParticipants(guild, current, thresholds));
+      if (!lockFirst) steps.push(await lockAffectedChannels(guild, current, channelIds));
 
       if (lockdownOverdue(current, thresholds.maxLockdownMs, moment)) {
         await guild.alertOwner(
@@ -216,6 +218,8 @@ export function createRaidIntervention(deps: InterventionDeps) {
       }
       return steps;
     }
+
+    if (current.stage !== "resolved") steps.push(...await sanctionParticipants(guild, current, thresholds));
 
     if (current.stage === "cleanup") {
       const settled = current.participants.filter(entry => participantSettled(entry)).map(entry => entry.userId);
