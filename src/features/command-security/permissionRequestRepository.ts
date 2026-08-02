@@ -159,7 +159,7 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
   ): Promise<PermissionRequestRecord[] | null> {
     const claimed: PermissionRequestRecord[] = [];
     for (const attempt of attempts) {
-      const record = await consume(guildId, type, requesterId, attempt, now);
+      const record = await consume(guildId, type, requesterId, attempt, now).catch(() => null);
       if (!record) {
         for (const used of claimed) await release(guildId, used._id).catch(() => null);
         return null;

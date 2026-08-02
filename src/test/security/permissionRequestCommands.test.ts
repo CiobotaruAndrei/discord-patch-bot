@@ -145,3 +145,39 @@ test("durata ceruta e parsata si plafonata", () => {
   assert.equal(parseDurationMs("400d"), 30 * 24 * 60 * 60 * 1000, "o durata absurda e plafonata la 30 de zile");
   assert.equal(parseDurationMs("maine"), null);
 });
+
+test("cand consumul unei actiuni ulterioare arunca, aprobarile deja consumate revin in starea aprobat (review PR #949)", async () => {
+  const store = permissionRequestStore();
+  const repository = createPermissionRequestRepository(store);
+  for (const [id, action] of [["req-a", "rename"], ["req-b", "move"]] as const) {
+    await repository.create({
+      requestId: id, guildId: "g1", type: "protected-resource-change",
+      requesterId: "mod-1", target: "111111111111111111", action, reason: "curatenie"
+    });
+    await repository.resolve("g1", id, "approved", "owner-1", {});
+  }
+
+  let claims = 0;
+  const flaky = {
+    ...store,
+    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>) => {
+      const set = update.$set as Record<string, unknown> | undefined;
+      if (set?.status === "used") {
+        claims += 1;
+        if (claims === 2) throw new Error("Mongo indisponibil");
+      }
+      return store.updateOne(filter, update, options);
+    }
+  };
+
+  const claimed = await createPermissionRequestRepository(flaky).consumeAll(
+    "g1",
+    "protected-resource-change",
+    "mod-1",
+    [{ target: "111111111111111111", action: "rename" }, { target: "111111111111111111", action: "move" }]
+  );
+
+  assert.equal(claimed, null, "un consum partial nu poate raporta succes");
+  assert.equal((await repository.read("g1", "req-a"))?.status, "approved",
+    "aprobarea deja consumata nu ramane arsa cand restul setului esueaza");
+});
