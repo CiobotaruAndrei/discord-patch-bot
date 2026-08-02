@@ -70,12 +70,15 @@ export function buildSecurityStatus(input: SecurityStatusInput): SecurityStatusR
   const guardChannel = typeof settings?.permissionRequestChannelId === "string" && settings.permissionRequestChannelId.length > 0;
   const guardGaps = [...(input.readinessGaps["moderation-guard"] ?? [])];
 
-  const subprotections = MODERATION_GUARD_TYPES.map(type => ({
-    key: type,
-    label: SUBPROTECTION_LABELS[type] ?? type,
-    state: stateFor(guardEnabled, guardChannel, guardGaps),
-    gaps: guardGaps
-  }));
+  const subprotections = MODERATION_GUARD_TYPES.map(type => {
+    const gaps = [...(input.readinessGaps[type] ?? guardGaps)];
+    return {
+      key: type,
+      label: SUBPROTECTION_LABELS[type] ?? type,
+      state: stateFor(guardEnabled, guardChannel, gaps),
+      gaps
+    };
+  });
 
   return {
     protections,

@@ -146,7 +146,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
             return typeof channelId === "string" && channelId ? channelId : null;
           },
           readChannelPermissions: channelId => target.checkChannelPermissions(interaction, channelId),
-          readinessGaps: toggleGate.readinessGaps,
+          readiness: toggleGate,
           countActiveApprovals: () => stopActions.countActiveApprovals(),
           stopAtomically: () => stopActions.stopAtomically(),
           persistEnabled: async enabled => {
