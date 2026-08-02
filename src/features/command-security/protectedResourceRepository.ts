@@ -1,6 +1,8 @@
 "use strict";
 
 import { createdDocument, updatedDocument } from "../../shared/persistenceOutcome.js";
+
+import type { RestoredTarget } from "./protectedResourcePrevention.js";
 import { emptySnapshot } from "./protectedResourceTypes.js";
 
 import type { WriteCounts } from "../../shared/persistenceOutcome.js";
@@ -42,6 +44,7 @@ export interface AddProtectedResourceInput {
   degraded: boolean;
   degradedReasons: readonly string[];
   preventionApplied: boolean;
+  preventionTargets?: readonly RestoredTarget[];
 }
 
 export type AddProtectedResourceOutcome =
@@ -84,6 +87,7 @@ export function createProtectedResourceRepository(model: ProtectedResourceModelL
       degraded: input.degraded,
       degradedReasons: [...input.degradedReasons],
       preventionApplied: input.preventionApplied,
+      preventionTargets: [...(input.preventionTargets ?? [])],
       lastRestoredAt: null,
       recreatedFromId: null
     };
@@ -146,11 +150,12 @@ export function createProtectedResourceRepository(model: ProtectedResourceModelL
     resourceId: string,
     degraded: boolean,
     reasons: readonly string[],
-    preventionApplied: boolean
+    preventionApplied: boolean,
+    preventionTargets: readonly RestoredTarget[] = []
   ): Promise<boolean> {
     const result = await model.updateOne(
       { _id: documentId(guildId, resourceId) },
-      { $set: { degraded, degradedReasons: [...reasons], preventionApplied } }
+      { $set: { degraded, degradedReasons: [...reasons], preventionApplied, preventionTargets: [...preventionTargets] } }
     );
     return updatedDocument(result);
   }

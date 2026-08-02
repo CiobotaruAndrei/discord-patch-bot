@@ -179,7 +179,8 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     lastRestoredAt: { type: Date, default: null },
     recreatedFromId: { type: String, default: null },
     deletedDuringRaidAt: { type: Date, default: null },
-    ownerInterventionAt: { type: Date, default: null }
+    ownerInterventionAt: { type: Date, default: null },
+    preventionTargets: { type: [{ id: String, previous: String, _id: false }], default: [] }
   }, { minimize: false, _id: false });
   protectedResourceSchema.index({ guildId: 1, addedAt: 1 });
   protectedResourceSchema.index({ guildId: 1, type: 1 });

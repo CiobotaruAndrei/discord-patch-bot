@@ -43,6 +43,7 @@ export interface ProtectedResourceRecord {
   degraded: boolean;
   degradedReasons: string[];
   preventionApplied: boolean;
+  preventionTargets?: readonly { id: string; previous: string }[];
   lastRestoredAt: Date | null;
   recreatedFromId: string | null;
   deletedDuringRaidAt?: Date | null;
