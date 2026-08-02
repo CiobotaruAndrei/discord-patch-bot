@@ -98,3 +98,45 @@ test("lockdown-ul se aplica si cand exista un singur participant, doar ordinea d
 
   assert.ok(trace.some(entry => entry === "lock:c1"), "un raid necoordonat nu ramane fara lockdown");
 });
+
+test("un esec de persistenta la lockdown nu mai opreste sanctiunile (review PR #954)", async () => {
+  const model = raidIncidentStore();
+  const repository = createRaidIncidentRepository(model);
+  const incident = await repository.open({ guildId: "g1", triggerReason: "spam", dryRun: false });
+  assert.ok(incident);
+  await repository.addParticipant(incident._id, "u1", false);
+  await repository.addParticipant(incident._id, "u2", false);
+  await repository.advance(incident._id, "suspected", "confirmed");
+
+  const failing = {
+    ...model,
+    updateOne: async (filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>) => {
+      const push = update.$push as Record<string, unknown> | undefined;
+      if (push && "lockedChannels" in push) throw new Error("Mongo indisponibil");
+      return model.updateOne(filter, update, options);
+    }
+  };
+
+  const trace: string[] = [];
+  const alerts: string[] = [];
+  const port = guildPort(trace);
+  const engine = createRaidIntervention({
+    RaidIncidentModel: failing,
+    thresholds: async () => THRESHOLDS
+  });
+
+  await engine.advanceIncident(
+    moduleContext<RaidGuildPort>({ ...port, alertOwner: async (body: string) => { alerts.push(body); } }),
+    ["c1"]
+  );
+
+  assert.ok(trace.includes("lock:c1"), "canalul se blocheaza pe Discord chiar daca notarea in incident esueaza");
+  assert.ok(
+    trace.some(entry => entry.startsWith("mute:")),
+    `o eroare tranzitorie de persistenta la lockdown nu are voie sa lase participantii nesanctionati. Urma: ${trace.join(" -> ")}`
+  );
+  assert.ok(
+    alerts.some(body => body.includes("NU a putut fi salvata")),
+    "ownerul trebuie sa afle ca deblocarea automata nu va acoperi acele canale"
+  );
+});

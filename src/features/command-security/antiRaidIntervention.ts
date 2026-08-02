@@ -90,16 +90,29 @@ export function createRaidIntervention(deps: InterventionDeps) {
     channelIds: readonly string[]
   ): Promise<InterventionStep> {
     const locked: string[] = [];
+    const unrecorded: string[] = [];
     for (const channelId of channelIds) {
       if (incident.lockedChannels.some(entry => entry.channelId === channelId && !entry.restoredAt)) continue;
       const outcome = await guild.lockChannel(channelId).catch(() => ({ locked: false, previousSendMessages: null }));
       if (!outcome.locked) {
-        await incidents.recordError(incident._id, `Lockdown esuat pentru canalul ${channelId}`, new Date(now()));
+        await incidents
+          .recordError(incident._id, `Lockdown esuat pentru canalul ${channelId}`, new Date(now()))
+          .catch(() => false);
         continue;
       }
-      await incidents.lockChannel(incident._id, channelId, outcome.previousSendMessages, new Date(now()));
+      const recorded = await incidents
+        .lockChannel(incident._id, channelId, outcome.previousSendMessages, new Date(now()))
+        .then(() => true, () => false);
+      if (!recorded) unrecorded.push(channelId);
       locked.push(channelId);
     }
+
+    if (unrecorded.length > 0) {
+      await guild.alertOwner(
+        `Anti-raid ${incident._id}: canalele ${unrecorded.join(", ")} au fost blocate, dar starea lor dinainte NU a putut fi salvata. Deblocarea automata la final nu le va acoperi; verificare manuala necesara.`
+      ).catch(() => undefined);
+    }
+
     return { kind: "locked", incidentId: incident._id, channelIds: locked };
   }
 
@@ -206,9 +219,12 @@ export function createRaidIntervention(deps: InterventionDeps) {
         await incidents.advance(current._id, "confirmed", "containment", new Date(moment));
       }
       const lockFirst = coordinatedRaid(current);
-      if (lockFirst) steps.push(await lockAffectedChannels(guild, current, channelIds));
+      const lockdown = async (): Promise<InterventionStep> => lockAffectedChannels(guild, current, channelIds)
+        .catch(() => ({ kind: "locked" as const, incidentId: current._id, channelIds: [] }));
+
+      if (lockFirst) steps.push(await lockdown());
       steps.push(...await sanctionParticipants(guild, current, thresholds));
-      if (!lockFirst) steps.push(await lockAffectedChannels(guild, current, channelIds));
+      if (!lockFirst) steps.push(await lockdown());
 
       if (lockdownOverdue(current, thresholds.maxLockdownMs, moment)) {
         await guild.alertOwner(
