@@ -4,7 +4,8 @@ import { resolveSanctionActor } from "./sanctionActorAdapter.js";
 
 import type { AdaptableRaidGuild } from "./antiRaidGuildAdapter.js";
 import type { SanctionRole } from "../../features/command-security/elevatedRoleSanction.js";
-import type { StructureChangeKind, StructureGuardGuild } from "../../features/command-security/serverStructureGuardRuntime.js";
+import type { StructureGuardGuild } from "../../features/command-security/serverStructureGuardRuntime.js";
+import type { StructureChangeKind } from "../../features/command-security/serverStructureActions.js";
 
 const AUDIT_WINDOW_MS = 60_000;
 const AUDIT_RETRY_DELAYS_MS = [0, 1_000, 2_000] as const;

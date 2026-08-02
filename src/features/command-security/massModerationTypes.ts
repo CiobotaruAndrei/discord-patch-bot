@@ -3,7 +3,9 @@
 export const MASS_MODERATION_WINDOW_MS = 5 * 60 * 1000;
 export const MASS_MODERATION_DISTINCT_LIMIT = 3;
 
-export type MassModerationAction = "kick" | "ban";
+export const MASS_MODERATION_ACTIONS = ["ban", "kick"] as const;
+
+export type MassModerationAction = (typeof MASS_MODERATION_ACTIONS)[number];
 
 export interface MassModerationEvent {
   auditId: string;

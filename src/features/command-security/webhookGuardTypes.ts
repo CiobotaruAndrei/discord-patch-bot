@@ -16,7 +16,9 @@ export interface WebhookSnapshotRecord {
   capturedAt: Date;
 }
 
-export type WebhookChangeKind = "create" | "update" | "delete";
+export const WEBHOOK_CHANGE_KINDS = ["create", "delete", "update"] as const;
+
+export type WebhookChangeKind = (typeof WEBHOOK_CHANGE_KINDS)[number];
 
 export interface WebhookChange {
   kind: WebhookChangeKind;

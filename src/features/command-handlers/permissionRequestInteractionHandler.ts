@@ -15,6 +15,7 @@ import {
   orderPermissionRequests,
   permissionRequestButtons
 } from "../command-presentation/permissionRequestMessages.js";
+import { validatePermissionRequest } from "../command-security/permissionRequestValidation.js";
 import { sendTextPages } from "../command-presentation/textPagination.js";
 import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
 
@@ -168,15 +169,21 @@ export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
     if (!isPermissionRequestType(typeOption)) {
       return interaction.reply({ content: "Tipul cererii nu este valid.", ephemeral: true });
     }
-    const target = interaction.options?.getString("target", true)?.trim() ?? "";
-    const action = interaction.options?.getString("action", true)?.trim() ?? "";
     const reason = interaction.options?.getString("reason", true)?.trim() ?? "";
-    if (!target || !action || !reason) {
-      return interaction.reply({ content: "Tinta, actiunea si motivul sunt obligatorii.", ephemeral: true });
+    const validation = validatePermissionRequest({
+      type: typeOption,
+      target: interaction.options?.getString("target", true) ?? "",
+      action: interaction.options?.getString("action", true) ?? "",
+      reason,
+      amount: interaction.options?.getInteger?.("amount", false) ?? null,
+      permissions: parsePermissionList(interaction.options?.getString("permissions", false) ?? ""),
+      botId: interaction.options?.getString("bot", false) ?? null,
+      duration: interaction.options?.getString("duration", false) ?? ""
+    });
+    if (!validation.ok) {
+      return interaction.reply({ content: validation.problem, ephemeral: true });
     }
-    if (typeOption === "bot-add" && !/^\d{17,20}$/.test(target)) {
-      return interaction.reply({ content: "Pentru bot-add, tinta trebuie sa fie ID-ul botului (17-20 cifre).", ephemeral: true });
-    }
+    const validated = validation.value;
 
     const settings = await deps.getGuildSettings(guild.id).catch(() => null);
     const channelId = settings?.permissionRequestChannelId;
@@ -185,23 +192,19 @@ export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       return interaction.reply({ content: "Canalul de cereri de securitate nu este configurat sau nu este disponibil.", ephemeral: true });
     }
 
-    const amount = interaction.options?.getInteger?.("amount", false) ?? null;
-    const permissions = parsePermissionList(interaction.options?.getString("permissions", false) ?? "");
-    const botId = interaction.options?.getString("bot", false)?.trim() || (typeOption === "bot-add" ? target : null);
-    const ttlMs = parseDurationMs(interaction.options?.getString("duration", false) ?? "") ?? undefined;
     const requestId = newRequestId();
     const record = await repository.create({
       requestId,
       guildId: guild.id,
       type: typeOption,
       requesterId: interaction.user?.id ?? "",
-      target,
-      action,
-      amount,
-      permissions,
-      botId,
+      target: validated.target,
+      action: validated.action,
+      amount: validated.amount,
+      permissions: validated.permissions,
+      botId: validated.botId,
       reason,
-      ttlMs
+      ttlMs: validated.ttlMs
     });
     if (!record) {
       return interaction.reply({ content: "Cererea nu a putut fi salvata. Reincearca.", ephemeral: true });

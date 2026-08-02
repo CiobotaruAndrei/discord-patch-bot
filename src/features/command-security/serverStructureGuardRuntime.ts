@@ -3,18 +3,10 @@
 import { type SanctionRole } from "./elevatedRoleSanction.js";
 import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
+import { STRUCTURE_ACTIONS } from "./serverStructureActions.js";
+
+import type { StructureChangeKind } from "./serverStructureActions.js";
 import type { LogLevel } from "../../shared/logging.js";
-
-export const STRUCTURE_CHANGE_KINDS = ["channelCreate", "channelDelete", "roleCreate", "roleDelete"] as const;
-
-export type StructureChangeKind = (typeof STRUCTURE_CHANGE_KINDS)[number];
-
-const STRUCTURE_ACTIONS: Record<StructureChangeKind, string> = {
-  channelCreate: "create",
-  channelDelete: "delete",
-  roleCreate: "create",
-  roleDelete: "delete"
-};
 
 const STRUCTURE_LABELS: Record<StructureChangeKind, string> = {
   channelCreate: "canal creat",

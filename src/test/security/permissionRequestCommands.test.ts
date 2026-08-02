@@ -59,7 +59,7 @@ test("/permission-request cere ID de bot valid pentru bot-add", async () => {
 test("/permission-request refuza cand canalul de aprobare nu e configurat", async () => {
   const model = permissionRequestStore();
   const handler = handlerFor(model, { permissionRequestChannelId: null });
-  const call = interaction({ strings: { type: "webhook", target: "canal", action: "create", reason: "integrare" } });
+  const call = interaction({ strings: { type: "webhook", target: "111111111111111111", action: "create", reason: "integrare" } });
 
   await handler.handle(moduleContext<Parameters<typeof handler.handle>[0]>(call), moduleContext<Parameters<typeof handler.handle>[1]>({}));
 
@@ -72,7 +72,7 @@ test("/permission-request salveaza cererea si o trimite in canalul configurat", 
   const sent: Record<string, unknown>[] = [];
   const handler = handlerFor(model);
   const call = interaction({
-    strings: { type: "webhook", target: "canal-1", action: "create", reason: "integrare RSS" },
+    strings: { type: "webhook", target: "111111111111111111", action: "create", reason: "integrare RSS" },
     guild: {
       id: "g1", ownerId: "owner-1",
       channels: { fetch: async () => ({ send: async (payload: Record<string, unknown>) => { sent.push(payload); return undefined; } }) },
