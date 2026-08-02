@@ -248,3 +248,35 @@ test("un autor fara roluri cu permisiuni ridicate primeste un raport onest, nu u
     restored: false, recreatedId: null, plan
   }), /nu avea roluri cu permisiuni ridicate/);
 });
+
+test("in raid, stergerea unei resurse protejate PASTREAZA inregistrarea si o marcheaza (F-21)", async () => {
+  const setup = harness({ raidConfirmed: true });
+  await protect(setup);
+
+  const outcome = await setup.runtime.handleResourceDelete(setup.guild, "c1");
+
+  assert.deepEqual(outcome, { kind: "raid-active" });
+  const record = await setup.repository.read("g1", "c1");
+  assert.ok(record, "snapshotul necesar restaurarii nu poate fi sters de atacator");
+  assert.ok(record?.deletedDuringRaidAt instanceof Date, "resursa e marcata ca stearsa in raid, ca anti-raid sa o poata recrea");
+});
+
+test("in afara raidului, o stergere aprobata elimina inregistrarea ca inainte", async () => {
+  const setup = harness({ guardEnabled: false });
+  await protect(setup);
+
+  await setup.runtime.handleResourceDelete(setup.guild, "c1");
+
+  assert.equal(await setup.repository.read("g1", "c1"), null, "cu poarta oprita comportamentul de dinainte ramane");
+});
+
+test("rebindarea dupa recreare confirmata curata marcajul de stergere in raid (F-21)", async () => {
+  const setup = harness({ raidConfirmed: true });
+  await protect(setup);
+  await setup.runtime.handleResourceDelete(setup.guild, "c1");
+
+  const rebound = await setup.repository.rebind("g1", "c1", "c1-nou");
+
+  assert.equal(rebound?.resourceId, "c1-nou");
+  assert.equal(rebound?.deletedDuringRaidAt, null, "dupa recreare confirmata resursa nu mai e in asteptare");
+});

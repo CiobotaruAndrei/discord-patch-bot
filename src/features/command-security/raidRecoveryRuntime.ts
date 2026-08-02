@@ -31,6 +31,7 @@ export interface RecoveryGuildPort {
 
 export interface RaidRecoveryDeps {
   RaidSnapshotModel: RaidSnapshotModelLike;
+  onResourceRecreated?: (guildId: string, previousResourceId: string, nextResourceId: string) => Promise<unknown>;
   logger?: (level: LogLevel, scope: string, message: string, meta?: Record<string, unknown>) => void;
   now?: () => number;
 }
@@ -80,13 +81,17 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
     guild: RecoveryGuildPort,
     snapshot: RaidSnapshot,
     operation: RecoveryOperation,
-    remaps: RoleRemap[]
+    remaps: RoleRemap[],
+    recreated: Array<{ previousId: string; nextId: string }>
   ): Promise<{ status: RecoveryOperation["status"]; detail: string | null }> {
     if (operation.kind === "recreate-role") {
       const role = snapshot.roles.find(entry => entry.roleId === operation.resourceId);
       if (!role) return { status: "skipped", detail: "rolul nu mai este in snapshot" };
       const created = await guild.recreateRole(role);
-      if (created) remaps.push({ previousRoleId: role.roleId, nextRoleId: created });
+      if (created) {
+        remaps.push({ previousRoleId: role.roleId, nextRoleId: created });
+        recreated.push({ previousId: role.roleId, nextId: created });
+      }
       return created
         ? { status: "done", detail: `recreat cu ID nou ${created}` }
         : { status: "owner-intervention-required", detail: "rolul nu a putut fi recreat" };
@@ -97,6 +102,7 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
       if (!stored) return { status: "skipped", detail: "canalul nu mai este in snapshot" };
       const channel = { ...stored, overwrites: remapOverwrites(stored.overwrites, remaps) };
       const created = await guild.recreateChannel(channel);
+      if (created) recreated.push({ previousId: channel.channelId, nextId: created });
       return created
         ? { status: "done", detail: `recreat cu ID nou ${created}` }
         : { status: "owner-intervention-required", detail: "canalul nu a putut fi recreat" };
@@ -137,6 +143,7 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
     if (!current) return { kind: "no-snapshot" };
 
     const remaps: RoleRemap[] = [];
+    const recreated: Array<{ previousId: string; nextId: string }> = [];
 
     const planned = record.operations.length > 0
       ? record.operations
@@ -166,11 +173,15 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
         continue;
       }
 
-      const result = await applyOperation(guild, record.snapshot, operation, remaps).catch(() => ({
+      const result = await applyOperation(guild, record.snapshot, operation, remaps, recreated).catch(() => ({
         status: "pending" as const,
         detail: "eroare la aplicare"
       }));
       await snapshots.markOperation(incidentId, operation.kind, operation.resourceId, result.status, result.detail).catch(() => false);
+    }
+
+    for (const entry of recreated) {
+      await deps.onResourceRecreated?.(guild.id, entry.previousId, entry.nextId).catch(() => undefined);
     }
 
     const after = await snapshots.read(incidentId).catch(() => null);

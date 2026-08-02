@@ -38,6 +38,7 @@ import type {
 } from "../lifecycle/lifecycleContracts.js";
 import type { MongoContextLike, RuntimeServices, ScraperRuntime } from "../appRuntimeContracts.js";
 import { SECURITY_FIELDS } from "../../shared/guildSecurityFields.js";
+import { createProtectedResourceRepository } from "../../features/command-security/protectedResourceRepository.js";
 
 export type GatewayFeatureRuntimes = {
   readonly securityRuntime?: SecurityGatewayRuntime;
@@ -109,8 +110,22 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     })
     : undefined;
 
+  const protectedResources = mongo.ProtectedResourceModel
+    ? createProtectedResourceRepository(mongo.ProtectedResourceModel)
+    : undefined;
+
   const raidRecovery = mongo.RaidSnapshotModel
-    ? createRaidRecoveryRuntime({ RaidSnapshotModel: mongo.RaidSnapshotModel, logger })
+    ? createRaidRecoveryRuntime({
+      RaidSnapshotModel: mongo.RaidSnapshotModel,
+      onResourceRecreated: protectedResources
+        ? async (guildId, previousResourceId, nextResourceId) => {
+          const record = await protectedResources.read(guildId, previousResourceId).catch(() => null);
+          if (!record?.deletedDuringRaidAt) return undefined;
+          return protectedResources.rebind(guildId, previousResourceId, nextResourceId);
+        }
+        : undefined,
+      logger
+    })
     : undefined;
 
   const applyProtection = async (guildId: string, field: string, enabled: boolean): Promise<boolean> => {
