@@ -100,6 +100,7 @@ export interface MongoContextLike {
   WebhookSnapshotModel?: WebhookSnapshotModelLike;
   MassModerationModel?: MassModerationModelLike;
   RaidSnapshotModel?: RaidSnapshotModelLike;
+  GuildSecurityModel?: { updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown> };
   RaidIncidentModel?: RaidIncidentModelLike;
   AdRequestModel?: AdRequestModelLike;
   AdAttemptModel?: AdAttemptModelLike;

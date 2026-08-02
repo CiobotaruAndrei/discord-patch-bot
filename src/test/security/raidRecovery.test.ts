@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaidRecoveryRuntime } from "../../features/command-security/raidRecoveryRuntime.js";
-import { emptyProtections, emptySnapshot, planRecovery, recoveryComplete } from "../../features/command-security/raidSnapshotTypes.js";
+import { emptyProtections, emptySnapshot, planRecovery, recoveryComplete, remapOverwrites } from "../../features/command-security/raidSnapshotTypes.js";
 import { moduleContext } from "../moduleContextStub.js";
 import type { RecoveryGuildPort } from "../../features/command-security/raidRecoveryRuntime.js";
 import type { CurrentServerState, RaidSnapshot, SnapshotProtections } from "../../features/command-security/raidSnapshotTypes.js";
@@ -210,15 +210,67 @@ test("o operatiune care esueaza ajunge la owner-intervention-required, nu la res
   const outcome = await setup.runtime.restore(setup.guild, INCIDENT);
 
   assert.equal(outcome.kind, "restored");
-  assert.equal(outcome.kind === "restored" ? outcome.complete : false, true, "planul e complet doar cand nimic nu mai e pending");
+  assert.equal(
+    outcome.kind === "restored" ? outcome.complete : true,
+    false,
+    "o operatiune care cere interventia ownerului NU inseamna recovery complet; incidentul ramane deschis"
+  );
   const blocked = outcome.kind === "restored" ? outcome.operations.filter(entry => entry.status === "owner-intervention-required") : [];
   assert.deepEqual(blocked.map(entry => entry.label), ["anunturi"]);
   assert.match(setup.published[0] ?? "", /interventia ownerului/);
 });
 
-test("un plan cu operatiuni ramase pending nu este considerat complet", () => {
+test("recovery e complet doar cand tot ce era de facut e done sau skipped (review #944)", () => {
   assert.equal(recoveryComplete([{ kind: "recreate-channel", resourceId: "c1", label: "general", status: "pending", attempts: 0, detail: null }]), false);
   assert.equal(recoveryComplete([{ kind: "recreate-channel", resourceId: "c1", label: "general", status: "done", attempts: 1, detail: null }]), true);
+  assert.equal(recoveryComplete([{ kind: "recreate-channel", resourceId: "c1", label: "general", status: "skipped", attempts: 1, detail: null }]), true);
+  assert.equal(
+    recoveryComplete([{ kind: "recreate-channel", resourceId: "c1", label: "general", status: "owner-intervention-required", attempts: 3, detail: null }]),
+    false,
+    "un server ramas deteriorat nu poate fi raportat ca restaurat complet"
+  );
+});
+
+test("overwrite-urile care tinteau un rol sters primesc ID-ul rolului recreat (review #944)", () => {
+  const overwrites = [
+    { id: "role-vechi", type: 0, allow: "1", deny: "0" },
+    { id: "membru-1", type: 1, allow: "0", deny: "2" }
+  ];
+
+  const remapped = remapOverwrites(overwrites, [{ previousRoleId: "role-vechi", nextRoleId: "role-nou" }]);
+
+  assert.deepEqual(remapped.map(entry => entry.id), ["role-nou", "membru-1"]);
+  assert.equal(remapped[0].allow, "1", "restul overwrite-ului ramane neatins");
+});
+
+test("fara remapari, overwrite-urile raman exact cum erau", () => {
+  const overwrites = [{ id: "role-1", type: 0, allow: "1", deny: "0" }];
+
+  assert.deepEqual(remapOverwrites(overwrites, []), overwrites);
+});
+
+test("un canal recreat dupa rolul lui foloseste ID-ul nou al rolului in overwrite (review #944)", async () => {
+  const snapshot = snapshotWith({
+    roles: [{ roleId: "r1", name: "Mod", permissions: "0", position: 3, color: null, hoist: false, mentionable: false, managed: false }],
+    channels: [{
+      channelId: "c1", name: "general", channelType: 0, parentId: null, position: 0, topic: null, nsfw: null, rateLimitPerUser: null,
+      overwrites: [{ id: "r1", type: 0, allow: "1", deny: "0" }]
+    }]
+  });
+  const seenOverwrites: string[][] = [];
+  const setup = harness({ snapshot });
+  const guild = moduleContext<RecoveryGuildPort>({
+    ...setup.guild,
+    recreateChannel: async (channel: { overwrites: Array<{ id: string }> }) => {
+      seenOverwrites.push(channel.overwrites.map(entry => entry.id));
+      return "c1-nou";
+    }
+  });
+  await setup.runtime.captureBeforeContainment(guild, INCIDENT);
+
+  await setup.runtime.restore(guild, INCIDENT);
+
+  assert.deepEqual(seenOverwrites, [["r1-nou"]], "altfel Discord refuza overwrite-ul pentru un rol care nu mai exista");
 });
 
 test("protectiile oprite in raid sunt readuse exact la valorile din snapshot", async () => {

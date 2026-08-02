@@ -2,6 +2,23 @@
 
 export const RAID_SNAPSHOT_VERSION = 1;
 
+export interface RoleRemap {
+  previousRoleId: string;
+  nextRoleId: string;
+}
+
+export function remapOverwrites(
+  overwrites: readonly SnapshotOverwrite[],
+  remaps: readonly RoleRemap[]
+): SnapshotOverwrite[] {
+  if (remaps.length === 0) return [...overwrites];
+  const byPrevious = new Map(remaps.map(entry => [entry.previousRoleId, entry.nextRoleId]));
+  return overwrites.map(overwrite => {
+    const next = byPrevious.get(overwrite.id);
+    return next ? { ...overwrite, id: next } : overwrite;
+  });
+}
+
 export interface SnapshotOverwrite {
   id: string;
   type: number;
@@ -153,7 +170,7 @@ export function planRecovery(snapshot: RaidSnapshot, current: CurrentServerState
 }
 
 export function recoveryComplete(operations: readonly RecoveryOperation[]): boolean {
-  return operations.every(operation => operation.status !== "pending");
+  return operations.every(operation => operation.status === "done" || operation.status === "skipped");
 }
 
 export function describeRecovery(operations: readonly RecoveryOperation[]): string {

@@ -39,6 +39,9 @@ export type MongoRepositoriesBundle = Pick<
   | "FeedbackReportModel"
   | "PermissionRequestModel"
   | "ProtectedResourceModel"
+  | "WebhookSnapshotModel"
+  | "MassModerationModel"
+  | "RaidSnapshotModel"
   | "RaidIncidentModel"
   | "AdRequestModel"
   | "AdAttemptModel"
@@ -120,6 +123,9 @@ export function selectMongoRepositories(context: MongoRepositoriesBundle): Mongo
     FeedbackReportModel: context.FeedbackReportModel,
     PermissionRequestModel: context.PermissionRequestModel,
     ProtectedResourceModel: context.ProtectedResourceModel,
+    WebhookSnapshotModel: context.WebhookSnapshotModel,
+    MassModerationModel: context.MassModerationModel,
+    RaidSnapshotModel: context.RaidSnapshotModel,
     RaidIncidentModel: context.RaidIncidentModel,
     AdRequestModel: context.AdRequestModel,
     AdAttemptModel: context.AdAttemptModel,

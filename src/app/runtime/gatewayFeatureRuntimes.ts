@@ -37,6 +37,7 @@ import type {
   ServerEventLogGatewayRuntime
 } from "../lifecycle/lifecycleContracts.js";
 import type { MongoContextLike, RuntimeServices, ScraperRuntime } from "../appRuntimeContracts.js";
+import { SECURITY_FIELDS } from "../../shared/guildSecurityFields.js";
 
 export type GatewayFeatureRuntimes = {
   readonly securityRuntime?: SecurityGatewayRuntime;
@@ -113,8 +114,12 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     : undefined;
 
   const applyProtection = async (guildId: string, field: string, enabled: boolean): Promise<boolean> => {
-    if (!mongo.GuildModel) return false;
-    const result = await mongo.GuildModel.updateOne({ _id: guildId }, { $set: { [field]: enabled } }).catch(() => null);
+    const securityField = SECURITY_FIELDS.some(entry => entry === field);
+    const target = securityField ? mongo.GuildSecurityModel : mongo.GuildModel;
+    if (!target) return false;
+    const result = await target
+      .updateOne({ _id: guildId }, { $set: { [field]: enabled } }, { upsert: true })
+      .catch(() => null);
     return result !== null;
   };
 
@@ -140,7 +145,8 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
           captureStructureSnapshot: incidentId => raidRecovery.captureBeforeContainment(recovery, incidentId),
           restoreStructure: async incidentId => {
             const outcome = await raidRecovery.restore(recovery, incidentId);
-            if (outcome.kind !== "restored") return { complete: true, blocked: 0 };
+            if (outcome.kind === "nothing-to-restore") return { complete: true, blocked: 0 };
+            if (outcome.kind === "no-snapshot") return { complete: false, blocked: 1 };
             return {
               complete: outcome.complete,
               blocked: outcome.operations.filter(entry => entry.status === "owner-intervention-required").length

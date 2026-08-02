@@ -1,11 +1,12 @@
 "use strict";
 
 import { createRaidSnapshotRepository } from "./raidSnapshotRepository.js";
-import { describeRecovery, planRecovery, recoveryComplete } from "./raidSnapshotTypes.js";
+import { describeRecovery, planRecovery, recoveryComplete, remapOverwrites } from "./raidSnapshotTypes.js";
 
 import type { RaidSnapshotModelLike } from "./raidSnapshotRepository.js";
 import type {
   CurrentServerState,
+  RoleRemap,
   RaidSnapshot,
   RecoveryOperation,
   SnapshotChannel,
@@ -78,20 +79,23 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
   async function applyOperation(
     guild: RecoveryGuildPort,
     snapshot: RaidSnapshot,
-    operation: RecoveryOperation
+    operation: RecoveryOperation,
+    remaps: RoleRemap[]
   ): Promise<{ status: RecoveryOperation["status"]; detail: string | null }> {
     if (operation.kind === "recreate-role") {
       const role = snapshot.roles.find(entry => entry.roleId === operation.resourceId);
       if (!role) return { status: "skipped", detail: "rolul nu mai este in snapshot" };
       const created = await guild.recreateRole(role);
+      if (created) remaps.push({ previousRoleId: role.roleId, nextRoleId: created });
       return created
         ? { status: "done", detail: `recreat cu ID nou ${created}` }
         : { status: "owner-intervention-required", detail: "rolul nu a putut fi recreat" };
     }
 
     if (operation.kind === "recreate-channel") {
-      const channel = snapshot.channels.find(entry => entry.channelId === operation.resourceId);
-      if (!channel) return { status: "skipped", detail: "canalul nu mai este in snapshot" };
+      const stored = snapshot.channels.find(entry => entry.channelId === operation.resourceId);
+      if (!stored) return { status: "skipped", detail: "canalul nu mai este in snapshot" };
+      const channel = { ...stored, overwrites: remapOverwrites(stored.overwrites, remaps) };
       const created = await guild.recreateChannel(channel);
       return created
         ? { status: "done", detail: `recreat cu ID nou ${created}` }
@@ -132,6 +136,8 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
     const current = await guild.readCurrentState().catch(() => null);
     if (!current) return { kind: "no-snapshot" };
 
+    const remaps: RoleRemap[] = [];
+
     const planned = record.operations.length > 0
       ? record.operations
       : planRecovery(record.snapshot, current);
@@ -160,7 +166,7 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
         continue;
       }
 
-      const result = await applyOperation(guild, record.snapshot, operation).catch(() => ({
+      const result = await applyOperation(guild, record.snapshot, operation, remaps).catch(() => ({
         status: "pending" as const,
         detail: "eroare la aplicare"
       }));
