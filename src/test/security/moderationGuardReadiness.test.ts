@@ -11,6 +11,8 @@ import {
 } from "../../features/command-security/moderationGuardReadiness.js";
 import { MODERATION_GUARD_TYPES } from "../../features/command-security/moderationGuardDecision.js";
 import { protectionToggleGate } from "../../features/command-security/protectionReadiness.js";
+import { buildSecurityStatus } from "../../features/command-security/securityStatusModel.js";
+import type { GuildSettingsLike } from "../../features/command-security/securitySettingsContracts.js";
 import { moduleContext } from "../moduleContextStub.js";
 
 import type { PermissionHolder } from "../../features/command-security/moderationGuardReadiness.js";
@@ -79,7 +81,7 @@ test("readiness-ul se raporteaza per subprotectie, ca /security-status sa nu ara
   );
 
   assert.deepEqual(gaps["webhook"], ["Manage Webhooks"]);
-  assert.equal(gaps["bot-add"], undefined, "o subprotectie fara lipsuri nu primeste lipsurile alteia");
+  assert.deepEqual(gaps["bot-add"], [], "o subprotectie gata primeste o lista goala explicita, nu lipsurile alteia prin fallback");
   assert.deepEqual(gaps["moderation-guard"], ["Manage Webhooks"]);
 });
 
@@ -129,4 +131,24 @@ test("cu permisiunile de bot-add dar fara restul, pornirea reuseste dar raportea
     assert.match(report, new RegExp(`- ${type}: lipseste`), `${type} trebuie raportata ca degradata`);
   }
   assert.doesNotMatch(report, /- bot-add:/, "bot-add are tot ce ii trebuie, deci nu apare ca degradata");
+});
+
+test("in /security-status o subprotectie gata ramane pornita cand alta e degradata (review PR #951)", () => {
+  const report = moderationGuardReadiness(holder(EVERY_PERMISSION.filter(flag => flag !== PermissionFlagsBits.ManageWebhooks)));
+
+  const status = buildSecurityStatus({
+    settings: moduleContext<GuildSettingsLike>({ moderationGuardEnabled: true, permissionRequestChannelId: "chan-1" }),
+    readinessGaps: readinessGapsByProtection(report),
+    activeApprovals: 0,
+    degradedResources: 0,
+    ownerInterventionOperations: 0,
+    raidStage: null
+  });
+
+  const webhook = status.subprotections.find(entry => entry.key === "webhook");
+  const botAdd = status.subprotections.find(entry => entry.key === "bot-add");
+
+  assert.equal(webhook?.state, "degradat");
+  assert.equal(botAdd?.state, "pornit", "o lipsa de Manage Webhooks nu are voie sa faca bot-add sa para degradata");
+  assert.deepEqual(botAdd?.gaps, []);
 });

@@ -101,9 +101,7 @@ export function readinessGapsByProtection(
   report: readonly SubprotectionReadiness[]
 ): Record<string, readonly string[]> {
   const gaps: Record<string, readonly string[]> = {};
-  for (const entry of report) {
-    if (entry.missing.length > 0) gaps[entry.type] = entry.missing;
-  }
+  for (const entry of report) gaps[entry.type] = entry.missing;
   const guardGaps = [...new Set(report.flatMap(entry => entry.missing))];
   if (guardGaps.length > 0) gaps["moderation-guard"] = guardGaps;
   return gaps;
