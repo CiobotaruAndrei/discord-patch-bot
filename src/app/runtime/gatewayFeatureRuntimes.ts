@@ -8,6 +8,8 @@ import type { WebhookGuardRuntime } from "../../features/command-security/webhoo
 import { adaptWebhookGuardChannel } from "./webhookGuardChannelAdapter.js";
 import { createMassModerationRuntime } from "../../features/command-security/massModerationRuntime.js";
 import { adaptMassModerationGuild } from "./massModerationGuildAdapter.js";
+import { createServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
+import type { ServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
 import type { AdaptableWebhookChannel } from "./webhookGuardChannelAdapter.js";
 import { createAntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
 import { createAdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
@@ -41,6 +43,7 @@ export type GatewayFeatureRuntimes = {
   readonly antiRaidRuntime?: AntiRaidRuntime;
   readonly adProtectionRuntime?: AdProtectionRuntime;
   readonly webhookGuardRuntime?: WebhookGuardRuntime<AdaptableWebhookChannel>;
+  readonly serverStructureGuardRuntime?: ServerStructureGuardRuntime;
 };
 
 export type GatewayFeatureInput = {
@@ -260,6 +263,25 @@ async function applyWarnBan(
     })
     : undefined;
 
+  const structureGuardCore = permissionRequestModel && auditLogModel && moderationGuardGate && antiRaidRuntime
+    ? createServerStructureGuardRuntime({
+      gate: {
+        readSituation: guildId => moderationGuardGate.readSituation(guildId),
+        consumeApproval: (guildId, actorId, resourceId, action) =>
+          createPermissionRequestRepository(permissionRequestModel)
+            .consume(guildId, "server-structure", actorId, { target: resourceId, action })
+      },
+      publish: publishToRequestChannel,
+      recordAudit: async (guildId, entry) => {
+        await recordServerAuditEntry(auditLogModel, guildId, entry);
+      },
+      signalAntiRaid: (guildId, resourceId) => antiRaidRuntime.observeStructureChange(guildId, resourceId),
+      logger
+    })
+    : undefined;
+
+  const serverStructureGuardRuntime: ServerStructureGuardRuntime | undefined = structureGuardCore;
+
   const permissionDelegationRuntime = mongo.GuildAuditLogModel && mongo.GuildModel
     ? createPermissionDelegationRuntime({
       GuildModel: mongo.GuildModel,
@@ -292,7 +314,7 @@ async function applyWarnBan(
     })
     : undefined;
 
-  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime, webhookGuardRuntime };
+  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime, webhookGuardRuntime, serverStructureGuardRuntime };
 }
 
 export function createInactiveGatewayFeatureRuntimes(recorders: ThreatSurfaceMetricRecorder): GatewayFeatureRuntimes {
