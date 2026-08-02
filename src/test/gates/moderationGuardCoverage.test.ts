@@ -5,6 +5,7 @@ import { MODERATION_GUARD_TYPES } from "../../features/command-security/moderati
 import { MODERATION_GUARD_ENFORCERS, enforcerFor, typesWithoutEnforcer } from "../../features/command-security/moderationGuardEnforcers.js";
 import { createDelegationAuthorizer } from "../../features/command-security/delegationAuthorization.js";
 import { moduleContext } from "../moduleContextStub.js";
+import { calls, loadModule } from "./sourceStructureQueries.js";
 import type { PermissionDelegationRuntimeDeps } from "../../features/command-security/permissionDelegationContext.js";
 
 test("fiecare tip din MODERATION_GUARD_TYPES are un enforcer real, nu doar o valoare in enum", () => {
@@ -78,12 +79,32 @@ test("un actor neidentificat nu poate consuma o aprobare", async () => {
   assert.deepEqual(calls, [], "fara actor nu se atinge nicio aprobare");
 });
 
-test("subprotectiile care sanctioneaza autorul sunt cele patru declarate de specificatie", () => {
+test("subprotectiile care sanctioneaza autorul sunt cele cinci declarate de specificatie", () => {
   const sanctioning = MODERATION_GUARD_ENFORCERS.filter(enforcer => enforcer.sanctionsAuthor).map(enforcer => enforcer.type);
 
   assert.deepEqual(
     [...sanctioning].sort(),
-    ["moderation-mass", "protected-resource-change", "server-structure", "webhook"],
+    ["moderation-mass", "permission-grant", "protected-resource-change", "server-structure", "webhook"],
     "daca o subprotectie pierde sanctiunea autorului, autorul compromis isi pastreaza capacitatea de a repeta actiunea"
   );
+});
+
+test("flag-ul sanctionsAuthor corespunde codului: enforcerul declarat chiar apeleaza executorul verificat", () => {
+  const shared = calls(loadModule("features", "command-security", "delegationAuthorization.ts"))
+    .some(call => call.callee === "executeElevatedRoleSanction");
+  assert.ok(shared, "helperul comun de sanctionare a delegarii nu mai foloseste executorul verificat");
+
+  for (const enforcer of MODERATION_GUARD_ENFORCERS) {
+    const module = loadModule("features", "command-security", `${enforcer.module}.ts`);
+    const applies = calls(module)
+      .some(call => call.callee === "executeElevatedRoleSanction" || call.callee === "sanctionDelegationAuthor");
+
+    assert.equal(
+      applies,
+      enforcer.sanctionsAuthor,
+      enforcer.sanctionsAuthor
+        ? `${enforcer.module} se declara ca sanctioneaza autorul, dar nu apeleaza executorul verificat`
+        : `${enforcer.module} sanctioneaza autorul in cod, dar registrul spune ca nu o face`
+    );
+  }
 });

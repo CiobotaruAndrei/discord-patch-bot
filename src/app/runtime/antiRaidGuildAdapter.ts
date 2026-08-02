@@ -2,7 +2,7 @@
 
 import type { RaidGuildPort, SanctionOutcome } from "../../features/command-security/antiRaidIntervention.js";
 import type { SanctionStep } from "../../features/command-security/antiRaidIncidentTypes.js";
-import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/protectedResourceSanction.js";
+import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/elevatedPermissions.js";
 
 const PURGE_BATCH = 100;
 const BOT_ADD_AUDIT_EVENT = 28;

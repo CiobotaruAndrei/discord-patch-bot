@@ -19,7 +19,7 @@ export interface ModerationGuardEnforcer {
 
 export const MODERATION_GUARD_ENFORCERS: readonly ModerationGuardEnforcer[] = [
   { type: "bot-add", module: "botAddSecurityRuntime", factory: createBotAddSecurityRuntime, sanctionsAuthor: false },
-  { type: "permission-grant", module: "roleDelegationRuntime", factory: createRoleDelegationRuntime, sanctionsAuthor: false },
+  { type: "permission-grant", module: "roleDelegationRuntime", factory: createRoleDelegationRuntime, sanctionsAuthor: true },
   { type: "moderation-mass", module: "massModerationRuntime", factory: createMassModerationRuntime, sanctionsAuthor: true },
   { type: "webhook", module: "webhookGuardRuntime", factory: createWebhookGuardRuntime, sanctionsAuthor: true },
   { type: "server-structure", module: "serverStructureGuardRuntime", factory: createServerStructureGuardRuntime, sanctionsAuthor: true },

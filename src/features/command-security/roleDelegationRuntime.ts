@@ -5,7 +5,7 @@ import { auditMatch, channelOverwriteMatch, matchWithRetry, explicitProtectedPer
 import { recordServerAuditEntry } from "../admin-records/auditLogRepository.js";
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 import type { SensitiveActionObserver } from "./sensitiveActionObserver.js";
-import { createDelegationAuthorizer, reportRaidEscalation, reverts } from "./delegationAuthorization.js";
+import { createDelegationAuthorizer, describeSanctionOutcome, reportRaidEscalation, reverts, sanctionDelegationAuthor } from "./delegationAuthorization.js";
 
 export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDeps, observer: SensitiveActionObserver) {
   const now = deps.now ?? Date.now;
@@ -40,11 +40,12 @@ export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDep
       action: "protected-role-permissions-reverted",
       details: `roleId=${next.id}; roleName=${next.name ?? ""}; removed=${stillGranted.map(({ label }) => label).join("+")}`
     });
+    const sanction = await sanctionDelegationAuthor(deps, next.guild.id, actorId);
     const observation = await observeSensitiveAction(next.guild.id, actorId, match, "role-permissions", eventTime);
-    if (shouldSendIndividualAlert(observation)) await deps.adminAlert(
-      "security:permission-delegation",
+    if (shouldSendIndividualAlert(observation) || sanction.ownerInterventionRequired) await deps.adminAlert(
+      sanction.ownerInterventionRequired ? "security:owner-intervention-required" : "security:permission-delegation",
       "Delegare neautorizata de permisiuni restaurata",
-      `Rol ${next.name ?? next.id}; permisiuni eliminate: ${stillGranted.map(({ label }) => label).join(", ")}; restul modificarilor raman; actor ${actorId ?? "nedetectat"}`,
+      `Rol ${next.name ?? next.id}; permisiuni eliminate: ${stillGranted.map(({ label }) => label).join(", ")}; restul modificarilor raman; actor ${actorId ?? "nedetectat"}. ${describeSanctionOutcome(sanction)}`,
       next.guild.id
     );
   }
@@ -75,11 +76,12 @@ export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDep
       action: "protected-member-roles-reverted",
       details: `memberId=${next.id}; roleIds=${addedProtected.map(role => role.id).join(",")}`
     });
+    const sanction = await sanctionDelegationAuthor(deps, next.guild.id, actorId);
     const observation = await observeSensitiveAction(next.guild.id, actorId, match, "member-sensitive-role", eventTime);
-    if (shouldSendIndividualAlert(observation)) await deps.adminAlert(
-      "security:permission-delegation",
+    if (shouldSendIndividualAlert(observation) || sanction.ownerInterventionRequired) await deps.adminAlert(
+      sanction.ownerInterventionRequired ? "security:owner-intervention-required" : "security:permission-delegation",
       "Roluri sensibile acordate neautorizat si eliminate",
-      `Membru ${next.id}; roluri ${addedProtected.map(role => role.name ?? role.id).join(", ")}; actor ${actorId ?? "nedetectat"}`,
+      `Membru ${next.id}; roluri ${addedProtected.map(role => role.name ?? role.id).join(", ")}; actor ${actorId ?? "nedetectat"}. ${describeSanctionOutcome(sanction)}`,
       next.guild.id
     );
   }
@@ -122,11 +124,12 @@ export function createRoleDelegationRuntime(deps: PermissionDelegationRuntimeDep
       action: "protected-role-create-reverted",
       details: `roleId=${role.id}; roleName=${role.name ?? ""}; removed=${stillGranted.map(({ label }) => label).join("+")}`
     });
+    const sanction = await sanctionDelegationAuthor(deps, role.guild.id, actorId);
     const observation = await observeSensitiveAction(role.guild.id, actorId, match, "role-create", eventTime);
-    if (shouldSendIndividualAlert(observation)) await deps.adminAlert(
-      "security:permission-delegation",
+    if (shouldSendIndividualAlert(observation) || sanction.ownerInterventionRequired) await deps.adminAlert(
+      sanction.ownerInterventionRequired ? "security:owner-intervention-required" : "security:permission-delegation",
       "Rol nou creat cu permisiuni sensibile; permisiunile sensibile au fost eliminate",
-      `Rol ${role.name ?? role.id}; permisiuni eliminate: ${stillGranted.map(({ label }) => label).join(", ")}; permisiunile neprotejate raman; actor ${actorId ?? "nedetectat"}`,
+      `Rol ${role.name ?? role.id}; permisiuni eliminate: ${stillGranted.map(({ label }) => label).join(", ")}; permisiunile neprotejate raman; actor ${actorId ?? "nedetectat"}. ${describeSanctionOutcome(sanction)}`,
       role.guild.id
     );
   }

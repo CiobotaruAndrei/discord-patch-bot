@@ -1,9 +1,9 @@
 "use strict";
 
-import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/protectedResourceSanction.js";
+import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/elevatedPermissions.js";
 
 import type { AdaptableRaidGuild } from "./antiRaidGuildAdapter.js";
-import type { SanctionRole } from "../../features/command-security/protectedResourceSanction.js";
+import type { SanctionRole } from "../../features/command-security/elevatedRoleSanction.js";
 import type { StructureChangeKind, StructureGuardGuild } from "../../features/command-security/serverStructureGuardRuntime.js";
 
 const AUDIT_WINDOW_MS = 60_000;

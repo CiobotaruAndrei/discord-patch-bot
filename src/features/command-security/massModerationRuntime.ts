@@ -2,7 +2,8 @@
 
 import { createMassModerationRepository } from "./massModerationRepository.js";
 import { breachesThreshold, describeWindow, distinctTargets, dominantAction, withinWindow } from "./massModerationTypes.js";
-import { describeSanction, planRoleSanction, type SanctionRole } from "./protectedResourceSanction.js";
+import { type SanctionRole } from "./elevatedRoleSanction.js";
+import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
 import type { MassModerationModelLike } from "./massModerationRepository.js";
 import type { MassModerationAction, MassModerationEvent } from "./massModerationTypes.js";
@@ -70,20 +71,20 @@ export function createMassModerationRuntime(deps: MassModerationDeps) {
     actorId: string,
     events: readonly MassModerationEvent[]
   ): Promise<MassModerationOutcome> {
-    const actor = await guild.resolveActor(actorId).catch(() => null);
-    const plan = planRoleSanction({
-      actorRoles: actor?.roles ?? [],
+    const outcome = await executeElevatedRoleSanction({
+      resolveActor: () => guild.resolveActor(actorId),
       botHighestRolePosition: guild.botHighestRolePosition,
-      everyoneRoleId: guild.everyoneRoleId
+      everyoneRoleId: guild.everyoneRoleId,
+      reason: REASON
     });
 
-    if (actor && plan.removable.length > 0) {
-      await actor.removeRoles(plan.removable.map(role => role.id), REASON).catch(error => {
-        deps.logger?.("WARN", "MASS_MODERATION", "Eliminarea rolurilor autorului a esuat", {
-          guildId: guild.id,
-          actorId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+    if (outcome.ownerInterventionRequired) {
+      deps.logger?.("ERROR", "MASS_MODERATION", "Sanctiunea autorului nu s-a aplicat complet", {
+        guildId: guild.id,
+        actorId,
+        blocked: outcome.blocked.length,
+        failed: outcome.failed.length,
+        verified: outcome.verified
       });
     }
 
@@ -104,7 +105,7 @@ export function createMassModerationRuntime(deps: MassModerationDeps) {
           ? `Ban-urile au fost ridicate (${bans.lifted}); membrii trebuie reinvitati manual.`
           : "Nu existau ban-uri de ridicat; kick-urile nu pot fi anulate, membrii trebuie reinvitati manual."
         : `${bans.lifted} ban-uri ridicate, ${bans.failed} NU au putut fi ridicate; verificare manuala necesara.`,
-      describeSanction(plan)
+      describeSanctionOutcome(outcome)
     ];
     await deps.publish(guild.id, lines.join("\n")).catch(() => undefined);
 

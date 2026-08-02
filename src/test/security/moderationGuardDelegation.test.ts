@@ -13,6 +13,7 @@ import { START_STOP_TOGGLE_FIELDS } from "../../features/command-security/securi
 import { moduleContext } from "../moduleContextStub.js";
 import type { GuildAuditLogRecord } from "../../features/admin-records/auditLogRepository.js";
 import type { GuardedDelegationGate } from "../../features/command-security/permissionDelegationContext.js";
+import type { SanctionRole } from "../../features/command-security/elevatedRoleSanction.js";
 
 const NOW = Date.parse("2026-08-01T10:00:00.000Z");
 
@@ -31,10 +32,13 @@ function auditModel(records: GuildAuditLogRecord[]) {
 function roleUpdateScenario(
   guard: GuardedDelegationGate | undefined,
   reportRaidActor?: (guildId: string, actorId: string, surface: string) => Promise<unknown>,
-  options: { withoutActor?: boolean } = {}
+  options: { withoutActor?: boolean; actorRoles?: readonly SanctionRole[]; keepRolesAfterRemoval?: boolean } = {}
 ) {
   const reverts: bigint[] = [];
   const audits: GuildAuditLogRecord[] = [];
+  const alerts: Array<{ kind: string; body: string }> = [];
+  const sanctioned: string[] = [];
+  let actorRoles: readonly SanctionRole[] = options.actorRoles ?? [];
   const guild = {
     id: "g1",
     ownerId: "owner-1",
@@ -49,9 +53,20 @@ function roleUpdateScenario(
     })
   };
   const runtime = createPermissionDelegationRuntime({
+    sanctionContext: async () => ({
+      botHighestRolePosition: 100,
+      everyoneRoleId: "everyone",
+      resolveActor: async () => ({
+        roles: actorRoles,
+        removeRoles: async (ids: readonly string[]) => {
+          sanctioned.push(...ids);
+          if (!options.keepRolesAfterRemoval) actorRoles = actorRoles.filter(role => !ids.includes(role.id));
+        }
+      })
+    }),
     GuildModel: { findOne: async () => null, findOneAndUpdate: async () => null, updateOne: async () => ({ modifiedCount: 1 }) },
     GuildAuditLogModel: auditModel(audits),
-    adminAlert: async () => undefined,
+    adminAlert: async (kind: string, _title: string, body: string) => { alerts.push({ kind, body }); },
     now: () => NOW,
     wait: async () => undefined,
     guard,
@@ -65,7 +80,7 @@ function roleUpdateScenario(
     permissions: permissions(PermissionFlagsBits.BanMembers),
     setPermissions: async (bits: bigint) => { reverts.push(bits); return undefined; }
   };
-  return { runtime, previous, next, reverts, audits };
+  return { runtime, previous, next, reverts, audits, alerts, sanctioned };
 }
 
 test("fara poarta de aprobare configurata, comportamentul de dinainte ramane neschimbat", async () => {
@@ -225,6 +240,11 @@ function channelOverwriteScenario(
     })
   };
   const runtime = createPermissionDelegationRuntime({
+    sanctionContext: async () => ({
+      botHighestRolePosition: 100,
+      everyoneRoleId: "everyone",
+      resolveActor: async () => ({ roles: [], removeRoles: async () => undefined })
+    }),
     GuildModel: { findOne: async () => null, findOneAndUpdate: async () => null, updateOne: async () => ({ modifiedCount: 1 }) },
     GuildAuditLogModel: auditModel(audits),
     adminAlert: async () => undefined,
@@ -311,4 +331,37 @@ test("in timpul unui raid confirmat, overwrite-ul de canal E retras si autorul i
 
   assert.equal(scenario.edits.length, 1, "anti-raid nu asculta channelUpdate, deci nimeni nu ar fi corectat");
   assert.deepEqual(escalated, ["channel-overwrite"]);
+});
+
+function elevatedRole(id: string, name: string, position: number): SanctionRole {
+  return { id, name, position, managed: false, elevated: true };
+}
+
+test("acordarea neautorizata retrage si rolurile ridicate ale autorului, nu doar permisiunea beneficiarului (F-16)", async () => {
+  const gate = createModerationGuardGate({
+    PermissionRequestModel: permissionRequestStore(),
+    readGuildSettings: async () => ({ moderationGuardEnabled: true })
+  });
+  const scenario = roleUpdateScenario(gate, undefined, { actorRoles: [elevatedRole("r-admin", "Admin secund", 40)] });
+
+  await scenario.runtime.handleRoleUpdate(scenario.previous, scenario.next);
+
+  assert.deepEqual(scenario.sanctioned, ["r-admin"], "autorul compromis nu mai poate repeta acordarea");
+  assert.match(scenario.alerts.at(-1)?.body ?? "", /Admin secund/);
+});
+
+test("cand rolul autorului supravietuieste retragerii, alerta devine owner-intervention-required (F-16, F-22)", async () => {
+  const gate = createModerationGuardGate({
+    PermissionRequestModel: permissionRequestStore(),
+    readGuildSettings: async () => ({ moderationGuardEnabled: true })
+  });
+  const scenario = roleUpdateScenario(gate, undefined, {
+    actorRoles: [elevatedRole("r-admin", "Admin secund", 40)],
+    keepRolesAfterRemoval: true
+  });
+
+  await scenario.runtime.handleRoleUpdate(scenario.previous, scenario.next);
+
+  assert.equal(scenario.alerts.at(-1)?.kind, "security:owner-intervention-required");
+  assert.match(scenario.alerts.at(-1)?.body ?? "", /are inca dupa incercarea de eliminare/);
 });

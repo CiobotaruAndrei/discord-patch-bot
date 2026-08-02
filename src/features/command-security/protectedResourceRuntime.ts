@@ -2,11 +2,13 @@
 
 import { createProtectedResourceRepository } from "./protectedResourceRepository.js";
 import { captureSnapshot, diffSnapshot } from "./protectedResourceTypes.js";
-import { planRoleSanction, renderIncident } from "./protectedResourceSanction.js";
+import { renderIncident } from "./protectedResourceSanction.js";
+import { ACTOR_UNKNOWN_OUTCOME, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
 import type { ProtectedResourceModelLike } from "./protectedResourceRepository.js";
 import type { ProtectedResourceRecord, ProtectedResourceSnapshot, ResourceLike } from "./protectedResourceTypes.js";
-import type { SanctionRole } from "./protectedResourceSanction.js";
+import type { SanctionRole } from "./elevatedRoleSanction.js";
+import type { SanctionOutcome } from "./elevatedRoleSanction.js";
 
 export interface ProtectedResourceGuardGate {
   readSituation(guildId: string): Promise<{ guardEnabled: boolean; raidConfirmed: boolean }>;
@@ -47,7 +49,7 @@ export type EnforcementOutcome =
   | { kind: "no-change" }
   | { kind: "allowed-owner" }
   | { kind: "allowed-approval"; requestId: string }
-  | { kind: "actor-unknown"; actions: readonly string[] }
+  | { kind: "actor-unknown"; actions: readonly string[]; restored: boolean; recreatedId: string | null }
   | { kind: "corrected"; actions: readonly string[]; restored: boolean; recreatedId: string | null };
 
 export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDeps) {
@@ -65,9 +67,9 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
     guild: ProtectedResourceGuild,
     record: ProtectedResourceRecord,
     actions: readonly string[]
-  ): Promise<{ outcome: EnforcementOutcome } | { actorId: string }> {
+  ): Promise<{ outcome: EnforcementOutcome } | { actorId: string | null }> {
     const actorId = await guild.findAuditActor(record.resourceId).catch(() => null);
-    if (!actorId) return { outcome: { kind: "actor-unknown", actions } };
+    if (!actorId) return { actorId: null };
     if (guild.ownerId && actorId === guild.ownerId) return { outcome: { kind: "allowed-owner" } };
 
     const approval = await deps.guard
@@ -79,29 +81,31 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
 
   async function sanction(
     guild: ProtectedResourceGuild,
-    actorId: string,
+    actorId: string | null,
     record: ProtectedResourceRecord,
     actions: readonly string[],
     restored: boolean,
     recreatedId: string | null
-  ): Promise<void> {
-    const actor = await guild.resolveActor(actorId).catch(() => null);
-    const plan = planRoleSanction({
-      actorRoles: actor?.roles ?? [],
-      botHighestRolePosition: guild.botHighestRolePosition,
-      everyoneRoleId: guild.everyoneRoleId
-    });
+  ): Promise<SanctionOutcome> {
+    const outcome = actorId
+      ? await executeElevatedRoleSanction({
+        resolveActor: () => guild.resolveActor(actorId),
+        botHighestRolePosition: guild.botHighestRolePosition,
+        everyoneRoleId: guild.everyoneRoleId,
+        reason: "Protectie resurse: modificare neautorizata a unei resurse protejate"
+      })
+      : ACTOR_UNKNOWN_OUTCOME;
 
-    if (actor && plan.removable.length > 0) {
-      await actor
-        .removeRoles(plan.removable.map(role => role.id), "Protectie resurse: modificare neautorizata a unei resurse protejate")
-        .catch(error => {
-          deps.logger?.("WARN", "PROTECTED_RESOURCE", "Eliminarea rolurilor autorului a esuat", {
-            guildId: guild.id,
-            actorId,
-            error: error instanceof Error ? error.message : String(error)
-          });
-        });
+    if (outcome.ownerInterventionRequired) {
+      await repository.markOwnerInterventionRequired(guild.id, record.resourceId, new Date(now())).catch(() => false);
+      deps.logger?.("ERROR", "PROTECTED_RESOURCE", "Sanctiunea autorului nu s-a aplicat complet", {
+        guildId: guild.id,
+        actorId,
+        resourceId: record.resourceId,
+        blocked: outcome.blocked.length,
+        failed: outcome.failed.length,
+        verified: outcome.verified
+      });
     }
 
     await deps
@@ -111,9 +115,11 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
         actions,
         restored,
         recreatedId,
-        plan
+        outcome
       }))
       .catch(() => undefined);
+
+    return outcome;
   }
 
   async function handleResourceUpdate(
@@ -139,6 +145,11 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
         await repository.refreshSnapshot(guild.id, resourceId, captureSnapshot(current), new Date(now())).catch(() => false);
       }
       return decision.outcome;
+    }
+
+    if (!decision.actorId) {
+      await sanction(guild, null, record, actions, false, null);
+      return { kind: "actor-unknown", actions, restored: false, recreatedId: null };
     }
 
     const restored = record.type === "role"
@@ -170,6 +181,11 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
         await repository.remove(guild.id, resourceId).catch(() => false);
       }
       return decision.outcome;
+    }
+
+    if (!decision.actorId) {
+      await sanction(guild, null, record, ["delete"], false, null);
+      return { kind: "actor-unknown", actions: ["delete"], restored: false, recreatedId: null };
     }
 
     const recreatedId = record.type === "role"

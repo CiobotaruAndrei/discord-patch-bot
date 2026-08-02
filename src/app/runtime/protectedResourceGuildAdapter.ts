@@ -2,8 +2,8 @@
 
 import type { ProtectedResourceGuild } from "../../features/command-security/protectedResourceRuntime.js";
 import type { ProtectedResourceSnapshot } from "../../features/command-security/protectedResourceTypes.js";
-import type { SanctionRole } from "../../features/command-security/protectedResourceSanction.js";
-import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/protectedResourceSanction.js";
+import type { SanctionRole } from "../../features/command-security/elevatedRoleSanction.js";
+import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/elevatedPermissions.js";
 
 const AUDIT_WINDOW_MS = 60_000;
 const CATEGORY_CHANNEL_TYPE = 4;

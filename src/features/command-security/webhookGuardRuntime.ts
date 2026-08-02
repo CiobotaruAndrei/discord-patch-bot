@@ -2,7 +2,8 @@
 
 import { createWebhookSnapshotRepository } from "./webhookSnapshotRepository.js";
 import { changeActions, describeChanges, diffWebhooks } from "./webhookGuardTypes.js";
-import { describeSanction, planRoleSanction, type SanctionRole } from "./protectedResourceSanction.js";
+import { type SanctionRole } from "./elevatedRoleSanction.js";
+import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
 import type { WebhookSnapshotModelLike } from "./webhookSnapshotRepository.js";
 import type { WebhookChange, WebhookSnapshotEntry } from "./webhookGuardTypes.js";
@@ -119,20 +120,20 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
     changes: readonly WebhookChange[],
     failed: number
   ): Promise<void> {
-    const actor = await channel.resolveActor(actorId).catch(() => null);
-    const plan = planRoleSanction({
-      actorRoles: actor?.roles ?? [],
+    const outcome = await executeElevatedRoleSanction({
+      resolveActor: () => channel.resolveActor(actorId),
       botHighestRolePosition: channel.botHighestRolePosition,
-      everyoneRoleId: channel.everyoneRoleId
+      everyoneRoleId: channel.everyoneRoleId,
+      reason: REASON
     });
 
-    if (actor && plan.removable.length > 0) {
-      await actor.removeRoles(plan.removable.map(role => role.id), REASON).catch(error => {
-        deps.logger?.("WARN", "WEBHOOK_GUARD", "Eliminarea rolurilor autorului a esuat", {
-          guildId: channel.guildId,
-          actorId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+    if (outcome.ownerInterventionRequired) {
+      deps.logger?.("ERROR", "WEBHOOK_GUARD", "Sanctiunea autorului nu s-a aplicat complet", {
+        guildId: channel.guildId,
+        actorId,
+        blocked: outcome.blocked.length,
+        failed: outcome.failed.length,
+        verified: outcome.verified
       });
     }
 
@@ -144,7 +145,7 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
         ? "Toate modificarile au fost corectate din snapshot."
         : `${failed} din ${changes.length} modificari NU au putut fi corectate; verificare manuala necesara.`,
       "Un webhook recreat primeste un URL nou; integrarile care foloseau URL-ul vechi trebuie reconfigurate.",
-      describeSanction(plan)
+      describeSanctionOutcome(outcome)
     ];
     await deps.publish(channel.guildId, lines.join("\n")).catch(() => undefined);
   }

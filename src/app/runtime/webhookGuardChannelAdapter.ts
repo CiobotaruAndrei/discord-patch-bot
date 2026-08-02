@@ -1,8 +1,8 @@
 "use strict";
 
-import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/protectedResourceSanction.js";
+import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/elevatedPermissions.js";
 
-import type { SanctionRole } from "../../features/command-security/protectedResourceSanction.js";
+import type { SanctionRole } from "../../features/command-security/elevatedRoleSanction.js";
 import type { WebhookGuardChannel } from "../../features/command-security/webhookGuardRuntime.js";
 import type { WebhookSnapshotEntry } from "../../features/command-security/webhookGuardTypes.js";
 

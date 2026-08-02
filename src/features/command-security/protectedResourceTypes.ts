@@ -46,6 +46,7 @@ export interface ProtectedResourceRecord {
   lastRestoredAt: Date | null;
   recreatedFromId: string | null;
   deletedDuringRaidAt?: Date | null;
+  ownerInterventionAt?: Date | null;
 }
 
 export const RESOURCE_CHANGE_ACTIONS = ["delete", "rename", "move", "reposition", "permissions"] as const;
