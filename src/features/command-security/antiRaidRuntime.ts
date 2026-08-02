@@ -256,6 +256,7 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     await guild?.publish(
       `Anti-raid ${active._id}: <@${actorId}> a incercat o modificare administrativa (${surface}) in timpul raidului. Modificarea a fost revenita si autorul intra in incident.`
     ).catch(() => undefined);
+    await runIntervention(guildId, []);
     return true;
   }
 

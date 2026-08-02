@@ -85,6 +85,25 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
     return false;
   }
 
+  async function advanceSnapshot(channel: WebhookGuardChannel, corrected: boolean): Promise<void> {
+    if (!corrected) {
+      deps.logger?.("WARN", "WEBHOOK_GUARD", "Snapshotul NU avanseaza: o corectie a esuat, deci starea live nu e de incredere", {
+        guildId: channel.guildId,
+        channelId: channel.channelId
+      });
+      return;
+    }
+    const verified = await channel.listWebhooks().catch(() => null);
+    if (!verified) {
+      deps.logger?.("WARN", "WEBHOOK_GUARD", "Snapshotul NU avanseaza: recitirea de dupa corectie a esuat", {
+        guildId: channel.guildId,
+        channelId: channel.channelId
+      });
+      return;
+    }
+    await capture(channel, verified);
+  }
+
   async function revertChanges(channel: WebhookGuardChannel, changes: readonly WebhookChange[]): Promise<number> {
     let failed = 0;
     for (const change of changes) {
@@ -161,14 +180,14 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
     }
 
     if (raidActive) {
-      await deps.reportRaidActor?.(channel.guildId, actorId, "webhook").catch(() => undefined);
       const failedInRaid = await revertChanges(channel, changes);
+      await advanceSnapshot(channel, failedInRaid === 0);
+      await deps.reportRaidActor?.(channel.guildId, actorId, "webhook").catch(() => undefined);
       await deps.recordAudit(channel.guildId, {
         userId: actorId,
         action: "webhook-change-reverted-in-raid",
         details: `channelId=${channel.channelId}; modificari=${describeChanges(changes)}; necorectate=${failedInRaid}`
       }).catch(() => undefined);
-      await capture(channel, await channel.listWebhooks().catch(() => current));
       return { kind: "reverted", changes, corrected: changes.length - failedInRaid, failed: failedInRaid };
     }
 
@@ -198,9 +217,7 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
     }).catch(() => undefined);
 
     await sanction(channel, actorId, unapproved, failed);
-
-    const after = await channel.listWebhooks().catch(() => current);
-    await capture(channel, after);
+    await advanceSnapshot(channel, failed === 0);
 
     return { kind: "reverted", changes: unapproved, corrected: unapproved.length - failed, failed };
   }
