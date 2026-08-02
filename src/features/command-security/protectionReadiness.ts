@@ -10,6 +10,7 @@ export function antiRaidReadiness(interaction: SecurityInteraction): string[] {
   if (me?.permissions?.has(PermissionFlagsBits.ViewAuditLog) !== true) missing.push("View Audit Log");
   if (me?.permissions?.has(PermissionFlagsBits.ModerateMembers) !== true) missing.push("Moderate Members");
   if (me?.permissions?.has(PermissionFlagsBits.MuteMembers) !== true) missing.push("Mute Members");
+  if (me?.permissions?.has(PermissionFlagsBits.BanMembers) !== true) missing.push("Ban Members");
   if (me?.permissions?.has(PermissionFlagsBits.ManageChannels) !== true) missing.push("Manage Channels");
   if (me?.permissions?.has(PermissionFlagsBits.ManageRoles) !== true) missing.push("Manage Roles");
   if ((me?.roles?.highest?.position ?? 0) <= 0) missing.push("rol pozitionat deasupra rolului @everyone (necesar pentru sanctiuni si lockdown)");

@@ -11,6 +11,9 @@ export function renderThresholdOutcome(
   if (outcome.kind === "nothing-provided") {
     return "Eroare: nu ai dat niciun prag de modificat. Optiunile nedate raman la valoarea curenta, deci comanda fara optiuni nu ar schimba nimic.";
   }
+  if (outcome.kind === "read-failed") {
+    return "Eroare: pragurile curente nu au putut fi citite, deci nu se poate calcula ce se schimba. Nimic nu a fost modificat; reincearca.";
+  }
   if (outcome.kind === "save-failed") {
     return `Eroare: pragurile NU au fost salvate. ${formatError(outcome.error)} Valorile anterioare au ramas active.`;
   }

@@ -7,6 +7,9 @@ import { toggleProtection } from "../../features/command-security/toggleProtecti
 import { START_STOP_TOGGLE_FIELDS } from "../../features/command-security/securityCommandFields.js";
 import { antiRaidReadiness } from "../../features/command-security/protectionReadiness.js";
 import { renderToggleProtectionOutcome } from "../../features/command-presentation/securityCommandMessages.js";
+import { isDurationOption, THRESHOLD_OPTION_FIELDS } from "../../features/command-security/antiRaidThresholdOptions.js";
+import { readThresholdOptions, runAntiRaidThresholdsCommand } from "../../features/command-handlers/antiRaidThresholdsCommand.js";
+import type { SecurityOptions } from "../../features/command-security/securityInteractionContracts.js";
 import { moduleContext } from "../moduleContextStub.js";
 import type { ToggleProtectionDeps, ToggleProtectionInput } from "../../features/command-security/toggleProtectionUseCase.js";
 import type { SecurityInteraction } from "../../features/command-security/securityInteractionContracts.js";
@@ -51,7 +54,7 @@ test("/start anti-raid refuza activarea cand botul nu poate sanctiona sau bloca 
 
   const missing = antiRaidReadiness(interaction);
 
-  for (const permission of ["View Audit Log", "Moderate Members", "Mute Members", "Manage Channels", "Manage Roles"]) {
+  for (const permission of ["View Audit Log", "Moderate Members", "Mute Members", "Ban Members", "Manage Channels", "Manage Roles"]) {
     assert.ok(missing.includes(permission), `${permission} lipseste din verificarea de pregatire`);
   }
   assert.ok(missing.some(entry => entry.includes("@everyone")), "pozitia ierarhica trebuie verificata");
@@ -171,4 +174,50 @@ test("fiecare optiune expusa de comanda ajunge la un prag real (F-26)", () => {
     THRESHOLD_OPTION_NAMES.length,
     "fiecare prag din AntiRaidThresholds are exact o optiune expusa in comanda"
   );
+});
+
+test("fiecare optiune este citita cu tipul ei declarat, altfel duratele nu pot fi schimbate (review #943)", () => {
+  const integerReads: string[] = [];
+  const stringReads: string[] = [];
+  const options = moduleContext<SecurityOptions>({
+    getSubcommand: () => "anti-raid-thresholds",
+    getInteger: (name: string) => { integerReads.push(name); return name === "mention-count" ? 9 : null; },
+    getString: (name: string) => { stringReads.push(name); return name === "safety-period" ? "1h" : null; },
+    getChannel: () => null
+  });
+
+  const provided = readThresholdOptions(options);
+
+  assert.deepEqual(provided, { "mention-count": 9, "safety-period": "1h" });
+  for (const name of stringReads) {
+    assert.ok(isDurationOption(name), `${name} nu e o durata, dar a fost citita ca string`);
+  }
+  for (const name of integerReads) {
+    assert.equal(isDurationOption(name), false, `${name} e o durata, dar a fost citita ca intreg; Discord.js arunca in acest caz`);
+  }
+});
+
+test("clasificarea duratelor acopera exact campurile in milisecunde", () => {
+  for (const [optionName, field] of Object.entries(THRESHOLD_OPTION_FIELDS)) {
+    assert.equal(isDurationOption(optionName), String(field).endsWith("Ms"), `${optionName} e clasificata gresit`);
+  }
+});
+
+test("daca pragurile curente nu pot fi citite, nu se scrie nimic (review #943)", async () => {
+  const persisted: unknown[] = [];
+  const options = moduleContext<SecurityOptions>({
+    getSubcommand: () => "anti-raid-thresholds",
+    getInteger: (name: string) => (name === "mention-count" ? 9 : null),
+    getString: () => null,
+    getChannel: () => null
+  });
+
+  const message = await runAntiRaidThresholdsCommand(options, {
+    readStored: () => ({ ok: false }),
+    persist: async thresholds => { persisted.push(thresholds); },
+    formatError: () => "eroare"
+  });
+
+  assert.deepEqual(persisted, [], "o citire esuata ar fi rescris toate pragurile personalizate cu valorile implicite");
+  assert.match(message, /nu au putut fi citite/);
 });

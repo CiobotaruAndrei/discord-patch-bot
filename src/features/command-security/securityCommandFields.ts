@@ -22,6 +22,10 @@ export const START_STOP_TOGGLE_FIELDS: Record<string, { channel: ProtectionChann
 
 export const SECURITY_THRESHOLD_SUBCOMMANDS: readonly string[] = ["anti-raid-thresholds"];
 
+export function securitySetSubcommands(): string[] {
+  return [...Object.keys(SET_CHANNEL_FIELDS), ...SECURITY_THRESHOLD_SUBCOMMANDS];
+}
+
 export function isSecuritySetSubcommand(subcommand: string): boolean {
-  return Object.hasOwn(SET_CHANNEL_FIELDS, subcommand) || SECURITY_THRESHOLD_SUBCOMMANDS.includes(subcommand);
+  return securitySetSubcommands().includes(subcommand);
 }

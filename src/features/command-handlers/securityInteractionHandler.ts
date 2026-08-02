@@ -92,9 +92,9 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
     await target.safeDefer(interaction, true);
     const command = interaction.commandName;
     if (command === "set" && interaction.options.getSubcommand() === "anti-raid-thresholds") {
-      const stored = await target.getGuildSettings(guildId).catch(() => null);
+      const stored = await target.getGuildSettings(guildId).then(value => ({ ok: true as const, stored: value?.antiRaidThresholds })).catch(() => ({ ok: false as const }));
       return respond(interaction, await runAntiRaidThresholdsCommand(interaction.options, {
-        readStored: () => stored?.antiRaidThresholds,
+        readStored: () => stored,
         persist: async thresholds => { await applyGuildConfigUpdate(target.GuildModel, guildId, { antiRaidThresholds: thresholds }); },
         onSaveFailure: error => target.logger?.("WARN", "SECURITY_COMMAND", "Salvarea pragurilor anti-raid a esuat", errorDetail(error)),
         formatError: error => target.formatUserError(error, "Eroare la salvare.")
@@ -141,7 +141,8 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
           needsBackfill: sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true },
         {
           readConfiguredChannel: () => {
-            const channelId = settings?.[toggle.channel];
+            const channelId = settings?.[toggle.channel]
+              ?? (sub === "anti-raid" || sub === "anti-raid-dry-run" ? settings?.permissionRequestChannelId : null);
             return typeof channelId === "string" && channelId ? channelId : null;
           },
           readChannelPermissions: channelId => target.checkChannelPermissions(interaction, channelId),

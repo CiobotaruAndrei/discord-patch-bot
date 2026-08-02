@@ -55,6 +55,10 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     return settings?.antiRaidEnabled === true || settings?.antiRaidDryRunEnabled === true;
   }
 
+  function sameThresholds(left: AntiRaidThresholds, right: AntiRaidThresholds): boolean {
+    return (Object.keys(right) as Array<keyof AntiRaidThresholds>).every(key => left[key] === right[key]);
+  }
+
   function pruneDetectors(): void {
     const cutoff = now() - DETECTOR_IDLE_MS;
     for (const [guildId, entry] of detectors) if (entry.touchedAt < cutoff) detectors.delete(guildId);
@@ -62,12 +66,12 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
 
   async function detectorFor(guildId: string): Promise<RaidDetector> {
     pruneDetectors();
+    const thresholds = await thresholdsFor(guildId).catch(() => DEFAULT_ANTI_RAID_THRESHOLDS);
     const existing = detectors.get(guildId);
-    if (existing) {
+    if (existing && sameThresholds(existing.thresholds, thresholds)) {
       existing.touchedAt = now();
       return existing.detector;
     }
-    const thresholds = await thresholdsFor(guildId).catch(() => DEFAULT_ANTI_RAID_THRESHOLDS);
     const detector = createRaidDetector({ thresholds });
     detectors.set(guildId, { detector, thresholds, touchedAt: now() });
     return detector;
@@ -184,8 +188,38 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
 
     rememberActor(guildId, botId, true);
     await incidents.addParticipant(active._id, botId, true, new Date(now())).catch(() => false);
+    await sanctionBotAdder(guildId, botId, active._id);
     await runIntervention(guildId, []);
     return { kind: "existing", incidentId: active._id };
+  }
+
+  async function sanctionBotAdder(guildId: string, botId: string, incidentId: string): Promise<void> {
+    const guild = await deps.resolveGuild(guildId).catch(() => null);
+    if (!guild?.findBotAdder) return;
+    const adderId = await guild.findBotAdder(botId).catch(() => null);
+    if (!adderId || adderId === botId) return;
+
+    rememberActor(guildId, adderId, false);
+    const added = await incidents.addParticipant(incidentId, adderId, false, new Date(now())).catch(() => false);
+    if (!added) return;
+
+    const reason = `Anti-raid ${incidentId}: a adaugat un bot in timpul unui raid confirmat`;
+    const plan = guild.stripElevatedRoles
+      ? await guild.stripElevatedRoles(adderId, reason).catch(() => null)
+      : null;
+
+    const outcome = plan === null
+      ? "Rolurile nu au putut fi verificate; verificare manuala necesara."
+      : plan.removed.length === 0 && plan.blocked.length === 0
+        ? "Autorul nu avea roluri cu permisiuni ridicate."
+        : [
+          plan.removed.length > 0 ? `Roluri eliminate: ${plan.removed.join(", ")}.` : "",
+          plan.blocked.length > 0 ? `Roluri care NU au putut fi eliminate: ${plan.blocked.join(", ")}.` : ""
+        ].filter(Boolean).join(" ");
+
+    await guild.publish(
+      `Anti-raid ${incidentId}: <@${adderId}> a adaugat botul <@${botId}> in timpul raidului. Botul primeste ban. ${outcome}`
+    ).catch(() => undefined);
   }
 
   async function tick(guildId: string): Promise<ObserveOutcome> {

@@ -1,15 +1,15 @@
 import type { CommandAccessRule, CommandCatalogHelpEntry } from "./commandCatalogTypes.js";
-import { SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
+import { securitySetSubcommands, START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
 
 const PROTECTION_SUBCOMMANDS = Object.keys(START_STOP_TOGGLE_FIELDS);
-const SECURITY_CHANNEL_SUBCOMMANDS = Object.keys(SET_CHANNEL_FIELDS);
+const SECURITY_SET_SUBCOMMANDS = securitySetSubcommands();
 
 export const NOTIFICATIONS_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   { command: "latest", access: "public", discordAdminPermissions: false },
   { command: "watchlist-game", access: "public", discordAdminPermissions: false, adminRuntimeSubcommands: ["delete"] },
   { command: "start", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: PROTECTION_SUBCOMMANDS },
   { command: "stop", access: "admin", discordAdminPermissions: true, sensitiveSubcommands: PROTECTION_SUBCOMMANDS },
-  { command: "set", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], sensitiveSubcommands: SECURITY_CHANNEL_SUBCOMMANDS },
+  { command: "set", access: "admin", discordAdminPermissions: true, ownerOnlySubcommands: ["admin-command-access"], sensitiveSubcommands: SECURITY_SET_SUBCOMMANDS },
   { command: "watchlist", access: "admin", discordAdminPermissions: true },
   { command: "price-alert", access: "admin", discordAdminPermissions: true },
   { command: "future-release", access: "admin", discordAdminPermissions: false, publicSubcommands: ["list"] },

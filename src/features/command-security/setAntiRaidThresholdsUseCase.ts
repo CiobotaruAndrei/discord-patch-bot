@@ -6,6 +6,7 @@ import type { AntiRaidThresholds, ThresholdRejection } from "./antiRaidThreshold
 
 export type SetThresholdsOutcome =
   | { kind: "nothing-provided" }
+  | { kind: "read-failed" }
   | { kind: "save-failed"; error: unknown }
   | { kind: "applied"; applied: readonly string[]; rejected: readonly ThresholdRejection[] };
 

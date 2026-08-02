@@ -41,7 +41,7 @@ function harness(options: {
     now: () => clock
   });
 
-  return { runtime, incidents, model, locked, sanctions, published, advance: (ms: number) => { clock += ms; }, clockAt: () => clock };
+  return { runtime, incidents, model, locked, sanctions, published, guildPort: guild, advance: (ms: number) => { clock += ms; }, clockAt: () => clock };
 }
 
 function message(overrides: Record<string, unknown> = {}) {
@@ -275,4 +275,74 @@ test("modul de testare dry-run tine detectorul activ chiar fara /start anti-raid
   });
 
   assert.notDeepEqual(outcome, { kind: "ignored" });
+});
+
+test("un bot adaugat in raid: botul e participant, iar cel care l-a adaugat e sanctionat si numit (F-33)", async () => {
+  const setup = harness();
+  const stripped: Array<{ userId: string }> = [];
+  setup.guildPort.findBotAdder = async () => "vinovat";
+  setup.guildPort.stripElevatedRoles = async (userId: string) => {
+    stripped.push({ userId });
+    return { removed: ["Admin"], blocked: ["Integrare"] };
+  };
+
+  await setup.incidents.open({ guildId: "g1", triggerReason: "spam" }, new Date(T0));
+  const incident = await setup.incidents.active("g1");
+  await setup.incidents.advance(incident?._id ?? "", "suspected", "confirmed", new Date(T0));
+
+  await setup.runtime.observeBotJoin("g1", "bot-9");
+
+  assert.deepEqual(stripped, [{ userId: "vinovat" }], "autorul pierde rolurile ridicate, nu doar botul e banat");
+  const message = setup.published.find(entry => entry.includes("<@vinovat>")) ?? "";
+  assert.match(message, /<@bot-9>/, "incidentul numeste si botul, si autorul");
+  assert.match(message, /Roluri eliminate: Admin/);
+  assert.match(message, /NU au putut fi eliminate: Integrare/);
+});
+
+test("fara autor identificabil in Audit Log, botul e tratat dar nu se sanctioneaza nimeni la intamplare (F-33)", async () => {
+  const setup = harness();
+  const stripped: string[] = [];
+  setup.guildPort.findBotAdder = async () => null;
+  setup.guildPort.stripElevatedRoles = async (userId: string) => {
+    stripped.push(userId);
+    return { removed: [], blocked: [] };
+  };
+
+  await setup.incidents.open({ guildId: "g1", triggerReason: "spam" }, new Date(T0));
+  const incident = await setup.incidents.active("g1");
+  await setup.incidents.advance(incident?._id ?? "", "suspected", "confirmed", new Date(T0));
+
+  await setup.runtime.observeBotJoin("g1", "bot-9");
+
+  assert.deepEqual(stripped, []);
+});
+
+test("schimbarea pragurilor rebuildeaza detectorul, chiar pe un server activ (review #943)", async () => {
+  let stored: Record<string, unknown> | null = { identicalMessages: 50 };
+  const model = raidIncidentStore();
+  const incidents = createRaidIncidentRepository(model);
+  const runtime = createAntiRaidRuntime({
+    RaidIncidentModel: model,
+    readGuildSettings: async () => ({ antiRaidThresholds: stored, antiRaidEnabled: true }),
+    resolveGuild: async () => null,
+    now: () => T0
+  });
+
+  for (let index = 0; index < 4; index += 1) {
+    await runtime.observeMessage("g1", {
+      actorId: "spammer", bot: false, channelId: "chan-1", content: "identic",
+      mentionCount: 0, attachmentCount: 0, at: T0 + index * 100
+    });
+  }
+  assert.equal(await incidents.active("g1"), null, "cu pragul la 50 nu se deschide nimic");
+
+  stored = { identicalMessages: 2 };
+  for (let index = 0; index < 3; index += 1) {
+    await runtime.observeMessage("g1", {
+      actorId: "spammer", bot: false, channelId: "chan-1", content: "identic",
+      mentionCount: 0, attachmentCount: 0, at: T0 + 1000 + index * 100
+    });
+  }
+
+  assert.notEqual(await incidents.active("g1"), null, "pragul nou se aplica imediat, nu dupa 10 minute de inactivitate");
 });

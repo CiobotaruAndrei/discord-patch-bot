@@ -25,6 +25,11 @@ export const THRESHOLD_OPTION_FIELDS: Readonly<Record<string, keyof AntiRaidThre
 
 export const THRESHOLD_OPTION_NAMES: readonly string[] = Object.keys(THRESHOLD_OPTION_FIELDS);
 
+export function isDurationOption(optionName: string): boolean {
+  const field = THRESHOLD_OPTION_FIELDS[optionName];
+  return typeof field === "string" && field.endsWith("Ms");
+}
+
 export interface ThresholdUpdate {
   thresholds: AntiRaidThresholds;
   applied: string[];

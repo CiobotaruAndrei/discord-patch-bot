@@ -3,7 +3,7 @@
 import { PermissionFlagsBits } from "discord.js";
 
 import { readLockedChannelPermissionState } from "./channelLockRecoveryRuntime.js";
-import { isSecuritySetSubcommand, SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "./securityCommandFields.js";
+import { isSecuritySetSubcommand, START_STOP_TOGGLE_FIELDS } from "./securityCommandFields.js";
 
 import type { LockedChannelPermissionState } from "../guild-config/guildConfigRepository.js";
 import { accountAgeLabel, isRecentAccount } from "./recentAccountPolicy.js";
