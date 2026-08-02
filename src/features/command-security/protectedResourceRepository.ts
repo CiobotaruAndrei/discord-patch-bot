@@ -42,6 +42,7 @@ export interface AddProtectedResourceInput {
   degraded: boolean;
   degradedReasons: readonly string[];
   preventionApplied: boolean;
+  preventionTargets?: readonly string[];
 }
 
 export type AddProtectedResourceOutcome =
@@ -84,6 +85,7 @@ export function createProtectedResourceRepository(model: ProtectedResourceModelL
       degraded: input.degraded,
       degradedReasons: [...input.degradedReasons],
       preventionApplied: input.preventionApplied,
+      preventionTargets: [...(input.preventionTargets ?? [])],
       lastRestoredAt: null,
       recreatedFromId: null
     };

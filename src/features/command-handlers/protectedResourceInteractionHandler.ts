@@ -6,6 +6,15 @@ import { captureSnapshot, isProtectedResourceType } from "../command-security/pr
 import type { ProtectedResourceType, ResourceLike } from "../command-security/protectedResourceTypes.js";
 import { evaluateProtectionReadiness } from "../command-security/protectedResourceReadiness.js";
 import type { GuardCapability, ReadinessInput } from "../command-security/protectedResourceReadiness.js";
+import {
+  adaptPreventionPort,
+  applyChannelPrevention,
+  describePrevention,
+  memberOverwriteTargets,
+  planChannelPrevention,
+  preventionHolds
+} from "../command-security/protectedResourcePrevention.js";
+import type { PreventableChannel, PreventionOutcome, PreventionTarget } from "../command-security/protectedResourcePrevention.js";
 import { protectedResourceLines } from "../command-presentation/protectedResourceMessages.js";
 import { sendTextPages } from "../command-presentation/textPagination.js";
 import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
@@ -17,7 +26,7 @@ type RoleLike = ResourceLike & { id: string; position?: unknown; permissions?: u
 type Guild = {
   id: string;
   ownerId?: string;
-  members?: { me?: unknown; fetch?: (id: string) => Promise<unknown> };
+  members?: { me?: unknown; cache?: { get?: (id: string) => unknown }; fetch?: (id: string) => Promise<unknown> };
   channels?: { cache?: { get?: (id: string) => unknown } };
   roles?: { cache?: { get?: (id: string) => unknown; values?: () => Iterable<unknown> } };
 };
@@ -91,8 +100,33 @@ function readinessInputFor(
   return {
     type,
     managerRoles: roles.filter(role => role.administrator || role.managesChannels),
-    managerMembers: []
+    managerMembers: channelManagerMembers(guild, resource)
   };
+}
+
+function channelManagerMembers(guild: Guild, resource: ResourceLike): { id: string; administrator: boolean }[] {
+  const members: { id: string; administrator: boolean }[] = [];
+  for (const memberId of memberOverwriteTargets(resource as PreventableChannel)) {
+    const member = guild.members?.cache?.get?.(memberId) ?? null;
+    members.push({ id: memberId, administrator: hasPermission(member, "Administrator") });
+  }
+  return members;
+}
+
+function preventionTargets(guild: Guild, resource: ResourceLike): PreventionTarget[] {
+  const targets: PreventionTarget[] = guildRoles(guild)
+    .filter(role => role.administrator || role.managesChannels)
+    .map(role => ({ id: role.id, name: role.name, kind: "role" as const, administrator: role.administrator }));
+  for (const member of channelManagerMembers(guild, resource)) {
+    targets.push({ id: member.id, name: `membru ${member.id}`, kind: "member", administrator: member.administrator });
+  }
+  return targets;
+}
+
+async function runPrevention(guild: Guild, resource: ResourceLike): Promise<PreventionOutcome | null> {
+  const port = adaptPreventionPort(resource as PreventableChannel);
+  if (!port) return null;
+  return applyChannelPrevention(planChannelPrevention(preventionTargets(guild, resource)), port);
 }
 
 function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
@@ -126,6 +160,9 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
     }
 
     const verdict = evaluateProtectionReadiness(readBotCapability(guild), readinessInputFor(rawType, guild, resource));
+    const prevention = rawType === "role"
+      ? null
+      : await runPrevention(guild, resource);
     const outcome = await repository.add({
       guildId: guild.id,
       resourceId: targetId,
@@ -134,7 +171,8 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       snapshot: captureSnapshot(resource),
       degraded: verdict.degraded,
       degradedReasons: verdict.reasons,
-      preventionApplied: verdict.preventable
+      preventionApplied: prevention !== null && preventionHolds(prevention),
+      preventionTargets: prevention?.applied.map(target => target.id) ?? []
     });
 
     if (outcome.kind === "already-protected") {
@@ -150,8 +188,9 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
     const suffix = verdict.degraded
       ? `\nMarcata **degraded**:\n${verdict.reasons.map(reason => `- ${reason}`).join("\n")}`
       : "\nProtectie completa: prevenirea si restaurarea sunt posibile.";
+    const preventionNote = prevention ? `\n${describePrevention(prevention)}` : "";
     return interaction.reply({
-      content: `Resursa \`${targetId}\` a fost adaugata, cu snapshot salvat. Aplicarea in afara raidurilor porneste doar cu \`/start moderation-guard\`.${suffix}`,
+      content: `Resursa \`${targetId}\` a fost adaugata, cu snapshot salvat. Aplicarea in afara raidurilor porneste doar cu \`/start moderation-guard\`.${suffix}${preventionNote}`,
       ephemeral: true
     });
   }
