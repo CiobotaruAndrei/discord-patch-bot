@@ -17,6 +17,9 @@ import type { AdProtectionRuntime } from "../../features/command-security/adProt
 import { addWarning } from "../../features/moderation/moderationRepository.js";
 import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
 import { adaptRaidGuild, findRaidStructureActor } from "./antiRaidGuildAdapter.js";
+import { createRaidRecoveryRuntime } from "../../features/command-security/raidRecoveryRuntime.js";
+import { adaptRecoveryGuild } from "./raidRecoveryGuildAdapter.js";
+import type { AdaptableRecoveryGuild } from "./raidRecoveryGuildAdapter.js";
 import type { AdaptableRaidGuild } from "./antiRaidGuildAdapter.js";
 import type { ProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
@@ -105,6 +108,16 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     })
     : undefined;
 
+  const raidRecovery = mongo.RaidSnapshotModel
+    ? createRaidRecoveryRuntime({ RaidSnapshotModel: mongo.RaidSnapshotModel, logger })
+    : undefined;
+
+  const applyProtection = async (guildId: string, field: string, enabled: boolean): Promise<boolean> => {
+    if (!mongo.GuildModel) return false;
+    const result = await mongo.GuildModel.updateOne({ _id: guildId }, { $set: { [field]: enabled } }).catch(() => null);
+    return result !== null;
+  };
+
   const raidState: { check?: (guildId: string) => Promise<boolean> } = {};
   const raidConfirmedCheck = async (guildId: string): Promise<boolean> =>
     raidState.check ? raidState.check(guildId) : false;
@@ -118,7 +131,22 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
       resolveGuild: async guildId => {
         const cache = client.guilds?.cache as { get?: (id: string) => AdaptableRaidGuild | undefined } | undefined;
         const guild = cache?.get?.(guildId);
-        return guild ? adaptRaidGuild(guild, readGuildSettings, logger) : null;
+        if (!guild) return null;
+        const port = adaptRaidGuild(guild, readGuildSettings, logger);
+        const recovery = raidRecovery ? adaptRecoveryGuild(guild as AdaptableRecoveryGuild, readGuildSettings, applyProtection, body => port.publish(body)) : null;
+        if (!raidRecovery || !recovery) return port;
+        return {
+          ...port,
+          captureStructureSnapshot: incidentId => raidRecovery.captureBeforeContainment(recovery, incidentId),
+          restoreStructure: async incidentId => {
+            const outcome = await raidRecovery.restore(recovery, incidentId);
+            if (outcome.kind !== "restored") return { complete: true, blocked: 0 };
+            return {
+              complete: outcome.complete,
+              blocked: outcome.operations.filter(entry => entry.status === "owner-intervention-required").length
+            };
+          }
+        };
       },
       findStructureActor: async (guildId, resourceId) => {
         const cache = client.guilds?.cache as { get?: (id: string) => AdaptableRaidGuild | undefined } | undefined;

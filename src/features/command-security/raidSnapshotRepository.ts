@@ -1,0 +1,102 @@
+"use strict";
+
+import { createdDocument, updatedDocument } from "../../shared/persistenceOutcome.js";
+import { emptyProtections, RAID_SNAPSHOT_VERSION } from "./raidSnapshotTypes.js";
+
+import type { WriteCounts } from "../../shared/persistenceOutcome.js";
+import type { RaidSnapshot, RecoveryOperation, RecoveryStatus, SnapshotProtections } from "./raidSnapshotTypes.js";
+
+export interface RaidSnapshotModelLike {
+  findOne(filter: Record<string, unknown>): { lean(): Promise<Record<string, unknown> | null> };
+  updateOne(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown>,
+    options?: Record<string, unknown>
+  ): Promise<WriteCounts | null | undefined>;
+}
+
+export interface RaidSnapshotRecord {
+  _id: string;
+  incidentId: string;
+  guildId: string;
+  snapshot: RaidSnapshot;
+  operations: RecoveryOperation[];
+}
+
+function asOperations(value: unknown): RecoveryOperation[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
+    .map(entry => ({
+      kind: String(entry.kind) as RecoveryOperation["kind"],
+      resourceId: String(entry.resourceId ?? ""),
+      label: String(entry.label ?? ""),
+      status: String(entry.status ?? "pending") as RecoveryStatus,
+      attempts: typeof entry.attempts === "number" ? entry.attempts : 0,
+      detail: typeof entry.detail === "string" ? entry.detail : null
+    }))
+    .filter(operation => operation.resourceId.length > 0);
+}
+
+function asSnapshot(value: unknown, capturedAt: Date): RaidSnapshot {
+  const raw = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>;
+  const list = <T>(field: unknown): T[] => (Array.isArray(field) ? (field as T[]) : []);
+  return {
+    version: typeof raw.version === "number" ? raw.version : RAID_SNAPSHOT_VERSION,
+    capturedAt: raw.capturedAt instanceof Date ? raw.capturedAt : capturedAt,
+    channels: list(raw.channels),
+    roles: list(raw.roles),
+    webhooks: list(raw.webhooks),
+    invites: list(raw.invites),
+    protections: { ...emptyProtections(), ...(raw.protections as SnapshotProtections | undefined) }
+  };
+}
+
+export function createRaidSnapshotRepository(model: RaidSnapshotModelLike) {
+  async function read(incidentId: string): Promise<RaidSnapshotRecord | null> {
+    const document = await model.findOne({ _id: incidentId }).lean();
+    if (!document) return null;
+    return {
+      _id: String(document._id),
+      incidentId,
+      guildId: String(document.guildId ?? ""),
+      snapshot: asSnapshot(document.snapshot, new Date(0)),
+      operations: asOperations(document.operations)
+    };
+  }
+
+  async function capture(incidentId: string, guildId: string, snapshot: RaidSnapshot): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: incidentId },
+      { $setOnInsert: { _id: incidentId, guildId, snapshot, operations: [], capturedAt: snapshot.capturedAt } },
+      { upsert: true }
+    );
+    return createdDocument(result);
+  }
+
+  async function savePlan(incidentId: string, operations: readonly RecoveryOperation[]): Promise<boolean> {
+    const result = await model.updateOne({ _id: incidentId }, { $set: { operations: [...operations] } });
+    return updatedDocument(result);
+  }
+
+  async function markOperation(
+    incidentId: string,
+    kind: RecoveryOperation["kind"],
+    resourceId: string,
+    status: RecoveryStatus,
+    detail: string | null
+  ): Promise<boolean> {
+    const record = await read(incidentId);
+    if (!record) return false;
+    const operations = record.operations.map(operation =>
+      operation.kind === kind && operation.resourceId === resourceId
+        ? { ...operation, status, detail, attempts: operation.attempts + 1 }
+        : operation
+    );
+    return savePlan(incidentId, operations);
+  }
+
+  return { read, capture, savePlan, markOperation };
+}
+
+export type RaidSnapshotRepository = ReturnType<typeof createRaidSnapshotRepository>;

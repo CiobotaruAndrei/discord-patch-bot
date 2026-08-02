@@ -28,6 +28,8 @@ export interface RaidGuildPort {
   alertOwner(body: string): Promise<unknown>;
   findBotAdder?(botId: string): Promise<string | null>;
   stripElevatedRoles?(userId: string, reason: string): Promise<{ removed: string[]; blocked: string[] }>;
+  captureStructureSnapshot?(incidentId: string): Promise<unknown>;
+  restoreStructure?(incidentId: string): Promise<{ complete: boolean; blocked: number }>;
 }
 
 export interface InterventionDeps {
@@ -192,7 +194,10 @@ export function createRaidIntervention(deps: InterventionDeps) {
     if (current.stage !== "resolved") steps.push(...await sanctionParticipants(guild, current, thresholds));
 
     if (current.stage === "confirmed" || current.stage === "containment") {
-      if (current.stage === "confirmed") await incidents.advance(current._id, "confirmed", "containment", new Date(moment));
+      if (current.stage === "confirmed") {
+        if (guild.captureStructureSnapshot) await guild.captureStructureSnapshot(current._id).catch(() => undefined);
+        await incidents.advance(current._id, "confirmed", "containment", new Date(moment));
+      }
       steps.push(await lockAffectedChannels(guild, current, channelIds));
 
       if (lockdownOverdue(current, thresholds.maxLockdownMs, moment)) {
@@ -220,9 +225,18 @@ export function createRaidIntervention(deps: InterventionDeps) {
         return [{ kind: "waiting", incidentId: current._id, remainingMs }];
       }
       steps.push(await restore(guild, current));
+      const structure = guild.restoreStructure
+        ? await guild.restoreStructure(current._id).catch(() => ({ complete: false, blocked: 0 }))
+        : { complete: true, blocked: 0 };
+      if (!structure.complete) {
+        await guild.alertOwner(
+          `Anti-raid ${current._id}: restaurarea structurii nu s-a incheiat (${structure.blocked} operatiuni cer interventia ownerului). Incidentul ramane in recovery pana cand sunt rezolvate.`
+        );
+        return [...steps, { kind: "waiting", incidentId: current._id, remainingMs: 0 }];
+      }
       await incidents.advance(current._id, "recovery", "resolved", new Date(moment));
       await guild.publish(
-        `Anti-raid ${current._id}: incident inchis. Lockdown-ul a fost ridicat, iar mute-urile, timeout-urile, banurile si eliminarile de roluri raman aplicate.`
+        `Anti-raid ${current._id}: incident inchis. Lockdown-ul a fost ridicat, structura a fost restaurata, iar mute-urile, timeout-urile, banurile si eliminarile de roluri raman aplicate.`
       );
       return steps;
     }

@@ -217,6 +217,16 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   massModerationWindowSchema.index({ guildId: 1, actorId: 1 });
   massModerationWindowSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 });
 
+  const raidSnapshotSchema = new mongoose.Schema({
+    _id: String,
+    guildId: { type: String, required: true },
+    snapshot: { type: Object, required: true },
+    operations: { type: [Object], default: [] },
+    capturedAt: { type: Date, required: true }
+  }, { minimize: false, _id: false });
+  raidSnapshotSchema.index({ guildId: 1, capturedAt: -1 });
+  raidSnapshotSchema.index({ capturedAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+
   const raidIncidentSchema = new mongoose.Schema({
     _id: String,
     guildId: { type: String, required: true },
@@ -356,6 +366,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     protectedResourceSchema,
     webhookSnapshotSchema,
     massModerationWindowSchema,
+    raidSnapshotSchema,
     raidIncidentSchema,
     adRequestSchema,
     adAttemptSchema,
