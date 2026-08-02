@@ -285,3 +285,48 @@ test("protectiile oprite in raid sunt readuse exact la valorile din snapshot", a
     [{ field: "adProtectionEnabled", enabled: true }, { field: "moderationGuardEnabled", enabled: true }]
   );
 });
+
+test("resursele protejate recreate sunt rebindate la ID-ul nou, nu doar marcate (review #945)", async () => {
+  const rebinds: Array<{ previous: string; next: string }> = [];
+  const snapshot = snapshotWith({
+    channels: [{ channelId: "c1", name: "general", channelType: 0, parentId: null, position: 0, topic: null, nsfw: null, rateLimitPerUser: null, overwrites: [] }],
+    roles: [{ roleId: "r1", name: "Mod", permissions: "0", position: 3, color: null, hoist: false, mentionable: false, managed: false }]
+  });
+  const model = snapshotModel();
+  const runtime = createRaidRecoveryRuntime({
+    RaidSnapshotModel: model,
+    now: () => NOW,
+    onResourceRecreated: async (_guildId: string, previous: string, next: string) => {
+      rebinds.push({ previous, next });
+      return undefined;
+    }
+  });
+  const setup = harness({ snapshot });
+  await runtime.captureBeforeContainment(setup.guild, INCIDENT);
+
+  await runtime.restore(setup.guild, INCIDENT);
+
+  assert.deepEqual(rebinds, [
+    { previous: "r1", next: "r1-nou" },
+    { previous: "c1", next: "c1-nou" }
+  ], "fara asta, inregistrarea de protectie ramane legata de un ID Discord inexistent");
+});
+
+test("o resursa care NU a putut fi recreata nu produce rebind (review #945)", async () => {
+  const rebinds: string[] = [];
+  const snapshot = snapshotWith({
+    channels: [{ channelId: "c1", name: "general", channelType: 0, parentId: null, position: 0, topic: null, nsfw: null, rateLimitPerUser: null, overwrites: [] }]
+  });
+  const model = snapshotModel();
+  const runtime = createRaidRecoveryRuntime({
+    RaidSnapshotModel: model,
+    now: () => NOW,
+    onResourceRecreated: async (_guildId: string, previous: string) => { rebinds.push(previous); return undefined; }
+  });
+  const setup = harness({ snapshot, failures: new Set(["c1"]) });
+  await runtime.captureBeforeContainment(setup.guild, INCIDENT);
+
+  await runtime.restore(setup.guild, INCIDENT);
+
+  assert.deepEqual(rebinds, [], "o resursa neredata nu poate fi rebindata la nimic");
+});
