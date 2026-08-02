@@ -245,9 +245,14 @@ async function applyWarnBan(
       ProtectedResourceModel: mongo.ProtectedResourceModel,
       guard: {
         readSituation: guildId => moderationGuardGate.readSituation(guildId),
-        consumeResourceApproval: (guildId, requesterId, resourceId, action) =>
+        consumeResourceApproval: (guildId, requesterId, resourceId, actions) =>
           createPermissionRequestRepository(permissionRequestModel)
-            .consume(guildId, "protected-resource-change", requesterId, { target: resourceId, action })
+            .consumeAll(
+              guildId,
+              "protected-resource-change",
+              requesterId,
+              actions.map(action => ({ target: resourceId, action }))
+            )
       },
       publish: async (guildId, body) => {
         const settings = await readGuildSettings(guildId).catch(() => null);

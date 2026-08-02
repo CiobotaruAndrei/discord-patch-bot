@@ -13,6 +13,14 @@ import type {
 
 export const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 export const APPROVED_TTL_MS = 60 * 60 * 1000;
+export const CLAIM_RECOVERY_MS = 60 * 1000;
+
+let claimCounter = 0;
+
+function claimSequence(): number {
+  claimCounter += 1;
+  return claimCounter;
+}
 
 export interface PermissionRequestModelLike {
   findOne(filter: Record<string, unknown>, projection?: Record<string, unknown>): {
@@ -26,7 +34,7 @@ export interface PermissionRequestModelLike {
     update: Record<string, unknown>,
     options?: Record<string, unknown>
   ): Promise<WriteCounts | null | undefined>;
-  updateMany(filter: Record<string, unknown>, update: Record<string, unknown>): Promise<unknown>;
+  updateMany(filter: Record<string, unknown>, update: Record<string, unknown>): Promise<WriteCounts | null | undefined>;
 }
 
 function asRecord(document: Record<string, unknown> | null): PermissionRequestRecord | null {
@@ -56,6 +64,10 @@ export interface ApprovalRestriction {
 
 export function createPermissionRequestRepository(model: PermissionRequestModelLike) {
   async function expireStale(guildId: string, now: Date): Promise<void> {
+    await model.updateMany(
+      { guildId, claimBatchId: { $ne: null }, usedAt: { $lte: new Date(now.getTime() - CLAIM_RECOVERY_MS) } },
+      { $set: { status: "approved", usedAt: null, claimBatchId: null } }
+    );
     await model.updateMany(
       { guildId, status: { $in: ["pending", "approved"] }, expiresAt: { $lte: now } },
       { $set: { status: "expired" } }
@@ -131,7 +143,8 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
     type: PermissionRequestType,
     requesterId: string,
     attempt: PermissionRequestScope,
-    now = new Date()
+    now = new Date(),
+    batchId: string | null = null
   ): Promise<PermissionRequestRecord | null> {
     await expireStale(guildId, now);
     const candidates = asRecords(await model
@@ -143,11 +156,50 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
       if (!scopeMatchesApproval(candidate, attempt)) continue;
       const claimed = await model.updateOne(
         { _id: candidate._id, guildId, status: "approved", expiresAt: { $gt: now } },
-        { $set: { status: "used", usedAt: now } }
+        { $set: { status: "used", usedAt: now, claimBatchId: batchId ?? null } }
       );
       if (updatedDocument(claimed)) return { ...candidate, status: "used", usedAt: now };
     }
     return null;
+  }
+
+  async function consumeAll(
+    guildId: string,
+    type: PermissionRequestType,
+    requesterId: string,
+    attempts: readonly PermissionRequestScope[],
+    now = new Date()
+  ): Promise<PermissionRequestRecord[] | null> {
+    const batchId = `${guildId}:${now.getTime()}:${claimSequence()}`;
+    const claimed: PermissionRequestRecord[] = [];
+    for (const attempt of attempts) {
+      const record = await consume(guildId, type, requesterId, attempt, now, batchId).catch(() => null);
+      if (!record) {
+        await releaseBatch(guildId, batchId).catch(() => null);
+        return null;
+      }
+      claimed.push(record);
+    }
+    const committed = await commitBatch(guildId, batchId).catch(() => false);
+    if (!committed) {
+      await releaseBatch(guildId, batchId).catch(() => null);
+      return null;
+    }
+    return claimed;
+  }
+
+  async function commitBatch(guildId: string, batchId: string): Promise<boolean> {
+    return updatedDocument(await model.updateMany(
+      { guildId, claimBatchId: batchId },
+      { $set: { claimBatchId: null } }
+    ));
+  }
+
+  async function releaseBatch(guildId: string, batchId: string): Promise<void> {
+    await model.updateMany(
+      { guildId, claimBatchId: batchId },
+      { $set: { status: "approved", usedAt: null, claimBatchId: null } }
+    );
   }
 
   async function cancelTypes(guildId: string, types: readonly PermissionRequestType[]): Promise<void> {
@@ -167,7 +219,7 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
     return active.length;
   }
 
-  return { create, read, list, resolve, consume, cancelTypes, countActive, expireStale };
+  return { create, read, list, resolve, consume, consumeAll, cancelTypes, countActive, expireStale };
 }
 
 export type PermissionRequestRepository = ReturnType<typeof createPermissionRequestRepository>;

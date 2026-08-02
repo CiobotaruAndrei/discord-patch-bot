@@ -32,7 +32,7 @@ function harness(options: {
   guardEnabled?: boolean;
   raidConfirmed?: boolean;
   auditActor?: string | null;
-  approval?: { _id: string } | null;
+  approvedActions?: readonly string[];
   actorRoles?: readonly SanctionRole[];
   restoreOk?: boolean;
   recreatedId?: string | null;
@@ -42,6 +42,7 @@ function harness(options: {
   const restored: string[] = [];
   const recreated: string[] = [];
   const removedRoles: string[][] = [];
+  const consumeRequests: string[][] = [];
   const model = protectedResourceStore();
   const repository = createProtectedResourceRepository(model);
 
@@ -52,7 +53,13 @@ function harness(options: {
         guardEnabled: options.guardEnabled ?? true,
         raidConfirmed: options.raidConfirmed ?? false
       }),
-      consumeResourceApproval: async () => options.approval ?? null
+      consumeResourceApproval: async (_guildId, _requesterId, _resourceId, actions) => {
+        const approved = options.approvedActions;
+        if (!approved) return null;
+        consumeRequests.push([...actions]);
+        if (!actions.every(action => approved.includes(action))) return null;
+        return actions.map(action => ({ _id: `req-${action}` }));
+      }
     },
     publish: async (_guildId, body) => { published.push(body); return undefined; },
     now: () => NOW
@@ -75,7 +82,7 @@ function harness(options: {
     recreateRole: async () => { recreated.push("role"); return options.recreatedId === undefined ? "rol-nou" : options.recreatedId; }
   };
 
-  return { runtime, guild, repository, model, published, restored, recreated, removedRoles };
+  return { runtime, guild, repository, model, published, restored, recreated, removedRoles, consumeRequests };
 }
 
 async function protect(harnessed: ReturnType<typeof harness>, type: "channel" | "role" = "channel") {
@@ -140,12 +147,12 @@ test("ownerul modifica direct, iar snapshot-ul se actualizeaza la noua stare", a
 });
 
 test("o aprobare exacta lasa modificarea sa treaca si muta snapshot-ul", async () => {
-  const setup = harness({ approval: { _id: "req-9" } });
+  const setup = harness({ approvedActions: ["move"] });
   await protect(setup);
 
   const outcome = await setup.runtime.handleResourceUpdate(setup.guild, "c1", channel({ parentId: "cat-2" }));
 
-  assert.deepEqual(outcome, { kind: "allowed-approval", requestId: "req-9" });
+  assert.deepEqual(outcome, { kind: "allowed-approval", requestId: "req-move" });
   assert.equal(setup.restored.length, 0);
   assert.equal((await setup.repository.read("g1", "c1"))?.snapshot.parentId, "cat-2");
 });
@@ -285,4 +292,34 @@ test("rebindarea dupa recreare confirmata curata marcajul de stergere in raid (F
 
   assert.equal(rebound?.resourceId, "c1-nou");
   assert.equal(rebound?.deletedDuringRaidAt, null, "dupa recreare confirmata resursa nu mai e in asteptare");
+});
+
+test("o aprobare pentru o singura actiune NU lasa sa treaca celelalte modificari din acelasi eveniment (F-20)", async () => {
+  const setup = harness({ approvedActions: ["rename"] });
+  await protect(setup);
+
+  const outcome = await setup.runtime.handleResourceUpdate(
+    setup.guild,
+    "c1",
+    channel({ name: "furat", rawPosition: 9 })
+  );
+
+  assert.equal(outcome.kind, "corrected", "redenumirea era aprobata, mutarea de pozitie nu; setul efectiv difera de cel aprobat");
+  assert.deepEqual(setup.consumeRequests.at(-1), ["rename", "reposition"], "aprobarea se cere pentru toate modificarile detectate");
+  assert.deepEqual(setup.restored, ["c1"]);
+});
+
+test("cand toate modificarile din eveniment sunt aprobate, schimbarea trece si snapshotul avanseaza (F-20)", async () => {
+  const setup = harness({ approvedActions: ["rename", "reposition"] });
+  await protect(setup);
+
+  const outcome = await setup.runtime.handleResourceUpdate(
+    setup.guild,
+    "c1",
+    channel({ name: "redenumit", rawPosition: 9 })
+  );
+
+  assert.equal(outcome.kind, "allowed-approval");
+  assert.equal(setup.restored.length, 0);
+  assert.equal((await setup.repository.read("g1", "c1"))?.snapshot.name, "redenumit");
 });
