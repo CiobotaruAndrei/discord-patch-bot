@@ -97,6 +97,10 @@ function applyPush(record: Doc, push: Doc): void {
   }
 }
 
+function indexedActiveKey(record: Doc): unknown {
+  return "activeKey" in record ? record.activeKey : undefined;
+}
+
 export function raidIncidentStore(records: Doc[] = []): RaidIncidentStore {
   function sortedCopy(found: Doc[]): Doc[] {
     return [...found].sort((left, right) => {
@@ -126,14 +130,18 @@ export function raidIncidentStore(records: Doc[] = []): RaidIncidentStore {
       if (!existing) {
         if (options?.upsert && update.$setOnInsert) {
           const inserted = structuredClone(update.$setOnInsert as Doc);
-          const activeKey = inserted.activeKey;
-          if (typeof activeKey === "string" && records.some(record => record.activeKey === activeKey)) {
+          const activeKey = indexedActiveKey(inserted);
+          if (activeKey !== undefined && records.some(record => indexedActiveKey(record) === activeKey)) {
             throw new Error("E11000 duplicate key error collection: activeKey");
           }
           records.push(inserted);
           return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
         }
         return { matchedCount: 0, modifiedCount: 0 };
+      }
+      const nextActiveKey = (update.$set as Doc | undefined)?.activeKey;
+      if (nextActiveKey !== undefined && records.some(record => record !== existing && indexedActiveKey(record) === nextActiveKey)) {
+        throw new Error("E11000 duplicate key error collection: activeKey");
       }
       existing.__positional = positionalIndex(existing, filter);
       if (update.$push) applyPush(existing, update.$push as Doc);

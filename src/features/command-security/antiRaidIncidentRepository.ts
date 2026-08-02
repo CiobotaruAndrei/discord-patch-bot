@@ -66,7 +66,7 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
       if (!record) continue;
       const done = await model.updateOne(
         { _id: record._id, stage: { $ne: "resolved" } },
-        { $set: { stage: "resolved", resolvedAt: now, lastActivityAt: now, activeKey: null } }
+        { $set: { stage: "resolved", resolvedAt: now, lastActivityAt: now }, $unset: { activeKey: "" } }
       );
       if (updatedDocument(done)) closed.push(record._id);
     }

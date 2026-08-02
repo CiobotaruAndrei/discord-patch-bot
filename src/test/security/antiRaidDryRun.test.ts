@@ -80,3 +80,23 @@ test("oprirea fara nicio simulare activa o spune, in loc sa pretinda ca a inchis
 
   assert.match(note ?? "", /Nu exista nicio simulare activa/);
 });
+
+test("doua simulari inchise una dupa alta nu se ciocnesc pe indexul unic activeKey (review PR #953)", async () => {
+  const model = raidIncidentStore();
+  const repository = createRaidIncidentRepository(model);
+
+  const first = await repository.open({ guildId: "g1", triggerReason: "test 1", dryRun: true });
+  assert.ok(first);
+  const closedFirst = await repository.resolveDryRuns("g1");
+  assert.deepEqual(closedFirst, [first._id]);
+
+  const second = await repository.open({ guildId: "g2", triggerReason: "test 2", dryRun: true });
+  assert.ok(second, "dupa prima inchidere, alt server trebuie sa poata deschide o simulare");
+  const closedSecond = await repository.resolveDryRuns("g2");
+
+  assert.deepEqual(
+    closedSecond,
+    [second._id],
+    "activeKey trebuie sters, nu setat pe null: un null explicit ramane in indexul unic sparse si a doua inchidere ar da E11000"
+  );
+});
