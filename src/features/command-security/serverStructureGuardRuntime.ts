@@ -3,7 +3,7 @@
 import { type SanctionRole } from "./elevatedRoleSanction.js";
 import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
-import { STRUCTURE_ACTIONS, STRUCTURE_CHANGE_KINDS } from "./serverStructureActions.js";
+import { STRUCTURE_ACTIONS } from "./serverStructureActions.js";
 
 import type { StructureChangeKind } from "./serverStructureActions.js";
 import type { LogLevel } from "../../shared/logging.js";
