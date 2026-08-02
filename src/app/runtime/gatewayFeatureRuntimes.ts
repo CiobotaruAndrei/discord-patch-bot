@@ -6,6 +6,8 @@ import { createProtectedResourceRuntime } from "../../features/command-security/
 import { createWebhookGuardRuntime } from "../../features/command-security/webhookGuardRuntime.js";
 import type { WebhookGuardRuntime } from "../../features/command-security/webhookGuardRuntime.js";
 import { adaptWebhookGuardChannel } from "./webhookGuardChannelAdapter.js";
+import { createMassModerationRuntime } from "../../features/command-security/massModerationRuntime.js";
+import { adaptMassModerationGuild } from "./massModerationGuildAdapter.js";
 import type { AdaptableWebhookChannel } from "./webhookGuardChannelAdapter.js";
 import { createAntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
 import { createAdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
@@ -241,6 +243,23 @@ async function applyWarnBan(
     }
     : undefined;
 
+  const massModerationCore = mongo.MassModerationModel && permissionRequestModel && auditLogModel && moderationGuardGate
+    ? createMassModerationRuntime({
+      MassModerationModel: mongo.MassModerationModel,
+      gate: {
+        readSituation: guildId => moderationGuardGate.readSituation(guildId),
+        consumeApproval: (guildId, actorId, action, amount) =>
+          createPermissionRequestRepository(permissionRequestModel)
+            .consume(guildId, "moderation-mass", actorId, { target: actorId, action, amount })
+      },
+      publish: publishToRequestChannel,
+      recordAudit: async (guildId, entry) => {
+        await recordServerAuditEntry(auditLogModel, guildId, entry);
+      },
+      logger
+    })
+    : undefined;
+
   const permissionDelegationRuntime = mongo.GuildAuditLogModel && mongo.GuildModel
     ? createPermissionDelegationRuntime({
       GuildModel: mongo.GuildModel,
@@ -258,6 +277,17 @@ async function applyWarnBan(
       logger,
       observeBotAction: observationModel
         ? (guildId, actorId, auditEntryId, kind, at) => observeConfirmedBotAction(observationModel, adminAlert, guildId, actorId, auditEntryId, kind, at)
+        : undefined,
+      observeMassModeration: massModerationCore
+        ? async input => {
+          const adapted = adaptMassModerationGuild(input.guild);
+          if (!adapted) return undefined;
+          return massModerationCore.handleModerationAction(adapted, input.actorId, {
+            auditId: input.auditId,
+            targetId: input.targetId,
+            action: input.action
+          });
+        }
         : undefined
     })
     : undefined;
