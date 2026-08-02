@@ -71,6 +71,7 @@ export interface PermissionDelegationRuntimeDeps {
   now?: () => number;
   wait?: (ms: number) => Promise<void>;
   guard?: GuardedDelegationGate;
+  reportRaidActor?: (guildId: string, actorId: string, surface: string) => Promise<unknown>;
 }
 
 export const AUDIT_LOG_MATCH_WINDOW_MS = 60_000;

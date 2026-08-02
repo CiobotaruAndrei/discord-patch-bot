@@ -55,6 +55,7 @@ function harness(options: {
   guardEnabled?: boolean;
   raidConfirmed?: boolean;
   approvals?: ReturnType<typeof permissionRequestStore>;
+  reportRaidActor?: (guildId: string, actorId: string, surface: string) => Promise<unknown>;
 }): Harness {
   const deleted: string[] = [];
   const edited: Array<{ webhookId: string; name: string }> = [];
@@ -80,6 +81,7 @@ function harness(options: {
     },
     publish: async (_guildId, message) => { published.push(message); },
     recordAudit: async (_guildId, entry) => { audits.push({ action: entry.action, details: entry.details }); },
+    reportRaidActor: options.reportRaidActor,
     now: () => NOW
   };
 
@@ -225,13 +227,21 @@ test("o aprobare pentru o singura actiune nu acopera si celelalte modificari din
   assert.deepEqual(setup.edited, [{ webhookId: "w2", name: "Statistici" }], "editarea neaprobata este revenita");
 });
 
-test("in timpul unui raid confirmat, protectia de webhook-uri cedeaza controlul catre anti-raid", async () => {
-  const setup = harness({ before: [hook("w1", "vechi")], after: [hook("w1", "vechi"), hook("w2", "nou")], raidConfirmed: true });
+test("in timpul unui raid confirmat, webhook-ul E sters si autorul intra in incident (audit, F-30)", async () => {
+  const escalated: string[] = [];
+  const setup = harness({
+    before: [hook("w1", "vechi")],
+    after: [hook("w1", "vechi"), hook("w2", "nou")],
+    raidConfirmed: true,
+    reportRaidActor: async (_guildId: string, actorId: string) => { escalated.push(actorId); return true; }
+  });
 
   const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
 
-  assert.equal(outcome.kind, "raid-active");
-  assert.deepEqual(setup.deleted, []);
+  assert.equal(outcome.kind, "reverted");
+  assert.deepEqual(setup.deleted, ["w2"], "anti-raid nu asculta webhookUpdate, deci nimeni nu ar fi corectat");
+  assert.deepEqual(escalated, ["mod-1"]);
+  assert.equal(setup.audits[0]?.action, "webhook-change-reverted-in-raid");
 });
 
 test("cand autorul nu poate fi identificat din Audit Log, nu se sanctioneaza nimeni", async () => {
