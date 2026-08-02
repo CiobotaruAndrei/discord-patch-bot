@@ -14,7 +14,8 @@ import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRu
 import type { AdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
 import type { WebhookGuardRuntime } from "../../features/command-security/webhookGuardRuntime.js";
 import type { AdaptableWebhookChannel } from "../runtime/webhookGuardChannelAdapter.js";
-import type { ServerStructureGuardRuntime, StructureChangeKind } from "../../features/command-security/serverStructureGuardRuntime.js";
+import type { ServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
+import type { StructureChangeKind } from "../../features/command-security/serverStructureActions.js";
 import { adaptStructureGuardGuild } from "../runtime/serverStructureGuildAdapter.js";
 import type { AdaptableStructureGuild } from "../runtime/serverStructureGuildAdapter.js";
 
