@@ -1,5 +1,7 @@
 "use strict";
 
+import { fingerprintFor, nearIdentical } from "./antiRaidFingerprint.js";
+
 import type { AntiRaidThresholds } from "./antiRaidThresholds.js";
 
 export const SPAM_KINDS = ["identical", "mention", "invite", "link", "structure"] as const;
@@ -68,7 +70,7 @@ export function signalsFromMessage(observation: MessageObservation): RaidSignal[
   const signals: RaidSignal[] = [];
   const normalized = normalizeMessageText(observation.content);
 
-  if (normalized.length > 0) signals.push({ ...base, kind: "identical", fingerprint: normalized, weight: 1 });
+  if (normalized.length > 0) signals.push({ ...base, kind: "identical", fingerprint: fingerprintFor(normalized), weight: 1 });
   if (observation.mentionCount > 0) {
     signals.push({ ...base, kind: "mention", fingerprint: "mention", weight: observation.mentionCount });
   }
@@ -112,8 +114,14 @@ export function createRaidDetector(options: DetectorOptions) {
     if (signals.length > maxSignals) signals.splice(0, signals.length - maxSignals);
   }
 
-  function bucketKey(signal: RaidSignal): string {
-    return signal.kind === "identical" ? `${signal.actorId}::${signal.fingerprint}` : signal.actorId;
+  function clusterNearIdentical(actorSignals: readonly RaidSignal[], count: number): RaidSignal[] {
+    for (let index = 0; index < actorSignals.length; index += 1) {
+      const anchor = actorSignals[index];
+      const cluster = actorSignals.filter(signal => nearIdentical(anchor.fingerprint, signal.fingerprint));
+      const total = cluster.reduce((sum, signal) => sum + signal.weight, 0);
+      if (total >= count) return cluster;
+    }
+    return [];
   }
 
   function breaching(kind: SpamKind, now: number): RaidSignal[] {
@@ -121,11 +129,15 @@ export function createRaidDetector(options: DetectorOptions) {
     const buckets = new Map<string, RaidSignal[]>();
     for (const signal of signals) {
       if (signal.kind !== kind || now - signal.at > windowMs) continue;
-      const key = bucketKey(signal);
-      const bucket = buckets.get(key);
-      if (bucket) bucket.push(signal); else buckets.set(key, [signal]);
+      const bucket = buckets.get(signal.actorId);
+      if (bucket) bucket.push(signal); else buckets.set(signal.actorId, [signal]);
     }
     for (const bucket of buckets.values()) {
+      if (kind === "identical") {
+        const cluster = clusterNearIdentical(bucket, count);
+        if (cluster.length > 0) return cluster;
+        continue;
+      }
       const total = bucket.reduce((sum, signal) => sum + signal.weight, 0);
       if (total >= count) return bucket;
     }
