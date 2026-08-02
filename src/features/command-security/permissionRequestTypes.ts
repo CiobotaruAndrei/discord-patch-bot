@@ -90,13 +90,17 @@ export function scopeMatchesApproval(record: PermissionRequestRecord, attempt: P
   const approvedBot = record.botId ?? null;
   if (approvedBot !== (attempt.botId ?? null)) return false;
 
+  const attemptedAmount = attempt.amount ?? 0;
   const approvedAmount = record.approvedAmount ?? record.amount ?? null;
-  if (approvedAmount !== null && (attempt.amount ?? 0) > approvedAmount) return false;
+  if (attemptedAmount > 0 && approvedAmount === null) return false;
+  if (approvedAmount !== null && attemptedAmount > approvedAmount) return false;
 
+  const attemptedPermissions = attempt.permissions ?? [];
   const approvedPermissions = record.approvedPermissions ?? record.permissions ?? [];
-  if (approvedPermissions.length > 0) {
+  if (attemptedPermissions.length > 0) {
+    if (approvedPermissions.length === 0) return false;
     const allowed = new Set(approvedPermissions.map(normalizePermissionName));
-    if ((attempt.permissions ?? []).some(permission => !allowed.has(normalizePermissionName(permission)))) return false;
+    if (attemptedPermissions.some(permission => !allowed.has(normalizePermissionName(permission)))) return false;
   }
   return true;
 }

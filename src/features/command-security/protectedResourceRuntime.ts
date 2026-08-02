@@ -156,7 +156,11 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
 
     const blocked = await gateOpen(guild.id);
     if (blocked) {
-      await repository.remove(guild.id, resourceId).catch(() => false);
+      if (blocked.kind === "raid-active") {
+        await repository.markDeletedDuringRaid(guild.id, resourceId, new Date(now())).catch(() => false);
+      } else {
+        await repository.remove(guild.id, resourceId).catch(() => false);
+      }
       return blocked;
     }
 

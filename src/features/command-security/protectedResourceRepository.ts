@@ -91,6 +91,22 @@ export function createProtectedResourceRepository(model: ProtectedResourceModelL
     return createdDocument(result) ? { kind: "added", record } : { kind: "already-protected" };
   }
 
+  async function markDeletedDuringRaid(guildId: string, resourceId: string, at: Date): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: documentId(guildId, resourceId) },
+      { $set: { deletedDuringRaidAt: at } }
+    );
+    return updatedDocument(result);
+  }
+
+  async function clearDeletedDuringRaid(guildId: string, resourceId: string): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: documentId(guildId, resourceId) },
+      { $set: { deletedDuringRaidAt: null } }
+    );
+    return updatedDocument(result);
+  }
+
   async function remove(guildId: string, resourceId: string): Promise<boolean> {
     const result = await model.deleteOne({ _id: documentId(guildId, resourceId) });
     return (result?.deletedCount ?? 0) > 0;
@@ -148,7 +164,8 @@ export function createProtectedResourceRepository(model: ProtectedResourceModelL
       _id: documentId(guildId, nextResourceId),
       resourceId: nextResourceId,
       lastRestoredAt: now,
-      recreatedFromId: previousResourceId
+      recreatedFromId: previousResourceId,
+      deletedDuringRaidAt: null
     };
     const created = await model.updateOne({ _id: record._id }, { $setOnInsert: record }, { upsert: true });
     if (!createdDocument(created)) return null;
@@ -156,7 +173,7 @@ export function createProtectedResourceRepository(model: ProtectedResourceModelL
     return record;
   }
 
-  return { list, read, add, remove, refreshSnapshot, markReadiness, markRestored, rebind };
+  return { list, read, add, remove, refreshSnapshot, markReadiness, markRestored, rebind, markDeletedDuringRaid, clearDeletedDuringRaid };
 }
 
 export type ProtectedResourceRepository = ReturnType<typeof createProtectedResourceRepository>;
