@@ -12,7 +12,12 @@ import type { SanctionOutcome } from "./elevatedRoleSanction.js";
 
 export interface ProtectedResourceGuardGate {
   readSituation(guildId: string): Promise<{ guardEnabled: boolean; raidConfirmed: boolean }>;
-  consumeResourceApproval(guildId: string, requesterId: string, resourceId: string, action: string): Promise<{ _id: string } | null>;
+  consumeResourceApproval(
+    guildId: string,
+    requesterId: string,
+    resourceId: string,
+    actions: readonly string[]
+  ): Promise<{ _id: string }[] | null>;
 }
 
 export interface ProtectedActor {
@@ -72,10 +77,13 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
     if (!actorId) return { actorId: null };
     if (guild.ownerId && actorId === guild.ownerId) return { outcome: { kind: "allowed-owner" } };
 
-    const approval = await deps.guard
-      .consumeResourceApproval(guild.id, actorId, record.resourceId, actions[0] ?? "permissions")
+    const requested = actions.length > 0 ? actions : ["permissions"];
+    const approvals = await deps.guard
+      .consumeResourceApproval(guild.id, actorId, record.resourceId, requested)
       .catch(() => null);
-    if (approval) return { outcome: { kind: "allowed-approval", requestId: approval._id } };
+    if (approvals && approvals.length === requested.length) {
+      return { outcome: { kind: "allowed-approval", requestId: approvals.map(entry => entry._id).join(",") } };
+    }
     return { actorId };
   }
 

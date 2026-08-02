@@ -150,6 +150,33 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
     return null;
   }
 
+  async function consumeAll(
+    guildId: string,
+    type: PermissionRequestType,
+    requesterId: string,
+    attempts: readonly PermissionRequestScope[],
+    now = new Date()
+  ): Promise<PermissionRequestRecord[] | null> {
+    const claimed: PermissionRequestRecord[] = [];
+    for (const attempt of attempts) {
+      const record = await consume(guildId, type, requesterId, attempt, now);
+      if (!record) {
+        for (const used of claimed) await release(guildId, used._id).catch(() => null);
+        return null;
+      }
+      claimed.push(record);
+    }
+    return claimed;
+  }
+
+  async function release(guildId: string, requestId: string): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: requestId, guildId, status: "used" },
+      { $set: { status: "approved", usedAt: null } }
+    );
+    return updatedDocument(result);
+  }
+
   async function cancelTypes(guildId: string, types: readonly PermissionRequestType[]): Promise<void> {
     await model.updateMany(
       { guildId, type: { $in: [...types] }, status: { $in: ["pending", "approved"] } },
@@ -167,7 +194,7 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
     return active.length;
   }
 
-  return { create, read, list, resolve, consume, cancelTypes, countActive, expireStale };
+  return { create, read, list, resolve, consume, consumeAll, cancelTypes, countActive, expireStale };
 }
 
 export type PermissionRequestRepository = ReturnType<typeof createPermissionRequestRepository>;
