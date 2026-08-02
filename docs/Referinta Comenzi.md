@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 176.
+Total comenzi documentate: 171.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -54,7 +54,6 @@ Total comenzi documentate: 176.
 | `/set threat-alert-channel` | Admin, Ephemeral | Alege canalul pentru alertele de amenintari. | `/set threat-alert-channel canal:#security` |
 | `/start threat-protection` | Admin, Ephemeral | Inspecteaza linkurile si atasamentele. Sterge automat DOAR amenintarile confirmate de motorul extern de reputatie; fisierele executabile/script, incalcarile de politica (@everyone, invitatii) si resursele incerte doar alerteaza, fara stergere. | `/start threat-protection` |
 | `/stop threat-protection` | Admin, Ephemeral | Opreste protectia la amenintari. | `/stop threat-protection` |
-| `/set bot-add-alert-channel` | Admin, Ephemeral | Alege canalul pentru solicitarile si alertele de adaugare boti. | `/set bot-add-alert-channel canal:#security` |
 | `/set permission-request-channel` | Admin, Ephemeral | Alege canalul unic pentru toate cererile de aprobare de securitate si deciziile ownerului. | `/set permission-request-channel canal:#aprobari` |
 | `/set anti-raid-alert-channel` | Admin, Ephemeral | Seteaza canalul anti-raid in care botul publica alertele, interventiile, participantii si erorile incidentului. | `/set anti-raid-alert-channel canal:#anti-raid` |
 | `/set anti-raid-thresholds` | Admin, Ephemeral | Modifica pragurile anti-raid. Optiunile nedate raman la valoarea curenta, iar o valoare in afara limitelor e refuzata cu motiv, fara sa piarda celelalte valori valide. Nota: Implicit: 3 mesaje identice in 8s, minimum 4 mentiuni in 10s, minimum 3 mesaje cu invitatii in 20s, minimum 4 mesaje cu linkuri in 12s, minimum 2 participanti coordonati in 15s, minimum 3 canale sau roluri in 20s. Nota: Implicit: perioada de siguranta 30m, mute 24h, timeout 24h, lockdown maxim 45m. Nota: Duratele se scriu cu s, m, h sau d, de exemplu 8s, 30m, 24h. | `/set anti-raid-thresholds identical-messages:4 safety-period:1h` |
@@ -64,9 +63,7 @@ Total comenzi documentate: 176.
 | `/start ad-protection` | Admin, Ephemeral | Porneste protectia impotriva reclamelor neaprobate de owner, inclusiv reclamele fara link: promovarea altor servere, comunitati, servicii, produse, pagini sau conturi. | `/start ad-protection` |
 | `/stop ad-protection` | Admin, Ephemeral | Opreste protectia si transforma toate cererile si aprobarile active neexpirate in cancelled. Istoricul tentativelor, warn-urile si canalul configurat raman salvate. | `/stop ad-protection` |
 | `/set warn-channel` | Admin, Ephemeral | Alege canalul dedicat in care sunt publicate warn-urile si dovezile directe. | `/set warn-channel canal:#moderation` |
-| `/start bot-add-protection` | Admin, Ephemeral | Permite doar botul si solicitantul aprobati exact printr-o aprobare owner one-time neexpirata; botii neaprobati sunt eliminati. | `/start bot-add-protection` |
 | `/start moderation-guard` | Admin, Ephemeral | Porneste unitar protectiile administrative bazate pe aprobare din afara raidurilor: bot-add, permission-grant, moderation-mass, webhook, server-structure si protected-resource-change. | `/start moderation-guard` |
-| `/stop bot-add-protection` | Admin, Ephemeral | Opreste protectia la adaugarea botilor si anuleaza toate solicitarile si aprobarile bot-add active neexpirate (devin cancelled), ca sa nu ramana aprobari valabile dupa dezactivare. | `/stop bot-add-protection` |
 | `/stop moderation-guard` | Admin, Ephemeral | Opreste protectiile administrative din afara raidurilor si anuleaza cererile si aprobarile nefolosite pentru cele sase tipuri; istoricul si canalul raman salvate. | `/stop moderation-guard` |
 | `/set admin-command-access` | Admin top-level, owner-only runtime, Ephemeral | Seteaza rolul care poate folosi comenzile admin pe langa Administrator si codul global de acces. Fara command seteaza fallback-ul global; cu command seteaza regula doar pentru acea comanda sau acel pachet, de exemplu /start updates. Perechile start/stop pentru acelasi modul folosesc aceeasi regula. Nota: Mode `role` accepta doar rolul ales, iar `role-or-higher` accepta rolul ales sau unul mai mare. Nota: O regula pentru `/start player-count` se aplica automat si la `/stop player-count`. Nota: Pana ownerul seteaza o regula de rol, rolurile nu dau acces admin; raman Administrator si codul global corect introdus prin modal ephemeral. | `/set admin-command-access role:@Moderator mode:role-or-higher command:/start player-count` |
 | `/price-alert list` | Admin, Ephemeral | Listeaza alertele de pret, pragurile, valutele si starea armata sau declansata. | `/price-alert list` |
@@ -168,8 +165,6 @@ Total comenzi documentate: 176.
 | `/remove-warn` | Admin, Ephemeral | Elimina cel mai recent avertisment. | `/remove-warn utilizator:@user` |
 | `/warn-list` | Public | Afiseaza sumarul avertismentelor grupat pe utilizator: totalul de warn-uri active, sortat descrescator, cu data ultimului warn. | `/warn-list` |
 | `/warn-ban-limit` | Admin, Ephemeral | Seteaza limita de avertismente pentru ban automat. | `/warn-ban-limit numar:3` |
-| `/bot-add-request` | Admin, Ephemeral | Solicita aprobarea proprietarului pentru un bot nou. | `/bot-add-request bot-id:123456789012345678` |
-| `/bot-add-permissions` | Admin, Ephemeral | Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata. | `/bot-add-permissions` |
 | `/permission-request` | Public | Cere aprobarea ownerului pentru o operatiune de securitate: bot-add, permission-grant, moderation-mass, webhook, server-structure sau protected-resource-change. | `/permission-request type:webhook target:#anunturi action:create reason:integrare RSS` |
 | `/permission-requests list` | Admin top-level, owner-only runtime, Ephemeral | Listeaza cererile de aprobare de securitate, cu filtre optionale dupa status si tip; cele active apar inaintea istoricului. | `/permission-requests list status:pending` |
 | `/ad-request` | Public | Cere aprobarea proprietarului inainte sa publici o reclama. Cererea salveaza utilizatorul, textul exact, linkul, invitatia si atasamentul; aprobarea e legata de reclama si utilizatorul exacte, se foloseste o singura data si expira. | `/ad-request reclama:Intra pe serverul meu` |

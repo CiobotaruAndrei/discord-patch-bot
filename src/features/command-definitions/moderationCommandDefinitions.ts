@@ -16,9 +16,7 @@ export function buildModerationCommandDefinitions({ SlashCommandBuilder, Permiss
     admin(new SlashCommandBuilder().setName("remove-warn").setDescription("Elimina cel mai recent warn").addUserOption(option => option.setName("utilizator").setDescription("Utilizatorul").setRequired(true))),
     new SlashCommandBuilder().setName("warn-list").setDescription("Afiseaza avertismentele active").setDMPermission(false),
     admin(new SlashCommandBuilder().setName("warn-ban-limit").setDescription("Seteaza limita de warn-uri pentru ban automat").addIntegerOption(option => option.setName("numar").setDescription("Limita pozitiva").setRequired(true).setMinValue(1).setMaxValue(100)))
-    ,admin(new SlashCommandBuilder().setName("bot-add-request").setDescription("Solicita aprobarea proprietarului pentru adaugarea unui bot")
-      .addStringOption(option => option.setName("bot-id").setDescription("ID-ul botului solicitat").setRequired(true).setMinLength(17).setMaxLength(20)))
-    ,admin(new SlashCommandBuilder().setName("bot-add-permissions").setDescription("Afiseaza solicitarile si permisiunile de adaugare boti"))
+
     ,new SlashCommandBuilder().setName("permission-request").setDescription("Cere aprobarea ownerului pentru o operatiune de securitate").setDMPermission(false)
       .addStringOption(option => option.setName("type").setDescription("Tipul operatiunii").setRequired(true)
         .addChoices(

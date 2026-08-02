@@ -62,7 +62,6 @@ export interface GuildConfigurationSettings {
   newAccountAlertsEnabled?: boolean;
   threatAlertChannelId?: string | null;
   threatProtectionEnabled?: boolean;
-  botAddAlertChannelId?: string | null;
   permissionRequestChannelId?: string | null;
   antiRaidAlertChannelId?: string | null;
   antiRaidThresholds?: Record<string, unknown> | null;
@@ -70,20 +69,7 @@ export interface GuildConfigurationSettings {
   adAlertChannelId?: string | null;
   adProtectionEnabled?: boolean;
   moderationGuardEnabled?: boolean;
-  botAddProtectionEnabled?: boolean;
   warningChannelId?: string | null;
-  botAddPermissions?: Array<{
-    schemaVersion?: number;
-    requestId: string;
-    botId: string;
-    requesterId: string;
-    requestedAt: Date;
-    ownerId?: string | null;
-    respondedAt?: Date | null;
-    expiresAt?: Date | null;
-    usedAt?: Date | null;
-    status: "pending" | "approved" | "used" | "rejected" | "expired" | "cancelled";
-  }>;
   purgeAmount?: number;
   lockedChannelIds?: string[];
   lockedChannelPermissions?: Array<{

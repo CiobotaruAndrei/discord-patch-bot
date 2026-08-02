@@ -21,13 +21,13 @@ export function renderToggleProtectionOutcome(outcome: ToggleProtectionOutcome):
     return "Eroare: canalul configurat nu mai are permisiunile View Channel, Send Messages si Embed Links.";
   }
   if (outcome.kind === "not-ready") {
-    return `Eroare: protectia la adaugarea botilor nu poate porni - lipsesc: ${outcome.missing.join(", ")}. Acorda-le botului si reincearca.`;
+    return `Eroare: protectia nu poate porni - lipsesc: ${outcome.missing.join(", ")}. Acorda-le botului si reincearca.`;
   }
   if (outcome.kind === "atomic-stop-failed") {
-    return "Eroare: protectia **bot-add-protection** NU a fost oprita, deoarece anularea atomica a aprobarilor active a esuat. Starea anterioara a ramas activa.";
+    return `Eroare: protectia **${outcome.subcommand}** NU a fost oprita, deoarece anularea atomica a aprobarilor active a esuat. Starea anterioara a ramas activa.`;
   }
   if (outcome.kind === "stopped-with-cancellations") {
-    return `OK: protectia **bot-add-protection** a fost oprita. Solicitari/aprobari active anulate: ${outcome.cancelled}.`;
+    return `OK: protectia **${outcome.subcommand}** a fost oprita. Solicitari/aprobari active anulate: ${outcome.cancelled}.`;
   }
   if (outcome.kind === "started-with-backfill") {
     const unconfirmedNote = outcome.result.sentUnconfirmed > 0

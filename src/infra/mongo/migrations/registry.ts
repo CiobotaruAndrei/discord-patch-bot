@@ -17,6 +17,7 @@ import { m15_moveYoutubeStateIntoCollection } from "./m15_moveYoutubeStateIntoCo
 import { m16_dropMigratedSliceFieldsFromGuilds } from "./m16_dropMigratedSliceFieldsFromGuilds.js";
 import { m17_movePlayerCountWatchIntoCollection } from "./m17_movePlayerCountWatchIntoCollection.js";
 import { m18_unifyPermissionRequests } from "./m18_unifyPermissionRequests.js";
+import { m19_dropLegacyBotAddFields } from "./m19_dropLegacyBotAddFields.js";
 
 const ALL_MIGRATIONS: Migration[] = [
   m1_addEnabledStores,
@@ -36,7 +37,8 @@ const ALL_MIGRATIONS: Migration[] = [
   m15_moveYoutubeStateIntoCollection,
   m16_dropMigratedSliceFieldsFromGuilds,
   m17_movePlayerCountWatchIntoCollection,
-  m18_unifyPermissionRequests
+  m18_unifyPermissionRequests,
+  m19_dropLegacyBotAddFields
 ];
 
 export { ALL_MIGRATIONS };

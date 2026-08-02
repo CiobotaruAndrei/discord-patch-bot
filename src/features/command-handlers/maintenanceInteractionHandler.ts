@@ -61,8 +61,7 @@ const MAINTENANCE_MODULES: readonly MaintenanceModule[] = [
   { label: "DLC", enabledField: "dlcSubscribed", channelField: "dlcChannelId", lastErrorField: "dlcLastError" },
   { label: "player-count", enabledField: "playerCountSubscribed", channelField: "playerCountChannelId" },
   { label: "alerte cont nou", enabledField: "newAccountAlertsEnabled", channelField: "newAccountAlertChannelId" },
-  { label: "protectie amenintari", enabledField: "threatProtectionEnabled", channelField: "threatAlertChannelId" },
-  { label: "protectie adaugare boti", enabledField: "botAddProtectionEnabled", channelField: "botAddAlertChannelId" }
+  { label: "protectie amenintari", enabledField: "threatProtectionEnabled", channelField: "threatAlertChannelId" }
 ];
 
 function isOldBackup(newestBackup: ConfigBackupRecord | null, now: number): boolean {

@@ -180,17 +180,17 @@ test("toggle: pornirea cu permisiuni pierdute pe canalul configurat e refuzata",
 test("toggle: oprirea protectiei bot-add anuleaza atomic aprobarile active", async () => {
   const { deps, log } = toggleDeps();
   const outcome = await toggleProtection(
-    { command: "stop", subcommand: "bot-add-protection", hasToggleFields: true, needsReadinessCheck: false, needsAtomicStop: true, needsBackfill: false },
+    { command: "stop", subcommand: "moderation-guard", hasToggleFields: true, needsReadinessCheck: false, needsAtomicStop: true, needsBackfill: false },
     deps
   );
-  assert.deepEqual(outcome, { kind: "stopped-with-cancellations", subcommand: "bot-add-protection", cancelled: 4 });
+  assert.deepEqual(outcome, { kind: "stopped-with-cancellations", subcommand: "moderation-guard", cancelled: 4 });
   assert.deepEqual(log, ["stop-atomically"], "comutatorul nu se scrie separat: oprirea e o singura operatie atomica");
 });
 
 test("toggle: daca anularea atomica esueaza, protectia ramane activa", async () => {
   const { deps, log } = toggleDeps({ stopAtomically: async () => { throw new Error("mongo down"); } });
   const outcome = await toggleProtection(
-    { command: "stop", subcommand: "bot-add-protection", hasToggleFields: true, needsReadinessCheck: false, needsAtomicStop: true, needsBackfill: false },
+    { command: "stop", subcommand: "moderation-guard", hasToggleFields: true, needsReadinessCheck: false, needsAtomicStop: true, needsBackfill: false },
     deps
   );
   assert.equal(outcome.kind, "atomic-stop-failed");

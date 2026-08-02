@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 
 import { createSecurityRuntime } from "../../features/command-security/securityRuntime.js";
+import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
+import { permissionRequestStore, type PermissionRequestStore } from "./permissionRequestStore.js";
 import type { GuildAuditLogRecord } from "../../features/admin-records/auditLogRepository.js";
 
 function auditModel(records: GuildAuditLogRecord[]) {
@@ -22,9 +24,20 @@ function auditModel(records: GuildAuditLogRecord[]) {
   };
 }
 
+async function approvedBotAdd(botId: string, requesterId: string): Promise<PermissionRequestStore> {
+  const model = permissionRequestStore();
+  const repository = createPermissionRequestRepository(model);
+  await repository.create({
+    requestId: "req-1", guildId: "guild-1", type: "bot-add", requesterId,
+    target: botId, action: "add", botId, reason: "bot aprobat de owner"
+  });
+  await repository.resolve("guild-1", "req-1", "approved", "owner-1", { target: botId, action: "add" });
+  return model;
+}
+
 function emptyGuildModel() {
   return {
-    findOne: async () => ({ botAddPermissions: [] }),
+    findOne: async () => null,
     findOneAndUpdate: async () => null,
     updateOne: async () => ({ modifiedCount: 1 })
   };
@@ -40,8 +53,8 @@ test("un bot fara aprobare exacta este eliminat si auditat", async () => {
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({
       _id: "guild-1",
-      botAddProtectionEnabled: true,
-      botAddAlertChannelId: "security"
+      moderationGuardEnabled: true,
+      permissionRequestChannelId: "security"
     }),
     client: {
       channels: {
@@ -50,6 +63,7 @@ test("un bot fara aprobare exacta este eliminat si auditat", async () => {
         })
       }
     },
+    PermissionRequestModel: permissionRequestStore(),
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
     metrics: recorders.security,
@@ -109,11 +123,13 @@ test("ownerul serverului poate adauga un bot direct, fara aprobare one-time (far
   const now = Date.parse("2026-07-16T12:00:00.000Z");
   const metrics = createMetrics();
   const recorders = createMetricRecorders(metrics);
+  const store = permissionRequestStore();
+  const consumeCounter = { ...store, find(filter: Record<string, unknown>) { consumeAttempts += 1; return store.find(filter); } };
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({
       _id: "guild-1",
-      botAddProtectionEnabled: true,
-      botAddAlertChannelId: "security"
+      moderationGuardEnabled: true,
+      permissionRequestChannelId: "security"
     }),
     client: {
       channels: {
@@ -122,11 +138,8 @@ test("ownerul serverului poate adauga un bot direct, fara aprobare one-time (far
         })
       }
     },
-    GuildModel: {
-      findOne: async () => ({ botAddPermissions: [] }),
-      findOneAndUpdate: async () => { consumeAttempts++; return null; },
-      updateOne: async () => ({ modifiedCount: 1 })
-    },
+    PermissionRequestModel: consumeCounter,
+    GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
     metrics: recorders.security,
     now: () => now
@@ -176,19 +189,12 @@ test("un bot SUSPECT (nu periculos) produce tot 3 mesaje cu tag owner: admitere 
   const sent: Array<{ content?: string }> = [];
   const audits: GuildAuditLogRecord[] = [];
   const now = Date.parse("2026-07-16T12:00:00.000Z");
-  const approvedPermission = {
-    requestId: "req-1",
-    botId: "bot-1",
-    requesterId: "requester-1",
-    requestedAt: new Date(now - 60_000),
-    status: "used",
-    usedAt: new Date(now)
-  };
+  const approvals = await approvedBotAdd("bot-1", "requester-1");
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({
       _id: "guild-1",
-      botAddProtectionEnabled: true,
-      botAddAlertChannelId: "security"
+      moderationGuardEnabled: true,
+      permissionRequestChannelId: "security"
     }),
     client: {
       channels: {
@@ -197,11 +203,8 @@ test("un bot SUSPECT (nu periculos) produce tot 3 mesaje cu tag owner: admitere 
         })
       }
     },
-    GuildModel: {
-      findOne: async () => ({ botAddPermissions: [approvedPermission] }),
-      findOneAndUpdate: async () => ({ botAddPermissions: [approvedPermission] }),
-      updateOne: async () => ({ modifiedCount: 1 })
-    },
+    PermissionRequestModel: approvals,
+    GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
     now: () => now
   });
@@ -249,19 +252,12 @@ test("Audit Log intarziat: solicitantul e gasit la reincercare, botul aprobat nu
   const waits: number[] = [];
   let fetchCalls = 0;
   const now = Date.parse("2026-07-16T12:00:00.000Z");
-  const approvedPermission = {
-    requestId: "req-1",
-    botId: "bot-1",
-    requesterId: "requester-1",
-    requestedAt: new Date(now - 60_000),
-    status: "used",
-    usedAt: new Date(now)
-  };
+  const approvals = await approvedBotAdd("bot-1", "requester-1");
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({
       _id: "guild-1",
-      botAddProtectionEnabled: true,
-      botAddAlertChannelId: "security"
+      moderationGuardEnabled: true,
+      permissionRequestChannelId: "security"
     }),
     client: {
       channels: {
@@ -270,11 +266,8 @@ test("Audit Log intarziat: solicitantul e gasit la reincercare, botul aprobat nu
         })
       }
     },
-    GuildModel: {
-      findOne: async () => ({ botAddPermissions: [approvedPermission] }),
-      findOneAndUpdate: async () => ({ botAddPermissions: [approvedPermission] }),
-      updateOne: async () => ({ modifiedCount: 1 })
-    },
+    PermissionRequestModel: approvals,
+    GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
     now: () => now,
     wait: async ms => { waits.push(ms); }
@@ -322,8 +315,8 @@ test("solicitant nedetectat dupa toate reincercarile Audit Log => botul e elimin
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({
       _id: "guild-1",
-      botAddProtectionEnabled: true,
-      botAddAlertChannelId: "security"
+      moderationGuardEnabled: true,
+      permissionRequestChannelId: "security"
     }),
     client: {
       channels: {
@@ -332,6 +325,7 @@ test("solicitant nedetectat dupa toate reincercarile Audit Log => botul e elimin
         })
       }
     },
+    PermissionRequestModel: permissionRequestStore(),
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
     now: () => now,
@@ -366,6 +360,7 @@ test("alerta de cont nou include toate campurile si e deduplicata persistent per
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({ _id: "guild-1", newAccountAlertsEnabled: true, newAccountAlertChannelId: "sec" }),
     client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    PermissionRequestModel: permissionRequestStore(),
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel([]),
     claimNewAccountAlert: async (_guildId: string, userId: string) => {
@@ -411,6 +406,7 @@ function threatRuntime(input: {
         })
       }
     },
+    PermissionRequestModel: permissionRequestStore(),
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel([]),
     httpReq: input.httpReq ?? (async () => { throw new Error("inspection unavailable"); }),
@@ -543,6 +539,7 @@ test("wiring end-to-end: un motor de reputatie care raporteaza malware duce la v
         })
       }
     },
+    PermissionRequestModel: permissionRequestStore(),
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel([]),
     httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a, 0x90, 0x00]), headers: { "content-type": "application/octet-stream" }, status: 200 }),
@@ -569,8 +566,9 @@ test("bot neaprobat care NU poate fi eliminat (ierarhie) => incident critic cu t
   const metrics = createMetrics();
   const recorders = createMetricRecorders(metrics);
   const runtime = createSecurityRuntime({
-    getGuildSettings: async () => ({ _id: "guild-1", botAddProtectionEnabled: true, botAddAlertChannelId: "security" }),
+    getGuildSettings: async () => ({ _id: "guild-1", moderationGuardEnabled: true, permissionRequestChannelId: "security" }),
     client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    PermissionRequestModel: permissionRequestStore(),
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
     metrics: recorders.security,
@@ -594,8 +592,9 @@ test("un bot monitorizat care posteaza continut CONFIRMAT periculos => incident 
   const audits: GuildAuditLogRecord[] = [];
   let deleted = 0;
   const runtime = createSecurityRuntime({
-    getGuildSettings: async () => ({ _id: "guild-1", botAddProtectionEnabled: true, botAddAlertChannelId: "security" }),
+    getGuildSettings: async () => ({ _id: "guild-1", moderationGuardEnabled: true, permissionRequestChannelId: "security" }),
     client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    PermissionRequestModel: permissionRequestStore(),
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
     httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a]), headers: { "content-type": "application/octet-stream" }, status: 200 }),
@@ -622,8 +621,9 @@ test("un bot monitorizat care posteaza continut NECONFIRMAT (risky-file) => aler
   const sent: Array<{ content?: string }> = [];
   let deleted = 0;
   const runtime = createSecurityRuntime({
-    getGuildSettings: async () => ({ _id: "guild-1", botAddProtectionEnabled: true, botAddAlertChannelId: "security" }),
+    getGuildSettings: async () => ({ _id: "guild-1", moderationGuardEnabled: true, permissionRequestChannelId: "security" }),
     client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    PermissionRequestModel: permissionRequestStore(),
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel([]),
     httpReq: async () => ({ data: Buffer.from([0x4d, 0x5a]), headers: { "content-type": "application/octet-stream" }, status: 200 })
@@ -649,6 +649,7 @@ test("threat protection inspecteaza mesajele boturilor si fara bot-add protectio
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({ _id: "guild-1", threatProtectionEnabled: true, threatAlertChannelId: "threat" }),
     client: { channels: { fetch: async channelId => ({ id: channelId, send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    PermissionRequestModel: permissionRequestStore(),
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel([]),
     httpReq: async () => {
@@ -677,6 +678,7 @@ test("esecul stergerii nu blocheaza alerta si auditul amenintarii confirmate (au
   const runtime = createSecurityRuntime({
     getGuildSettings: async () => ({ _id: "guild-1", threatProtectionEnabled: true, threatAlertChannelId: "security" }),
     client: { channels: { fetch: async () => ({ send: async (payload: { content?: string }) => { sent.push(payload); } }) } },
+    PermissionRequestModel: permissionRequestStore(),
     GuildModel: emptyGuildModel(),
     GuildAuditLogModel: auditModel(audits),
     metrics: recorders.security,

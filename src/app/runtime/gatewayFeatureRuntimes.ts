@@ -87,10 +87,16 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
       httpReq: scrapers.httpReq,
       reputationScan,
       claimNewAccountAlert: newAccountDelivery?.claim,
+      PermissionRequestModel: mongo.PermissionRequestModel,
+      isRaidConfirmed: guildId => raidConfirmedCheck(guildId),
       logger,
       metrics: recorders.security
     })
     : undefined;
+
+  const raidState: { check?: (guildId: string) => Promise<boolean> } = {};
+  const raidConfirmedCheck = async (guildId: string): Promise<boolean> =>
+    raidState.check ? raidState.check(guildId) : false;
 
   const permissionRequestModel = mongo.PermissionRequestModel;
   const readGuildSettings = mongo.getGuildSettings;
@@ -162,6 +168,8 @@ async function applyWarnBan(
       logger
     })
     : undefined;
+
+  if (antiRaidRuntime) raidState.check = guildId => antiRaidRuntime.isRaidConfirmed(guildId);
 
   const moderationGuardGate = permissionRequestModel && readGuildSettings
     ? createModerationGuardGate({

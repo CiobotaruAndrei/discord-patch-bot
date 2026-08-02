@@ -13,7 +13,7 @@ export type ToggleProtectionOutcome =
   | { kind: "channel-not-set" }
   | { kind: "channel-missing-permissions" }
   | { kind: "not-ready"; missing: readonly string[] }
-  | { kind: "atomic-stop-failed"; error: unknown }
+  | { kind: "atomic-stop-failed"; subcommand: string; error: unknown }
   | { kind: "stopped-with-cancellations"; subcommand: string; cancelled: number }
   | { kind: "started-with-backfill"; subcommand: string; result: ProtectionBackfillResult }
   | { kind: "toggled"; subcommand: string; command: ProtectionCommand };
@@ -29,8 +29,8 @@ export type ToggleProtectionInput = {
 
 export type ToggleProtectionDeps = {
   readConfiguredChannel: () => string | null;
-  readChannelPermissions: (channelId: string) => Promise<{ viewChannel?: boolean; sendMessages?: boolean; embedLinks?: boolean } | null>;
   readinessGaps: () => readonly string[];
+  readChannelPermissions: (channelId: string) => Promise<{ viewChannel?: boolean; sendMessages?: boolean; embedLinks?: boolean } | null>;
   countActiveApprovals: () => number | Promise<number>;
   stopAtomically: () => Promise<void>;
   persistEnabled: (enabled: boolean) => Promise<void>;
@@ -63,7 +63,7 @@ export async function toggleProtection(
     try {
       await deps.stopAtomically();
     } catch (error: unknown) {
-      return { kind: "atomic-stop-failed", error };
+      return { kind: "atomic-stop-failed", subcommand: input.subcommand, error };
     }
     return { kind: "stopped-with-cancellations", subcommand: input.subcommand, cancelled };
   }

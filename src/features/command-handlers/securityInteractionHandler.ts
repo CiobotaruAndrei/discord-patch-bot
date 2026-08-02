@@ -11,7 +11,6 @@ import {
 } from "../guild-config/guildConfigRepository.js";
 import { accountAgeLabel, isRecentAccount } from "../command-security/recentAccountPolicy.js";
 import { validateModerationText, type DirectAttachment } from "../moderation/moderationInputPolicy.js";
-import { countActiveBotAddPermissions, stopBotAddProtectionAtomically } from "../moderation/botAddRepository.js";
 import { createNewAccountAlertDelivery, deliverNewAccountAlert, type NewAccountAlertClaim, type NewAccountAlertDeliveryModelLike } from "../command-security/newAccountAlertDedup.js";
 import { recordChannelLockDivergence, type ChannelLockRecoveryModelLike } from "../command-security/channelLockRecoveryRepository.js";
 import { readLockedChannelPermissionState } from "../command-security/channelLockRecoveryRuntime.js";
@@ -19,7 +18,7 @@ import { randomUUID } from "node:crypto";
 import { setSecurityChannel } from "../command-security/setSecurityChannelUseCase.js";
 import {
   backfillAccountAlerts,
-  botAddProtectionReadiness,
+  botRemovalReadiness,
   botChannelPermissions,
   channelBulkDelete,
   isSecurityInteraction,
@@ -120,8 +119,6 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
       const stopActions = protectionStopActions(sub, guildId, {
         guardRequests,
         adRequests,
-        countBotAddApprovals: () => countActiveBotAddPermissions(settings?.botAddPermissions, new Date()),
-        stopBotAddAtomically: () => stopBotAddProtectionAtomically(target.GuildModel, guildId),
         disableProtection: async () => {
           await applyGuildConfigUpdate(target.GuildModel, guildId, { [toggle.enabled]: false });
         }
@@ -131,7 +128,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
           command,
           subcommand: sub,
           hasToggleFields: true,
-          needsReadinessCheck: sub === "bot-add-protection",
+          needsReadinessCheck: sub === "moderation-guard",
           needsAtomicStop: stopActions.needsAtomicStop,
           needsBackfill: sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true
         },
@@ -141,7 +138,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
             return typeof channelId === "string" && channelId ? channelId : null;
           },
           readChannelPermissions: channelId => target.checkChannelPermissions(interaction, channelId),
-          readinessGaps: () => botAddProtectionReadiness(interaction),
+          readinessGaps: () => botRemovalReadiness(interaction),
           countActiveApprovals: () => stopActions.countActiveApprovals(),
           stopAtomically: () => stopActions.stopAtomically(),
           persistEnabled: async enabled => {

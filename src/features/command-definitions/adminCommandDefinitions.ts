@@ -142,8 +142,6 @@ export function buildAdminCommandDefinitions({ SlashCommandBuilder, PermissionsB
         .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru alerte").setRequired(true)))
       .addSubcommand(subcommand => subcommand.setName("threat-alert-channel").setDescription("Seteaza canalul pentru alerte de amenintari")
         .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru alerte").setRequired(true)))
-      .addSubcommand(subcommand => subcommand.setName("bot-add-alert-channel").setDescription("Seteaza canalul pentru aprobari de boti")
-        .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru alerte").setRequired(true)))
       .addSubcommand(subcommand => subcommand.setName("permission-request-channel").setDescription("Seteaza canalul unic pentru cererile de aprobare de securitate")
         .addChannelOption(option => option.setName("canal").setDescription("Canalul pentru cereri si decizii").setRequired(true)))
       .addSubcommand(subcommand => subcommand.setName("anti-raid-alert-channel").setDescription("Seteaza canalul anti-raid pentru alerte si interventii")

@@ -78,9 +78,9 @@ test("criteriul de potrivire acopera formele reale de update, nu doar $set simpl
     "cale cu punct: radacina e ce conteaza"
   );
   assert.equal(
-    updateTouchesSlice(SECURITY_FIELDS, [{ $set: { botAddPermissions: [] } }]),
+    updateTouchesSlice(SECURITY_FIELDS, [{ $set: { botObservations: [] } }]),
     true,
-    "pipeline de agregare, forma folosita de oprirea protectiei bot-add"
+    "pipeline de agregare, forma folosita de oprirea unei protectii"
   );
   assert.equal(updateTouchesSlice(SECURITY_FIELDS, { $set: { timezone: "UTC" } }), false, "o setare care nu e de securitate nu declanseaza oglindirea");
   assert.equal(

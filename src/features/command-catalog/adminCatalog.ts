@@ -29,8 +29,6 @@ export const ADMIN_COMMAND_ACCESS: readonly CommandAccessRule[] = [
   ,{ command: "remove-warn", access: "admin", discordAdminPermissions: true }
   ,{ command: "warn-list", access: "public", discordAdminPermissions: false }
   ,{ command: "warn-ban-limit", access: "admin", discordAdminPermissions: true }
-  ,{ command: "bot-add-request", access: "admin", discordAdminPermissions: true }
-  ,{ command: "bot-add-permissions", access: "admin", discordAdminPermissions: true }
   ,{ command: "permission-request", access: "public", discordAdminPermissions: false }
   ,{ command: "permission-requests", access: "admin", discordAdminPermissions: true, ownerOnly: true, ownerOnlySubcommands: ["list"], sensitiveSubcommands: "all" }
   ,{ command: "protected-resource", access: "admin", discordAdminPermissions: true, ownerOnly: true, sensitiveSubcommands: "all" }
@@ -82,8 +80,6 @@ export const ADMIN_CATALOG_HELP: readonly CommandCatalogHelpEntry[] = [
   ,{ command: "/remove-warn", description: "Elimina cel mai recent avertisment.", example: "/remove-warn utilizator:@user" }
   ,{ command: "/warn-list", description: "Afiseaza sumarul avertismentelor grupat pe utilizator: totalul de warn-uri active, sortat descrescator, cu data ultimului warn.", example: "/warn-list" }
   ,{ command: "/warn-ban-limit", description: "Seteaza limita de avertismente pentru ban automat.", example: "/warn-ban-limit numar:3" }
-  ,{ command: "/bot-add-request", description: "Solicita aprobarea proprietarului pentru un bot nou.", example: "/bot-add-request bot-id:123456789012345678" }
-  ,{ command: "/bot-add-permissions", description: "Listeaza paginat toate solicitarile cu status, bot, solicitant, owner si momentele ciclului de viata.", example: "/bot-add-permissions" }
   ,{ command: "/permission-request", description: "Cere aprobarea ownerului pentru o operatiune de securitate: bot-add, permission-grant, moderation-mass, webhook, server-structure sau protected-resource-change.", example: "/permission-request type:webhook target:#anunturi action:create reason:integrare RSS" }
   ,{ command: "/permission-requests list", description: "Listeaza cererile de aprobare de securitate, cu filtre optionale dupa status si tip; cele active apar inaintea istoricului.", example: "/permission-requests list status:pending" }
   ,{ command: "/ad-request", description: "Cere aprobarea proprietarului inainte sa publici o reclama. Cererea salveaza utilizatorul, textul exact, linkul, invitatia si atasamentul; aprobarea e legata de reclama si utilizatorul exacte, se foloseste o singura data si expira.", example: "/ad-request reclama:Intra pe serverul meu" }

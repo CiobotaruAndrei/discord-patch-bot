@@ -178,7 +178,6 @@ export interface GuildDoc {
   newAccountAlertsEnabled?: boolean;
   threatAlertChannelId?: string | null;
   threatProtectionEnabled?: boolean;
-  botAddAlertChannelId?: string | null;
   permissionRequestChannelId?: string | null;
   antiRaidAlertChannelId?: string | null;
   antiRaidThresholds?: Record<string, unknown> | null;
@@ -186,7 +185,6 @@ export interface GuildDoc {
   adAlertChannelId?: string | null;
   adProtectionEnabled?: boolean;
   moderationGuardEnabled?: boolean;
-  botAddProtectionEnabled?: boolean;
   botObservations?: Array<{
     botId: string;
     requesterId: string;
@@ -200,19 +198,6 @@ export interface GuildDoc {
     lastBurstAlertAt?: Date | null;
   }>;
   warningChannelId?: string | null;
-  botAddPermissions?: Array<{
-    requestId: string;
-    botId: string;
-    requesterId: string;
-    requestedAt: Date;
-    ownerId?: string | null;
-    respondedAt?: Date | null;
-    expiresAt?: Date | null;
-    usedAt?: Date | null;
-    cancelledAt?: Date | null;
-    cancellationReason?: "protection-stopped" | null;
-    status: "pending" | "approved" | "used" | "rejected" | "expired" | "cancelled";
-  }>;
   purgeAmount?: number;
   lockedChannelIds?: string[];
   lockedChannelPermissions?: Array<{

@@ -209,7 +209,6 @@ test("oprirea protectiei anuleaza cererile active", async () => {
 test("oprirea alege actiunea corecta pentru fiecare protectie", async () => {
   const cancelled: string[] = [];
   const disabled: string[] = [];
-  const botAddStopped: string[] = [];
   const deps = {
     adRequests: {
       listRequests: async () => [{ status: "pending" }, { status: "used" }],
@@ -219,8 +218,6 @@ test("oprirea alege actiunea corecta pentru fiecare protectie", async () => {
       countActive: async () => 4,
       cancelTypes: async (guildId: string) => { cancelled.push(`guard:${guildId}`); }
     },
-    countBotAddApprovals: () => 7,
-    stopBotAddAtomically: async () => { botAddStopped.push("g1"); },
     disableProtection: async () => { disabled.push("g1"); }
   };
 
@@ -230,15 +227,9 @@ test("oprirea alege actiunea corecta pentru fiecare protectie", async () => {
   await ads.stopAtomically();
   assert.deepEqual(cancelled, ["g1"]);
   assert.deepEqual(disabled, ["g1"], "protectia se stinge dupa anularea cererilor, nu inainte");
-  assert.deepEqual(botAddStopped, []);
 
   const guard = protectionStopActions("moderation-guard", "g1", moduleContext<Parameters<typeof protectionStopActions>[2]>(deps));
   assert.equal(await guard.countActiveApprovals(), 4);
-
-  const botAdd = protectionStopActions("bot-add-protection", "g1", moduleContext<Parameters<typeof protectionStopActions>[2]>(deps));
-  assert.equal(await botAdd.countActiveApprovals(), 7);
-  await botAdd.stopAtomically();
-  assert.deepEqual(botAddStopped, ["g1"]);
 
   const other = protectionStopActions("threat-protection", "g1", moduleContext<Parameters<typeof protectionStopActions>[2]>(deps));
   assert.equal(other.needsAtomicStop, false, "protectiile fara aprobari nu trec pe calea de oprire atomica");

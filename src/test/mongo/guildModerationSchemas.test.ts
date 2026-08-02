@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import { buildGuildModerationSchemas, BOT_ADD_PERMISSION_STATUSES, MODERATION_RECORD_SCHEMA_VERSION } from "../../infra/mongo/guildModerationSchemas.js";
 
-const { moderationRecordSchema, warningRecordSchema, botAddPermissionSchema } = buildGuildModerationSchemas({ mongoose });
+const { moderationRecordSchema, warningRecordSchema} = buildGuildModerationSchemas({ mongoose });
 
 test("sub-schemele de moderare sunt tipate si versionate, nu Mixed (review nou, Mediu #12)", () => {
   for (const [name, schema, requiredDate] of [
@@ -17,16 +17,6 @@ test("sub-schemele de moderare sunt tipate si versionate, nu Mixed (review nou, 
   assert.equal(moderationRecordSchema.path("reason")?.instance, "String", "sanctiunile temporare pastreaza motivul necesar restaurarii");
   assert.equal(warningRecordSchema.path("warningId")?.instance, "String", "warn-urile noi pot fi compensate exact prin identificator");
   assert.equal(warningRecordSchema.path("reason"), undefined, "warn-urile nu persista motivul sau continutul sensibil");
-});
-
-test("sub-schema botAddPermissions valideaza statusul printr-un enum inchis (review nou, Mediu #12)", () => {
-  const statusPath = botAddPermissionSchema.path("status");
-  assert.equal(statusPath?.isRequired, true, "status e obligatoriu");
-  assert.deepEqual(statusPath?.options.enum, BOT_ADD_PERMISSION_STATUSES, "statusul accepta doar valorile din ciclul de viata al cererii");
-  for (const field of ["requestId", "botId", "requesterId"]) {
-    assert.equal(botAddPermissionSchema.path(field)?.isRequired, true, `${field} e obligatoriu`);
-  }
-  assert.equal(botAddPermissionSchema.path("requestedAt")?.instance, "Date");
 });
 
 test("intrarile legacy (fara schemaVersion) raman valide - campurile noi sunt aditive", () => {

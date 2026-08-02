@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { PermissionFlagsBits } from "discord.js";
 
 import securityInteractionHandler from "../../features/command-handlers/securityInteractionHandler.js";
+import { permissionRequestStore } from "../security/permissionRequestStore.js";
 
 test("activarea alertelor de conturi noi revine la false daca scanarea initiala esueaza", async () => {
   const writes: Array<Record<string, unknown> | readonly Record<string, unknown>[]> = [];
@@ -405,12 +406,12 @@ test("setarea unui canal de alerta este refuzata daca lipseste o permisiune obli
   assert.match(JSON.stringify(responses[0]), /Embed Links/);
 });
 
-test("/start bot-add-protection refuza activarea cand botului ii lipsesc View Audit Log / Kick Members / pozitia ierarhica (audit, #25)", async () => {
+test("/start moderation-guard refuza activarea cand botului ii lipsesc View Audit Log / Kick Members / pozitia ierarhica (audit, F-02)", async () => {
   const writes: Array<Record<string, unknown>> = [];
   const responses: string[] = [];
   const handler = securityInteractionHandler.buildCommandHandler({
     GuildModel: { updateOne: async (_filter, update: Record<string, unknown>) => { writes.push(update); return { modifiedCount: 1 }; } },
-    getGuildSettings: async () => ({ botAddProtectionEnabled: false, botAddAlertChannelId: "security" }),
+    getGuildSettings: async () => ({ moderationGuardEnabled: false, permissionRequestChannelId: "security" }),
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload: unknown) => { responses.push((payload as { content?: string }).content ?? ""); return payload; },
     checkChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
@@ -423,23 +424,23 @@ test("/start bot-add-protection refuza activarea cand botului ii lipsesc View Au
       members: { me: { permissions: { has: () => false }, roles: { highest: { position: 0 } } }, fetch: async () => ({ values: () => [][Symbol.iterator]() }) },
       channels: { fetch: async () => ({ send: async () => undefined }) }
     },
-    options: { getSubcommand: () => "bot-add-protection", getInteger: () => null, getString: () => null, getChannel: () => null },
+    options: { getSubcommand: () => "moderation-guard", getInteger: () => null, getString: () => null, getChannel: () => null },
     isChatInputCommand: () => true
   };
 
   await handler.handle(interaction, []);
 
-  assert.equal(writes.length, 0, "protectia NU e activata cand lipsesc conditiile");
+  assert.equal(writes.length, 0, "poarta NU e activata cand botul nu poate elimina un bot neaprobat");
   assert.match(responses[0], /View Audit Log/);
   assert.match(responses[0], /Kick Members/);
   assert.match(responses[0], /ierarhie|@everyone/);
 });
 
-test("/start bot-add-protection porneste cand botul are toate permisiunile si pozitia (audit, #25)", async () => {
+test("/start moderation-guard porneste cand botul are toate permisiunile si pozitia (audit, F-02)", async () => {
   const writes: Array<Record<string, unknown>> = [];
   const handler = securityInteractionHandler.buildCommandHandler({
     GuildModel: { updateOne: async (_filter, update: Record<string, unknown>) => { writes.push(update); return { modifiedCount: 1 }; } },
-    getGuildSettings: async () => ({ botAddProtectionEnabled: false, botAddAlertChannelId: "security" }),
+    getGuildSettings: async () => ({ moderationGuardEnabled: false, permissionRequestChannelId: "security" }),
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload) => payload,
     checkChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
@@ -452,59 +453,21 @@ test("/start bot-add-protection porneste cand botul are toate permisiunile si po
       members: { me: { permissions: { has: () => true }, roles: { highest: { position: 5 } } }, fetch: async () => ({ values: () => [][Symbol.iterator]() }) },
       channels: { fetch: async () => ({ send: async () => undefined }) }
     },
-    options: { getSubcommand: () => "bot-add-protection", getInteger: () => null, getString: () => null, getChannel: () => null },
+    options: { getSubcommand: () => "moderation-guard", getInteger: () => null, getString: () => null, getChannel: () => null },
     isChatInputCommand: () => true
   };
 
   await handler.handle(interaction, []);
 
-  assert.deepEqual(writes[0], { $set: { botAddProtectionEnabled: true } });
+  assert.deepEqual(writes[0], { $set: { moderationGuardEnabled: true } });
 });
 
-test("/stop bot-add-protection dezactiveaza si anuleaza aprobarile active printr-un singur update atomic", async () => {
-  const now = Date.now();
-  const updates: Array<{ update: Record<string, unknown>; options?: Record<string, unknown> }> = [];
-  const responses: string[] = [];
-  const handler = securityInteractionHandler.buildCommandHandler({
-    GuildModel: { updateOne: async (_filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>) => { updates.push({ update, options }); return { modifiedCount: 1 }; } },
-    getGuildSettings: async () => ({
-      botAddProtectionEnabled: true,
-      botAddAlertChannelId: "security",
-      botAddPermissions: [
-        { requestId: "r1", botId: "b1", requesterId: "u1", status: "pending", expiresAt: new Date(now + 60_000) },
-        { requestId: "r2", botId: "b2", requesterId: "u2", status: "approved", expiresAt: new Date(now + 60_000) },
-        { requestId: "r3", botId: "b3", requesterId: "u3", status: "used", usedAt: new Date(now) },
-        { requestId: "r4", botId: "b4", requesterId: "u4", status: "approved", expiresAt: new Date(now - 60_000) }
-      ]
-    }),
-    safeDefer: async () => undefined,
-    safeEdit: async (_interaction, payload: unknown) => { responses.push((payload as { content?: string }).content ?? ""); return payload; },
-    checkChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
-    formatUserError: (_err, fallback) => fallback
-  });
-  const interaction = {
-    commandName: "stop",
-    guild: { id: "guild-1" },
-    options: { getSubcommand: () => "bot-add-protection", getInteger: () => null, getString: () => null, getChannel: () => null },
-    isChatInputCommand: () => true
-  };
-
-  await handler.handle(interaction, []);
-
-  assert.equal(updates.length, 1);
-  assert.ok(Array.isArray(updates[0].update));
-  const pipeline = updates[0].update as readonly Record<string, unknown>[];
-  const set = pipeline[0].$set as Record<string, unknown>;
-  assert.equal(set.botAddProtectionEnabled, false);
-  assert.ok("botAddPermissions" in set);
-  assert.match(responses[0], /active anulate: 2/, "doar cele 2 neexpirate (pending + approved) sunt raportate, nu cele used/expirate");
-});
-
-test("/stop bot-add-protection pastreaza protectia activa daca update-ul atomic esueaza", async () => {
+test("/stop moderation-guard pastreaza poarta activa daca anularea aprobarilor esueaza", async () => {
   const responses: string[] = [];
   const handler = securityInteractionHandler.buildCommandHandler({
     GuildModel: { updateOne: async () => { throw new Error("mongo unavailable"); } },
-    getGuildSettings: async () => ({ botAddProtectionEnabled: true, botAddAlertChannelId: "security", botAddPermissions: [] }),
+    PermissionRequestModel: permissionRequestStore(),
+    getGuildSettings: async () => ({ moderationGuardEnabled: true, permissionRequestChannelId: "security" }),
     safeDefer: async () => undefined,
     safeEdit: async (_interaction, payload: unknown) => { responses.push((payload as { content?: string }).content ?? ""); return payload; },
     checkChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
@@ -513,7 +476,7 @@ test("/stop bot-add-protection pastreaza protectia activa daca update-ul atomic 
   const interaction = {
     commandName: "stop",
     guild: { id: "guild-1" },
-    options: { getSubcommand: () => "bot-add-protection", getInteger: () => null, getString: () => null, getChannel: () => null },
+    options: { getSubcommand: () => "moderation-guard", getInteger: () => null, getString: () => null, getChannel: () => null },
     isChatInputCommand: () => true
   };
 
