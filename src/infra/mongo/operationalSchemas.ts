@@ -156,10 +156,12 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     requestedAt: { type: Date, required: true },
     respondedAt: { type: Date, default: null },
     usedAt: { type: Date, default: null },
+    claimBatchId: { type: String, default: null },
     expiresAt: { type: Date, default: null }
   }, { minimize: false, _id: false });
   permissionRequestSchema.index({ guildId: 1, status: 1, requestedAt: -1 });
   permissionRequestSchema.index({ guildId: 1, type: 1, requesterId: 1, status: 1 });
+  permissionRequestSchema.index({ guildId: 1, claimBatchId: 1 });
   permissionRequestSchema.index({ requestedAt: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
 
   const protectedResourceSchema = new mongoose.Schema({

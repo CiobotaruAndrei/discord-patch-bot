@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import attachPermissionRequestHandler from "../../features/command-handlers/permissionRequestInteractionHandler.js";
-import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
+import { CLAIM_RECOVERY_MS, createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
 import { parseDurationMs, restrictionFromModal } from "../../features/command-security/permissionRequestApproval.js";
 import { moduleContext } from "../moduleContextStub.js";
 import { permissionRequestStore } from "./permissionRequestStore.js";
@@ -180,4 +180,28 @@ test("cand consumul unei actiuni ulterioare arunca, aprobarile deja consumate re
   assert.equal(claimed, null, "un consum partial nu poate raporta succes");
   assert.equal((await repository.read("g1", "req-a"))?.status, "approved",
     "aprobarea deja consumata nu ramane arsa cand restul setului esueaza");
+});
+
+test("o revendicare ramasa neconfirmata dupa o cadere de proces revine singura la aprobat (review PR #950)", async () => {
+  const store = permissionRequestStore();
+  const repository = createPermissionRequestRepository(store);
+  await repository.create({
+    requestId: "req-c", guildId: "g1", type: "protected-resource-change",
+    requesterId: "mod-1", target: "111111111111111111", action: "rename", reason: "curatenie"
+  });
+  await repository.resolve("g1", "req-c", "approved", "owner-1", {});
+
+  const stranded = store.records.find(record => record._id === "req-c");
+  assert.ok(stranded);
+  Object.assign(stranded, {
+    status: "used",
+    usedAt: new Date(Date.now() - CLAIM_RECOVERY_MS - 1000),
+    claimBatchId: "g1:1:1"
+  });
+
+  await repository.expireStale("g1", new Date());
+
+  const recovered = await repository.read("g1", "req-c");
+  assert.equal(recovered?.status, "approved", "o aprobare blocata in used de o cadere de proces nu ramane arsa pentru totdeauna");
+  assert.equal(recovered?.claimBatchId ?? null, null);
 });
