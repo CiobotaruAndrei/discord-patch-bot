@@ -1,7 +1,9 @@
 "use strict";
 
 import type { PermissionDelegationMetricRecorder } from "../../shared/metricRecorderPorts.js";
-import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
+import { AuditLogEvent } from "discord.js";
+import { elevatedOn } from "./elevatedPermissions.js";
+import type { SanctionActorLike } from "./elevatedRoleSanction.js";
 import { recordServerAuditEntry, type GuildAuditLogModelLike } from "../admin-records/auditLogRepository.js";
 import {
   recordBotObservationEvent,
@@ -63,7 +65,14 @@ export interface GuardedDelegationGate {
   consumeApproval(guildId: string, requesterId: string, permissions: readonly string[], targetId: string): Promise<{ _id: string } | null>;
 }
 
+export interface DelegationSanctionContext {
+  botHighestRolePosition: number | null;
+  everyoneRoleId: string;
+  resolveActor(actorId: string): Promise<SanctionActorLike | null>;
+}
+
 export interface PermissionDelegationRuntimeDeps {
+  sanctionContext(guildId: string): Promise<DelegationSanctionContext | null>;
   GuildModel?: BotObservationModelLike;
   GuildAuditLogModel: GuildAuditLogModelLike;
   adminAlert(kind: string, title: string, body: string, guildId?: string): Promise<unknown>;
@@ -77,19 +86,20 @@ export interface PermissionDelegationRuntimeDeps {
 export const AUDIT_LOG_MATCH_WINDOW_MS = 60_000;
 const AUDIT_LOG_RETRY_DELAYS_MS: readonly number[] = [2_000, 5_000];
 
-export const PROTECTED_PERMISSIONS = [
-  { flag: PermissionFlagsBits.Administrator, label: "Administrator" },
-  { flag: PermissionFlagsBits.BanMembers, label: "Ban Members" },
-  { flag: PermissionFlagsBits.KickMembers, label: "Kick Members" },
-  { flag: PermissionFlagsBits.ModerateMembers, label: "Moderate Members" },
-  { flag: PermissionFlagsBits.ManageWebhooks, label: "Manage Webhooks" }
-] as const;
+export interface ProtectedPermission {
+  flag: bigint;
+  label: string;
+}
 
-export type ProtectedPermission = (typeof PROTECTED_PERMISSIONS)[number];
+export interface ChannelProtectedPermission extends ProtectedPermission {
+  option: string;
+}
 
-export const CHANNEL_PROTECTED_PERMISSIONS = [
-  { flag: PermissionFlagsBits.ManageWebhooks, option: "ManageWebhooks", label: "Manage Webhooks" }
-] as const;
+export const PROTECTED_PERMISSIONS: readonly ProtectedPermission[] = elevatedOn("role")
+  .map(({ flag, label }) => ({ flag, label }));
+
+export const CHANNEL_PROTECTED_PERMISSIONS: readonly ChannelProtectedPermission[] = elevatedOn("overwrite")
+  .map(({ flag, label, name }) => ({ flag, label, option: name }));
 
 export function explicitlyHas(bits: bigint, flag: bigint): boolean {
   return (bits & flag) === flag;

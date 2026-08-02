@@ -4,11 +4,12 @@ import assert from "node:assert/strict";
 import { createProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 import { createProtectedResourceRepository } from "../../features/command-security/protectedResourceRepository.js";
 import { captureSnapshot } from "../../features/command-security/protectedResourceTypes.js";
-import { planRoleSanction, renderIncident } from "../../features/command-security/protectedResourceSanction.js";
+import { renderIncident } from "../../features/command-security/protectedResourceSanction.js";
+import { planRoleSanction } from "../../features/command-security/elevatedRoleSanction.js";
 import { protectedResourceStore } from "./protectedResourceStore.js";
 
 import type { ProtectedResourceGuild } from "../../features/command-security/protectedResourceRuntime.js";
-import type { SanctionRole } from "../../features/command-security/protectedResourceSanction.js";
+import type { SanctionRole } from "../../features/command-security/elevatedRoleSanction.js";
 
 const NOW = Date.parse("2026-08-01T12:00:00.000Z");
 
@@ -149,7 +150,7 @@ test("o aprobare exacta lasa modificarea sa treaca si muta snapshot-ul", async (
   assert.equal((await setup.repository.read("g1", "c1"))?.snapshot.parentId, "cat-2");
 });
 
-test("autorul neconfirmat prin Audit Log NU produce sanctiune si nu restaureaza orbeste", async () => {
+test("autorul neconfirmat prin Audit Log NU produce sanctiune si nu restaureaza orbeste, dar alerteaza ownerul (F-22)", async () => {
   const setup = harness({ auditActor: null });
   await protect(setup);
 
@@ -157,9 +158,12 @@ test("autorul neconfirmat prin Audit Log NU produce sanctiune si nu restaureaza 
 
   assert.equal(outcome.kind, "actor-unknown");
   assert.equal(setup.removedRoles.length, 0, "specificatia interzice sanctionarea unei persoane alese la intamplare");
-  assert.equal(setup.published.length, 0);
-  assert.equal((await setup.repository.read("g1", "c1"))?.snapshot.name, "reguli",
-    "snapshot-ul ramane referinta buna cat timp incidentul nu e atribuit");
+  assert.equal(setup.restored.length, 0, "fara autor confirmat nu se restaureaza orbeste");
+  assert.equal(setup.published.length, 1, "tacerea ascundea incidentul: ownerul trebuie sa afle ca resursa a fost modificata");
+  assert.match(setup.published[0], /autorul nu a putut fi confirmat/i);
+  const record = await setup.repository.read("g1", "c1");
+  assert.equal(record?.snapshot.name, "reguli", "snapshot-ul ramane referinta buna cat timp incidentul nu e atribuit");
+  assert.ok(record?.ownerInterventionAt, "incidentul e marcat ca owner-intervention-required");
 });
 
 test("o modificare neautorizata e restaurata, autorul isi pierde rolurile si incidentul e publicat", async () => {
@@ -230,7 +234,8 @@ test("rolurile gestionate de integrare si cele peste rolul botului sunt raportat
   assert.deepEqual(plan.blocked.map(entry => entry.id), ["r2", "r3"]);
   assert.match(renderIncident({
     actorId: "u1", resourceLabel: "channel `c1`", actions: ["permissions"],
-    restored: true, recreatedId: null, plan
+    restored: true, recreatedId: null,
+    outcome: { actorKnown: true, attempted: true, removed: plan.removable, blocked: plan.blocked, failed: [], verified: true, ownerInterventionRequired: true }
   }), /NU au putut fi eliminate/);
 });
 
@@ -245,7 +250,8 @@ test("un autor fara roluri cu permisiuni ridicate primeste un raport onest, nu u
   assert.deepEqual(plan.blocked, []);
   assert.match(renderIncident({
     actorId: "u1", resourceLabel: "role `r9`", actions: ["delete"],
-    restored: false, recreatedId: null, plan
+    restored: false, recreatedId: null,
+    outcome: { actorKnown: true, attempted: true, removed: [], blocked: [], failed: [], verified: true, ownerInterventionRequired: false }
   }), /nu avea roluri cu permisiuni ridicate/);
 });
 

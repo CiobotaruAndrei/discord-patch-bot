@@ -1,9 +1,9 @@
 "use strict";
 
-import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/protectedResourceSanction.js";
+import { resolveSanctionActor } from "./sanctionActorAdapter.js";
 
 import type { AdaptableRaidGuild } from "./antiRaidGuildAdapter.js";
-import type { SanctionRole } from "../../features/command-security/protectedResourceSanction.js";
+import type { SanctionRole } from "../../features/command-security/elevatedRoleSanction.js";
 import type { StructureChangeKind, StructureGuardGuild } from "../../features/command-security/serverStructureGuardRuntime.js";
 
 const AUDIT_WINDOW_MS = 60_000;
@@ -28,12 +28,6 @@ function textOf(value: unknown): string | null {
 
 function numberOf(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function hasElevated(holder: unknown): boolean {
-  const permissions = (holder as { permissions?: { has?: (flag: unknown) => boolean } } | null)?.permissions;
-  if (!permissions?.has) return false;
-  return ELEVATED_PERMISSION_FLAGS.some(flag => permissions.has?.(flag) === true);
 }
 
 function iterate(source: unknown): unknown[] {
@@ -80,28 +74,7 @@ export function adaptStructureGuardGuild(
       return null;
     },
     async resolveActor(actorId) {
-      const member = await guild.members?.fetch?.(actorId).catch(() => null);
-      if (!member) return null;
-      const holder = member as {
-        roles?: { cache?: { values?: () => Iterable<unknown> }; remove?: (ids: readonly string[], reason?: string) => Promise<unknown> };
-      };
-      const roles: SanctionRole[] = [];
-      for (const item of holder.roles?.cache?.values?.() ?? []) {
-        const role = item as { id?: unknown; name?: unknown; position?: unknown; managed?: unknown };
-        const roleId = textOf(role.id);
-        if (!roleId) continue;
-        roles.push({
-          id: roleId,
-          name: textOf(role.name) ?? roleId,
-          position: numberOf(role.position) ?? 0,
-          managed: role.managed === true,
-          elevated: hasElevated(role)
-        });
-      }
-      return {
-        roles,
-        removeRoles: async (ids, reason) => { await holder.roles?.remove?.(ids, reason); }
-      };
+      return resolveSanctionActor(guild, actorId);
     }
   };
 }

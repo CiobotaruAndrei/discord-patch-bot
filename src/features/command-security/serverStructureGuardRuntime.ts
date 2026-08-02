@@ -1,6 +1,7 @@
 "use strict";
 
-import { describeSanction, planRoleSanction, type SanctionRole } from "./protectedResourceSanction.js";
+import { type SanctionRole } from "./elevatedRoleSanction.js";
+import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
 import type { LogLevel } from "../../shared/logging.js";
 
@@ -24,7 +25,7 @@ const STRUCTURE_LABELS: Record<StructureChangeKind, string> = {
 
 export interface StructureGuardActor {
   roles: readonly SanctionRole[];
-  removeRoles(roleIds: readonly string[], reason: string): Promise<void>;
+  removeRoles(roleIds: readonly string[], reason: string): Promise<unknown>;
 }
 
 export interface StructureGuardGuild {
@@ -59,20 +60,20 @@ const REASON = "Protectie moderation-guard: modificare de structura fara aprobar
 
 export function createServerStructureGuardRuntime(deps: ServerStructureGuardDeps) {
   async function sanction(guild: StructureGuardGuild, actorId: string, kind: StructureChangeKind, resourceId: string): Promise<void> {
-    const actor = await guild.resolveActor(actorId).catch(() => null);
-    const plan = planRoleSanction({
-      actorRoles: actor?.roles ?? [],
+    const outcome = await executeElevatedRoleSanction({
+      resolveActor: () => guild.resolveActor(actorId),
       botHighestRolePosition: guild.botHighestRolePosition,
-      everyoneRoleId: guild.everyoneRoleId
+      everyoneRoleId: guild.everyoneRoleId,
+      reason: REASON
     });
 
-    if (actor && plan.removable.length > 0) {
-      await actor.removeRoles(plan.removable.map(role => role.id), REASON).catch(error => {
-        deps.logger?.("WARN", "STRUCTURE_GUARD", "Eliminarea rolurilor autorului a esuat", {
-          guildId: guild.id,
-          actorId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+    if (outcome.ownerInterventionRequired) {
+      deps.logger?.("ERROR", "STRUCTURE_GUARD", "Sanctiunea autorului nu s-a aplicat complet", {
+        guildId: guild.id,
+        actorId,
+        blocked: outcome.blocked.length,
+        failed: outcome.failed.length,
+        verified: outcome.verified
       });
     }
 
@@ -87,7 +88,7 @@ export function createServerStructureGuardRuntime(deps: ServerStructureGuardDeps
       `Modificare: ${STRUCTURE_LABELS[kind]} \`${resourceId}\``,
       "Motiv: fara aprobare activa de tip server-structure",
       "Modificarile de structura NU se anuleaza automat in afara unui raid; verificarea si revenirea raman la owner.",
-      describeSanction(plan)
+      describeSanctionOutcome(outcome)
     ];
     await deps.publish(guild.id, lines.join("\n")).catch(() => undefined);
   }

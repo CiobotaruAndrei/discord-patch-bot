@@ -107,6 +107,22 @@ export function createProtectedResourceRepository(model: ProtectedResourceModelL
     return updatedDocument(result);
   }
 
+  async function markOwnerInterventionRequired(guildId: string, resourceId: string, at: Date): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: documentId(guildId, resourceId) },
+      { $set: { ownerInterventionAt: at } }
+    );
+    return updatedDocument(result);
+  }
+
+  async function clearOwnerIntervention(guildId: string, resourceId: string): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: documentId(guildId, resourceId) },
+      { $set: { ownerInterventionAt: null } }
+    );
+    return updatedDocument(result);
+  }
+
   async function remove(guildId: string, resourceId: string): Promise<boolean> {
     const result = await model.deleteOne({ _id: documentId(guildId, resourceId) });
     return (result?.deletedCount ?? 0) > 0;
@@ -165,7 +181,8 @@ export function createProtectedResourceRepository(model: ProtectedResourceModelL
       resourceId: nextResourceId,
       lastRestoredAt: now,
       recreatedFromId: previousResourceId,
-      deletedDuringRaidAt: null
+      deletedDuringRaidAt: null,
+      ownerInterventionAt: null
     };
     const created = await model.updateOne({ _id: record._id }, { $setOnInsert: record }, { upsert: true });
     if (!createdDocument(created)) return null;
@@ -173,7 +190,20 @@ export function createProtectedResourceRepository(model: ProtectedResourceModelL
     return record;
   }
 
-  return { list, read, add, remove, refreshSnapshot, markReadiness, markRestored, rebind, markDeletedDuringRaid, clearDeletedDuringRaid };
+  return {
+    list,
+    read,
+    add,
+    remove,
+    refreshSnapshot,
+    markReadiness,
+    markRestored,
+    rebind,
+    markDeletedDuringRaid,
+    clearDeletedDuringRaid,
+    markOwnerInterventionRequired,
+    clearOwnerIntervention
+  };
 }
 
 export type ProtectedResourceRepository = ReturnType<typeof createProtectedResourceRepository>;
