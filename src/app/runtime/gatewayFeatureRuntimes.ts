@@ -3,6 +3,10 @@ import { createReputationEngine } from "../../features/command-security/reputati
 import { createPermissionDelegationRuntime } from "../../features/command-security/permissionDelegationRuntime.js";
 import { createModerationGuardGate } from "../../features/command-security/moderationGuardGate.js";
 import { createProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
+import { createWebhookGuardRuntime } from "../../features/command-security/webhookGuardRuntime.js";
+import type { WebhookGuardRuntime } from "../../features/command-security/webhookGuardRuntime.js";
+import { adaptWebhookGuardChannel } from "./webhookGuardChannelAdapter.js";
+import type { AdaptableWebhookChannel } from "./webhookGuardChannelAdapter.js";
 import { createAntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
 import { createAdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
 import type { AdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
@@ -14,6 +18,7 @@ import type { ProtectedResourceRuntime } from "../../features/command-security/p
 import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
 import { createServerEventLogRuntime } from "../../features/command-security/serverEventLogRuntime.js";
 import { observeConfirmedBotAction } from "../../features/command-security/botObservationRepository.js";
+import { recordServerAuditEntry } from "../../features/admin-records/auditLogRepository.js";
 import { createNewAccountAlertDelivery, reconcileStuckNewAccountSends } from "../../features/command-security/newAccountAlertDedup.js";
 import { loadYaraRuleset } from "../../features/command-security/yaraRuleset.js";
 
@@ -33,6 +38,7 @@ export type GatewayFeatureRuntimes = {
   readonly protectedResourceRuntime?: ProtectedResourceRuntime;
   readonly antiRaidRuntime?: AntiRaidRuntime;
   readonly adProtectionRuntime?: AdProtectionRuntime;
+  readonly webhookGuardRuntime?: WebhookGuardRuntime<AdaptableWebhookChannel>;
 };
 
 export type GatewayFeatureInput = {
@@ -199,6 +205,42 @@ async function applyWarnBan(
     })
     : undefined;
 
+  const publishToRequestChannel = async (guildId: string, body: string): Promise<void> => {
+    if (!readGuildSettings) return;
+    const settings = await readGuildSettings(guildId).catch(() => null);
+    const channelId = settings?.permissionRequestChannelId;
+    if (!channelId) return;
+    const channel = await Promise.resolve(client.channels?.fetch?.(channelId)).catch(() => null);
+    if (channel?.send) await channel.send({ content: body });
+  };
+
+  const auditLogModel = mongo.GuildAuditLogModel;
+  const webhookGuardCore = mongo.WebhookSnapshotModel && permissionRequestModel && auditLogModel && moderationGuardGate
+    ? createWebhookGuardRuntime({
+      WebhookSnapshotModel: mongo.WebhookSnapshotModel,
+      gate: {
+        readSituation: guildId => moderationGuardGate.readSituation(guildId),
+        consumeApproval: (guildId, actorId, channelId, action) =>
+          createPermissionRequestRepository(permissionRequestModel).consume(guildId, "webhook", actorId, { target: channelId, action })
+      },
+      publish: publishToRequestChannel,
+      recordAudit: async (guildId, entry) => {
+        await recordServerAuditEntry(auditLogModel, guildId, entry);
+      },
+      logger
+    })
+    : undefined;
+
+  const webhookGuardRuntime: WebhookGuardRuntime<AdaptableWebhookChannel> | undefined = webhookGuardCore
+    ? {
+      handleWebhookUpdate: async (channel: AdaptableWebhookChannel) => {
+        const adapted = adaptWebhookGuardChannel(channel);
+        if (!adapted) return;
+        await webhookGuardCore.handleWebhookUpdate(adapted);
+      }
+    }
+    : undefined;
+
   const permissionDelegationRuntime = mongo.GuildAuditLogModel && mongo.GuildModel
     ? createPermissionDelegationRuntime({
       GuildModel: mongo.GuildModel,
@@ -220,7 +262,7 @@ async function applyWarnBan(
     })
     : undefined;
 
-  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime };
+  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime, webhookGuardRuntime };
 }
 
 export function createInactiveGatewayFeatureRuntimes(recorders: ThreatSurfaceMetricRecorder): GatewayFeatureRuntimes {

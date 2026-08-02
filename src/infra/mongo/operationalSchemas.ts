@@ -180,6 +180,24 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
   protectedResourceSchema.index({ guildId: 1, addedAt: 1 });
   protectedResourceSchema.index({ guildId: 1, type: 1 });
 
+  const webhookSnapshotSchema = new mongoose.Schema({
+    _id: String,
+    guildId: { type: String, required: true },
+    channelId: { type: String, required: true },
+    entries: {
+      type: [new mongoose.Schema({
+        webhookId: { type: String, required: true },
+        channelId: { type: String, required: true },
+        name: { type: String, default: "" },
+        avatar: { type: String, default: null },
+        creatorId: { type: String, default: null }
+      }, { _id: false })],
+      default: []
+    },
+    capturedAt: { type: Date, required: true }
+  }, { minimize: false, _id: false });
+  webhookSnapshotSchema.index({ guildId: 1, capturedAt: -1 });
+
   const raidIncidentSchema = new mongoose.Schema({
     _id: String,
     guildId: { type: String, required: true },
@@ -317,6 +335,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     playerCountWatchSchema,
     permissionRequestSchema,
     protectedResourceSchema,
+    webhookSnapshotSchema,
     raidIncidentSchema,
     adRequestSchema,
     adAttemptSchema,

@@ -5,11 +5,13 @@ import { AUDIT_LOG_MATCH_WINDOW_MS, auditMatch, channelOverwriteMatch, matchWith
 import { recordServerAuditEntry } from "../admin-records/auditLogRepository.js";
 import { AuditLogEvent, PermissionFlagsBits } from "discord.js";
 import type { SensitiveActionObserver } from "./sensitiveActionObserver.js";
+import { createDelegationAuthorizer } from "./delegationAuthorization.js";
 
 export function createChannelDelegationRuntime(deps: PermissionDelegationRuntimeDeps, observer: SensitiveActionObserver) {
   const now = deps.now ?? Date.now;
   const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   const { observeSensitiveAction, shouldSendIndividualAlert, markProcessed, processedAuditEntries } = observer;
+  const authorized = createDelegationAuthorizer(deps);
 
 
   async function handleChannelUpdate(previous: ChannelLike, next: ChannelLike): Promise<void> {
@@ -32,6 +34,8 @@ export function createChannelDelegationRuntime(deps: PermissionDelegationRuntime
     const match = await matchWithRetry(() => channelOverwriteMatch(guild, next.id, eventTime, processedAuditEntries), wait);
     const actorId = match.executorId;
     if (actorId && actorId === guild.ownerId) return;
+    const grantedLabels = violations.flatMap(entry => entry.granted.map(({ label }) => label));
+    if (await authorized(guild.id, actorId, grantedLabels, next.id)) return;
     const edit = next.permissionOverwrites?.edit;
     if (!edit) throw new Error(`Overwrite-urile canalului ${next.id} nu pot fi restaurate.`);
     markProcessed(match);

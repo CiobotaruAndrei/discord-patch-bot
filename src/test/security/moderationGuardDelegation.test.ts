@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { PermissionFlagsBits } from "discord.js";
 
 import { createPermissionDelegationRuntime } from "../../features/command-security/permissionDelegationRuntime.js";
+import { AuditLogEvent } from "discord.js";
 import { createModerationGuardGate } from "../../features/command-security/moderationGuardGate.js";
 import { MODERATION_GUARD_TYPES } from "../../features/command-security/moderationGuardDecision.js";
 import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
@@ -179,4 +180,99 @@ test("orice protectie din START_STOP_TOGGLE_FIELDS este exclusa automat din hand
     commandName: "start",
     options: { getSubcommand: () => "updates" }
   })), true, "abonamentele obisnuite raman la handlerul lor");
+});
+
+function channelOverwriteScenario(guard: GuardedDelegationGate | undefined) {
+  const edits: Array<{ targetId: string; patch: Record<string, boolean | null> }> = [];
+  const audits: GuildAuditLogRecord[] = [];
+  const guild = {
+    id: "g1",
+    ownerId: "owner-1",
+    fetchAuditLogs: async (options: { type: AuditLogEvent }) => ({
+      entries: options.type === AuditLogEvent.ChannelOverwriteUpdate || options.type === AuditLogEvent.ChannelOverwriteCreate
+        ? new Map([["e", { id: "audit-2", target: { id: "channel-1" }, executor: { id: "mod-1" }, createdTimestamp: NOW }]])
+        : new Map()
+    })
+  };
+  const runtime = createPermissionDelegationRuntime({
+    GuildModel: { findOne: async () => null, findOneAndUpdate: async () => null, updateOne: async () => ({ modifiedCount: 1 }) },
+    GuildAuditLogModel: auditModel(audits),
+    adminAlert: async () => undefined,
+    now: () => NOW,
+    wait: async () => undefined,
+    guard
+  });
+  const previous = {
+    id: "channel-1",
+    guild,
+    permissionOverwrites: { cache: new Map([["role-x", { id: "role-x", allow: permissions(), deny: permissions() }]]) }
+  };
+  const next = {
+    id: "channel-1",
+    name: "anunturi",
+    guild,
+    permissionOverwrites: {
+      cache: new Map([["role-x", { id: "role-x", allow: permissions(PermissionFlagsBits.ManageWebhooks), deny: permissions() }]]),
+      edit: async (targetId: string, patch: Record<string, boolean | null>) => { edits.push({ targetId, patch }); return undefined; }
+    }
+  };
+  return { runtime, previous, next, edits, audits };
+}
+
+test("cu moderation-guard oprit, un overwrite de canal cu Manage Webhooks nu mai este retras automat (audit, F-15)", async () => {
+  const gate = createModerationGuardGate({
+    PermissionRequestModel: permissionRequestStore(),
+    readGuildSettings: async () => ({ moderationGuardEnabled: false })
+  });
+  const scenario = channelOverwriteScenario(gate);
+
+  await scenario.runtime.handleChannelUpdate(scenario.previous, scenario.next);
+
+  assert.deepEqual(scenario.edits, [], "retragerea permanenta a disparut: fara poarta activa nu se modifica nimic");
+});
+
+test("cu moderation-guard pornit si fara aprobare, overwrite-ul de canal este retras", async () => {
+  const gate = createModerationGuardGate({
+    PermissionRequestModel: permissionRequestStore(),
+    readGuildSettings: async () => ({ moderationGuardEnabled: true })
+  });
+  const scenario = channelOverwriteScenario(gate);
+
+  await scenario.runtime.handleChannelUpdate(scenario.previous, scenario.next);
+
+  assert.equal(scenario.edits.length, 1);
+  assert.equal(scenario.edits[0].patch.ManageWebhooks, null);
+});
+
+test("cu moderation-guard pornit si aprobare exacta, overwrite-ul de canal ramane", async () => {
+  const model = permissionRequestStore();
+  const repository = createPermissionRequestRepository(model);
+  await repository.create({
+    requestId: "req-ov", guildId: "g1", type: "permission-grant", requesterId: "mod-1",
+    target: "channel-1", action: "grant", permissions: ["Manage Webhooks"], reason: "integrare"
+  });
+  await repository.resolve("g1", "req-ov", "approved", "owner-1", { target: "channel-1", action: "grant", permissions: ["Manage Webhooks"] });
+
+  const scenario = channelOverwriteScenario(createModerationGuardGate({
+    PermissionRequestModel: model,
+    readGuildSettings: async () => ({ moderationGuardEnabled: true })
+  }));
+
+  await scenario.runtime.handleChannelUpdate(scenario.previous, scenario.next);
+
+  assert.deepEqual(scenario.edits, [], "o aprobare exacta acopera si overwrite-urile de canal");
+  assert.equal(model.records[0].status, "used");
+});
+
+test("in timpul unui raid confirmat, overwrite-urile de canal nu se suprapun peste anti-raid", async () => {
+  const gate = createModerationGuardGate({
+    PermissionRequestModel: permissionRequestStore(),
+    readGuildSettings: async () => ({ moderationGuardEnabled: true }),
+    isRaidConfirmed: async () => true
+  });
+  const scenario = channelOverwriteScenario(gate);
+
+  await scenario.runtime.handleChannelUpdate(scenario.previous, scenario.next);
+
+  assert.deepEqual(scenario.edits, []);
 });

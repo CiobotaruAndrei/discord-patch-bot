@@ -87,7 +87,7 @@ export const PROTECTED_PERMISSIONS = [
 export type ProtectedPermission = (typeof PROTECTED_PERMISSIONS)[number];
 
 export const CHANNEL_PROTECTED_PERMISSIONS = [
-  { flag: PermissionFlagsBits.ManageWebhooks, option: "ManageWebhooks" }
+  { flag: PermissionFlagsBits.ManageWebhooks, option: "ManageWebhooks", label: "Manage Webhooks" }
 ] as const;
 
 export function explicitlyHas(bits: bigint, flag: bigint): boolean {

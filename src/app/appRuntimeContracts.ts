@@ -35,6 +35,7 @@ import type { ModerationGuildModel } from "../features/moderation/moderationRepo
 import type { GuildConfigWriteModelLike } from "../features/guild-config/guildConfigRepository.js";
 import type { NewAccountAlertDeliveryModelLike } from "../features/command-security/newAccountAlertDedup.js";
 import type { ChannelLockRecoveryModelLike } from "../features/command-security/channelLockRecoveryRepository.js";
+import type { WebhookSnapshotModelLike } from "../features/command-security/webhookSnapshotRepository.js";
 
 export interface CommandRuntime {
   checkForUpdates(client: DiscordClientLike, games: GameConfig[], shouldAbort: () => boolean): Promise<void>;
@@ -94,6 +95,7 @@ export interface MongoContextLike {
   GuildAuditLogModel?: GuildAuditLogModelLike;
   PermissionRequestModel?: PermissionRequestModelLike;
   ProtectedResourceModel?: ProtectedResourceModelLike;
+  WebhookSnapshotModel?: WebhookSnapshotModelLike;
   RaidIncidentModel?: RaidIncidentModelLike;
   AdRequestModel?: AdRequestModelLike;
   AdAttemptModel?: AdAttemptModelLike;
