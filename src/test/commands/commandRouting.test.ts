@@ -55,6 +55,7 @@ const handlers: Record<string, BuiltHandler> = Object.fromEntries(
       ["permissionRequest", "permissionRequestInteractionHandler"],
       ["protectedResource", "protectedResourceInteractionHandler"],
       ["antiRaid", "antiRaidInteractionHandler"],
+      ["securityOverview", "securityOverviewHandler"],
       ["adProtection", "adProtectionInteractionHandler"],
       ["help", "helpInteractionHandler"],
       ["simple", "simpleCommandsHandler"],
@@ -171,6 +172,8 @@ const expectedOwnerByCommand: Record<string, string> = {
   ,"permission-requests": "permissionRequest"
   ,"protected-resource": "protectedResource"
   ,"anti-raid": "antiRaid"
+  ,"security-log": "securityOverview"
+  ,"security-status": "securityOverview"
   ,"ad-request": "adProtection"
   ,"ad-permissions": "adProtection"
   ,"ad-attempts": "adProtection"

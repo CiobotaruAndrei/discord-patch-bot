@@ -2,7 +2,7 @@
 
 > Fisier generat automat din `COMMAND_CATALOG_HELP` (`src/features/command-catalog/commandCatalog.ts`), aceeasi sursa unica pe care o foloseste comanda `/help` in Discord. Nu edita manual acest fisier: ruleaza `npm run docs:commands` din `src/`. Sincronizarea catalog <-> fisier este verificata de `commandReferenceDoc.test.ts` si de `npm run check:docs-commands`.
 
-Total comenzi documentate: 173.
+Total comenzi documentate: 175.
 
 | Comanda | Permisiuni | Ce face | Exemplu |
 | --- | --- | --- | --- |
@@ -167,6 +167,8 @@ Total comenzi documentate: 173.
 | `/remove-warn` | Admin, Ephemeral | Elimina cel mai recent avertisment. | `/remove-warn utilizator:@user` |
 | `/warn-list` | Public | Afiseaza sumarul avertismentelor grupat pe utilizator: totalul de warn-uri active, sortat descrescator, cu data ultimului warn. | `/warn-list` |
 | `/warn-ban-limit` | Admin, Ephemeral | Seteaza limita de avertismente pentru ban automat. | `/warn-ban-limit numar:3` |
+| `/security-log` | Admin, Ephemeral | Afiseaza paginat cronologia incidentelor tuturor protectiilor, cu date periculoase redactate. | `/security-log sursa:anti-raid pagina:2` |
+| `/security-status` | Admin, Ephemeral | Arata pornit/oprit/incomplet/degradat pentru fiecare protectie si pentru cele sase subprotectii moderation-guard. | `/security-status` |
 | `/permission-request` | Public | Cere aprobarea ownerului pentru o operatiune de securitate: bot-add, permission-grant, moderation-mass, webhook, server-structure sau protected-resource-change. | `/permission-request type:webhook target:#anunturi action:create reason:integrare RSS` |
 | `/permission-requests list` | Admin top-level, owner-only runtime, Ephemeral | Listeaza cererile de aprobare de securitate, cu filtre optionale dupa status si tip; cele active apar inaintea istoricului. | `/permission-requests list status:pending` |
 | `/ad-request` | Public | Cere aprobarea proprietarului inainte sa publici o reclama. Cererea salveaza utilizatorul, textul exact, linkul, invitatia si atasamentul; aprobarea e legata de reclama si utilizatorul exacte, se foloseste o singura data si expira. | `/ad-request reclama:Intra pe serverul meu` |

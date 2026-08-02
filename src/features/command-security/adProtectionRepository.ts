@@ -158,6 +158,11 @@ export function createAdProtectionRepository(requests: AdRequestModelLike, attem
     return asAttempt(await attempts.findOne({ _id: `${guildId}:${userId}` }).lean());
   }
 
+  async function listAttempts(guildId: string, limit = 200): Promise<AdAttemptRecord[]> {
+    const documents = await attempts.find({ guildId }).sort({ lastAttemptAt: -1 }).limit(limit).lean();
+    return documents.map(document => asAttempt(document)).filter((record): record is AdAttemptRecord => record !== null);
+  }
+
   async function recordAttempt(
     guildId: string,
     userId: string,
@@ -210,6 +215,7 @@ export function createAdProtectionRepository(requests: AdRequestModelLike, attem
     consumeApproval,
     cancelActiveRequests,
     readAttempts,
+    listAttempts,
     recordAttempt,
     expireStale
   };
