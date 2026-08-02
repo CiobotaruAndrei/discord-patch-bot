@@ -14,6 +14,9 @@ import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRu
 import type { AdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
 import type { WebhookGuardRuntime } from "../../features/command-security/webhookGuardRuntime.js";
 import type { AdaptableWebhookChannel } from "../runtime/webhookGuardChannelAdapter.js";
+import type { ServerStructureGuardRuntime, StructureChangeKind } from "../../features/command-security/serverStructureGuardRuntime.js";
+import { adaptStructureGuardGuild } from "../runtime/serverStructureGuildAdapter.js";
+import type { AdaptableStructureGuild } from "../runtime/serverStructureGuildAdapter.js";
 
 type LifecycleLogger = (level: "INFO" | "WARN" | "ERROR", context: string, message: string, meta?: unknown) => void;
 type ErrorFormatter = (err: unknown) => string;
@@ -57,6 +60,7 @@ interface RegisterDiscordEventsDeps {
   antiRaidRuntime?: AntiRaidRuntime;
   adProtectionRuntime?: AdProtectionRuntime;
   webhookGuardRuntime?: WebhookGuardRuntime<AdaptableWebhookChannel>;
+  serverStructureGuardRuntime?: ServerStructureGuardRuntime;
 }
 
 interface MongoConnectionLike {
@@ -88,7 +92,7 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 function registerDiscordEvents({
   client, logger, commands, metrics, env, adminAlert, requestContext,
   games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role, securityRuntime,
-  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime, webhookGuardRuntime
+  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime, webhookGuardRuntime, serverStructureGuardRuntime
 }: RegisterDiscordEventsDeps): void {
   const effectiveRole = role ?? "all";
   const runsSchedulers = roleRunsSchedulers(effectiveRole);
@@ -261,11 +265,18 @@ function registerDiscordEvents({
         if (!guildId) return;
         run().catch(err => logger("ERROR", "ANTI_RAID", `Observarea ${event} a esuat`, errorDetail(err)));
       };
-      const structureEvent = (event: string, rawGuild: unknown, rawResourceId: unknown): void => {
+      const structureEvent = (event: StructureChangeKind, rawGuild: unknown, rawResourceId: unknown): void => {
         const guild = rawGuild as { id?: string } | null | undefined;
         const resourceId = typeof rawResourceId === "string" ? rawResourceId : null;
         if (!guild?.id || !resourceId) return;
         const guildId = guild.id;
+        const adapted = serverStructureGuardRuntime
+          ? adaptStructureGuardGuild(rawGuild as AdaptableStructureGuild)
+          : null;
+        if (serverStructureGuardRuntime && adapted) {
+          watchRaid(event, guildId, () => serverStructureGuardRuntime.handleStructureChange(adapted, event, resourceId));
+          return;
+        }
         watchRaid(event, guildId, () => antiRaidRuntime.observeStructureChange(guildId, resourceId));
       };
       client.on("messageCreate", (message: LifecycleDiscordMessage) => {

@@ -1,0 +1,129 @@
+"use strict";
+
+import { describeSanction, planRoleSanction, type SanctionRole } from "./protectedResourceSanction.js";
+
+import type { LogLevel } from "../../shared/logging.js";
+
+export const STRUCTURE_CHANGE_KINDS = ["channelCreate", "channelDelete", "roleCreate", "roleDelete"] as const;
+
+export type StructureChangeKind = (typeof STRUCTURE_CHANGE_KINDS)[number];
+
+const STRUCTURE_ACTIONS: Record<StructureChangeKind, string> = {
+  channelCreate: "create",
+  channelDelete: "delete",
+  roleCreate: "create",
+  roleDelete: "delete"
+};
+
+const STRUCTURE_LABELS: Record<StructureChangeKind, string> = {
+  channelCreate: "canal creat",
+  channelDelete: "canal sters",
+  roleCreate: "rol creat",
+  roleDelete: "rol sters"
+};
+
+export interface StructureGuardActor {
+  roles: readonly SanctionRole[];
+  removeRoles(roleIds: readonly string[], reason: string): Promise<void>;
+}
+
+export interface StructureGuardGuild {
+  id: string;
+  ownerId: string | null;
+  botHighestRolePosition: number | null;
+  everyoneRoleId: string;
+  findStructureActor(kind: StructureChangeKind, resourceId: string): Promise<string | null>;
+  resolveActor(actorId: string): Promise<StructureGuardActor | null>;
+}
+
+export interface StructureGuardGate {
+  readSituation(guildId: string): Promise<{ guardEnabled: boolean; raidConfirmed: boolean }>;
+  consumeApproval(guildId: string, actorId: string, resourceId: string, action: string): Promise<{ _id: string } | null>;
+}
+
+export interface ServerStructureGuardDeps {
+  gate: StructureGuardGate;
+  publish: (guildId: string, message: string) => Promise<void>;
+  recordAudit: (guildId: string, entry: { userId: string; action: string; details: string }) => Promise<void>;
+  signalAntiRaid: (guildId: string, resourceId: string) => Promise<unknown>;
+  logger?: (level: LogLevel, scope: string, message: string, meta?: Record<string, unknown>) => void;
+}
+
+export type StructureGuardOutcome =
+  | { kind: "allowed-owner" }
+  | { kind: "allowed-approval"; requestId: string }
+  | { kind: "signalled"; actorId: string | null }
+  | { kind: "sanctioned"; actorId: string };
+
+const REASON = "Protectie moderation-guard: modificare de structura fara aprobare de tip server-structure";
+
+export function createServerStructureGuardRuntime(deps: ServerStructureGuardDeps) {
+  async function sanction(guild: StructureGuardGuild, actorId: string, kind: StructureChangeKind, resourceId: string): Promise<void> {
+    const actor = await guild.resolveActor(actorId).catch(() => null);
+    const plan = planRoleSanction({
+      actorRoles: actor?.roles ?? [],
+      botHighestRolePosition: guild.botHighestRolePosition,
+      everyoneRoleId: guild.everyoneRoleId
+    });
+
+    if (actor && plan.removable.length > 0) {
+      await actor.removeRoles(plan.removable.map(role => role.id), REASON).catch(error => {
+        deps.logger?.("WARN", "STRUCTURE_GUARD", "Eliminarea rolurilor autorului a esuat", {
+          guildId: guild.id,
+          actorId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      });
+    }
+
+    await deps.recordAudit(guild.id, {
+      userId: actorId,
+      action: "server-structure-unapproved",
+      details: `tip=${kind}; resursa=${resourceId}`
+    }).catch(() => undefined);
+
+    const lines = [
+      `<@${actorId}> a modificat structura serverului fara aprobare.`,
+      `Modificare: ${STRUCTURE_LABELS[kind]} \`${resourceId}\``,
+      "Motiv: fara aprobare activa de tip server-structure",
+      "Modificarile de structura NU se anuleaza automat in afara unui raid; verificarea si revenirea raman la owner.",
+      describeSanction(plan)
+    ];
+    await deps.publish(guild.id, lines.join("\n")).catch(() => undefined);
+  }
+
+  async function handleStructureChange(
+    guild: StructureGuardGuild,
+    kind: StructureChangeKind,
+    resourceId: string
+  ): Promise<StructureGuardOutcome> {
+    const situation = await deps.gate.readSituation(guild.id).catch(() => ({ guardEnabled: false, raidConfirmed: false }));
+    const actorId = await guild.findStructureActor(kind, resourceId).catch(() => null);
+
+    if (actorId && guild.ownerId && actorId === guild.ownerId) return { kind: "allowed-owner" };
+
+    if (situation.guardEnabled && !situation.raidConfirmed && actorId) {
+      const approval = await deps.gate
+        .consumeApproval(guild.id, actorId, resourceId, STRUCTURE_ACTIONS[kind])
+        .catch(() => null);
+      if (approval) return { kind: "allowed-approval", requestId: approval._id };
+    }
+
+    await deps.signalAntiRaid(guild.id, resourceId).catch(() => undefined);
+
+    if (!situation.guardEnabled || situation.raidConfirmed || !actorId) return { kind: "signalled", actorId };
+
+    await sanction(guild, actorId, kind, resourceId);
+    return { kind: "sanctioned", actorId };
+  }
+
+  return { handleStructureChange };
+}
+
+export interface ServerStructureGuardRuntime {
+  handleStructureChange: (
+    guild: StructureGuardGuild,
+    kind: StructureChangeKind,
+    resourceId: string
+  ) => Promise<StructureGuardOutcome>;
+}
