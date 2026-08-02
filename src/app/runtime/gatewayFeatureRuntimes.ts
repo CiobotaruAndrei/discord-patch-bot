@@ -10,8 +10,6 @@ import { createMassModerationRuntime } from "../../features/command-security/mas
 import { adaptMassModerationGuild } from "./massModerationGuildAdapter.js";
 import { createServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
 import type { ServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
-import { adaptStructureGuardGuild } from "./serverStructureGuildAdapter.js";
-import type { AdaptableStructureGuild } from "./serverStructureGuildAdapter.js";
 import type { AdaptableWebhookChannel } from "./webhookGuardChannelAdapter.js";
 import { createAntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
 import { createAdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";

@@ -6,6 +6,8 @@ import { createPermissionRequestRepository } from "../../features/command-securi
 import { permissionRequestStore } from "./permissionRequestStore.js";
 import { moduleContext } from "../moduleContextStub.js";
 import type { ServerStructureGuardDeps, StructureGuardGuild } from "../../features/command-security/serverStructureGuardRuntime.js";
+import { adaptStructureGuardGuild } from "../../app/runtime/serverStructureGuildAdapter.js";
+import type { AdaptableStructureGuild } from "../../app/runtime/serverStructureGuildAdapter.js";
 
 const NOW = Date.parse("2026-08-02T13:00:00.000Z");
 
@@ -146,4 +148,71 @@ test("cand autorul nu poate fi identificat, semnalul pleaca dar nu se sanctionea
   assert.deepEqual(outcome, { kind: "signalled", actorId: null });
   assert.deepEqual(setup.signals, [{ guildId: "g1", resourceId: "role-9" }]);
   assert.deepEqual(setup.removedRoles, []);
+});
+
+function auditGuild(entriesByType: Record<number, Array<{ executor: string; target: string; at: number }>>, attempts: number[] = []) {
+  return moduleContext<AdaptableStructureGuild>({
+    id: "g1",
+    ownerId: "owner-1",
+    fetchAuditLogs: async (options: { type?: number }) => {
+      attempts.push(options?.type ?? -1);
+      const rows = entriesByType[options?.type ?? -1] ?? [];
+      return {
+        entries: new Map(rows.map((row, index) => [String(index), {
+          executor: { id: row.executor },
+          target: { id: row.target },
+          createdTimestamp: row.at
+        }]))
+      };
+    }
+  });
+}
+
+test("cautarea autorului filtreaza dupa tipul evenimentului, nu ia orice actiune pe aceeasi resursa", async () => {
+  const attempts: number[] = [];
+  const guild = adaptStructureGuardGuild(auditGuild({
+    12: [{ executor: "vinovat", target: "chan-1", at: NOW }],
+    11: [{ executor: "nevinovat", target: "chan-1", at: NOW }]
+  }, attempts), () => NOW, async () => undefined);
+
+  const actor = await guild?.findStructureActor("channelDelete", "chan-1");
+
+  assert.equal(actor, "vinovat", "un update pe acelasi canal nu poate fi confundat cu stergerea lui");
+  assert.deepEqual([...new Set(attempts)], [12], "se interogheaza doar evenimentul de stergere de canal");
+});
+
+test("cautarea autorului reincearca daca intrarea din Audit Log nu e inca vizibila", async () => {
+  const attempts: number[] = [];
+  let calls = 0;
+  const guild = adaptStructureGuardGuild(moduleContext<AdaptableStructureGuild>({
+    id: "g1",
+    ownerId: "owner-1",
+    fetchAuditLogs: async (options: { type?: number }) => {
+      attempts.push(options?.type ?? -1);
+      calls += 1;
+      if (calls < 3) return { entries: new Map() };
+      return {
+        entries: new Map([["e", { executor: { id: "intarziat" }, target: { id: "role-1" }, createdTimestamp: NOW }]])
+      };
+    }
+  }), () => NOW, async () => undefined);
+
+  const actor = await guild?.findStructureActor("roleDelete", "role-1");
+
+  assert.equal(actor, "intarziat", "evenimentul de gateway poate sosi inaintea intrarii din Audit Log");
+  assert.equal(attempts.length, 3, "se reincearca de trei ori, apoi se renunta");
+});
+
+test("dupa toate reincercarile fara rezultat, autorul ramane necunoscut", async () => {
+  const guild = adaptStructureGuardGuild(auditGuild({}), () => NOW, async () => undefined);
+
+  assert.equal(await guild?.findStructureActor("channelCreate", "chan-9"), null);
+});
+
+test("o intrare mai veche decat fereastra de corelare nu este atribuita", async () => {
+  const guild = adaptStructureGuardGuild(auditGuild({
+    10: [{ executor: "vechi", target: "chan-1", at: NOW - 120_000 }]
+  }), () => NOW, async () => undefined);
+
+  assert.equal(await guild?.findStructureActor("channelCreate", "chan-1"), null);
 });
