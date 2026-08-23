@@ -92,7 +92,8 @@ export function createAdProtectionRuntime(deps: AdProtectionRuntimeDeps) {
       message.authorId,
       message.channelId,
       detection.reasons.join("; "),
-      new Date(now())
+      new Date(now()),
+      !deleteFailed
     );
 
     let warned = false;
@@ -119,14 +120,14 @@ export function createAdProtectionRuntime(deps: AdProtectionRuntimeDeps) {
       }
     }
 
-    const suffix = deleteFailed ? " Mesajul NU a putut fi sters; verificare manuala necesara." : "";
+    const suffix = deleteFailed ? " Verificare manuala necesara: mesajul e inca pe server." : "";
     const warnNote = outcome.kind === "warn-issued" && !warned
       ? " Warn-ul automat NU a putut fi emis; verificare manuala necesara."
       : banNote;
     await deps
       .publish(
         message.guildId,
-        `<@${message.authorId}> — ${describeStrike(outcome)} Motiv: ${detection.reasons.join("; ")}.${suffix}${warnNote}`
+        `<@${message.authorId}> — ${describeStrike(outcome, !deleteFailed)} Motiv: ${detection.reasons.join("; ")}.${suffix}${warnNote}`
       )
       .catch(() => undefined);
 
