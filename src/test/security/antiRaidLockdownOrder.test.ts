@@ -28,7 +28,7 @@ function guildPort(trace: string[]): RaidGuildPort {
       return { applied: true, error: null };
     },
     stripElevatedRoles: async () => ({ removed: [], blocked: [] }),
-    purgeMessages: async () => 0,
+    purgeMessages: async () => ({ deleted: 0, unreachable: 0 }),
     publish: async () => undefined,
     alertOwner: async () => undefined
   });

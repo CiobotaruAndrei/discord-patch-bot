@@ -40,6 +40,7 @@ export interface WebhookGuardDeps {
   publish: (guildId: string, message: string) => Promise<void>;
   recordAudit: (guildId: string, entry: { userId: string; action: string; details: string }) => Promise<void>;
   reportRaidActor?: (guildId: string, actorId: string, surface: string) => Promise<unknown>;
+  reportRaidWebhook?: (guildId: string, webhookId: string) => Promise<unknown>;
   logger?: (level: LogLevel, scope: string, message: string, meta?: Record<string, unknown>) => void;
   now?: () => number;
 }
@@ -184,6 +185,9 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
       const failedInRaid = await revertChanges(channel, changes);
       await advanceSnapshot(channel, failedInRaid === 0);
       await deps.reportRaidActor?.(channel.guildId, actorId, "webhook").catch(() => undefined);
+      for (const change of changes) {
+        await deps.reportRaidWebhook?.(channel.guildId, change.webhookId).catch(() => undefined);
+      }
       await deps.recordAudit(channel.guildId, {
         userId: actorId,
         action: "webhook-change-reverted-in-raid",

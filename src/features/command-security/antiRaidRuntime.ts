@@ -279,7 +279,23 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     return true;
   }
 
-  return { observeMessage, observeStructureChange, observeBotJoin, escalateActor, tick, sweep, isRaidConfirmed, forget };
+  async function observeRaidWebhook(guildId: string, webhookId: string): Promise<boolean> {
+    const active = await incidents.active(guildId).catch(() => null);
+    if (!active || !raidConfirmed(active.stage)) return false;
+    return incidents.recordRaidWebhook(active._id, webhookId).catch(() => false);
+  }
+
+  return {
+    observeMessage,
+    observeStructureChange,
+    observeBotJoin,
+    observeRaidWebhook,
+    escalateActor,
+    tick,
+    sweep,
+    isRaidConfirmed,
+    forget
+  };
 }
 
 export type AntiRaidRuntime = ReturnType<typeof createAntiRaidRuntime>;
