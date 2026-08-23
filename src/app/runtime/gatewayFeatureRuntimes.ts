@@ -149,6 +149,18 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     ? createAntiRaidRuntime({
       RaidIncidentModel: mongo.RaidIncidentModel,
       readGuildSettings: guildId => readGuildSettings(guildId),
+      isGuildOwner: async (guildId, actorId) => {
+        const cache = client.guilds?.cache as { get?: (id: string) => { ownerId?: unknown } | undefined } | undefined;
+        return cache?.get?.(guildId)?.ownerId === actorId;
+      },
+      consumeStructureApproval: permissionRequestModel
+        ? async (guildId, actorId, resourceId, action) => {
+          const approval = await createPermissionRequestRepository(permissionRequestModel)
+            .consume(guildId, "server-structure", actorId, { target: resourceId, action })
+            .catch(() => null);
+          return approval !== null;
+        }
+        : undefined,
       resolveGuild: async guildId => {
         const cache = client.guilds?.cache as { get?: (id: string) => AdaptableRaidGuild | undefined } | undefined;
         const guild = cache?.get?.(guildId);
