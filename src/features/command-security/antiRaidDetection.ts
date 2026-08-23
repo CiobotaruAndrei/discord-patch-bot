@@ -1,6 +1,6 @@
 "use strict";
 
-import { fingerprintFor, nearIdentical } from "./antiRaidFingerprint.js";
+import { fingerprintFor, parseFingerprint, parsedNearIdentical } from "./antiRaidFingerprint.js";
 
 import type { AntiRaidThresholds } from "./antiRaidThresholds.js";
 
@@ -91,6 +91,7 @@ export interface DetectorOptions {
 }
 
 const DEFAULT_MAX_SIGNALS = 2_000;
+export const MAX_CLUSTER_SCAN = 64;
 const MIN_COORDINATED_SIGNALS = 2;
 
 export function createRaidDetector(options: DetectorOptions) {
@@ -115,10 +116,19 @@ export function createRaidDetector(options: DetectorOptions) {
   }
 
   function clusterNearIdentical(actorSignals: readonly RaidSignal[], count: number): RaidSignal[] {
-    for (let index = 0; index < actorSignals.length; index += 1) {
-      const anchor = actorSignals[index];
-      const cluster = actorSignals.filter(signal => nearIdentical(anchor.fingerprint, signal.fingerprint));
-      const total = cluster.reduce((sum, signal) => sum + signal.weight, 0);
+    const recent = actorSignals.length > MAX_CLUSTER_SCAN
+      ? actorSignals.slice(actorSignals.length - MAX_CLUSTER_SCAN)
+      : actorSignals;
+    const parsed = recent.map(signal => parseFingerprint(signal.fingerprint));
+
+    for (let anchor = 0; anchor < recent.length; anchor += 1) {
+      let total = 0;
+      const cluster: RaidSignal[] = [];
+      for (let index = 0; index < recent.length; index += 1) {
+        if (!parsedNearIdentical(parsed[anchor], parsed[index])) continue;
+        cluster.push(recent[index]);
+        total += recent[index].weight;
+      }
       if (total >= count) return cluster;
     }
     return [];

@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  MIN_FUZZY_TOKENS,
+  MIN_FUZZY_LENGTH,
   NEAR_IDENTICAL_MAX_DISTANCE,
   fingerprintDistance,
   fingerprintFor,
   nearIdentical
 } from "../../features/command-security/antiRaidFingerprint.js";
-import { createRaidDetector, normalizeMessageText, signalsFromMessage } from "../../features/command-security/antiRaidDetection.js";
+import { MAX_CLUSTER_SCAN, createRaidDetector, normalizeMessageText, signalsFromMessage } from "../../features/command-security/antiRaidDetection.js";
 import { DEFAULT_ANTI_RAID_THRESHOLDS } from "../../features/command-security/antiRaidThresholds.js";
 
 import type { RaidDetectionVerdict } from "../../features/command-security/antiRaidDetection.js";
@@ -51,7 +51,7 @@ test("mesajele scurte raman pe egalitate exacta, ca sa nu se ciocneasca intre el
   const yes = print("da");
   const no = print("nu");
 
-  assert.ok(yes.startsWith("exact:"), `sub ${MIN_FUZZY_TOKENS} cuvinte se pastreaza potrivirea exacta`);
+  assert.ok(yes.startsWith("exact:"), `sub ${MIN_FUZZY_LENGTH} caractere se pastreaza potrivirea exacta`);
   assert.equal(nearIdentical(yes, no), false, "doua raspunsuri scurte diferite nu au voie sa se grupeze");
   assert.equal(nearIdentical(yes, print("DA")), true, "normalizarea face acelasi mesaj scurt sa se potriveasca");
 });
@@ -124,4 +124,74 @@ test("detectorul NU declanseaza pe o conversatie obisnuita cu mesaje diferite (F
   const verdict = verdicts[verdicts.length - 1];
 
   assert.equal(verdict.triggered, false, "protectia impotriva falsurilor pozitive trebuie sa tina la nivel de detector, nu doar de amprenta");
+});
+
+test("un mesaj scurt de patru cuvinte se grupeaza tot fuzzy (review PR #955)", () => {
+  const variants = ["cumpara skinuri ieftine acum", "cumpara skinuri ieftine acuma", "cumpara skinuri ieftine acumm"];
+  const prints = variants.map(print);
+
+  for (let index = 1; index < prints.length; index += 1) {
+    const distance = fingerprintDistance(prints[0], prints[index]);
+    assert.ok(
+      distance !== null && distance <= NEAR_IDENTICAL_MAX_DISTANCE,
+      `amprenta pe cuvinte facea ca un mesaj de patru cuvinte sa sara peste prag; distanta masurata: ${distance}`
+    );
+  }
+});
+
+test("detectorul prinde trei variante ale unui mesaj scurt (review PR #955)", () => {
+  const detector = createRaidDetector({ thresholds: DEFAULT_ANTI_RAID_THRESHOLDS });
+  const variants = ["cumpara skinuri ieftine acum", "cumpara skinuri ieftine acuma", "cumpara skinuri ieftine acumm"];
+
+  const verdicts: RaidDetectionVerdict[] = variants.map((content, index) => detector.observeAll(
+    signalsFromMessage({ actorId: "u1", bot: false, channelId: "c1", content, at: index * 100, mentionCount: 0, attachmentCount: 0 }),
+    index * 100
+  ));
+
+  assert.equal(verdicts[verdicts.length - 1].triggered, true);
+});
+
+test("gruparea nu scaneaza toata fereastra, ci o coada marginita (review PR #955)", () => {
+  const detector = createRaidDetector({ thresholds: DEFAULT_ANTI_RAID_THRESHOLDS });
+  const repeated = "cumpara skinuri ieftine de pe site-ul nostru cu livrare instant";
+  const total = MAX_CLUSTER_SCAN * 3;
+
+  let last: RaidDetectionVerdict | null = null;
+  for (let index = 0; index < total; index += 1) {
+    last = detector.observeAll(
+      signalsFromMessage({ actorId: "u1", bot: false, channelId: "c1", content: repeated, at: index, mentionCount: 0, attachmentCount: 0 }),
+      index
+    );
+  }
+
+  assert.equal(last?.triggered, true, "mesajele repetate trebuie sa declanseze");
+  assert.equal(
+    detector.size() >= total,
+    true,
+    "fereastra chiar contine toate semnalele, deci limita de scanare nu vine din curatarea ferestrei"
+  );
+});
+
+test("cu mii de amprente distincte evaluarea ramane sub o limita clara (review PR #955)", () => {
+  const detector = createRaidDetector({ thresholds: DEFAULT_ANTI_RAID_THRESHOLDS });
+  for (let index = 0; index < 1500; index += 1) {
+    detector.observeAll(
+      signalsFromMessage({
+        actorId: "u1",
+        bot: false,
+        channelId: "c1",
+        content: `mesaj complet diferit numarul ${index} despre subiectul ${index * 7}`,
+        at: index,
+        mentionCount: 0,
+        attachmentCount: 0
+      }),
+      index
+    );
+  }
+
+  const started = Date.now();
+  detector.evaluate(1500);
+  const elapsed = Date.now() - started;
+
+  assert.ok(elapsed < 50, `evaluarea trebuie sa ramana instantanee pe calea de mesaje; a durat ${elapsed}ms`);
 });

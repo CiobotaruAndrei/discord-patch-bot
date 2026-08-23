@@ -1,8 +1,9 @@
 "use strict";
 
 export const NEAR_IDENTICAL_MAX_DISTANCE = 8;
-export const MIN_FUZZY_TOKENS = 4;
-export const MAX_FINGERPRINT_TOKENS = 48;
+export const MIN_FUZZY_LENGTH = 8;
+export const SHINGLE_SIZE = 3;
+export const MAX_FINGERPRINT_SHINGLES = 200;
 
 const EXACT_PREFIX = "exact:";
 const SIMILAR_PREFIX = "sim:";
@@ -43,11 +44,37 @@ function popcount(value: number): number {
   return (Math.imul(bits, 0x01010101) >>> 24);
 }
 
+function shingles(normalized: string): string[] {
+  const parts: string[] = [];
+  const limit = Math.min(normalized.length - SHINGLE_SIZE + 1, MAX_FINGERPRINT_SHINGLES);
+  for (let index = 0; index < limit; index += 1) parts.push(normalized.slice(index, index + SHINGLE_SIZE));
+  return parts;
+}
+
 export function fingerprintFor(normalized: string): string {
-  const tokens = normalized.split(" ").filter(token => token.length > 0).slice(0, MAX_FINGERPRINT_TOKENS);
-  if (tokens.length < MIN_FUZZY_TOKENS) return `${EXACT_PREFIX}${normalized}`;
-  const { hi, lo } = simhash(tokens);
+  if (normalized.length < MIN_FUZZY_LENGTH) return `${EXACT_PREFIX}${normalized}`;
+  const { hi, lo } = simhash(shingles(normalized));
   return `${SIMILAR_PREFIX}${hi.toString(36)}:${lo.toString(36)}`;
+}
+
+export interface ParsedFingerprint {
+  exact: string | null;
+  hi: number;
+  lo: number;
+}
+
+export function parseFingerprint(fingerprint: string): ParsedFingerprint {
+  const similar = parseSimilar(fingerprint);
+  return similar ? { exact: null, ...similar } : { exact: fingerprint, hi: 0, lo: 0 };
+}
+
+export function parsedNearIdentical(
+  left: ParsedFingerprint,
+  right: ParsedFingerprint,
+  maxDistance = NEAR_IDENTICAL_MAX_DISTANCE
+): boolean {
+  if (left.exact !== null || right.exact !== null) return left.exact === right.exact;
+  return popcount(left.hi ^ right.hi) + popcount(left.lo ^ right.lo) <= maxDistance;
 }
 
 function parseSimilar(fingerprint: string): { hi: number; lo: number } | null {
