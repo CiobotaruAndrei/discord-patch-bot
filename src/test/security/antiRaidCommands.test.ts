@@ -171,7 +171,7 @@ test("statusul arata etapa, canalele blocate, participantii si erorile", () => {
       { channelId: "c1", previousSendMessages: true, lockedAt: new Date(T0), restoredAt: null },
       { channelId: "c2", previousSendMessages: true, lockedAt: new Date(T0), restoredAt: new Date(T0) }
     ],
-    pendingActions: ["restaurare canal c1"], errors: ["Lockdown esuat pentru canalul c3"], restoreProgress: 40
+    pendingActions: ["restaurare canal c1"], errors: ["Lockdown esuat pentru canalul c3"], raidWebhookIds: [], restoreProgress: 40
   };
 
   const lines = statusLines(incident, DEFAULT_ANTI_RAID_THRESHOLDS.safetyPeriodMs, T0).join("\n");
@@ -195,7 +195,7 @@ test("lista participantilor arata sanctiunile aplicate, cele esuate si eroarea",
       { userId: "bot-1", bot: true, confirmedAt: new Date(T0), state: "stopped", appliedSteps: ["ban"], failedSteps: [], lastError: null },
       { userId: "u2", bot: false, confirmedAt: new Date(T0), state: "failed", appliedSteps: [], failedSteps: ["mute", "timeout", "ban"], lastError: "ierarhie Discord" }
     ],
-    lockedChannels: [], pendingActions: [], errors: [], restoreProgress: 0
+    lockedChannels: [], pendingActions: [], errors: [], raidWebhookIds: [], restoreProgress: 0
   };
 
   const lines = participantLines(incident).join("\n");

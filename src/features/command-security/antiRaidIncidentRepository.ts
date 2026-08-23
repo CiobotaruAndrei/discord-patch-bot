@@ -37,7 +37,8 @@ function asRecord(document: Record<string, unknown> | null): RaidIncidentRecord 
     participants: record.participants ?? [],
     lockedChannels: record.lockedChannels ?? [],
     pendingActions: record.pendingActions ?? [],
-    errors: record.errors ?? []
+    errors: record.errors ?? [],
+    raidWebhookIds: record.raidWebhookIds ?? []
   };
 }
 
@@ -113,6 +114,7 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
       lockedChannels: [],
       pendingActions: [],
       errors: [],
+      raidWebhookIds: [],
       restoreProgress: 0
     };
     const result = await model.updateOne({ _id: record._id }, { $setOnInsert: record }, { upsert: true })
@@ -212,6 +214,13 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
     return updatedDocument(result);
   }
 
+  async function recordRaidWebhook(incidentId: string, webhookId: string): Promise<boolean> {
+    return updatedDocument(await model.updateOne(
+      { _id: incidentId, raidWebhookIds: { $ne: webhookId } },
+      { $push: { raidWebhookIds: webhookId } }
+    ));
+  }
+
   async function recordError(incidentId: string, message: string, now = new Date()): Promise<boolean> {
     const result = await model.updateOne(
       { _id: incidentId },
@@ -246,6 +255,7 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
     lockChannel,
     markChannelRestored,
     recordError,
+    recordRaidWebhook,
     setPendingActions,
     setRestoreProgress
   };

@@ -19,12 +19,22 @@ export interface SanctionOutcome {
   error: string | null;
 }
 
+export interface PurgeOutcome {
+  deleted: number;
+  unreachable: number;
+}
+
 export interface RaidGuildPort {
   id: string;
   lockChannel(channelId: string): Promise<{ locked: boolean; previousSendMessages: boolean | null }>;
   unlockChannel(channelId: string, previousSendMessages: boolean | null): Promise<boolean>;
   applySanction(userId: string, step: SanctionStep, durationMs: number, reason: string): Promise<SanctionOutcome>;
-  purgeMessages(channelIds: readonly string[], userIds: readonly string[]): Promise<number>;
+  purgeMessages(
+    channelIds: readonly string[],
+    userIds: readonly string[],
+    webhookIds: readonly string[],
+    since: number
+  ): Promise<PurgeOutcome>;
   publish(body: string): Promise<unknown>;
   alertOwner(body: string): Promise<unknown>;
   findBotAdder?(botId: string): Promise<string | null>;
@@ -52,7 +62,7 @@ export type InterventionStep =
   | { kind: "locked"; incidentId: string; channelIds: string[] }
   | { kind: "sanctioned"; incidentId: string; userId: string; step: SanctionStep; applied: boolean }
   | { kind: "escalation-exhausted"; incidentId: string; userId: string }
-  | { kind: "cleaned"; incidentId: string; deleted: number }
+  | { kind: "cleaned"; incidentId: string; deleted: number; unreachable: number }
   | { kind: "restored"; incidentId: string; channelIds: string[] }
   | { kind: "waiting"; incidentId: string; remainingMs: number }
   | { kind: "lockdown-overdue"; incidentId: string };
@@ -239,11 +249,21 @@ export function createRaidIntervention(deps: InterventionDeps) {
 
     if (current.stage === "cleanup") {
       const settled = current.participants.filter(entry => participantSettled(entry)).map(entry => entry.userId);
-      const deleted = await guild
-        .purgeMessages(current.lockedChannels.map(entry => entry.channelId), settled)
-        .catch(() => 0);
+      const purge = await guild
+        .purgeMessages(
+          current.lockedChannels.map(entry => entry.channelId),
+          settled,
+          current.raidWebhookIds ?? [],
+          new Date(current.startedAt).getTime()
+        )
+        .catch(() => ({ deleted: 0, unreachable: 0 }));
+      if (purge.unreachable > 0) {
+        await guild.alertOwner(
+          `Anti-raid ${current._id}: ${purge.unreachable} mesaje ale raidului nu au putut fi sterse automat (Discord nu permite stergerea in masa peste 14 zile). Stergere manuala necesara.`
+        ).catch(() => undefined);
+      }
       await incidents.advance(current._id, "cleanup", "recovery", new Date(moment));
-      steps.push({ kind: "cleaned", incidentId: current._id, deleted });
+      steps.push({ kind: "cleaned", incidentId: current._id, deleted: purge.deleted, unreachable: purge.unreachable });
       return steps;
     }
 

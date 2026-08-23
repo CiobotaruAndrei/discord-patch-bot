@@ -45,7 +45,7 @@ function harness(options: {
     },
     purgeMessages: async (channelIds, userIds) => {
       purged.push({ channelIds: [...channelIds], userIds: [...userIds] });
-      return userIds.length * 5;
+      return { deleted: userIds.length * 5, unreachable: 0 };
     },
     publish: async body => { published.push(body); return undefined; },
     alertOwner: async body => { ownerAlerts.push(body); return undefined; }

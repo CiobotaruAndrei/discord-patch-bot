@@ -31,7 +31,7 @@ function harness(options: {
     lockChannel: async channelId => { locked.push(channelId); return { locked: true, previousSendMessages: true }; },
     unlockChannel: async () => true,
     applySanction: async (userId, step) => { sanctions.push({ userId, step }); return { applied: true, retryable: false, error: null }; },
-    purgeMessages: async () => 0,
+    purgeMessages: async () => ({ deleted: 0, unreachable: 0 }),
     publish: async body => { published.push(body); return undefined; },
     alertOwner: async body => { published.push(body); return undefined; }
   };

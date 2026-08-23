@@ -5,6 +5,28 @@ import type { SanctionStep } from "../../features/command-security/antiRaidIncid
 import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/elevatedPermissions.js";
 
 const PURGE_BATCH = 100;
+const PURGE_MAX_PAGES = 5;
+const BULK_DELETE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+
+function messageTimestamp(message: unknown): number {
+  const entry = message as { createdTimestamp?: unknown } | null;
+  return typeof entry?.createdTimestamp === "number" ? entry.createdTimestamp : Date.now();
+}
+
+function oldestMessageId(fetched: unknown): string | undefined {
+  const collection = fetched as { values?: () => Iterable<unknown> } | null;
+  let oldestId: string | undefined;
+  let oldestAt = Number.POSITIVE_INFINITY;
+  for (const item of collection?.values?.() ?? []) {
+    const entry = item as { id?: unknown };
+    const at = messageTimestamp(item);
+    if (typeof entry.id === "string" && at < oldestAt) {
+      oldestAt = at;
+      oldestId = entry.id;
+    }
+  }
+  return oldestId;
+}
 const BOT_ADD_AUDIT_EVENT = 28;
 const BOT_ADD_WINDOW_MS = 60_000;
 const BOT_ADD_RETRY_DELAYS_MS = [0, 1_000, 2_000] as const;
@@ -87,7 +109,13 @@ export function adaptRaidGuild(
       cache?: { get?: (id: string) => { allow?: { has?: (flag: string) => boolean }; deny?: { has?: (flag: string) => boolean } } | undefined };
     };
     bulkDelete?: (messages: unknown, filterOld?: boolean) => Promise<{ size?: number } | null>;
-    messages?: { fetch?: (options: Record<string, unknown>) => Promise<{ filter?: (predicate: (message: unknown) => boolean) => { size?: number } } | null> };
+    messages?: {
+      fetch?: (options: Record<string, unknown>) => Promise<{
+        size?: number;
+        values?: () => Iterable<unknown>;
+        filter?: (predicate: (message: unknown) => boolean) => { size?: number };
+      } | null>;
+    };
     send?: (payload: Record<string, unknown>) => Promise<unknown>;
   } | undefined {
     return guild.channels?.cache?.get?.(channelId) as ReturnType<typeof channel>;
@@ -261,32 +289,56 @@ export function adaptRaidGuild(
       return { removed, blocked };
     },
 
-    async purgeMessages(channelIds, userIds) {
-      if (userIds.length === 0) return 0;
+    async purgeMessages(channelIds, userIds, webhookIds, since) {
       const targets = new Set(userIds);
+      const webhooks = new Set(webhookIds);
+      if (targets.size === 0 && webhooks.size === 0) return { deleted: 0, unreachable: 0 };
       let deleted = 0;
+      let unreachable = 0;
+
+      const belongsToRaid = (message: unknown): boolean => {
+        if (messageTimestamp(message) < since) return false;
+        const entry = message as { author?: { id?: unknown }; webhookId?: unknown } | null;
+        const authorId = entry?.author?.id;
+        if (typeof authorId === "string" && targets.has(authorId)) return true;
+        const webhookId = entry?.webhookId;
+        return typeof webhookId === "string" && webhooks.has(webhookId);
+      };
 
       for (const channelId of channelIds) {
         const target = channel(channelId);
         if (!target?.messages?.fetch || !target.bulkDelete) continue;
-        try {
-          const fetched = await target.messages.fetch({ limit: PURGE_BATCH });
-          const doomed = fetched?.filter?.(message => {
-            const authorId = (message as { author?: { id?: unknown } } | null)?.author?.id;
-            return typeof authorId === "string" && targets.has(authorId);
-          });
-          if (!doomed || (doomed.size ?? 0) === 0) continue;
-          const removed = await target.bulkDelete(doomed, true);
-          deleted += removed?.size ?? 0;
-        } catch (error: unknown) {
-          logger?.("WARN", "ANTI_RAID", "Curatarea mesajelor a esuat pentru un canal", {
-            guildId: guild.id,
-            channelId,
-            error: error instanceof Error ? error.message : String(error)
-          });
+        let before: string | undefined;
+
+        for (let page = 0; page < PURGE_MAX_PAGES; page += 1) {
+          try {
+            const fetched = await target.messages.fetch(before ? { limit: PURGE_BATCH, before } : { limit: PURGE_BATCH });
+            const size = fetched?.size ?? 0;
+            if (size === 0) break;
+
+            const cutoff = Date.now() - BULK_DELETE_MAX_AGE_MS;
+            const doomed = fetched?.filter?.(message => belongsToRaid(message) && messageTimestamp(message) >= cutoff);
+            const tooOld = fetched?.filter?.(message => belongsToRaid(message) && messageTimestamp(message) < cutoff);
+            unreachable += tooOld?.size ?? 0;
+
+            if (doomed && (doomed.size ?? 0) > 0) {
+              const removed = await target.bulkDelete(doomed, true);
+              deleted += removed?.size ?? 0;
+            }
+
+            before = oldestMessageId(fetched);
+            if (!before || size < PURGE_BATCH) break;
+          } catch (error: unknown) {
+            logger?.("WARN", "ANTI_RAID", "Curatarea mesajelor a esuat pentru un canal", {
+              guildId: guild.id,
+              channelId,
+              error: error instanceof Error ? error.message : String(error)
+            });
+            break;
+          }
         }
       }
-      return deleted;
+      return { deleted, unreachable };
     },
 
     async publish(body) {

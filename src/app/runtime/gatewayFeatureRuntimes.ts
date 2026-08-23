@@ -302,6 +302,9 @@ async function applyWarnBan(
       reportRaidActor: antiRaidRuntime
         ? (guildId, actorId, surface) => antiRaidRuntime.escalateActor(guildId, actorId, surface)
         : undefined,
+      reportRaidWebhook: antiRaidRuntime
+        ? (guildId, webhookId) => antiRaidRuntime.observeRaidWebhook(guildId, webhookId)
+        : undefined,
       logger
     })
     : undefined;
