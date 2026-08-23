@@ -1658,9 +1658,9 @@ dependencies = [
 
 [[package]]
 name = "zxing-cpp"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d412e2db33c4afe7aac2e90c829938e8dac4dba2e9572d856b3d8eefc702eae9"
+checksum = "a60abe279615a2f29efb0f28c7750f871424f2d70662409951a34479daae7a6b"
 dependencies = [
  "cmake",
  "miette",
