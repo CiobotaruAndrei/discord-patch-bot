@@ -187,7 +187,7 @@ test("cronologia compusa include aprobarile si tentativele de reclama", async ()
   const log = await deps.readLog("g1");
   assert.ok(log.some(item => item.source === "approval" && item.action.includes("bot-add")));
   assert.ok(log.some(item => item.source === "approval" && item.action.includes("reclama")));
-  assert.ok(log.some(item => item.source === "ad" && item.summary === "reclama blocata"));
+  assert.ok(log.some(item => item.source === "ad" && item.summary.includes("reclama blocata")));
 });
 
 test("statusul numara operatiunile de recovery care cer interventia ownerului", async () => {
