@@ -151,6 +151,13 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
     await deps.publish(channel.guildId, lines.join("\n")).catch(() => undefined);
   }
 
+  async function reportRaidCreatedWebhooks(guildId: string, changes: readonly WebhookChange[]): Promise<void> {
+    for (const change of changes) {
+      if (change.kind !== "create") continue;
+      await deps.reportRaidWebhook?.(guildId, change.webhookId).catch(() => undefined);
+    }
+  }
+
   async function handleWebhookUpdate(channel: WebhookGuardChannel): Promise<WebhookGuardOutcome> {
     const record = await snapshots.read(channel.guildId, channel.channelId).catch(() => null);
     const current = await channel.listWebhooks().catch(() => null);
@@ -162,13 +169,16 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
     }
 
     const situation = await deps.gate.readSituation(channel.guildId).catch(() => ({ guardEnabled: false, raidConfirmed: false }));
+    const changes = diffWebhooks(record.entries, current);
+    const raidActive = situation.raidConfirmed;
+
+    if (raidActive) await reportRaidCreatedWebhooks(channel.guildId, changes);
+
     if (!situation.guardEnabled) {
       await capture(channel, current);
       return { kind: "guard-disabled" };
     }
-    const raidActive = situation.raidConfirmed;
 
-    const changes = diffWebhooks(record.entries, current);
     if (changes.length === 0) return { kind: "no-change" };
 
     const actorId = await channel.findAuditActor().catch(() => null);
@@ -185,9 +195,6 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
       const failedInRaid = await revertChanges(channel, changes);
       await advanceSnapshot(channel, failedInRaid === 0);
       await deps.reportRaidActor?.(channel.guildId, actorId, "webhook").catch(() => undefined);
-      for (const change of changes) {
-        await deps.reportRaidWebhook?.(channel.guildId, change.webhookId).catch(() => undefined);
-      }
       await deps.recordAudit(channel.guildId, {
         userId: actorId,
         action: "webhook-change-reverted-in-raid",

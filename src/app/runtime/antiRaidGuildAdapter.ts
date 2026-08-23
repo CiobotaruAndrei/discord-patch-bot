@@ -289,7 +289,7 @@ export function adaptRaidGuild(
       return { removed, blocked };
     },
 
-    async purgeMessages(channelIds, userIds, webhookIds) {
+    async purgeMessages(channelIds, userIds, webhookIds, since) {
       const targets = new Set(userIds);
       const webhooks = new Set(webhookIds);
       if (targets.size === 0 && webhooks.size === 0) return { deleted: 0, unreachable: 0 };
@@ -297,6 +297,7 @@ export function adaptRaidGuild(
       let unreachable = 0;
 
       const belongsToRaid = (message: unknown): boolean => {
+        if (messageTimestamp(message) < since) return false;
         const entry = message as { author?: { id?: unknown }; webhookId?: unknown } | null;
         const authorId = entry?.author?.id;
         if (typeof authorId === "string" && targets.has(authorId)) return true;

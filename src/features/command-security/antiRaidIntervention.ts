@@ -32,7 +32,8 @@ export interface RaidGuildPort {
   purgeMessages(
     channelIds: readonly string[],
     userIds: readonly string[],
-    webhookIds: readonly string[]
+    webhookIds: readonly string[],
+    since: number
   ): Promise<PurgeOutcome>;
   publish(body: string): Promise<unknown>;
   alertOwner(body: string): Promise<unknown>;
@@ -249,7 +250,12 @@ export function createRaidIntervention(deps: InterventionDeps) {
     if (current.stage === "cleanup") {
       const settled = current.participants.filter(entry => participantSettled(entry)).map(entry => entry.userId);
       const purge = await guild
-        .purgeMessages(current.lockedChannels.map(entry => entry.channelId), settled, current.raidWebhookIds ?? [])
+        .purgeMessages(
+          current.lockedChannels.map(entry => entry.channelId),
+          settled,
+          current.raidWebhookIds ?? [],
+          new Date(current.startedAt).getTime()
+        )
         .catch(() => ({ deleted: 0, unreachable: 0 }));
       if (purge.unreachable > 0) {
         await guild.alertOwner(
