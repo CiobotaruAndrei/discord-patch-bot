@@ -1,4 +1,5 @@
 import test from "node:test";
+import { calls, loadModule } from "../gates/sourceStructureQueries.js";
 import assert from "node:assert/strict";
 
 import {
@@ -217,5 +218,15 @@ test("amprenta atasamentului foloseste hash-ul continutului, nu URL-ul CDN (F-39
     adFingerprint("Intra pe serverul meu", uploaded),
     adFingerprint("Intra pe serverul meu", { name: "promo.png", size: 9999 }),
     "acelasi nume cu alt continut nu trece drept aceeasi reclama"
+  );
+});
+
+test("bootstrap-ul de comenzi furnizeaza cititorul de octeti, altfel orice aprobare cu atasament e inutilizabila (review PR #967)", () => {
+  const registry = loadModule("features", "command-registry", "commandRegistry.ts");
+  const used = new Set(calls(registry).map(call => call.callee));
+
+  assert.ok(
+    used.has("createAttachmentBytesReader"),
+    "fara cititor, /ad-request salveaza o amprenta neverificata pe care consumul o refuza explicit"
   );
 });

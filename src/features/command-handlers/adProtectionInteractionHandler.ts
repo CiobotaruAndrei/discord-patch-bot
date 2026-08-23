@@ -21,6 +21,8 @@ type Interaction = BaseChatInputInteraction<Guild> & AlwaysReplies & {
   user?: { id?: string } | null;
   isButton?: () => boolean;
   update?: (payload: unknown) => Promise<unknown>;
+  deferReply?: (payload?: { ephemeral?: boolean }) => Promise<unknown>;
+  editReply?: (payload: { content: string }) => Promise<unknown>;
   options?: StringOption & {
     getSubcommand?: (required?: boolean) => string | null;
     getUser?: (name: string, required?: boolean) => { id?: string } | null;
@@ -79,6 +81,13 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
     const attachmentUrl = attachment?.url ?? null;
     const detection = detectAd(adText, attachmentUrl ? 1 : 0);
     const requestId = newRequestId();
+
+    const deferred = attachment !== null && interaction.deferReply !== undefined && interaction.editReply !== undefined;
+    if (deferred) await interaction.deferReply?.({ ephemeral: true });
+    const respond = async (content: string): Promise<unknown> => (deferred
+      ? interaction.editReply?.({ content })
+      : interaction.reply({ content, ephemeral: true }));
+
     const record = await repository.createRequest({
       requestId,
       guildId: guild.id,
@@ -98,9 +107,7 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       attachmentUrl,
       target: detection.reasons[0] ?? null
     });
-    if (!record) {
-      return interaction.reply({ content: "Nu am putut salva cererea. Reincearca.", ephemeral: true });
-    }
+    if (!record) return respond("Nu am putut salva cererea. Reincearca.");
 
     const channel = await guild.channels?.fetch?.(channelId).catch(() => null);
     const delivered = channel?.send
@@ -118,12 +125,9 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
 
     if (!delivered) {
       await repository.cancelRequest(guild.id, requestId).catch(() => null);
-      return interaction.reply({
-        content: "Nu am putut livra cererea in canalul de reclame; cererea a fost anulata. Reincearca.",
-        ephemeral: true
-      });
+      return respond("Nu am putut livra cererea in canalul de reclame; cererea a fost anulata. Reincearca.");
     }
-    return interaction.reply({ content: "Cererea de reclama a fost trimisa proprietarului serverului.", ephemeral: true });
+    return respond("Cererea de reclama a fost trimisa proprietarului serverului.");
   }
 
   async function decide(interaction: Interaction, guild: Guild, approve: boolean, requestId: string): Promise<unknown> {
