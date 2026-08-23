@@ -1,5 +1,7 @@
 "use strict";
 
+import { fingerprintFor, parseFingerprint, parsedNearIdentical } from "./antiRaidFingerprint.js";
+
 import type { AntiRaidThresholds } from "./antiRaidThresholds.js";
 
 export const SPAM_KINDS = ["identical", "mention", "invite", "link", "structure"] as const;
@@ -68,7 +70,7 @@ export function signalsFromMessage(observation: MessageObservation): RaidSignal[
   const signals: RaidSignal[] = [];
   const normalized = normalizeMessageText(observation.content);
 
-  if (normalized.length > 0) signals.push({ ...base, kind: "identical", fingerprint: normalized, weight: 1 });
+  if (normalized.length > 0) signals.push({ ...base, kind: "identical", fingerprint: fingerprintFor(normalized), weight: 1 });
   if (observation.mentionCount > 0) {
     signals.push({ ...base, kind: "mention", fingerprint: "mention", weight: observation.mentionCount });
   }
@@ -89,6 +91,7 @@ export interface DetectorOptions {
 }
 
 const DEFAULT_MAX_SIGNALS = 2_000;
+export const MAX_CLUSTER_SCAN = 64;
 const MIN_COORDINATED_SIGNALS = 2;
 
 export function createRaidDetector(options: DetectorOptions) {
@@ -112,8 +115,23 @@ export function createRaidDetector(options: DetectorOptions) {
     if (signals.length > maxSignals) signals.splice(0, signals.length - maxSignals);
   }
 
-  function bucketKey(signal: RaidSignal): string {
-    return signal.kind === "identical" ? `${signal.actorId}::${signal.fingerprint}` : signal.actorId;
+  function clusterNearIdentical(actorSignals: readonly RaidSignal[], count: number): RaidSignal[] {
+    const recent = actorSignals.length > MAX_CLUSTER_SCAN
+      ? actorSignals.slice(actorSignals.length - MAX_CLUSTER_SCAN)
+      : actorSignals;
+    const parsed = recent.map(signal => parseFingerprint(signal.fingerprint));
+
+    for (let anchor = 0; anchor < recent.length; anchor += 1) {
+      let total = 0;
+      const cluster: RaidSignal[] = [];
+      for (let index = 0; index < recent.length; index += 1) {
+        if (!parsedNearIdentical(parsed[anchor], parsed[index])) continue;
+        cluster.push(recent[index]);
+        total += recent[index].weight;
+      }
+      if (total >= count) return cluster;
+    }
+    return [];
   }
 
   function breaching(kind: SpamKind, now: number): RaidSignal[] {
@@ -121,11 +139,15 @@ export function createRaidDetector(options: DetectorOptions) {
     const buckets = new Map<string, RaidSignal[]>();
     for (const signal of signals) {
       if (signal.kind !== kind || now - signal.at > windowMs) continue;
-      const key = bucketKey(signal);
-      const bucket = buckets.get(key);
-      if (bucket) bucket.push(signal); else buckets.set(key, [signal]);
+      const bucket = buckets.get(signal.actorId);
+      if (bucket) bucket.push(signal); else buckets.set(signal.actorId, [signal]);
     }
     for (const bucket of buckets.values()) {
+      if (kind === "identical") {
+        const cluster = clusterNearIdentical(bucket, count);
+        if (cluster.length > 0) return cluster;
+        continue;
+      }
       const total = bucket.reduce((sum, signal) => sum + signal.weight, 0);
       if (total >= count) return bucket;
     }
