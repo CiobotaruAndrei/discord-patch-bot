@@ -312,12 +312,13 @@ function registerDiscordEvents({
       client.on("roleDelete", (role: LifecycleDiscordRole) => structureEvent("roleDelete", role?.guild, role?.id));
     }
     if (protectedResourceRuntime) {
+      const processedResourceAuditEntries = new Set<string>();
       const guardResource = (event: string, rawGuild: unknown, rawResourceId: unknown, current: unknown): void => {
         const guild = rawGuild as AdaptableGuild | null | undefined;
         const resourceId = typeof rawResourceId === "string" ? rawResourceId : null;
         if (!guild || typeof guild.id !== "string" || !resourceId) return;
         const guildId = guild.id;
-        const adapted = adaptProtectedResourceGuild(guild);
+        const adapted = adaptProtectedResourceGuild(guild, Date.now, processedResourceAuditEntries);
         const run = current === null
           ? protectedResourceRuntime.handleResourceDelete(adapted, resourceId)
           : protectedResourceRuntime.handleResourceUpdate(adapted, resourceId, current as ResourceLike);
