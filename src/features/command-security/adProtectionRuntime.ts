@@ -1,6 +1,8 @@
 "use strict";
 
 import { createAdProtectionRepository } from "./adProtectionRepository.js";
+import { hashAttachment } from "./adAttachmentHash.js";
+import type { FetchAttachmentBytes } from "./adAttachmentHash.js";
 import { adFingerprint, describeStrike, detectAd } from "./adRequestTypes.js";
 
 import type { AdAttemptModelLike, AdRequestModelLike } from "./adProtectionRepository.js";
@@ -21,6 +23,7 @@ export interface AdMessage {
 }
 
 export interface AdProtectionRuntimeDeps {
+  fetchAttachmentBytes?: FetchAttachmentBytes;
   AdRequestModel: AdRequestModelLike;
   AdAttemptModel: AdAttemptModelLike;
   readGuildSettings: (guildId: string) => Promise<{ adAlertChannelId?: string | null; adProtectionEnabled?: boolean } | null>;
@@ -59,9 +62,16 @@ export function createAdProtectionRuntime(deps: AdProtectionRuntimeDeps) {
 
     if (deps.readOwnerId(message.guildId) === message.authorId) return { kind: "allowed-owner" };
 
-    const fingerprint = adFingerprint(message.content, message.attachmentName || message.attachmentSize
-      ? { name: message.attachmentName, size: message.attachmentSize }
-      : null);
+    const attachment = message.attachmentUrl || message.attachmentName || message.attachmentSize
+      ? {
+        name: message.attachmentName,
+        size: message.attachmentSize,
+        hash: deps.fetchAttachmentBytes
+          ? await hashAttachment({ url: message.attachmentUrl, size: message.attachmentSize }, deps.fetchAttachmentBytes)
+          : null
+      }
+      : null;
+    const fingerprint = adFingerprint(message.content, attachment);
     const approval = await repository
       .consumeApproval(message.guildId, message.authorId, fingerprint, new Date(now()))
       .catch(() => null);

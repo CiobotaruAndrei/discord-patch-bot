@@ -1,4 +1,6 @@
 import type { AlwaysReplies, BaseChatInputInteraction, StringOption } from "./discordInteractionPorts.js";
+import { hashAttachment } from "../command-security/adAttachmentHash.js";
+import type { FetchAttachmentBytes } from "../command-security/adAttachmentHash.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
 import type { AdAttemptModelLike, AdRequestModelLike } from "../command-security/adProtectionRepository.js";
@@ -27,6 +29,7 @@ type Interaction = BaseChatInputInteraction<Guild> & AlwaysReplies & {
 };
 
 type Deps = {
+  fetchAttachmentBytes?: FetchAttachmentBytes;
   AdRequestModel: AdRequestModelLike;
   AdAttemptModel: AdAttemptModelLike;
   getGuildSettings: (guildId: string) => Promise<{ adAlertChannelId?: string | null; adProtectionEnabled?: boolean } | null>;
@@ -81,7 +84,15 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       guildId: guild.id,
       requesterId,
       adText,
-      fingerprint: adFingerprint(adText, attachment),
+      fingerprint: adFingerprint(adText, attachment
+        ? {
+          name: attachment.name,
+          size: attachment.size,
+          hash: deps.fetchAttachmentBytes
+            ? await hashAttachment({ url: attachmentUrl, size: attachment.size }, deps.fetchAttachmentBytes)
+            : null
+        }
+        : null),
       link: extractLink(adText),
       invite: extractInvite(adText),
       attachmentUrl,
@@ -174,7 +185,7 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
 
 export default { buildCommandHandler };
 
-export const AD_PROTECTION_HANDLER_KEYS = ["AdRequestModel", "AdAttemptModel", "getGuildSettings"] as const;
+export const AD_PROTECTION_HANDLER_KEYS = ["AdRequestModel", "AdAttemptModel", "getGuildSettings", "fetchAttachmentBytes"] as const;
 
 type AdKeyCheckDeps = Parameters<typeof buildCommandHandler>[0];
 type AdMissing = MissingDependencyKeys<AdKeyCheckDeps, (typeof AD_PROTECTION_HANDLER_KEYS)[number] & string>;

@@ -8,6 +8,7 @@ import type { WebhookGuardRuntime } from "../../features/command-security/webhoo
 import { adaptWebhookGuardChannel } from "./webhookGuardChannelAdapter.js";
 import { createMassModerationRuntime } from "../../features/command-security/massModerationRuntime.js";
 import { adaptMassModerationGuild } from "./massModerationGuildAdapter.js";
+import { createAttachmentBytesReader } from "./attachmentBytesAdapter.js";
 import { adaptDelegationSanctionContext, type SanctionableGuild } from "./sanctionActorAdapter.js";
 import { createServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
 import type { ServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
@@ -213,6 +214,7 @@ async function applyWarnBan(
     ? createAdProtectionRuntime({
       AdRequestModel: adRequestModel,
       AdAttemptModel: adAttemptModel,
+      fetchAttachmentBytes: createAttachmentBytesReader(),
       readGuildSettings: guildId => readGuildSettings(guildId),
       readOwnerId: guildId => {
         const cache = client.guilds?.cache as { get?: (id: string) => { ownerId?: unknown } | undefined } | undefined;
