@@ -465,3 +465,29 @@ test("doua canale si un rol nu declanseaza un raid fals prin runtime (F-36)", as
 
   assert.notEqual(outcome.kind, "opened", "pragul e 3 canale SAU 3 roluri, nu 3 modificari amestecate");
 });
+
+test("pe calea garzii de structura, suprafata si actiunea reale ajung la anti-raid (review PR #965)", async () => {
+  const setup = harness();
+
+  await setup.runtime.observeStructureChange("g1", "r1", { id: "mod-1", bot: false }, { surface: "role", action: "delete", approvalChecked: true });
+  await setup.runtime.observeStructureChange("g1", "r2", { id: "mod-1", bot: false }, { surface: "role", action: "delete", approvalChecked: true });
+  const outcome = await setup.runtime.observeStructureChange("g1", "r3", { id: "mod-1", bot: false }, { surface: "role", action: "delete", approvalChecked: true });
+
+  assert.equal(outcome.kind, "opened");
+  assert.match(outcome.kind === "opened" ? outcome.reason : "", /roluri create ori sterse/,
+    "fara suprafata propagata, evenimentele de rol cadeau pe channel-structure");
+});
+
+test("cand garda a verificat deja aprobarea, anti-raid nu mai consuma inca una (review PR #965)", async () => {
+  const setup = harness({ approvedStructure: true });
+
+  const outcome = await setup.runtime.observeStructureChange(
+    "g1",
+    "c1",
+    { id: "mod-1", bot: false },
+    { surface: "channel", action: "delete", approvalChecked: true }
+  );
+
+  assert.equal(setup.approvalCount(), 0, "a doua cautare de aprobare putea consuma o aprobare de create pentru aceeasi resursa");
+  assert.notEqual(outcome.kind, "ignored", "semnalul trebuie inregistrat: garda deja a stabilit ca nu era autorizat");
+});

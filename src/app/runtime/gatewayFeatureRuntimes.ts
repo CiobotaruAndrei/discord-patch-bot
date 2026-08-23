@@ -345,7 +345,12 @@ async function applyWarnBan(
       recordAudit: async (guildId, entry) => {
         await recordServerAuditEntry(auditLogModel, guildId, entry);
       },
-      signalAntiRaid: (guildId, resourceId) => antiRaidRuntime.observeStructureChange(guildId, resourceId),
+      signalAntiRaid: (guildId, resourceId, change) => antiRaidRuntime.observeStructureChange(
+        guildId,
+        resourceId,
+        change.actorId ? { id: change.actorId, bot: false } : null,
+        { surface: change.surface, action: change.action, approvalChecked: change.approvalChecked }
+      ),
       logger
     })
     : undefined;

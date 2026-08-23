@@ -6,6 +6,7 @@ import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevated
 import { STRUCTURE_ACTIONS } from "./serverStructureActions.js";
 
 import type { StructureChangeKind } from "./serverStructureActions.js";
+import type { StructureSurface } from "./antiRaidDetection.js";
 import type { LogLevel } from "../../shared/logging.js";
 
 const STRUCTURE_LABELS: Record<StructureChangeKind, string> = {
@@ -38,7 +39,11 @@ export interface ServerStructureGuardDeps {
   gate: StructureGuardGate;
   publish: (guildId: string, message: string) => Promise<void>;
   recordAudit: (guildId: string, entry: { userId: string; action: string; details: string }) => Promise<void>;
-  signalAntiRaid: (guildId: string, resourceId: string) => Promise<unknown>;
+  signalAntiRaid: (
+    guildId: string,
+    resourceId: string,
+    change: { surface: StructureSurface; action: string; actorId: string | null; approvalChecked: boolean }
+  ) => Promise<unknown>;
   logger?: (level: LogLevel, scope: string, message: string, meta?: Record<string, unknown>) => void;
 }
 
@@ -102,7 +107,12 @@ export function createServerStructureGuardRuntime(deps: ServerStructureGuardDeps
       if (approval) return { kind: "allowed-approval", requestId: approval._id };
     }
 
-    await deps.signalAntiRaid(guild.id, resourceId).catch(() => undefined);
+    await deps.signalAntiRaid(guild.id, resourceId, {
+      surface: kind === "roleCreate" || kind === "roleDelete" ? "role" : "channel",
+      action: STRUCTURE_ACTIONS[kind],
+      actorId,
+      approvalChecked: situation.guardEnabled && !situation.raidConfirmed && Boolean(actorId)
+    }).catch(() => undefined);
 
     if (!situation.guardEnabled || situation.raidConfirmed || !actorId) return { kind: "signalled", actorId };
 

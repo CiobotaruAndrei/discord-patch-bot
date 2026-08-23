@@ -28,6 +28,7 @@ export interface AntiRaidRuntimeDeps {
 export interface StructureChangeInput {
   surface?: StructureSurface;
   action?: string;
+  approvalChecked?: boolean;
 }
 
 export type ObserveOutcome =
@@ -170,7 +171,7 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     const bot = resolved.bot;
 
     if (deps.isGuildOwner && await deps.isGuildOwner(guildId, actorId).catch(() => false)) return { kind: "ignored" };
-    if (deps.consumeStructureApproval) {
+    if (deps.consumeStructureApproval && change.approvalChecked !== true) {
       const approved = await deps
         .consumeStructureApproval(guildId, actorId, resourceId, change.action ?? "create")
         .catch(() => false);
