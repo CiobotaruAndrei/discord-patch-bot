@@ -1,4 +1,5 @@
 import type { GameConfig } from "../../config/configTypes.js";
+import { createAttachmentBytesReader } from "../../infra/http/attachmentBytes.js";
 import type { CommandCacheSizes } from "../command-cache/commandCacheTypes.js";
 import type { GuildSettings } from "../guild-config/guildSettingsTypes.js";
 import type { DealInfo, FetchResult } from "../../sources/sourceTypes.js";
@@ -110,6 +111,7 @@ function createAppServices(
     ...dependencies.mongo,
     ...dependencies.sources,
     ...dependencies.platform,
+    fetchAttachmentBytes: createAttachmentBytesReader(),
     ...overrides
   };
   const dealPrices = createDealPriceHistoryService(pickDeclaredKeys(baseRuntime, DEAL_PRICE_HISTORY_KEYS));

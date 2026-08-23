@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createHash } from "crypto";
 import assert from "node:assert/strict";
 
 import { createAdProtectionRuntime } from "../../features/command-security/adProtectionRuntime.js";
@@ -12,6 +13,9 @@ import type { AdMessage } from "../../features/command-security/adProtectionRunt
 
 const T0 = Date.parse("2026-08-01T12:00:00.000Z");
 
+const SAME_FILE_BYTES = new TextEncoder().encode("continut-identic");
+const SAME_FILE_HASH = createHash("sha256").update(SAME_FILE_BYTES).digest("hex");
+
 function harness(options: {
   enabled?: boolean;
   raid?: boolean;
@@ -19,6 +23,7 @@ function harness(options: {
   deleteFails?: boolean;
   warnFails?: boolean;
   autoBan?: "applied" | "failed" | "not-reached";
+  attachmentBytes?: (url: string, timeoutMs: number) => Promise<Uint8Array | null>;
 } = {}) {
   const requests = adStore();
   const attempts = adStore();
@@ -27,6 +32,7 @@ function harness(options: {
   const warns: Array<{ userId: string; reason: string }> = [];
 
   const runtime = createAdProtectionRuntime({
+    fetchAttachmentBytes: options.attachmentBytes ?? (async () => SAME_FILE_BYTES),
     AdRequestModel: requests,
     AdAttemptModel: attempts,
     readGuildSettings: async () => ({ adProtectionEnabled: options.enabled !== false, adAlertChannelId: "c-ads" }),
@@ -240,7 +246,7 @@ test("o reclama aprobata cu atasament trece si dupa repostare, cand fisierul e a
   const content = "Intra pe serverul meu";
   await setup.repo.createRequest({
     requestId: "ad-1", guildId: "g1", requesterId: "u1", adText: content,
-    fingerprint: adFingerprint(content, { name: "promo.png", size: 2048 }),
+    fingerprint: adFingerprint(content, { name: "promo.png", size: 2048, hash: SAME_FILE_HASH }),
     link: null, invite: null, attachmentUrl: "https://cdn/ephemeral/promo.png", target: null
   }, new Date(T0));
   await setup.repo.resolveRequest("g1", "ad-1", "approved", "owner-1", new Date(T0));
@@ -265,4 +271,54 @@ test("banul automat la limita de warn-uri e raportat in incident", async () => {
   const failed = harness({ autoBan: "failed" });
   for (let index = 0; index < 3; index += 1) await failed.runtime.handleMessage(message(failed));
   assert.match(failed.published[2], /banul automat NU a putut fi aplicat/);
+});
+
+test("un fisier DIFERIT cu acelasi nume si aceeasi dimensiune NU reutilizeaza aprobarea (F-39)", async () => {
+  const otherBytes = new TextEncoder().encode("alt-continut-la-fel-de-lung");
+  const setup = harness({ attachmentBytes: async () => otherBytes });
+  const content = "Intra pe serverul meu";
+
+  await setup.repo.createRequest({
+    requestId: "ad-1", guildId: "g1", requesterId: "u1", adText: content,
+    fingerprint: adFingerprint(content, { name: "promo.png", size: 2048, hash: SAME_FILE_HASH }),
+    link: null, invite: null, attachmentUrl: "https://cdn/ephemeral/promo.png", target: null
+  }, new Date(T0));
+  await setup.repo.resolveRequest("g1", "ad-1", "approved", "owner-1", new Date(T0));
+
+  const outcome = await setup.runtime.handleMessage(message(setup, {
+    content,
+    attachmentUrl: "https://cdn/attachments/ALT/promo.png",
+    attachmentName: "promo.png",
+    attachmentSize: 2048,
+    attachmentCount: 1
+  }));
+
+  assert.notEqual(
+    outcome.kind,
+    "allowed-approval",
+    "cu amprenta pe nume si dimensiune, orice fisier cu acelasi nume si aceeasi marime refolosea aprobarea"
+  );
+  assert.deepEqual(setup.deleted, [content], "reclama neaprobata se sterge");
+});
+
+test("cand atasamentul nu poate fi hashuit, aprobarea nu se potriveste (F-39)", async () => {
+  const setup = harness({ attachmentBytes: async () => null });
+  const content = "Intra pe serverul meu";
+
+  await setup.repo.createRequest({
+    requestId: "ad-1", guildId: "g1", requesterId: "u1", adText: content,
+    fingerprint: adFingerprint(content, { name: "promo.png", size: 2048, hash: SAME_FILE_HASH }),
+    link: null, invite: null, attachmentUrl: "https://cdn/ephemeral/promo.png", target: null
+  }, new Date(T0));
+  await setup.repo.resolveRequest("g1", "ad-1", "approved", "owner-1", new Date(T0));
+
+  const outcome = await setup.runtime.handleMessage(message(setup, {
+    content,
+    attachmentUrl: "https://cdn/attachments/ALT/promo.png",
+    attachmentName: "promo.png",
+    attachmentSize: 2048,
+    attachmentCount: 1
+  }));
+
+  assert.notEqual(outcome.kind, "allowed-approval", "un continut neverificat nu poate consuma o aprobare legata de continut");
 });

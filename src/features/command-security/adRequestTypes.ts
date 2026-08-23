@@ -69,13 +69,19 @@ export function normalizeAdText(text: string): string {
 export interface AdAttachmentIdentity {
   name?: string | null;
   size?: number | null;
+  hash?: string | null;
 }
+
+export const UNHASHED_ATTACHMENT = "atasament-neverificat";
 
 export function attachmentIdentity(attachment: AdAttachmentIdentity | null): string {
   if (!attachment) return "";
-  const name = typeof attachment.name === "string" ? attachment.name.toLowerCase() : "";
-  const size = typeof attachment.size === "number" && Number.isFinite(attachment.size) ? attachment.size : 0;
-  return name || size ? `${name}:${size}` : "";
+  const hash = typeof attachment.hash === "string" && attachment.hash ? attachment.hash : null;
+  return hash ? `sha256:${hash}` : UNHASHED_ATTACHMENT;
+}
+
+export function attachmentUnverified(fingerprint: string): boolean {
+  return fingerprint.endsWith(`::${UNHASHED_ATTACHMENT}`);
 }
 
 export function adFingerprint(text: string, attachment: AdAttachmentIdentity | null): string {
@@ -114,6 +120,7 @@ export function detectAd(text: string, attachmentCount: number): AdDetection {
 }
 
 export function scopeMatchesAdApproval(record: AdRequestRecord, fingerprint: string, requesterId: string): boolean {
+  if (attachmentUnverified(fingerprint) || attachmentUnverified(record.fingerprint)) return false;
   return record.requesterId === requesterId && record.fingerprint === fingerprint;
 }
 

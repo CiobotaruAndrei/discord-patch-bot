@@ -1,4 +1,6 @@
 import type { AlwaysReplies, BaseChatInputInteraction, StringOption } from "./discordInteractionPorts.js";
+import { hashAttachment } from "../command-security/adAttachmentHash.js";
+import type { FetchAttachmentBytes } from "../command-security/adAttachmentHash.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
 import type { AdAttemptModelLike, AdRequestModelLike } from "../command-security/adProtectionRepository.js";
@@ -19,6 +21,8 @@ type Interaction = BaseChatInputInteraction<Guild> & AlwaysReplies & {
   user?: { id?: string } | null;
   isButton?: () => boolean;
   update?: (payload: unknown) => Promise<unknown>;
+  deferReply?: (payload?: { ephemeral?: boolean }) => Promise<unknown>;
+  editReply?: (payload: { content: string }) => Promise<unknown>;
   options?: StringOption & {
     getSubcommand?: (required?: boolean) => string | null;
     getUser?: (name: string, required?: boolean) => { id?: string } | null;
@@ -27,6 +31,7 @@ type Interaction = BaseChatInputInteraction<Guild> & AlwaysReplies & {
 };
 
 type Deps = {
+  fetchAttachmentBytes?: FetchAttachmentBytes;
   AdRequestModel: AdRequestModelLike;
   AdAttemptModel: AdAttemptModelLike;
   getGuildSettings: (guildId: string) => Promise<{ adAlertChannelId?: string | null; adProtectionEnabled?: boolean } | null>;
@@ -76,20 +81,33 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
     const attachmentUrl = attachment?.url ?? null;
     const detection = detectAd(adText, attachmentUrl ? 1 : 0);
     const requestId = newRequestId();
+
+    const deferred = attachment !== null && interaction.deferReply !== undefined && interaction.editReply !== undefined;
+    if (deferred) await interaction.deferReply?.({ ephemeral: true });
+    const respond = async (content: string): Promise<unknown> => (deferred
+      ? interaction.editReply?.({ content })
+      : interaction.reply({ content, ephemeral: true }));
+
     const record = await repository.createRequest({
       requestId,
       guildId: guild.id,
       requesterId,
       adText,
-      fingerprint: adFingerprint(adText, attachment),
+      fingerprint: adFingerprint(adText, attachment
+        ? {
+          name: attachment.name,
+          size: attachment.size,
+          hash: deps.fetchAttachmentBytes
+            ? await hashAttachment({ url: attachmentUrl, size: attachment.size }, deps.fetchAttachmentBytes)
+            : null
+        }
+        : null),
       link: extractLink(adText),
       invite: extractInvite(adText),
       attachmentUrl,
       target: detection.reasons[0] ?? null
     });
-    if (!record) {
-      return interaction.reply({ content: "Nu am putut salva cererea. Reincearca.", ephemeral: true });
-    }
+    if (!record) return respond("Nu am putut salva cererea. Reincearca.");
 
     const channel = await guild.channels?.fetch?.(channelId).catch(() => null);
     const delivered = channel?.send
@@ -107,12 +125,9 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
 
     if (!delivered) {
       await repository.cancelRequest(guild.id, requestId).catch(() => null);
-      return interaction.reply({
-        content: "Nu am putut livra cererea in canalul de reclame; cererea a fost anulata. Reincearca.",
-        ephemeral: true
-      });
+      return respond("Nu am putut livra cererea in canalul de reclame; cererea a fost anulata. Reincearca.");
     }
-    return interaction.reply({ content: "Cererea de reclama a fost trimisa proprietarului serverului.", ephemeral: true });
+    return respond("Cererea de reclama a fost trimisa proprietarului serverului.");
   }
 
   async function decide(interaction: Interaction, guild: Guild, approve: boolean, requestId: string): Promise<unknown> {
@@ -174,7 +189,7 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
 
 export default { buildCommandHandler };
 
-export const AD_PROTECTION_HANDLER_KEYS = ["AdRequestModel", "AdAttemptModel", "getGuildSettings"] as const;
+export const AD_PROTECTION_HANDLER_KEYS = ["AdRequestModel", "AdAttemptModel", "getGuildSettings", "fetchAttachmentBytes"] as const;
 
 type AdKeyCheckDeps = Parameters<typeof buildCommandHandler>[0];
 type AdMissing = MissingDependencyKeys<AdKeyCheckDeps, (typeof AD_PROTECTION_HANDLER_KEYS)[number] & string>;

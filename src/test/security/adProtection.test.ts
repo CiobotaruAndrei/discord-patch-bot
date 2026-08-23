@@ -1,4 +1,5 @@
 import test from "node:test";
+import { calls, loadModule } from "../gates/sourceStructureQueries.js";
 import assert from "node:assert/strict";
 
 import {
@@ -199,9 +200,9 @@ test("limita de tentative din specificatie este trei", () => {
   assert.equal(AD_STRIKE_LIMIT, 3);
 });
 
-test("amprenta atasamentului foloseste identitatea stabila, nu URL-ul CDN", () => {
-  const uploaded = { name: "promo.png", size: 2048, url: "https://cdn.discordapp.com/ephemeral/A/promo.png" };
-  const reposted = { name: "promo.png", size: 2048, url: "https://cdn.discordapp.com/attachments/B/promo.png" };
+test("amprenta atasamentului foloseste hash-ul continutului, nu URL-ul CDN (F-39)", () => {
+  const uploaded = { name: "promo.png", size: 2048, hash: "a".repeat(64) };
+  const reposted = { name: "promo.png", size: 2048, hash: "a".repeat(64) };
 
   assert.equal(
     adFingerprint("Intra pe serverul meu", uploaded),
@@ -210,12 +211,22 @@ test("amprenta atasamentului foloseste identitatea stabila, nu URL-ul CDN", () =
   );
   assert.notEqual(
     adFingerprint("Intra pe serverul meu", uploaded),
-    adFingerprint("Intra pe serverul meu", { name: "altceva.png", size: 2048 }),
-    "un fisier diferit ramane o reclama diferita"
+    adFingerprint("Intra pe serverul meu", { name: "promo.png", size: 2048, hash: "b".repeat(64) }),
+    "acelasi nume si aceeasi dimensiune, alt continut: ramane o reclama diferita"
   );
   assert.notEqual(
     adFingerprint("Intra pe serverul meu", uploaded),
     adFingerprint("Intra pe serverul meu", { name: "promo.png", size: 9999 }),
     "acelasi nume cu alt continut nu trece drept aceeasi reclama"
+  );
+});
+
+test("bootstrap-ul de comenzi furnizeaza cititorul de octeti, altfel orice aprobare cu atasament e inutilizabila (review PR #967)", () => {
+  const registry = loadModule("features", "command-registry", "commandRegistry.ts");
+  const used = new Set(calls(registry).map(call => call.callee));
+
+  assert.ok(
+    used.has("createAttachmentBytesReader"),
+    "fara cititor, /ad-request salveaza o amprenta neverificata pe care consumul o refuza explicit"
   );
 });
