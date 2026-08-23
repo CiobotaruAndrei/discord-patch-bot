@@ -639,7 +639,7 @@ C/C++ vendorata:| Crate | Versiune | Tip | Sursa C/C++ | Rol |
 | `libarchive2-sys` | 0.2.0 | c-static | libarchive 3.8.1 | decodare arhive RAR/7z si filtre |
 | `qpdf` | 0.3.5 | cpp-static | qpdf + zlib + libjpeg | structura PDF complexa |
 | `qpdf-sys` | 0.3.5 | cpp-static | qpdf + zlib + libjpeg | legaturi FFI pentru qpdf |
-| `zxing-cpp` | 0.5.2 | cpp-static | ZXing-C++ 2.x (bundled) | decodare coduri QR, DataMatrix, Aztec, PDF417 si 1D |
+| `zxing-cpp` | 0.5.3 | cpp-static | ZXing-C++ 2.x (bundled) | decodare coduri QR, DataMatrix, Aztec, PDF417 si 1D |
 | `capstone` | 0.14.0 | c-static | Capstone 5.x (bundled) | dezasamblarea sectiunii de cod a executabilelor |
 | `capstone-sys` | 0.18.0 | c-static | Capstone 5.x (bundled) | legaturi FFI pentru Capstone |
 | `mspack-sys` | 0.1.0 | c-system | libmspack de sistem (0.11) | decompresie CAB si CHM din memorie |
