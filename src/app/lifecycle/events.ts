@@ -278,7 +278,9 @@ function registerDiscordEvents({
           watchRaid(event, guildId, () => serverStructureGuardRuntime.handleStructureChange(adapted, event, resourceId));
           return;
         }
-        watchRaid(event, guildId, () => antiRaidRuntime.observeStructureChange(guildId, resourceId));
+        const surface = event === "roleCreate" || event === "roleDelete" ? "role" : "channel";
+        const action = event === "channelDelete" || event === "roleDelete" ? "delete" : "create";
+        watchRaid(event, guildId, () => antiRaidRuntime.observeStructureChange(guildId, resourceId, null, { surface, action }));
       };
       client.on("messageCreate", (message: LifecycleDiscordMessage) => {
         const guildId = message.guild?.id;

@@ -1,6 +1,8 @@
 "use strict";
 
 import { createRaidDetector, signalsFromMessage, structureSignal } from "./antiRaidDetection.js";
+
+import type { StructureSurface } from "./antiRaidDetection.js";
 import { createRaidIncidentRepository } from "./antiRaidIncidentRepository.js";
 import { createRaidIntervention } from "./antiRaidIntervention.js";
 import { raidConfirmed } from "./antiRaidIncidentTypes.js";
@@ -16,9 +18,17 @@ export interface AntiRaidRuntimeDeps {
   readGuildSettings: (guildId: string) => Promise<{ antiRaidThresholds?: Record<string, unknown> | null; antiRaidAlertChannelId?: string | null; antiRaidEnabled?: boolean; antiRaidDryRunEnabled?: boolean } | null>;
   listActiveGuildIds?: () => Promise<string[]>;
   findStructureActor?: (guildId: string, resourceId: string) => Promise<{ id: string; bot: boolean } | null>;
+  isGuildOwner?: (guildId: string, actorId: string) => Promise<boolean>;
+  consumeStructureApproval?: (guildId: string, actorId: string, resourceId: string, action: string) => Promise<boolean>;
   resolveGuild: (guildId: string) => Promise<RaidGuildPort | null>;
   logger?: (level: string, scope: string, message: string, detail?: Record<string, unknown>) => void;
   now?: () => number;
+}
+
+export interface StructureChangeInput {
+  surface?: StructureSurface;
+  action?: string;
+  approvalChecked?: boolean;
 }
 
 export type ObserveOutcome =
@@ -149,7 +159,8 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
   async function observeStructureChange(
     guildId: string,
     resourceId: string,
-    actor?: { id: string; bot: boolean } | null
+    actor?: { id: string; bot: boolean } | null,
+    change: StructureChangeInput = {}
   ): Promise<ObserveOutcome> {
     if (!await moduleActive(guildId)) return { kind: "ignored" };
     const resolved = actor ?? (deps.findStructureActor
@@ -159,9 +170,17 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     const actorId = resolved.id;
     const bot = resolved.bot;
 
+    if (deps.isGuildOwner && await deps.isGuildOwner(guildId, actorId).catch(() => false)) return { kind: "ignored" };
+    if (deps.consumeStructureApproval && change.approvalChecked !== true) {
+      const approved = await deps
+        .consumeStructureApproval(guildId, actorId, resourceId, change.action ?? "create")
+        .catch(() => false);
+      if (approved) return { kind: "ignored" };
+    }
+
     rememberActor(guildId, actorId, bot);
     const detector = await detectorFor(guildId);
-    const verdict = detector.observe(structureSignal(actorId, bot, resourceId, now()));
+    const verdict = detector.observe(structureSignal(actorId, bot, resourceId, now(), change.surface ?? "channel"));
     if (!verdict.triggered) {
       const active = await incidents.active(guildId).catch(() => null);
       return active ? { kind: "existing", incidentId: active._id } : { kind: "quiet" };

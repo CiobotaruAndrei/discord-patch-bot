@@ -4,7 +4,7 @@ import { fingerprintFor, parseFingerprint, parsedNearIdentical } from "./antiRai
 
 import type { AntiRaidThresholds } from "./antiRaidThresholds.js";
 
-export const SPAM_KINDS = ["identical", "mention", "invite", "link", "structure"] as const;
+export const SPAM_KINDS = ["identical", "mention", "invite", "link", "channel-structure", "role-structure"] as const;
 export type SpamKind = (typeof SPAM_KINDS)[number];
 
 export interface RaidSignal {
@@ -31,7 +31,8 @@ const KIND_LABELS: Record<SpamKind, string> = {
   mention: "spam cu taguri",
   invite: "spam cu servere, invitatii sau reclame",
   link: "spam cu linkuri sau atasamente",
-  structure: "canale sau roluri create ori sterse fara autorizatie"
+  "channel-structure": "canale create ori sterse fara autorizatie",
+  "role-structure": "roluri create ori sterse fara autorizatie"
 };
 
 function windowFor(kind: SpamKind, thresholds: AntiRaidThresholds): { count: number; windowMs: number } {
@@ -81,8 +82,17 @@ export function signalsFromMessage(observation: MessageObservation): RaidSignal[
   return signals;
 }
 
-export function structureSignal(actorId: string, bot: boolean, resourceId: string, at: number): RaidSignal {
-  return { actorId, bot, channelId: null, kind: "structure", fingerprint: resourceId, weight: 1, at };
+export type StructureSurface = "channel" | "role";
+
+export function structureSignal(
+  actorId: string,
+  bot: boolean,
+  resourceId: string,
+  at: number,
+  surface: StructureSurface = "channel"
+): RaidSignal {
+  const kind: SpamKind = surface === "role" ? "role-structure" : "channel-structure";
+  return { actorId, bot, channelId: null, kind, fingerprint: resourceId, weight: 1, at };
 }
 
 export interface DetectorOptions {

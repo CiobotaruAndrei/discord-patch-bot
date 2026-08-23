@@ -15,12 +15,15 @@ function harness(options: {
   resolvable?: boolean;
   dryRun?: boolean;
   structureActor?: { id: string; bot: boolean } | null;
+  ownerId?: string;
+  approvedStructure?: boolean;
 } = {}) {
   const model = raidIncidentStore();
   const incidents = createRaidIncidentRepository(model);
   const locked: string[] = [];
   const sanctions: Array<{ userId: string; step: string }> = [];
   const published: string[] = [];
+  let approvalChecks = 0;
   let clock = T0;
 
   const guild: RaidGuildPort = {
@@ -37,11 +40,27 @@ function harness(options: {
     RaidIncidentModel: model,
     readGuildSettings: async () => ({ antiRaidThresholds: options.thresholds ?? null, antiRaidEnabled: options.enabled !== false, antiRaidDryRunEnabled: options.dryRun === true }),
     findStructureActor: async () => options.structureActor ?? null,
+    isGuildOwner: async (_guildId, actorId) => options.ownerId === actorId,
+    consumeStructureApproval: async () => {
+      approvalChecks += 1;
+      return options.approvedStructure === true;
+    },
     resolveGuild: async () => (options.resolvable === false ? null : guild),
     now: () => clock
   });
 
-  return { runtime, incidents, model, locked, sanctions, published, guildPort: guild, advance: (ms: number) => { clock += ms; }, clockAt: () => clock };
+  return {
+    runtime,
+    incidents,
+    model,
+    locked,
+    sanctions,
+    published,
+    guildPort: guild,
+    approvalCount: () => approvalChecks,
+    advance: (ms: number) => { clock += ms; },
+    clockAt: () => clock
+  };
 }
 
 function message(overrides: Record<string, unknown> = {}) {
@@ -98,7 +117,7 @@ test("modificarile de structura declanseaza incidentul si numesc motivul", async
   const outcome = await setup.runtime.observeStructureChange("g1", "c3", { id: "mod-1", bot: false });
 
   assert.equal(outcome.kind, "opened");
-  assert.match(outcome.kind === "opened" ? outcome.reason : "", /canale sau roluri/);
+  assert.match(outcome.kind === "opened" ? outcome.reason : "", /canale create ori sterse/);
   assert.deepEqual(setup.sanctions, [{ userId: "mod-1", step: "mute" }]);
 });
 
@@ -402,4 +421,73 @@ test("snapshotul structurii se captureaza la trecerea in containment, inainte de
   await setup.runtime.tick("g1");
 
   assert.deepEqual(captured, [id]);
+});
+
+test("modificarile de structura facute de owner nu deschid incident (F-36)", async () => {
+  const setup = harness({ ownerId: "owner-1" });
+
+  for (const resourceId of ["c1", "c2", "c3"]) {
+    const outcome = await setup.runtime.observeStructureChange("g1", resourceId, { id: "owner-1", bot: false }, { surface: "channel", action: "delete" });
+    assert.deepEqual(outcome, { kind: "ignored" }, "ownerul isi reorganizeaza serverul, nu il ataca");
+  }
+
+  assert.equal(setup.model.records.length, 0);
+});
+
+test("o modificare de structura cu aprobare activa e consumata si nu devine semnal (F-36)", async () => {
+  const setup = harness({ approvedStructure: true });
+
+  for (const resourceId of ["c1", "c2", "c3"]) {
+    const outcome = await setup.runtime.observeStructureChange("g1", resourceId, { id: "mod-1", bot: false }, { surface: "channel", action: "delete" });
+    assert.deepEqual(outcome, { kind: "ignored" });
+  }
+
+  assert.equal(setup.approvalCount(), 3, "aprobarea se verifica INAINTE de inregistrarea semnalului, pentru fiecare modificare");
+  assert.equal(setup.model.records.length, 0, "o operatiune aprobata nu are voie sa fie tratata ca raid");
+});
+
+test("fara aprobare, aceleasi trei modificari deschid incidentul (F-36)", async () => {
+  const setup = harness({ approvedStructure: false });
+
+  await setup.runtime.observeStructureChange("g1", "c1", { id: "mod-1", bot: false }, { surface: "channel", action: "delete" });
+  await setup.runtime.observeStructureChange("g1", "c2", { id: "mod-1", bot: false }, { surface: "channel", action: "delete" });
+  const outcome = await setup.runtime.observeStructureChange("g1", "c3", { id: "mod-1", bot: false }, { surface: "channel", action: "delete" });
+
+  assert.equal(outcome.kind, "opened");
+});
+
+test("doua canale si un rol nu declanseaza un raid fals prin runtime (F-36)", async () => {
+  const setup = harness();
+
+  await setup.runtime.observeStructureChange("g1", "c1", { id: "mod-1", bot: false }, { surface: "channel", action: "create" });
+  await setup.runtime.observeStructureChange("g1", "c2", { id: "mod-1", bot: false }, { surface: "channel", action: "create" });
+  const outcome = await setup.runtime.observeStructureChange("g1", "r1", { id: "mod-1", bot: false }, { surface: "role", action: "create" });
+
+  assert.notEqual(outcome.kind, "opened", "pragul e 3 canale SAU 3 roluri, nu 3 modificari amestecate");
+});
+
+test("pe calea garzii de structura, suprafata si actiunea reale ajung la anti-raid (review PR #965)", async () => {
+  const setup = harness();
+
+  await setup.runtime.observeStructureChange("g1", "r1", { id: "mod-1", bot: false }, { surface: "role", action: "delete", approvalChecked: true });
+  await setup.runtime.observeStructureChange("g1", "r2", { id: "mod-1", bot: false }, { surface: "role", action: "delete", approvalChecked: true });
+  const outcome = await setup.runtime.observeStructureChange("g1", "r3", { id: "mod-1", bot: false }, { surface: "role", action: "delete", approvalChecked: true });
+
+  assert.equal(outcome.kind, "opened");
+  assert.match(outcome.kind === "opened" ? outcome.reason : "", /roluri create ori sterse/,
+    "fara suprafata propagata, evenimentele de rol cadeau pe channel-structure");
+});
+
+test("cand garda a verificat deja aprobarea, anti-raid nu mai consuma inca una (review PR #965)", async () => {
+  const setup = harness({ approvedStructure: true });
+
+  const outcome = await setup.runtime.observeStructureChange(
+    "g1",
+    "c1",
+    { id: "mod-1", bot: false },
+    { surface: "channel", action: "delete", approvalChecked: true }
+  );
+
+  assert.equal(setup.approvalCount(), 0, "a doua cautare de aprobare putea consuma o aprobare de create pentru aceeasi resursa");
+  assert.notEqual(outcome.kind, "ignored", "semnalul trebuie inregistrat: garda deja a stabilit ca nu era autorizat");
 });

@@ -110,15 +110,39 @@ test("atasamentele conteaza la pragul de linkuri, chiar fara text", () => {
   assert.deepEqual(verdict.kinds, ["link"]);
 });
 
-test("trei modificari de structura fara autorizatie confirma raidul", () => {
+test("trei canale sterse sau create fara autorizatie confirma raidul (F-36)", () => {
   const engine = detector();
-  engine.observe(structureSignal("mod-1", false, "c1", T0));
-  engine.observe(structureSignal("mod-1", false, "c2", T0 + 5_000));
-  const verdict = engine.observe(structureSignal("mod-1", false, "c3", T0 + 10_000));
+  engine.observe(structureSignal("mod-1", false, "c1", T0, "channel"));
+  engine.observe(structureSignal("mod-1", false, "c2", T0 + 5_000, "channel"));
+  const verdict = engine.observe(structureSignal("mod-1", false, "c3", T0 + 10_000, "channel"));
 
   assert.equal(verdict.triggered, true);
-  assert.deepEqual(verdict.kinds, ["structure"]);
-  assert.match(verdict.reason, /canale sau roluri/);
+  assert.deepEqual(verdict.kinds, ["channel-structure"]);
+  assert.match(verdict.reason, /canale create ori sterse/);
+});
+
+test("doua canale plus un rol NU ating pragul, fiindca sunt suprafete diferite (F-36)", () => {
+  const engine = detector();
+  engine.observe(structureSignal("mod-1", false, "c1", T0, "channel"));
+  engine.observe(structureSignal("mod-1", false, "c2", T0 + 1_000, "channel"));
+  const verdict = engine.observe(structureSignal("mod-1", false, "r1", T0 + 2_000, "role"));
+
+  assert.equal(
+    verdict.triggered,
+    false,
+    "un singur kind pentru ambele suprafete facea ca doua canale si un rol sa declanseze un raid fals"
+  );
+});
+
+test("trei roluri sterse sau create confirma raidul pe suprafata lor (F-36)", () => {
+  const engine = detector();
+  engine.observe(structureSignal("mod-1", false, "r1", T0, "role"));
+  engine.observe(structureSignal("mod-1", false, "r2", T0 + 1_000, "role"));
+  const verdict = engine.observe(structureSignal("mod-1", false, "r3", T0 + 2_000, "role"));
+
+  assert.equal(verdict.triggered, true);
+  assert.deepEqual(verdict.kinds, ["role-structure"]);
+  assert.match(verdict.reason, /roluri create ori sterse/);
 });
 
 test("doi participanti la acelasi tip de spam sunt marcati ca actiune coordonata", () => {
