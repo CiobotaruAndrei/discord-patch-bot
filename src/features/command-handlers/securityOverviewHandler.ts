@@ -9,6 +9,15 @@ import { antiRaidReadiness } from "../command-security/protectionReadiness.js";
 import { moderationGuardReadiness, readinessGapsByProtection } from "../command-security/moderationGuardReadiness.js";
 import { START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
 
+import { orderIncidents, toLogEntry } from "../command-security/securityIncidentContract.js";
+import {
+  projectAdAttempts,
+  projectAdRequest,
+  projectAuditEntry,
+  projectPermissionRequest,
+  projectRaidIncident
+} from "../command-security/securityIncidentProjection.js";
+
 import type { SecurityLogEntry, SecurityLogSource } from "../command-security/securityLogModel.js";
 import type { SecurityStatusInput } from "../command-security/securityStatusModel.js";
 import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
@@ -155,44 +164,13 @@ export function composeSecurityOverviewDeps(target: SecurityOverviewContext): Se
         ads.listRequests(guildId, 200),
         ads.listAttempts(guildId, 200)
       ]);
-      const auditEntries: SecurityLogEntry[] = audit.map(item => ({
-        source: "audit" as const,
-        at: item.at instanceof Date ? item.at : new Date(String(item.at)),
-        action: item.action,
-        actorId: item.userId || null,
-        summary: item.details ?? ""
-      }));
-      const raidEntries: SecurityLogEntry[] = history.map(item => ({
-        source: "raid" as const,
-        at: item.startedAt instanceof Date ? item.startedAt : new Date(String(item.startedAt)),
-        action: `incident ${item.stage}`,
-        actorId: null,
-        summary: `${item.triggerReason}; participanti: ${item.participants.length}`
-      }));
-      const approvalEntries: SecurityLogEntry[] = [
-        ...permissionRequests.map(item => ({
-          source: "approval" as const,
-          at: item.respondedAt ?? item.requestedAt,
-          action: `${item.type} ${item.status}`,
-          actorId: item.ownerId ?? item.requesterId,
-          summary: item.reason
-        })),
-        ...adRequests.map(item => ({
-          source: "approval" as const,
-          at: item.respondedAt ?? item.requestedAt,
-          action: `reclama ${item.status}`,
-          actorId: item.ownerId ?? item.requesterId,
-          summary: item.target ?? item.adText
-        }))
-      ];
-      const adEntries: SecurityLogEntry[] = adAttempts.flatMap(item => item.history.map(event => ({
-        source: "ad" as const,
-        at: event.at,
-        action: event.warned ? "reclama stearsa si warn emis" : "reclama stearsa",
-        actorId: item.userId,
-        summary: event.summary
-      })));
-      return [...auditEntries, ...raidEntries, ...approvalEntries, ...adEntries];
+      return orderIncidents([
+        ...audit.map(projectAuditEntry),
+        ...history.map(projectRaidIncident),
+        ...permissionRequests.map(projectPermissionRequest),
+        ...adRequests.map(projectAdRequest),
+        ...adAttempts.flatMap(projectAdAttempts)
+      ]).map(toLogEntry);
     },
 
     readStatus: async (guildId, guild) => {
