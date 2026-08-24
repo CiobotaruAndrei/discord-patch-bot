@@ -152,6 +152,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     approvedAction: { type: String, default: null },
     approvedAmount: { type: Number, default: null },
     approvedPermissions: { type: [String], default: undefined },
+    approvedBotId: { type: String, default: null },
     ownerId: { type: String, default: null },
     requestedAt: { type: Date, required: true },
     respondedAt: { type: Date, default: null },

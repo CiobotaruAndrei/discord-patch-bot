@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import attachPermissionRequestHandler from "../../features/command-handlers/permissionRequestInteractionHandler.js";
 import { CLAIM_RECOVERY_MS, DELIVERY_FAILED_REASON, createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
 import { calls, loadModule } from "../gates/sourceStructureQueries.js";
-import { parseDurationMs, restrictionFromModal } from "../../features/command-security/permissionRequestApproval.js";
+import { compareRequestedApproved, parseDurationMs, restrictionFromModal } from "../../features/command-security/permissionRequestApproval.js";
 import { moduleContext } from "../moduleContextStub.js";
 import { permissionRequestStore } from "./permissionRequestStore.js";
 import type { PermissionRequestRecord } from "../../features/command-security/permissionRequestTypes.js";
@@ -244,4 +244,64 @@ test("handlerul foloseste anularea, nu respingerea, la esecul livrarii (F-09)", 
   const used = new Set(calls(handler).map(call => call.callee));
 
   assert.ok(used.has("repository.cancelUndelivered"), "istoricul nu are voie sa arate o respingere cu owner gol");
+
+test("ownerul poate restrange si botul executor, nu doar tinta si permisiunile (F-08)", () => {
+  const record: PermissionRequestRecord = {
+    _id: "r1", guildId: "g1", type: "bot-add", requesterId: "u1",
+    status: "pending", requestedAt: new Date(), target: "111111111111111111",
+    action: "add", botId: "111111111111111111", reason: "integrare"
+  };
+
+  const restriction = restrictionFromModal(record, {
+    target: "111111111111111111",
+    action: "add",
+    botId: "222222222222222222"
+  });
+
+  assert.equal(
+    restriction.botId,
+    "222222222222222222",
+    "fara restrictie pe botul executor, aprobarea nu putea fi ingustata complet fara respingere si recreare"
+  );
+});
+
+test("botul executor neschimbat nu produce o restrictie inutila (F-08)", () => {
+  const record: PermissionRequestRecord = {
+    _id: "r2", guildId: "g1", type: "bot-add", requesterId: "u1",
+    status: "pending", requestedAt: new Date(), target: "111111111111111111",
+    action: "add", botId: "111111111111111111", reason: "integrare"
+  };
+
+  const restriction = restrictionFromModal(record, { botId: "111111111111111111" });
+
+  assert.equal(restriction.botId, undefined);
+});
+
+test("rezumatul compara cerut cu aprobat pe toate dimensiunile (F-08)", () => {
+  const record: PermissionRequestRecord = {
+    _id: "r3", guildId: "g1", type: "permission-grant", requesterId: "u1",
+    status: "approved", requestedAt: new Date(), respondedAt: new Date(), ownerId: "owner-1",
+    target: "111111111111111111", action: "grant", amount: 10,
+    permissions: ["Ban Members", "Kick Members"], botId: "222222222222222222",
+    approvedAmount: 3, approvedPermissions: ["Ban Members"], approvedBotId: "333333333333333333",
+    reason: "moderare"
+  };
+
+  const summary = compareRequestedApproved(record);
+
+  assert.match(summary, /restrans/);
+  assert.match(summary, /cantitate: 10 -> 3/);
+  assert.match(summary, /permisiuni: Ban Members, Kick Members -> Ban Members/);
+  assert.match(summary, /bot executor: 222222222222222222 -> 333333333333333333/);
+  assert.match(summary, /tinta: 111111111111111111 = 111111111111111111/, "dimensiunile neschimbate se vad ca neschimbate");
+});
+
+test("cand nimic nu s-a restrans, rezumatul o spune explicit (F-08)", () => {
+  const record: PermissionRequestRecord = {
+    _id: "r4", guildId: "g1", type: "webhook", requesterId: "u1",
+    status: "approved", requestedAt: new Date(), respondedAt: new Date(), ownerId: "owner-1",
+    target: "111111111111111111", action: "create", reason: "integrare"
+  };
+
+  assert.match(compareRequestedApproved(record), /neschimbat/);
 });

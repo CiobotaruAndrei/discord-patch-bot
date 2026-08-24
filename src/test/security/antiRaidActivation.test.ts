@@ -116,9 +116,9 @@ test("celelalte protectii nu capata din greseala poarta de owner", async () => {
 });
 
 test("/set anti-raid-thresholds persista valorile valide si pastreaza restul (F-26)", () => {
-  const plan = planThresholdUpdate({ identicalMessages: 5 }, { "mention-count": 9, "safety-period": "1h" });
+  const plan = planThresholdUpdate({ identicalMessages: 5 }, { "mention-count": 9, "quiet-period": "1h" });
 
-  assert.deepEqual([...plan.applied].sort(), ["mention-count", "safety-period"]);
+  assert.deepEqual([...plan.applied].sort(), ["mention-count", "quiet-period"]);
   assert.deepEqual(plan.rejected, []);
   assert.equal(plan.thresholds.mentionCount, 9);
   assert.equal(plan.thresholds.safetyPeriodMs, 3_600_000);
@@ -127,24 +127,24 @@ test("/set anti-raid-thresholds persista valorile valide si pastreaza restul (F-
 });
 
 test("o valoare in afara limitelor e refuzata cu motiv, fara sa piarda valorile valide (F-26)", () => {
-  const plan = planThresholdUpdate(null, { "mention-count": 9, "identical-messages": 500 });
+  const plan = planThresholdUpdate(null, { "mention-count": 9, "duplicate-message-count": 500 });
 
   assert.deepEqual(plan.applied, ["mention-count"]);
   assert.equal(plan.rejected.length, 1);
-  assert.equal(plan.rejected[0].key, "identical-messages");
+  assert.equal(plan.rejected[0].key, "duplicate-message-count");
   assert.match(plan.rejected[0].reason, /intre 2 si 50/);
   assert.equal(plan.thresholds.mentionCount, 9, "valoarea valida se pastreaza");
 
   const message = renderThresholdOutcome({ kind: "applied", applied: plan.applied, rejected: plan.rejected });
   assert.match(message, /mention-count/);
-  assert.match(message, /identical-messages/);
+  assert.match(message, /duplicate-message-count/);
 });
 
 test("o durata scrisa gresit e refuzata, nu interpretata gresit (F-26)", () => {
-  const plan = planThresholdUpdate(null, { "safety-period": "curand" });
+  const plan = planThresholdUpdate(null, { "quiet-period": "curand" });
 
   assert.deepEqual(plan.applied, []);
-  assert.equal(plan.rejected[0]?.key, "safety-period");
+  assert.equal(plan.rejected[0]?.key, "quiet-period");
 });
 
 test("comanda fara nicio optiune spune explicit ca nu schimba nimic (F-26)", () => {
@@ -156,7 +156,7 @@ test("comanda fara nicio optiune spune explicit ca nu schimba nimic (F-26)", () 
 
 test("fiecare optiune expusa de comanda ajunge la un prag real (F-26)", () => {
   const durationOptions = new Set(THRESHOLD_OPTION_NAMES.filter(name =>
-    name.endsWith("window") || name === "safety-period" || name === "mute-duration" || name === "timeout-duration" || name === "max-lockdown"
+    name.endsWith("window") || name === "quiet-period" || name === "mute-duration" || name === "timeout-duration" || name === "max-lockdown"
   ));
 
   for (const optionName of THRESHOLD_OPTION_NAMES) {
@@ -220,4 +220,35 @@ test("daca pragurile curente nu pot fi citite, nu se scrie nimic (review #943)",
 
   assert.deepEqual(persisted, [], "o citire esuata ar fi rescris toate pragurile personalizate cu valorile implicite");
   assert.match(message, /nu au putut fi citite/);
+});
+
+test("numele canonice din specificatie sunt cele expuse de comanda (F-27)", () => {
+  for (const canonical of ["duplicate-message-count", "server-ad-count", "coordination-window", "quiet-period"]) {
+    assert.ok(THRESHOLD_OPTION_NAMES.includes(canonical), `${canonical} trebuie sa fie numele canonic`);
+  }
+  for (const legacy of ["identical-messages", "invite-messages", "coordinated-window", "safety-period"]) {
+    assert.ok(!THRESHOLD_OPTION_NAMES.includes(legacy), `${legacy} nu mai e nume canonic, ci alias`);
+  }
+});
+
+test("numele vechi raman acceptate ca alias, ca instalarile existente sa nu se rupa (F-27)", () => {
+  const plan = planThresholdUpdate(null, { "identical-messages": 7, "safety-period": "45m" });
+
+  assert.deepEqual([...plan.applied].sort(), ["duplicate-message-count", "quiet-period"],
+    "aliasul se aplica, dar raportul foloseste numele canonic");
+  assert.equal(plan.thresholds.identicalMessages, 7);
+  assert.equal(plan.thresholds.safetyPeriodMs, 45 * 60_000);
+});
+
+test("cand se dau si numele canonic si aliasul, castiga cel canonic (F-27)", () => {
+  const plan = planThresholdUpdate(null, { "duplicate-message-count": 9, "identical-messages": 4 });
+
+  assert.equal(plan.thresholds.identicalMessages, 9);
+  assert.deepEqual(plan.applied, ["duplicate-message-count"]);
+});
+
+test("aliasurile de durata sunt recunoscute ca durate, nu ca numere (F-27)", () => {
+  assert.equal(isDurationOption("safety-period"), true, "un alias de durata citit ca intreg ar arunca in Discord.js");
+  assert.equal(isDurationOption("coordinated-window"), true);
+  assert.equal(isDurationOption("identical-messages"), false);
 });

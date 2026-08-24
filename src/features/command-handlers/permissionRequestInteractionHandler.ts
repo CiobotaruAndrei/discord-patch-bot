@@ -8,7 +8,8 @@ import {
   RESTRICTION_INPUT_IDS,
   parseDurationMs,
   parsePermissionList,
-  restrictionFromModal
+  restrictionFromModal,
+  compareRequestedApproved
 } from "../command-security/permissionRequestApproval.js";
 import {
   displayPermissionRequest,
@@ -67,6 +68,7 @@ function restrictionModal(record: PermissionRequestRecord, customId: string): un
     { id: RESTRICTION_INPUT_IDS.action, label: "Actiunea aprobata", value: record.action ?? "", required: true },
     { id: RESTRICTION_INPUT_IDS.amount, label: "Cantitate maxima (gol = cea ceruta)", value: record.amount != null ? String(record.amount) : "", required: false },
     { id: RESTRICTION_INPUT_IDS.permissions, label: "Permisiuni (gol = cele cerute)", value: (record.permissions ?? []).join(", "), required: false },
+    { id: RESTRICTION_INPUT_IDS.botId, label: "Bot executor (gol = cel cerut)", value: record.botId ?? "", required: false },
     { id: RESTRICTION_INPUT_IDS.duration, label: "Valabilitate (ex. 30m, 2h, 1d)", value: "1h", required: false }
   ];
   return {
@@ -124,6 +126,7 @@ export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
         action: read(RESTRICTION_INPUT_IDS.action),
         amount: read(RESTRICTION_INPUT_IDS.amount),
         permissions: read(RESTRICTION_INPUT_IDS.permissions),
+        botId: read(RESTRICTION_INPUT_IDS.botId),
         duration: read(RESTRICTION_INPUT_IDS.duration)
       });
     }

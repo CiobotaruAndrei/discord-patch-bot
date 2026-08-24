@@ -60,6 +60,7 @@ export interface ApprovalRestriction {
   action?: string;
   amount?: number | null;
   permissions?: string[];
+  botId?: string | null;
   ttlMs?: number;
 }
 
@@ -130,6 +131,7 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
       if (restriction.action !== undefined) set.approvedAction = restriction.action;
       if (restriction.amount !== undefined) set.approvedAmount = restriction.amount;
       if (restriction.permissions !== undefined) set.approvedPermissions = [...restriction.permissions];
+      if (restriction.botId !== undefined) set.approvedBotId = restriction.botId;
     }
     const result = await model.updateOne(
       { _id: requestId, guildId, status: "pending", expiresAt: { $gt: now } },

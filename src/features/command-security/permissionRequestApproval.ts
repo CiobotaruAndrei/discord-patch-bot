@@ -10,6 +10,7 @@ export const RESTRICTION_INPUT_IDS = {
   action: "permission-request-action",
   amount: "permission-request-amount",
   permissions: "permission-request-permissions",
+  botId: "permission-request-bot",
   duration: "permission-request-duration"
 } as const;
 
@@ -40,7 +41,7 @@ export function parseRequestType(value: string | undefined): PermissionRequestTy
 
 export function restrictionFromModal(
   record: PermissionRequestRecord,
-  raw: { target?: string; action?: string; amount?: string; permissions?: string; duration?: string }
+  raw: { target?: string; action?: string; amount?: string; permissions?: string; botId?: string; duration?: string }
 ): ApprovalRestriction {
   const restriction: ApprovalRestriction = {};
   const target = String(raw.target ?? "").trim();
@@ -62,6 +63,9 @@ export function restrictionFromModal(
       : permissions;
   }
 
+  const botId = String(raw.botId ?? "").trim();
+  if (botId && botId !== record.botId) restriction.botId = botId;
+
   const ttlMs = parseDurationMs(raw.duration);
   if (ttlMs !== null) restriction.ttlMs = ttlMs;
   return restriction;
@@ -73,6 +77,34 @@ export function attemptFromRequest(record: PermissionRequestRecord): PermissionR
     action: record.approvedAction ?? record.action,
     amount: record.approvedAmount ?? record.amount ?? null,
     permissions: record.approvedPermissions ?? record.permissions,
-    botId: record.botId ?? null
+    botId: record.approvedBotId ?? record.botId ?? null
   };
+}
+
+const NEWLINE = String.fromCharCode(10);
+
+function describeValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+  if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "-";
+  return String(value);
+}
+
+export function compareRequestedApproved(record: PermissionRequestRecord): string {
+  const rows: ReadonlyArray<readonly [string, unknown, unknown]> = [
+    ["tinta", record.target, record.approvedTarget ?? record.target],
+    ["actiune", record.action, record.approvedAction ?? record.action],
+    ["cantitate", record.amount, record.approvedAmount ?? record.amount],
+    ["permisiuni", record.permissions, record.approvedPermissions ?? record.permissions],
+    ["bot executor", record.botId, record.approvedBotId ?? record.botId]
+  ];
+
+  const lines = rows.map(([label, requested, approved]) => {
+    const left = describeValue(requested);
+    const right = describeValue(approved);
+    const marker = left === right ? "=" : "->";
+    return `- ${label}: ${left} ${marker} ${right}`;
+  });
+
+  const narrowed = rows.some(([, requested, approved]) => describeValue(requested) !== describeValue(approved));
+  return [narrowed ? "Cerut -> aprobat (restrans):" : "Cerut -> aprobat (neschimbat):", ...lines].join(NEWLINE);
 }
