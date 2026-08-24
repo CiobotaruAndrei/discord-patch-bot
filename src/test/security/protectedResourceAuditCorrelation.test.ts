@@ -41,6 +41,10 @@ test("stergerea unei resurse se coreleaza cu evenimentul de stergere, nu cu oric
   assert.deepEqual(auditEventsFor("role", ["delete"]), [AuditLogEvent.RoleDelete]);
   assert.deepEqual(auditEventsFor("role", ["rename"]), [AuditLogEvent.RoleUpdate]);
   assert.ok(auditEventsFor("channel", ["permissions"]).includes(AuditLogEvent.ChannelOverwriteUpdate));
+  assert.ok(
+    auditEventsFor("channel", ["permissions"]).includes(AuditLogEvent.ChannelUpdate),
+    "sincronizarea permisiunilor cu categoria e inregistrata de Discord ca ChannelUpdate; fara el, autorul ramane necunoscut si canalul nu se restaureaza (review PR #970)"
+  );
 });
 
 test("se interogheaza exact tipurile de eveniment cerute (F-23)", async () => {

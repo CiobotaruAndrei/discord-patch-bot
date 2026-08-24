@@ -530,3 +530,22 @@ test("un mesaj al cuiva strain de incident NU prelungeste perioada de siguranta 
     "conversatia obisnuita a altcuiva nu are voie sa tina lockdown-ul activ la nesfarsit"
   );
 });
+
+test("un mesaj obisnuit al altcuiva NU prelungeste incidentul doar fiindca fereastra e inca declansata (review PR #970)", async () => {
+  const setup = harness({ thresholds: { identicalMessages: 2, identicalWindowMs: 300_000 }, resolvable: false });
+
+  await setup.runtime.observeMessage("g1", message({ actorId: "u1", content: "cumpara acum ieftin" }));
+  const opened = await setup.runtime.observeMessage("g1", message({ actorId: "u1", content: "cumpara acum ieftin", at: T0 + 1_000 }));
+  const incidentId = opened.kind === "opened" ? opened.incidentId : "";
+  const before = (await setup.incidents.read(incidentId))?.lastActivityAt;
+
+  setup.advance(60_000);
+  await setup.runtime.observeMessage("g1", message({ actorId: "trecator", content: "ce faceti pe aici", at: setup.clockAt() }));
+
+  const after = (await setup.incidents.read(incidentId))?.lastActivityAt;
+  assert.equal(
+    new Date(after ?? 0).getTime(),
+    new Date(before ?? 0).getTime(),
+    "verdict.triggered descrie toata fereastra retinuta, nu mesajul curent: legat de el, orice trecator amana recovery-ul"
+  );
+});

@@ -20,6 +20,7 @@ export function auditEventsFor(
       events.add(AuditLogEvent.ChannelOverwriteUpdate);
       events.add(AuditLogEvent.ChannelOverwriteCreate);
       events.add(AuditLogEvent.ChannelOverwriteDelete);
+      events.add(AuditLogEvent.ChannelUpdate);
       continue;
     }
     events.add(isRole ? AuditLogEvent.RoleUpdate : AuditLogEvent.ChannelUpdate);
