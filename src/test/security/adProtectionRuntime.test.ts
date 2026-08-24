@@ -172,14 +172,32 @@ test("a treia tentativa emite warn in sistemul existent si reseteaza contorul", 
   assert.equal(stored?.totalDeleted, 3);
 });
 
-test("cand stergerea esueaza, incidentul o spune in loc sa pretinda ca mesajul a disparut", async () => {
+test("cand stergerea esueaza, incidentul o spune in loc sa pretinda ca mesajul a disparut (F-40)", async () => {
   const setup = harness();
   const outcome = await setup.runtime.handleMessage(message(setup, {}, true));
 
   assert.equal(outcome.kind === "deleted" && outcome.deleteFailed, true);
-  assert.match(setup.published[0], /NU a putut fi sters/);
+  assert.match(setup.published[0], /NU a putut fi stearsa/);
+  assert.doesNotMatch(
+    setup.published[0],
+    /^.*Reclama a fost stearsa\./,
+    "mesajul nu are voie sa afirme intai ca s-a sters si apoi ca nu s-a putut sterge"
+  );
   const stored = await setup.repo.readAttempts("g1", "u1");
   assert.equal(stored?.strikes, 1, "tentativa se numara chiar daca stergerea a esuat");
+  assert.equal(stored?.totalDeleted, 0, "istoricul nu are voie sa numere ca stearsa o reclama ramasa vizibila");
+  assert.equal(stored?.totalDetected, 1, "tentativa detectata se numara separat de stergerea reusita");
+  assert.equal(stored?.history[0]?.deleted, false);
+});
+
+test("cand stergerea reuseste, si detectia si stergerea se numara (F-40)", async () => {
+  const setup = harness();
+  await setup.runtime.handleMessage(message(setup, {}));
+
+  const stored = await setup.repo.readAttempts("g1", "u1");
+  assert.equal(stored?.totalDeleted, 1);
+  assert.equal(stored?.totalDetected, 1);
+  assert.equal(stored?.history[0]?.deleted, true);
 });
 
 test("cand warn-ul automat esueaza, mesajul cere verificare manuala", async () => {

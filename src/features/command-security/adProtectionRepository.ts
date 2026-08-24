@@ -168,14 +168,16 @@ export function createAdProtectionRepository(requests: AdRequestModelLike, attem
     userId: string,
     channelId: string | null,
     summary: string,
-    now = new Date()
+    now = new Date(),
+    deleted = true
   ): Promise<StrikeOutcome> {
+    const deletedIncrement = deleted ? 1 : 0;
     const id = `${guildId}:${userId}`;
     await attempts.updateOne(
       { _id: id },
       {
         $setOnInsert: {
-          _id: id, guildId, userId, strikes: 0, totalDeleted: 0, totalWarns: 0,
+          _id: id, guildId, userId, strikes: 0, totalDeleted: 0, totalDetected: 0, totalWarns: 0,
           lastAttemptAt: null, lastChannelId: null, history: []
         }
       },
@@ -185,9 +187,9 @@ export function createAdProtectionRepository(requests: AdRequestModelLike, attem
     const bumped = await attempts.updateOne(
       { _id: id, strikes: { $lt: AD_STRIKE_LIMIT - 1 } },
       {
-        $inc: { strikes: 1, totalDeleted: 1 },
+        $inc: { strikes: 1, totalDeleted: deletedIncrement, totalDetected: 1 },
         $set: { lastAttemptAt: now, lastChannelId: channelId },
-        $push: { history: { $each: [{ at: now, channelId, summary, warned: false }], $slice: -HISTORY_LIMIT } }
+        $push: { history: { $each: [{ at: now, channelId, summary, warned: false, deleted }], $slice: -HISTORY_LIMIT } }
       }
     );
     if (updatedDocument(bumped)) {
@@ -198,9 +200,9 @@ export function createAdProtectionRepository(requests: AdRequestModelLike, attem
     await attempts.updateOne(
       { _id: id },
       {
-        $inc: { totalDeleted: 1, totalWarns: 1 },
+        $inc: { totalDeleted: deletedIncrement, totalWarns: 1, totalDetected: 1 },
         $set: { strikes: 0, lastAttemptAt: now, lastChannelId: channelId },
-        $push: { history: { $each: [{ at: now, channelId, summary, warned: true }], $slice: -HISTORY_LIMIT } }
+        $push: { history: { $each: [{ at: now, channelId, summary, warned: true, deleted }], $slice: -HISTORY_LIMIT } }
       }
     );
     return strikeOutcome(AD_STRIKE_LIMIT);
