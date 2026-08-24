@@ -9,6 +9,7 @@ import {
   detectAd,
   extractInvite,
   extractLink,
+  extractPromotedTarget,
   normalizeAdText,
   strikeOutcome
 } from "../../features/command-security/adRequestTypes.js";
@@ -228,5 +229,62 @@ test("bootstrap-ul de comenzi furnizeaza cititorul de octeti, altfel orice aprob
   assert.ok(
     used.has("createAttachmentBytesReader"),
     "fara cititor, /ad-request salveaza o amprenta neverificata pe care consumul o refuza explicit"
+  );
+});
+
+test("tinta promovata e entitatea, nu motivul detectiei (F-41)", () => {
+  assert.equal(
+    extractPromotedTarget("Intra pe serverul meu: https://discord.gg/abcDEF123"),
+    "invitatie:abcDEF123",
+    "pana acum se salva motivul detectiei, de exemplu `invitatie catre alt server`, nu obiectul promovarii"
+  );
+});
+
+test("un link promovat pastreaza gazda si calea, nu tot URL-ul cu parametri (F-41)", () => {
+  assert.equal(
+    extractPromotedTarget("Vezi ofertele pe https://magazinul-meu.example/promo/vara?ref=abc"),
+    "link:magazinul-meu.example/promo/vara"
+  );
+});
+
+test("un cont promovat e recunoscut ca tinta (F-41)", () => {
+  assert.equal(extractPromotedTarget("Aboneaza-te la @canalul_meu pentru clipuri"), "cont:@canalul_meu");
+});
+
+test("o reclama doar cu atasament isi declara tinta ca atasament (F-41)", () => {
+  assert.equal(extractPromotedTarget("Uite ce am facut", "https://cdn.example/poza.png"), "atasament");
+});
+
+test("un text fara nicio tinta promovata nu inventeaza una (F-41)", () => {
+  assert.equal(extractPromotedTarget("salut tuturor, ce mai faceti"), null);
+});
+
+test("invitatia are prioritate fata de un link obisnuit din acelasi mesaj (F-41)", () => {
+  assert.equal(
+    extractPromotedTarget("Detalii pe https://site.example si intra pe https://discord.gg/xyz789"),
+    "invitatie:xyz789",
+    "obiectul promovarii e serverul, nu pagina de detalii"
+  );
+});
+
+test("o schema scrisa cu majuscule nu corupe tinta (review PR #969)", () => {
+  assert.equal(
+    extractPromotedTarget("Vezi HTTPS://EXAMPLE.COM/promo"),
+    "link:example.com/promo",
+    "verificarea case-sensitive prefixa inca o schema si producea o gazda gresita"
+  );
+});
+
+test("punctuatia de final nu ajunge in calea tintei (review PR #969)", () => {
+  assert.equal(extractPromotedTarget("Vezi https://example.com/promo."), "link:example.com/promo");
+  assert.equal(extractPromotedTarget("Detalii (https://example.com/promo)"), "link:example.com/promo");
+  assert.equal(extractPromotedTarget("Uite: https://example.com/promo!"), "link:example.com/promo");
+});
+
+test("o paranteza care face parte din adresa e pastrata (review PR #969)", () => {
+  assert.equal(
+    extractPromotedTarget("Vezi https://example.com/wiki/Test_(joc)"),
+    "link:example.com/wiki/Test_(joc)",
+    "doar parantezele nepereche sunt punctuatie de propozitie"
   );
 });

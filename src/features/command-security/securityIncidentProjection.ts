@@ -85,16 +85,20 @@ export function projectAdRequest(record: AdRequestRecord): SecurityIncident {
 }
 
 export function projectAdAttempts(record: AdAttemptRecord): SecurityIncident[] {
-  return record.history.map((event, index) => securityIncident({
-    incidentId: `ad-attempt:${record.guildId}:${record.userId}:${dateOf(event.at).getTime()}:${index}`,
-    module: "ad-protection",
-    source: "ad",
-    at: dateOf(event.at),
-    actorId: record.userId,
-    target: record.userId,
-    actions: event.warned ? ["reclama stearsa", "warn automat"] : ["reclama stearsa"],
-    result: event.warned ? "reclama stearsa si warn emis" : "reclama stearsa",
-    severity: event.warned ? "warning" : "info",
-    evidence: event.summary
-  }));
+  return record.history.map((event, index) => {
+    const removed = event.deleted !== false;
+    const primary = removed ? "reclama stearsa" : "reclama detectata, NU a putut fi stearsa";
+    return securityIncident({
+      incidentId: `ad-attempt:${record.guildId}:${record.userId}:${dateOf(event.at).getTime()}:${index}`,
+      module: "ad-protection",
+      source: "ad",
+      at: dateOf(event.at),
+      actorId: record.userId,
+      target: record.userId,
+      actions: event.warned ? [primary, "warn automat"] : [primary],
+      result: event.warned ? `${primary} si warn emis` : primary,
+      severity: removed && !event.warned ? "info" : "warning",
+      evidence: event.summary
+    });
+  });
 }

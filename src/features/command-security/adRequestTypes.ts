@@ -29,10 +29,11 @@ export interface AdAttemptRecord {
   userId: string;
   strikes: number;
   totalDeleted: number;
+  totalDetected?: number;
   totalWarns: number;
   lastAttemptAt: Date | null;
   lastChannelId: string | null;
-  history: Array<{ at: Date; channelId: string | null; summary: string; warned: boolean }>;
+  history: Array<{ at: Date; channelId: string | null; summary: string; warned: boolean; deleted?: boolean }>;
 }
 
 const NEWLINE = String.fromCharCode(10);
@@ -97,6 +98,61 @@ export function extractLink(text: string): string | null {
   return LINK_PATTERN.exec(text)?.[0] ?? null;
 }
 
+const HANDLE_PATTERN = /(?:^|\s)@([A-Za-z0-9_.]{3,32})\b/;
+
+export function extractPromotedTarget(text: string, attachmentUrl?: string | null): string | null {
+  const invite = extractInvite(text);
+  if (invite) {
+    const code = invite.split("/").filter(part => part.length > 0).pop();
+    return code ? `invitatie:${code}` : null;
+  }
+
+  const link = extractLink(text);
+  if (link) {
+    const trimmed = trimSentencePunctuation(link);
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = safeUrl(normalized);
+    if (parsed) {
+      const path = parsed.pathname.replace(/\/+$/, "");
+      return `link:${parsed.host}${path.length > 1 ? path : ""}`;
+    }
+    return `link:${trimmed}`;
+  }
+
+  const handle = HANDLE_PATTERN.exec(text)?.[1];
+  if (handle) return `cont:@${handle}`;
+
+  if (attachmentUrl) return "atasament";
+  return null;
+}
+
+const TRAILING_PUNCTUATION = /[.,;:!?]+$/;
+
+function trimSentencePunctuation(value: string): string {
+  let trimmed = value.replace(TRAILING_PUNCTUATION, "");
+  while (trimmed.endsWith(")") && countOf(trimmed, ")") > countOf(trimmed, "(")) {
+    trimmed = trimmed.slice(0, -1).replace(TRAILING_PUNCTUATION, "");
+  }
+  while (trimmed.endsWith("]") && countOf(trimmed, "]") > countOf(trimmed, "[")) {
+    trimmed = trimmed.slice(0, -1).replace(TRAILING_PUNCTUATION, "");
+  }
+  return trimmed;
+}
+
+function countOf(value: string, character: string): number {
+  let total = 0;
+  for (const entry of value) if (entry === character) total += 1;
+  return total;
+}
+
+function safeUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
 export interface AdDetection {
   isAd: boolean;
   reasons: string[];
@@ -135,12 +191,15 @@ export function strikeOutcome(strikesAfter: number): StrikeOutcome {
   return { kind: "first", strikes: strikesAfter };
 }
 
-export function describeStrike(outcome: StrikeOutcome): string {
+export function describeStrike(outcome: StrikeOutcome, deleted = true): string {
+  const head = deleted
+    ? "Reclama a fost stearsa."
+    : "Reclama a fost detectata, dar NU a putut fi stearsa si este in continuare vizibila.";
   if (outcome.kind === "warn-issued") {
-    return `Reclama a fost stearsa. Tentativa ${AD_STRIKE_LIMIT}/${AD_STRIKE_LIMIT}: a fost adaugat automat un warn. Contorul revine la 0/${AD_STRIKE_LIMIT}, iar istoricul ramane salvat.`;
+    return `${head} Tentativa ${AD_STRIKE_LIMIT}/${AD_STRIKE_LIMIT}: a fost adaugat automat un warn. Contorul revine la 0/${AD_STRIKE_LIMIT}, iar istoricul ramane salvat.`;
   }
   if (outcome.kind === "warning") {
-    return `Reclama a fost stearsa. Tentativa ${outcome.strikes}/${AD_STRIKE_LIMIT}. Urmatoarea tentativa produce un warn automat.`;
+    return `${head} Tentativa ${outcome.strikes}/${AD_STRIKE_LIMIT}. Urmatoarea tentativa produce un warn automat.`;
   }
-  return `Reclama a fost stearsa. Tentativa ${outcome.strikes}/${AD_STRIKE_LIMIT}.`;
+  return `${head} Tentativa ${outcome.strikes}/${AD_STRIKE_LIMIT}.`;
 }

@@ -4,7 +4,7 @@ import type { FetchAttachmentBytes } from "../command-security/adAttachmentHash.
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
 import type { AdAttemptModelLike, AdRequestModelLike } from "../command-security/adProtectionRepository.js";
-import { adFingerprint, detectAd, extractInvite, extractLink, quoteUntrusted } from "../command-security/adRequestTypes.js";
+import { adFingerprint, detectAd, extractInvite, extractLink, extractPromotedTarget, quoteUntrusted } from "../command-security/adRequestTypes.js";
 import { adAttemptLines, adRequestButtons, adRequestLines } from "../command-presentation/adProtectionMessages.js";
 import { sendTextPages } from "../command-presentation/textPagination.js";
 import type { MissingDependencyKeys, ExtraDependencyKeys, ExactDependencyKeys } from "../../shared/dependencyKeyContract.js";
@@ -105,7 +105,7 @@ function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
       link: extractLink(adText),
       invite: extractInvite(adText),
       attachmentUrl,
-      target: detection.reasons[0] ?? null
+      target: extractPromotedTarget(adText, attachmentUrl)
     });
     if (!record) return respond("Nu am putut salva cererea. Reincearca.");
 
