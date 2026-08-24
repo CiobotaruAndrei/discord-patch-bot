@@ -283,6 +283,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     userId: { type: String, required: true },
     strikes: { type: Number, default: 0, min: 0 },
     totalDeleted: { type: Number, default: 0, min: 0 },
+    totalDetected: { type: Number, default: 0, min: 0 },
     totalWarns: { type: Number, default: 0, min: 0 },
     lastAttemptAt: { type: Date, default: null },
     lastChannelId: { type: String, default: null },
