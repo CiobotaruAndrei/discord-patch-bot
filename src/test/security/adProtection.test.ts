@@ -266,3 +266,25 @@ test("invitatia are prioritate fata de un link obisnuit din acelasi mesaj (F-41)
     "obiectul promovarii e serverul, nu pagina de detalii"
   );
 });
+
+test("o schema scrisa cu majuscule nu corupe tinta (review PR #969)", () => {
+  assert.equal(
+    extractPromotedTarget("Vezi HTTPS://EXAMPLE.COM/promo"),
+    "link:example.com/promo",
+    "verificarea case-sensitive prefixa inca o schema si producea o gazda gresita"
+  );
+});
+
+test("punctuatia de final nu ajunge in calea tintei (review PR #969)", () => {
+  assert.equal(extractPromotedTarget("Vezi https://example.com/promo."), "link:example.com/promo");
+  assert.equal(extractPromotedTarget("Detalii (https://example.com/promo)"), "link:example.com/promo");
+  assert.equal(extractPromotedTarget("Uite: https://example.com/promo!"), "link:example.com/promo");
+});
+
+test("o paranteza care face parte din adresa e pastrata (review PR #969)", () => {
+  assert.equal(
+    extractPromotedTarget("Vezi https://example.com/wiki/Test_(joc)"),
+    "link:example.com/wiki/Test_(joc)",
+    "doar parantezele nepereche sunt punctuatie de propozitie"
+  );
+});

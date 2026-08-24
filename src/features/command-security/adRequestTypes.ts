@@ -109,13 +109,14 @@ export function extractPromotedTarget(text: string, attachmentUrl?: string | nul
 
   const link = extractLink(text);
   if (link) {
-    const normalized = link.startsWith("http") ? link : `https://${link}`;
+    const trimmed = trimSentencePunctuation(link);
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
     const parsed = safeUrl(normalized);
     if (parsed) {
       const path = parsed.pathname.replace(/\/+$/, "");
       return `link:${parsed.host}${path.length > 1 ? path : ""}`;
     }
-    return `link:${link}`;
+    return `link:${trimmed}`;
   }
 
   const handle = HANDLE_PATTERN.exec(text)?.[1];
@@ -123,6 +124,25 @@ export function extractPromotedTarget(text: string, attachmentUrl?: string | nul
 
   if (attachmentUrl) return "atasament";
   return null;
+}
+
+const TRAILING_PUNCTUATION = /[.,;:!?]+$/;
+
+function trimSentencePunctuation(value: string): string {
+  let trimmed = value.replace(TRAILING_PUNCTUATION, "");
+  while (trimmed.endsWith(")") && countOf(trimmed, ")") > countOf(trimmed, "(")) {
+    trimmed = trimmed.slice(0, -1).replace(TRAILING_PUNCTUATION, "");
+  }
+  while (trimmed.endsWith("]") && countOf(trimmed, "]") > countOf(trimmed, "[")) {
+    trimmed = trimmed.slice(0, -1).replace(TRAILING_PUNCTUATION, "");
+  }
+  return trimmed;
+}
+
+function countOf(value: string, character: string): number {
+  let total = 0;
+  for (const entry of value) if (entry === character) total += 1;
+  return total;
 }
 
 function safeUrl(value: string): URL | null {

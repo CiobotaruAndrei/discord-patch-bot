@@ -111,3 +111,24 @@ test("severitatea are o ordine verificabila, nu doar nume (F-44)", () => {
   assert.ok(severityRank("critical") > severityRank("warning"));
   assert.ok(severityRank("warning") > severityRank("info"));
 });
+
+test("in /security-log o reclama nestearsa nu e raportata ca stearsa (review PR #969)", () => {
+  const [incident] = projectAdAttempts({
+    _id: "g1:u3", guildId: "g1", userId: "u3", strikes: 1, totalDeleted: 0, totalWarns: 0,
+    lastAttemptAt: new Date(NOW), lastChannelId: "c1",
+    history: [{ at: new Date(NOW), channelId: "c1", summary: "reclama blocata", warned: false, deleted: false }]
+  });
+
+  assert.match(incident.result, /NU a putut fi stearsa/, "cronologia repeta exact inconsistenta pe care o repara PR-ul");
+  assert.equal(incident.severity, "warning", "un mesaj ramas vizibil nu e o simpla informare");
+});
+
+test("intrarile vechi, fara marcajul de stergere, raman raportate ca sterse (review PR #969)", () => {
+  const [incident] = projectAdAttempts({
+    _id: "g1:u4", guildId: "g1", userId: "u4", strikes: 1, totalDeleted: 1, totalWarns: 0,
+    lastAttemptAt: new Date(NOW), lastChannelId: "c1",
+    history: [{ at: new Date(NOW), channelId: "c1", summary: "reclama blocata", warned: false }]
+  });
+
+  assert.equal(incident.result, "reclama stearsa", "istoricul dinaintea campului nou nu trebuie reinterpretat ca esec");
+});
