@@ -125,6 +125,17 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     }
   }
 
+  async function touchIfAssociated(
+    incident: { _id: string; participants: readonly { userId: string }[] },
+    actorId: string,
+    responsibleActorIds: readonly string[]
+  ): Promise<void> {
+    const associated = responsibleActorIds.includes(actorId)
+      || incident.participants.some(entry => entry.userId === actorId);
+    if (!associated) return;
+    await incidents.touch(incident._id, new Date(now())).catch(() => false);
+  }
+
   async function observeMessage(guildId: string, observation: MessageObservation): Promise<ObserveOutcome> {
     if (!observation.actorId) return { kind: "ignored" };
     if (!await moduleActive(guildId)) return { kind: "ignored" };
@@ -135,10 +146,10 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
 
     const active = await incidents.active(guildId).catch(() => null);
     if (active) {
+      await touchIfAssociated(active, observation.actorId, verdict.actorIds);
       if (verdict.triggered) {
         await registerParticipants(guildId, active._id, verdict.actorIds);
         await runIntervention(guildId, verdict.channelIds);
-        return { kind: "existing", incidentId: active._id };
       }
       return { kind: "existing", incidentId: active._id };
     }
@@ -182,11 +193,13 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     const detector = await detectorFor(guildId);
     const verdict = detector.observe(structureSignal(actorId, bot, resourceId, now(), change.surface ?? "channel"));
     if (!verdict.triggered) {
-      const active = await incidents.active(guildId).catch(() => null);
-      return active ? { kind: "existing", incidentId: active._id } : { kind: "quiet" };
+      const running = await incidents.active(guildId).catch(() => null);
+      if (running) await touchIfAssociated(running, actorId, []);
+      return running ? { kind: "existing", incidentId: running._id } : { kind: "quiet" };
     }
 
     const active = await incidents.active(guildId).catch(() => null);
+    if (active) await touchIfAssociated(active, actorId, verdict.actorIds);
     const incident = active ?? await incidents.open(
       { guildId, triggerReason: verdict.reason, dryRun: await dryRunFor(guildId) },
       new Date(now())

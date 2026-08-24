@@ -3,10 +3,12 @@
 import { createProtectedResourceRepository } from "./protectedResourceRepository.js";
 import { captureSnapshot, diffSnapshot } from "./protectedResourceTypes.js";
 import { renderIncident } from "./protectedResourceSanction.js";
+import { auditEventsFor } from "./protectedResourceAuditEvents.js";
+import { RESOURCE_CHANGE_ACTIONS } from "./protectedResourceTypes.js";
 import { ACTOR_UNKNOWN_OUTCOME, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
 import type { ProtectedResourceModelLike } from "./protectedResourceRepository.js";
-import type { ProtectedResourceRecord, ProtectedResourceSnapshot, ResourceLike } from "./protectedResourceTypes.js";
+import type { ProtectedResourceRecord, ProtectedResourceSnapshot, ResourceChangeAction, ResourceLike } from "./protectedResourceTypes.js";
 import type { SanctionRole } from "./elevatedRoleSanction.js";
 import type { SanctionOutcome } from "./elevatedRoleSanction.js";
 
@@ -32,7 +34,7 @@ export interface ProtectedResourceGuild {
   everyoneRoleId: string;
   botHighestRolePosition: number | null;
   resolveActor(actorId: string): Promise<ProtectedActor | null>;
-  findAuditActor(resourceId: string): Promise<string | null>;
+  findAuditActor(resourceId: string, events: readonly number[]): Promise<string | null>;
   restoreChannel(resourceId: string, snapshot: ProtectedResourceSnapshot): Promise<boolean>;
   restoreRole(resourceId: string, snapshot: ProtectedResourceSnapshot): Promise<boolean>;
   recreateChannel(snapshot: ProtectedResourceSnapshot): Promise<string | null>;
@@ -57,6 +59,11 @@ export type EnforcementOutcome =
   | { kind: "actor-unknown"; actions: readonly string[]; restored: boolean; recreatedId: string | null }
   | { kind: "corrected"; actions: readonly string[]; restored: boolean; recreatedId: string | null };
 
+function resourceActions(actions: readonly string[]): ResourceChangeAction[] {
+  return actions.filter((action): action is ResourceChangeAction =>
+    RESOURCE_CHANGE_ACTIONS.some(known => known === action));
+}
+
 export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDeps) {
   const repository = createProtectedResourceRepository(deps.ProtectedResourceModel);
   const now = deps.now ?? Date.now;
@@ -73,7 +80,9 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
     record: ProtectedResourceRecord,
     actions: readonly string[]
   ): Promise<{ outcome: EnforcementOutcome } | { actorId: string | null }> {
-    const actorId = await guild.findAuditActor(record.resourceId).catch(() => null);
+    const actorId = await guild
+      .findAuditActor(record.resourceId, auditEventsFor(record.type, resourceActions(actions)))
+      .catch(() => null);
     if (!actorId) return { actorId: null };
     if (guild.ownerId && actorId === guild.ownerId) return { outcome: { kind: "allowed-owner" } };
 

@@ -6,9 +6,12 @@ import type { SanctionRole } from "../../features/command-security/elevatedRoleS
 import { resolveSanctionActor } from "./sanctionActorAdapter.js";
 
 const AUDIT_WINDOW_MS = 60_000;
+const AUDIT_AMBIGUITY_MS = 2_000;
+const MAX_PROCESSED_AUDIT_ENTRIES = 500;
 const CATEGORY_CHANNEL_TYPE = 4;
 
 interface AuditEntry {
+  id: string | null;
   executorId: string | null;
   targetId: string | null;
   createdTimestamp: number;
@@ -50,8 +53,9 @@ function auditEntries(payload: { entries?: Iterable<[unknown, unknown]> | { valu
     : [...(raw as Iterable<[unknown, unknown]>)].map(pair => pair[1]);
   const entries: AuditEntry[] = [];
   for (const item of iterable) {
-    const entry = item as { executor?: { id?: unknown }; target?: { id?: unknown }; createdTimestamp?: unknown };
+    const entry = item as { id?: unknown; executor?: { id?: unknown }; target?: { id?: unknown }; createdTimestamp?: unknown };
     entries.push({
+      id: textOf(entry.id) ?? (typeof entry.id === "number" ? String(entry.id) : null),
       executorId: textOf(entry.executor?.id),
       targetId: textOf(entry.target?.id),
       createdTimestamp: numberOf(entry.createdTimestamp) ?? 0
@@ -94,15 +98,44 @@ function roleEditPayload(snapshot: ProtectedResourceSnapshot): Record<string, un
   return payload;
 }
 
-export function adaptProtectedResourceGuild(guild: AdaptableGuild, now: () => number = Date.now): ProtectedResourceGuild {
-  async function findAuditActor(resourceId: string): Promise<string | null> {
+export function adaptProtectedResourceGuild(
+  guild: AdaptableGuild,
+  now: () => number = Date.now,
+  processedAuditEntries: Set<string> = new Set()
+): ProtectedResourceGuild {
+  async function findAuditActor(resourceId: string, events: readonly number[]): Promise<string | null> {
     if (!guild.fetchAuditLogs) return null;
-    const payload = await guild.fetchAuditLogs({ limit: 25 }).catch(() => null);
-    const cutoff = now() - AUDIT_WINDOW_MS;
-    const matching = auditEntries(payload)
-      .filter(entry => entry.targetId === resourceId && entry.createdTimestamp >= cutoff)
-      .sort((left, right) => right.createdTimestamp - left.createdTimestamp);
-    return matching[0]?.executorId ?? null;
+    const moment = now();
+    const cutoff = moment - AUDIT_WINDOW_MS;
+    const candidates: AuditEntry[] = [];
+
+    for (const type of events.length > 0 ? events : [undefined]) {
+      const payload = await guild
+        .fetchAuditLogs(type === undefined ? { limit: 25 } : { type, limit: 25 })
+        .catch(() => null);
+      for (const entry of auditEntries(payload)) {
+        if (entry.targetId !== resourceId || entry.createdTimestamp < cutoff) continue;
+        if (entry.id !== null && processedAuditEntries.has(entry.id)) continue;
+        candidates.push(entry);
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    candidates.sort((left, right) =>
+      Math.abs(moment - left.createdTimestamp) - Math.abs(moment - right.createdTimestamp));
+
+    const closest = candidates[0];
+    const rival = candidates.find(entry =>
+      entry.executorId !== closest.executorId
+      && Math.abs(entry.createdTimestamp - closest.createdTimestamp) <= AUDIT_AMBIGUITY_MS);
+    if (rival) return null;
+
+    if (closest.id !== null) {
+      if (processedAuditEntries.size >= MAX_PROCESSED_AUDIT_ENTRIES) processedAuditEntries.clear();
+      processedAuditEntries.add(closest.id);
+    }
+    return closest.executorId;
   }
 
   return {
