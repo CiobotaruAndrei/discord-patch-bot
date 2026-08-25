@@ -113,15 +113,36 @@ test("cu moderation-guard oprit nu se sanctioneaza, dar snapshot-ul urmareste re
   assert.equal(stored?.snapshot.name, "redenumit", "fara poarta activa, snapshot-ul nu are voie sa ramana in urma");
 });
 
-test("in timpul unui raid confirmat, protectia resurselor nu produce actiune duplicata", async () => {
+test("in raid, o resursa protejata modificata e corectata imediat, nu lasata pe seama recovery (F-30)", async () => {
   const setup = harness({ raidConfirmed: true });
   await protect(setup);
 
   const outcome = await setup.runtime.handleResourceUpdate(setup.guild, "c1", channel({ name: "redenumit" }));
 
-  assert.deepEqual(outcome, { kind: "raid-active" });
-  assert.equal(setup.published.length, 0);
-  assert.equal(setup.restored.length, 0);
+  assert.equal(outcome.kind, "raid-active");
+  assert.equal(outcome.kind === "raid-active" && outcome.corrected, true);
+  assert.deepEqual(setup.restored, ["c1"], "corectia se aplica inaintea escaladarii, nu dupa incheierea raidului");
+});
+
+test("in raid, snapshotul NU avanseaza din starea neautorizata (F-30)", async () => {
+  const setup = harness({ raidConfirmed: true });
+  await protect(setup);
+
+  await setup.runtime.handleResourceUpdate(setup.guild, "c1", channel({ name: "redenumit-de-atacator" }));
+  const record = await setup.repository.read("g1", "c1");
+
+  assert.equal(record?.snapshot.name, "reguli",
+    "daca baseline-ul preia numele atacatorului, recovery nu mai are ce restaura");
+});
+
+test("in raid, o modificare identica cu snapshotul nu declanseaza corectie (F-30)", async () => {
+  const setup = harness({ raidConfirmed: true });
+  await protect(setup);
+
+  const outcome = await setup.runtime.handleResourceUpdate(setup.guild, "c1", channel({}));
+
+  assert.equal(outcome.kind === "raid-active" && outcome.corrected, false);
+  assert.deepEqual(setup.restored, []);
 });
 
 test("o modificare identica cu snapshot-ul nu e tratata ca incident", async () => {
@@ -268,7 +289,9 @@ test("in raid, stergerea unei resurse protejate PASTREAZA inregistrarea si o mar
 
   const outcome = await setup.runtime.handleResourceDelete(setup.guild, "c1");
 
-  assert.deepEqual(outcome, { kind: "raid-active" });
+  assert.equal(outcome.kind, "raid-active");
+  assert.equal(outcome.kind === "raid-active" && outcome.corrected, false,
+    "recrearea in timpul raidului ar intra in conflict cu planul de recovery");
   const record = await setup.repository.read("g1", "c1");
   assert.ok(record, "snapshotul necesar restaurarii nu poate fi sters de atacator");
   assert.ok(record?.deletedDuringRaidAt instanceof Date, "resursa e marcata ca stearsa in raid, ca anti-raid sa o poata recrea");

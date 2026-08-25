@@ -6,6 +6,7 @@ import { renderIncident } from "./protectedResourceSanction.js";
 import { auditEventsFor } from "./protectedResourceAuditEvents.js";
 import { RESOURCE_CHANGE_ACTIONS } from "./protectedResourceTypes.js";
 import { ACTOR_UNKNOWN_OUTCOME, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
+import { correctsDuringRaid, describeRaidCorrection } from "./raidSurfaceEnforcement.js";
 
 import type { ProtectedResourceModelLike } from "./protectedResourceRepository.js";
 import type { ProtectedResourceRecord, ProtectedResourceSnapshot, ResourceChangeAction, ResourceLike } from "./protectedResourceTypes.js";
@@ -52,7 +53,7 @@ export interface ProtectedResourceRuntimeDeps {
 export type EnforcementOutcome =
   | { kind: "not-protected" }
   | { kind: "guard-off" }
-  | { kind: "raid-active" }
+  | { kind: "raid-active"; corrected: boolean; restored: boolean }
   | { kind: "no-change" }
   | { kind: "allowed-owner" }
   | { kind: "allowed-approval"; requestId: string }
@@ -71,7 +72,7 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
   async function gateOpen(guildId: string): Promise<EnforcementOutcome | null> {
     const situation = await deps.guard.readSituation(guildId).catch(() => null);
     if (!situation || !situation.guardEnabled) return { kind: "guard-off" };
-    if (situation.raidConfirmed) return { kind: "raid-active" };
+    if (situation.raidConfirmed) return { kind: "raid-active", corrected: false, restored: false };
     return null;
   }
 
@@ -139,6 +140,44 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
     return outcome;
   }
 
+  async function correctDuringRaid(
+    guild: ProtectedResourceGuild,
+    record: ProtectedResourceRecord,
+    current: ResourceLike,
+    resourceId: string
+  ): Promise<EnforcementOutcome> {
+    const actions = diffSnapshot(record.snapshot, captureSnapshot(current));
+    if (actions.length === 0) return { kind: "raid-active", corrected: false, restored: false };
+
+    if (!correctsDuringRaid("protected-resource", "change")) {
+      return { kind: "raid-active", corrected: false, restored: false };
+    }
+
+    const restored = record.type === "role"
+      ? await guild.restoreRole(resourceId, record.snapshot).catch(() => false)
+      : await guild.restoreChannel(resourceId, record.snapshot).catch(() => false);
+    if (restored) await repository.markRestored(guild.id, resourceId, new Date(now())).catch(() => false);
+
+    if (!restored) {
+      deps.logger?.("ERROR", "PROTECTED_RESOURCE", "Corectia in raid a esuat; snapshotul ramane neschimbat", {
+        guildId: guild.id,
+        resourceId,
+        actions: [...actions]
+      });
+    }
+
+    await deps
+      .publish(guild.id, [
+        `Resursa protejata \`${resourceId}\` a fost modificata in timpul unui raid confirmat.`,
+        `Modificari: ${actions.join(", ")}`,
+        describeRaidCorrection("protected-resource", "change"),
+        restored ? "" : "Restaurarea NU a reusit; resursa ramane in planul de recovery."
+      ].filter(line => line.length > 0).join("\n"))
+      .catch(() => undefined);
+
+    return { kind: "raid-active", corrected: true, restored };
+  }
+
   async function handleResourceUpdate(
     guild: ProtectedResourceGuild,
     resourceId: string,
@@ -149,8 +188,11 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
 
     const blocked = await gateOpen(guild.id);
     if (blocked) {
-      await repository.refreshSnapshot(guild.id, resourceId, captureSnapshot(current), new Date(now())).catch(() => false);
-      return blocked;
+      if (blocked.kind !== "raid-active") {
+        await repository.refreshSnapshot(guild.id, resourceId, captureSnapshot(current), new Date(now())).catch(() => false);
+        return blocked;
+      }
+      return correctDuringRaid(guild, record, current, resourceId);
     }
 
     const actions = diffSnapshot(record.snapshot, captureSnapshot(current));
@@ -186,9 +228,9 @@ export function createProtectedResourceRuntime(deps: ProtectedResourceRuntimeDep
     if (blocked) {
       if (blocked.kind === "raid-active") {
         await repository.markDeletedDuringRaid(guild.id, resourceId, new Date(now())).catch(() => false);
-      } else {
-        await repository.remove(guild.id, resourceId).catch(() => false);
+        return { kind: "raid-active", corrected: false, restored: false };
       }
+      await repository.remove(guild.id, resourceId).catch(() => false);
       return blocked;
     }
 
