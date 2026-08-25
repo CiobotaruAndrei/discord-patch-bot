@@ -77,12 +77,13 @@ export function appliesToType(type: PermissionRequestType, field: keyof Permissi
 }
 
 export function canonicalScope(type: PermissionRequestType, scope: PermissionRequestScope): PermissionRequestScope {
-  const canonical: PermissionRequestScope = { target: scope.target.trim(), action: scope.action.trim().toLowerCase() };
+  const canonical: PermissionRequestScope = { target: canonicalTarget(scope.target), action: canonicalAction(scope.action) };
   if (appliesToType(type, "amount") && typeof scope.amount === "number") canonical.amount = scope.amount;
   if (appliesToType(type, "permissions") && scope.permissions?.length) {
     canonical.permissions = [...new Set(scope.permissions.map(normalizePermissionName))].sort();
   }
   if (appliesToType(type, "botId") && scope.botId) canonical.botId = scope.botId;
+  if (scope.resourceKind) canonical.resourceKind = canonicalAction(scope.resourceKind);
   return canonical;
 }
 
@@ -118,7 +119,7 @@ export function batchTarget(resourceKind: string): string {
 
 export function isBatchApproval(record: PermissionRequestRecord): boolean {
   const target = record.approvedTarget ?? record.target;
-  return target.startsWith(BATCH_TARGET_PREFIX);
+  return canonicalTarget(target).startsWith(BATCH_TARGET_PREFIX);
 }
 
 export function batchCapacity(record: PermissionRequestRecord): number {
@@ -126,33 +127,51 @@ export function batchCapacity(record: PermissionRequestRecord): number {
   return record.approvedAmount ?? record.amount ?? 0;
 }
 
-export function scopeMatchesApproval(record: PermissionRequestRecord, attempt: PermissionRequestScope): boolean {
-  const target = record.approvedTarget ?? record.target;
-  const action = record.approvedAction ?? record.action;
-  if (action !== attempt.action) return false;
+export function canonicalTarget(value: string): string {
+  return value.trim();
+}
 
-  if (target.startsWith(BATCH_TARGET_PREFIX)) {
-    if (attempt.resourceKind === undefined || attempt.resourceKind === null) return false;
-    if (batchTarget(attempt.resourceKind) !== target) return false;
+export function canonicalAction(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function effectiveApprovedScope(record: PermissionRequestRecord): PermissionRequestScope {
+  return canonicalScope(record.type, {
+    target: record.approvedTarget ?? record.target,
+    action: record.approvedAction ?? record.action,
+    amount: record.approvedAmount ?? record.amount ?? null,
+    permissions: record.approvedPermissions ?? record.permissions ?? [],
+    botId: record.approvedBotId ?? record.botId ?? null
+  });
+}
+
+export function scopeMatchesApproval(record: PermissionRequestRecord, attempt: PermissionRequestScope): boolean {
+  const approved = effectiveApprovedScope(record);
+  const attempted = canonicalScope(record.type, attempt);
+  if (attempted.action !== approved.action) return false;
+
+  if (approved.target.startsWith(BATCH_TARGET_PREFIX)) {
+    if (attempted.resourceKind === undefined || attempted.resourceKind === null) return false;
+    if (batchTarget(attempted.resourceKind) !== approved.target) return false;
     return batchCapacity(record) > 0;
   }
 
-  if (attempt.target !== target) return false;
+  if (attempted.target !== approved.target) return false;
 
-  const approvedBot = record.approvedBotId ?? record.botId ?? null;
-  if (approvedBot !== (attempt.botId ?? null)) return false;
+  const approvedBot = approved.botId ?? null;
+  if (approvedBot !== (attempted.botId ?? null)) return false;
 
-  const attemptedAmount = attempt.amount ?? 0;
-  const approvedAmount = record.approvedAmount ?? record.amount ?? null;
+  const attemptedAmount = attempted.amount ?? 0;
+  const approvedAmount = approved.amount ?? null;
   if (attemptedAmount > 0 && approvedAmount === null) return false;
   if (approvedAmount !== null && attemptedAmount > approvedAmount) return false;
 
-  const attemptedPermissions = attempt.permissions ?? [];
-  const approvedPermissions = record.approvedPermissions ?? record.permissions ?? [];
+  const attemptedPermissions = attempted.permissions ?? [];
+  const approvedPermissions = approved.permissions ?? [];
   if (attemptedPermissions.length > 0) {
     if (approvedPermissions.length === 0) return false;
-    const allowed = new Set(approvedPermissions.map(normalizePermissionName));
-    if (attemptedPermissions.some(permission => !allowed.has(normalizePermissionName(permission)))) return false;
+    const allowed = new Set(approvedPermissions);
+    if (attemptedPermissions.some(permission => !allowed.has(permission))) return false;
   }
   return true;
 }

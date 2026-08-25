@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import { REQUEST_SCHEMAS, validatePermissionRequest } from "../../features/command-security/permissionRequestValidation.js";
 import { MODERATION_GUARD_TYPES } from "../../features/command-security/moderationGuardDecision.js";
-import { scopeFingerprint } from "../../features/command-security/permissionRequestTypes.js";
+import { scopeFingerprint, scopeMatchesApproval } from "../../features/command-security/permissionRequestTypes.js";
+import { restrictionFromModal } from "../../features/command-security/permissionRequestApproval.js";
+import type { PermissionRequestRecord } from "../../features/command-security/permissionRequestTypes.js";
 
 import type { PermissionRequestInput } from "../../features/command-security/permissionRequestValidation.js";
 
@@ -185,4 +187,56 @@ test("amprenta ignora campurile care nu apartin tipului (F-05)", () => {
   const cu = scopeFingerprint("webhook", { target: "111111111111111111", action: "create", amount: 9 });
 
   assert.equal(fara, cu, "cantitatea nu guverneaza matchingul de webhook, deci nu are voie sa produca un scope diferit");
+});
+
+function approvalRecord(overrides: Partial<PermissionRequestRecord> = {}): PermissionRequestRecord {
+  return {
+    _id: "req-1", guildId: "g1", type: "webhook", requesterId: "u1",
+    target: "111111111111111111", action: "create", reason: "integrare",
+    status: "approved", requestedAt: new Date(), ...overrides
+  };
+}
+
+test("o actiune aprobata scrisa cu majuscule se potriveste cu incercarea runtime-ului (review PR #990)", () => {
+  const record = approvalRecord({ approvedAction: "CREATE" });
+
+  assert.equal(
+    scopeMatchesApproval(record, { target: "111111111111111111", action: "create" }),
+    true,
+    "runtime-ul trimite mereu actiunea minusculizata; fara canonicalizare in matcher, aprobarea ownerului devine inutilizabila"
+  );
+});
+
+test("o tinta aprobata cu spatii in plus se potriveste (review PR #990)", () => {
+  const record = approvalRecord({ approvedTarget: " 111111111111111111 " });
+
+  assert.equal(scopeMatchesApproval(record, { target: "111111111111111111", action: "create" }), true);
+});
+
+test("permisiunile aprobate scrise altfel decat cele incercate se potrivesc (review PR #990)", () => {
+  const record = approvalRecord({
+    type: "permission-grant", action: "grant",
+    approvedPermissions: ["Manage_Roles", "ADMINISTRATOR"]
+  });
+
+  assert.equal(
+    scopeMatchesApproval(record, { target: "111111111111111111", action: "grant", permissions: ["manage roles"] }),
+    true
+  );
+});
+
+test("canonicalizarea nu largeste scope-ul: o alta actiune tot nu se potriveste (review PR #990)", () => {
+  const record = approvalRecord({ approvedAction: "CREATE" });
+
+  assert.equal(scopeMatchesApproval(record, { target: "111111111111111111", action: "delete" }), false);
+  assert.equal(scopeMatchesApproval(record, { target: "222222222222222222", action: "create" }), false);
+});
+
+test("restrictia din modal e salvata canonic, nu cum a scris-o ownerul (review PR #990)", () => {
+  const record = approvalRecord({ action: "create" });
+
+  const restriction = restrictionFromModal(record, { target: " 111111111111111111 ", action: "DELETE" });
+
+  assert.equal(restriction.action, "delete", "ambele capete canonicalizeaza, ca potrivirea sa nu depinda de scriere");
+  assert.equal(restriction.target ?? null, null, "o tinta identica dupa canonicalizare nu e o restrangere");
 });
