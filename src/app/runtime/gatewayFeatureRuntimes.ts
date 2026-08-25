@@ -364,9 +364,7 @@ async function applyWarnBan(
         readSituation: guildId => moderationGuardGate.readSituation(guildId),
         consumeApproval: async (guildId, actorId, resourceId, action, resourceKind) => {
           const requests = createPermissionRequestRepository(permissionRequestModel);
-          const exact = await requests
-            .consume(guildId, "server-structure", actorId, { target: resourceId, action })
-            .catch(() => null);
+          const exact = await requests.consume(guildId, "server-structure", actorId, { target: resourceId, action });
           return exact ?? requests
             .consume(guildId, "server-structure", actorId, { target: batchTarget(resourceKind), action, resourceKind });
         }

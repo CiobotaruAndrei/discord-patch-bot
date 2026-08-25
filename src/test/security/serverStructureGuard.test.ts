@@ -465,3 +465,51 @@ test("in runtime, o aprobare exacta e preferata lotului (F-49)", async () => {
   assert.equal(claimed?._id, "req-exact", "aprobarea punctuala se consuma prima, ca lotul sa ramana pentru restul resurselor");
   assert.equal(approvals.records.find(record => record._id === "req-lot")?.remainingAmount, 2, "lotul ramane neatins");
 });
+
+test("doi executanti concurenti pe ultima unitate inchid lotul ca used, nu il lasa activ (review PR #989)", async () => {
+  const approvals = await batchApproval("create", "channel", 2);
+  const requests = createPermissionRequestRepository(approvals);
+  const attempt = () => requests.consume("g1", "server-structure", "mod-1",
+    { target: batchTarget("channel"), action: "create", resourceKind: "channel" }, new Date(NOW));
+
+  const [first, second] = await Promise.all([attempt(), attempt()]);
+
+  assert.ok(first && second, "ambele operatiuni incap in cantitatea aprobata");
+  assert.equal(approvals.records[0].remainingAmount, 0);
+  assert.equal(approvals.records[0].status, "used",
+    "un lot ajuns la zero dar ramas approved ar fi listat ca activ si ar expira in loc sa se inchida");
+});
+
+test("lotul epuizat sub concurenta nu mai poate fi consumat (review PR #989)", async () => {
+  const approvals = await batchApproval("create", "channel", 2);
+  const requests = createPermissionRequestRepository(approvals);
+  const attempt = () => requests.consume("g1", "server-structure", "mod-1",
+    { target: batchTarget("channel"), action: "create", resourceKind: "channel" }, new Date(NOW));
+
+  await Promise.all([attempt(), attempt()]);
+  const third = await attempt();
+
+  assert.equal(third, null);
+});
+
+test("o eroare la cautarea aprobarii exacte nu consuma lotul (review PR #989)", async () => {
+  const approvals = await batchApproval("delete", "channel", 3);
+  const requests = createPermissionRequestRepository(approvals);
+  const consumeWithBatch = async (resourceId: string) => {
+    const exact = await requests.consume("g1", "server-structure", "mod-1", { target: resourceId, action: "delete" }, new Date(NOW));
+    return exact ?? requests.consume("g1", "server-structure", "mod-1",
+      { target: batchTarget("channel"), action: "delete", resourceKind: "channel" }, new Date(NOW));
+  };
+
+  const broken = moduleContext<typeof requests>({
+    consume: async () => { throw new Error("Mongo indisponibil"); }
+  });
+  await assert.rejects(
+    () => broken.consume("g1", "server-structure", "mod-1", { target: "chan-1", action: "delete" }, new Date(NOW)),
+    /Mongo indisponibil/,
+    "o eroare tranzitorie trebuie sa se propage, nu sa arate ca lipsa de aprobare"
+  );
+
+  assert.ok(await consumeWithBatch("chan-1"), "pe calea sanatoasa lotul acopera evenimentul");
+  assert.equal(approvals.records[0].remainingAmount, 2, "lotul scade o singura unitate per eveniment");
+});

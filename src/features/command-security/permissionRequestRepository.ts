@@ -165,18 +165,19 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
       if (!scopeMatchesApproval(candidate, attempt)) continue;
 
       if (isBatchApproval(candidate)) {
-        const remaining = batchCapacity(candidate);
-        const exhausts = remaining <= 1;
         const claimed = await model.updateOne(
           { _id: candidate._id, guildId, status: "approved", expiresAt: { $gt: now }, remainingAmount: { $gt: 0 } },
-          exhausts
-            ? { $set: { status: "used", usedAt: now, remainingAmount: 0, claimBatchId: batchId ?? null } }
-            : { $inc: { remainingAmount: -1 } }
+          { $inc: { remainingAmount: -1 } }
         );
         if (!updatedDocument(claimed)) continue;
-        return exhausts
-          ? { ...candidate, status: "used", usedAt: now, remainingAmount: 0 }
-          : { ...candidate, remainingAmount: remaining - 1 };
+
+        await model.updateOne(
+          { _id: candidate._id, guildId, status: "approved", remainingAmount: 0 },
+          { $set: { status: "used", usedAt: now, claimBatchId: batchId ?? null } }
+        );
+
+        const record = await read(guildId, candidate._id);
+        return record ?? { ...candidate, remainingAmount: Math.max(0, batchCapacity(candidate) - 1) };
       }
 
       const claimed = await model.updateOne(
