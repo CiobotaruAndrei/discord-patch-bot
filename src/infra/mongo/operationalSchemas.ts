@@ -230,7 +230,8 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     guildId: { type: String, required: true },
     snapshot: { type: Object, required: true },
     operations: { type: [Object], default: [] },
-    capturedAt: { type: Date, required: true }
+    capturedAt: { type: Date, required: true },
+    frozenAt: { type: Date, default: null }
   }, { minimize: false, _id: false });
   raidSnapshotSchema.index({ guildId: 1, capturedAt: -1 });
   raidSnapshotSchema.index({ capturedAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });

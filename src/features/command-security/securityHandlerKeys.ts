@@ -10,6 +10,7 @@ export const SECURITY_HANDLER_KEYS = [
   "RaidIncidentModel",
   "AdRequestModel",
   "AdAttemptModel",
+  "captureRaidBaseline",
   "checkChannelPermissions",
   "formatUserError",
   "getGuildSettings",

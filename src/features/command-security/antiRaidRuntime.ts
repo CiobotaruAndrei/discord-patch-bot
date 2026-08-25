@@ -119,6 +119,12 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     return botActors.get(guildId)?.has(actorId) === true;
   }
 
+  async function freezeBaselineFor(guildId: string): Promise<void> {
+    const guild = await deps.resolveGuild(guildId).catch(() => null);
+    if (!guild?.freezeStructureBaseline) return;
+    await guild.freezeStructureBaseline().catch(() => undefined);
+  }
+
   async function registerParticipants(guildId: string, incidentId: string, actorIds: readonly string[]): Promise<void> {
     for (const actorId of actorIds) {
       await incidents.addParticipant(incidentId, actorId, isBotActor(guildId, actorId), new Date(now())).catch(() => false);
@@ -161,6 +167,7 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
       new Date(now())
     );
     if (!incident) return { kind: "quiet" };
+    if (!active) await freezeBaselineFor(guildId);
 
     await registerParticipants(guildId, incident._id, verdict.actorIds);
     await runIntervention(guildId, verdict.channelIds);
@@ -205,6 +212,7 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
       new Date(now())
     );
     if (!incident) return { kind: "quiet" };
+    if (!active) await freezeBaselineFor(guildId);
 
     await registerParticipants(guildId, incident._id, verdict.actorIds);
     await runIntervention(guildId, verdict.channelIds);
@@ -298,7 +306,15 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     return incidents.recordRaidWebhook(active._id, webhookId).catch(() => false);
   }
 
+  async function captureBaseline(guildId: string): Promise<boolean> {
+    const guild = await deps.resolveGuild(guildId).catch(() => null);
+    if (!guild?.refreshStructureBaseline) return false;
+    const refreshed = await guild.refreshStructureBaseline().catch(() => false);
+    return refreshed === true;
+  }
+
   return {
+    captureBaseline,
     observeMessage,
     observeStructureChange,
     observeBotJoin,

@@ -4,6 +4,7 @@ import { createRaidSnapshotRepository } from "./raidSnapshotRepository.js";
 import { describeRecovery, planRecovery, recoveryComplete, remapOverwrites } from "./raidSnapshotTypes.js";
 
 import type { RaidSnapshotModelLike } from "./raidSnapshotRepository.js";
+import { chooseIncidentSnapshot, describeBaselineChoice, needsRefresh } from "./raidBaselineSnapshot.js";
 import type {
   CurrentServerState,
   RoleRemap,
@@ -37,7 +38,7 @@ export interface RaidRecoveryDeps {
 }
 
 export type CaptureOutcome =
-  | { kind: "captured"; channels: number; roles: number; webhooks: number; invites: number }
+  | { kind: "captured"; source: "frozen-baseline" | "live-capture"; note: string; channels: number; roles: number; webhooks: number; invites: number }
   | { kind: "already-captured" }
   | { kind: "capture-failed"; error: unknown };
 
@@ -52,16 +53,48 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
   const snapshots = createRaidSnapshotRepository(deps.RaidSnapshotModel);
   const now = deps.now ?? Date.now;
 
-  async function captureBeforeContainment(guild: RecoveryGuildPort, incidentId: string): Promise<CaptureOutcome> {
+  async function refreshBaseline(guild: RecoveryGuildPort): Promise<boolean> {
+    const baseline = await snapshots.readBaseline(guild.id).catch(() => null);
+    if (!needsRefresh(baseline, now())) return false;
+    const snapshot = await guild.captureSnapshot().catch(() => null);
+    if (!snapshot) return false;
+    return snapshots.writeBaseline(guild.id, { ...snapshot, capturedAt: new Date(now()) }).catch(() => false);
+  }
+
+  async function freezeBaseline(guildId: string): Promise<boolean> {
+    return snapshots.freezeBaseline(guildId, new Date(now())).catch(() => false);
+  }
+
+  async function releaseBaseline(guildId: string): Promise<boolean> {
+    return snapshots.thawBaseline(guildId).catch(() => false);
+  }
+
+  async function captureBeforeContainment(
+    guild: RecoveryGuildPort,
+    incidentId: string,
+    incidentStartedAt: Date = new Date(now())
+  ): Promise<CaptureOutcome> {
     const existing = await snapshots.read(incidentId).catch(() => null);
     if (existing) return { kind: "already-captured" };
 
     try {
-      const snapshot = await guild.captureSnapshot();
-      const stored = await snapshots.capture(incidentId, guild.id, { ...snapshot, capturedAt: new Date(now()) });
+      const baseline = await snapshots.readBaseline(guild.id).catch(() => null);
+      const choice = chooseIncidentSnapshot(baseline, incidentStartedAt, now());
+      if (choice.kind === "live-capture") {
+        deps.logger?.("WARN", "RAID_RECOVERY", "Recovery porneste de la starea curenta, nu de la un baseline curat", {
+          guildId: guild.id,
+          incidentId,
+          motiv: choice.reason
+        });
+      }
+
+      const snapshot = choice.kind === "frozen-baseline" ? choice.snapshot : await guild.captureSnapshot();
+      const stored = await snapshots.capture(incidentId, guild.id, { ...snapshot, capturedAt: snapshot.capturedAt });
       if (!stored) return { kind: "already-captured" };
       return {
         kind: "captured",
+        source: choice.kind,
+        note: describeBaselineChoice(choice),
         channels: snapshot.channels.length,
         roles: snapshot.roles.length,
         webhooks: snapshot.webhooks.length,
@@ -193,5 +226,5 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
     return { kind: "restored", operations, complete };
   }
 
-  return { captureBeforeContainment, restore };
+  return { refreshBaseline, freezeBaseline, releaseBaseline, captureBeforeContainment, restore };
 }
