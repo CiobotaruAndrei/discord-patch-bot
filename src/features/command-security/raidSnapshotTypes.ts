@@ -93,6 +93,7 @@ export type RecoveryOperationKind =
   | "restore-role"
   | "remove-extra-channel"
   | "remove-extra-role"
+  | "restore-position"
   | "restore-protection";
 
 export type RecoveryStatus = "pending" | "done" | "skipped" | "owner-intervention-required";
@@ -285,6 +286,11 @@ export function describeRecovery(operations: readonly RecoveryOperation[]): stri
   }
 
   return parts.join(" ");
+}
+
+export interface RoleRecreation {
+  roleId: string | null;
+  positioned: boolean;
 }
 
 export interface ResourceRemap {

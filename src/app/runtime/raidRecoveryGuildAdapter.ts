@@ -249,7 +249,7 @@ export function adaptRecoveryGuild(
     },
 
     async recreateRole(role) {
-      if (!guild.roles?.create) return null;
+      if (!guild.roles?.create) return { roleId: null, positioned: false };
       const created = await guild.roles.create({
         name: role.name,
         permissions: BigInt(role.permissions),
@@ -260,7 +260,7 @@ export function adaptRecoveryGuild(
       }).catch(() => null);
 
       const roleId = textOf(created?.id);
-      if (!roleId) return null;
+      if (!roleId) return { roleId: null, positioned: false };
 
       const positioned = created?.setPosition
         ? await created.setPosition(role.position).then(() => true).catch(() => false)
@@ -268,10 +268,17 @@ export function adaptRecoveryGuild(
       if (!positioned) {
         await publish(
           `Recovery anti-raid: rolul \`${role.name}\` a fost recreat ca \`${roleId}\`, dar nu a putut fi mutat la pozitia `
-            + `${role.position} (probabil era peste rolul botului). Rolul exista si e urmarit; pozitia lui cere interventia ownerului.`
+            + `${role.position} (probabil era peste rolul botului). Rolul exista si e urmarit, insa recovery-ul ramane `
+            + "incomplet pana cand pozitia e restaurata sau ownerul decide altfel."
         ).catch(() => undefined);
       }
-      return roleId;
+      return { roleId, positioned };
+    },
+
+    async restoreRolePosition(roleId, position) {
+      const live = liveRole(roleId);
+      if (!live?.setPosition) return false;
+      return live.setPosition(position).then(() => true).catch(() => false);
     },
 
     async restoreChannel(channel) {

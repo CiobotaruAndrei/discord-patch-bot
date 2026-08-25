@@ -32,6 +32,23 @@ function snapshotModel(): RaidSnapshotModelLike & { docs: Map<string, Record<str
       for (const [field, expected] of Object.entries(filter)) {
         if (field === "_id") continue;
         const actual = existing[field] ?? null;
+        if (expected && typeof expected === "object") {
+          const clause = expected as Record<string, unknown>;
+          if ("$not" in clause) {
+            const inner = clause.$not as Record<string, unknown>;
+            const match = (inner.$elemMatch ?? {}) as Record<string, unknown>;
+            const present = (Array.isArray(actual) ? actual : []).some(item => {
+              const entry = item as Record<string, unknown>;
+              return Object.entries(match).every(([key, value]) => entry[key] === value);
+            });
+            if (present) return { matchedCount: 0, modifiedCount: 0 };
+            continue;
+          }
+          if ("$gt" in clause && !(typeof actual === "number" && actual > Number(clause.$gt))) {
+            return { matchedCount: 0, modifiedCount: 0 };
+          }
+          continue;
+        }
         if (actual !== expected) return { matchedCount: 0, modifiedCount: 0 };
       }
       if (update.$set) Object.assign(existing, update.$set);
@@ -78,10 +95,11 @@ function harness(options: {
       return `${channel.channelId}-nou`;
     },
     recreateRole: async (role: { roleId: string }) => {
-      if (failures.has(role.roleId)) return null;
+      if (failures.has(role.roleId)) return { roleId: null, positioned: false };
       created.push(`role:${role.roleId}`);
-      return `${role.roleId}-nou`;
+      return { roleId: `${role.roleId}-nou`, positioned: true };
     },
+    restoreRolePosition: async () => true,
     recreateWebhook: async (webhook: { webhookId: string }) => {
       if (failures.has(webhook.webhookId)) return null;
       created.push(`webhook:${webhook.webhookId}`);
@@ -618,8 +636,9 @@ function retryHarness(options: { failFirstChannel?: boolean } = {}) {
     }),
     recreateRole: async (role: { name: string; position: number }) => {
       createdRoles.push({ name: role.name, position: role.position });
-      return `rol-nou-${createdRoles.length}`;
+      return { roleId: `rol-nou-${createdRoles.length}`, positioned: true };
     },
+    restoreRolePosition: async () => true,
     recreateChannel: async (channel: { name: string; parentId: string | null; overwrites: Array<{ id: string }> }) => {
       channelAttempts += 1;
       if (options.failFirstChannel && channelAttempts === 1) throw new Error("Discord indisponibil");
@@ -741,10 +760,11 @@ const DELETED_ROLE = { roleId: "role-vechi", name: "Staff", position: 9, color: 
 test("un rol care nu poate fi mutat la pozitia lui ramane totusi urmarit (review PR #994)", async () => {
   const setup = roleGuild({ positionFails: true });
 
-  const roleId = await setup.port?.recreateRole(DELETED_ROLE);
+  const created = await setup.port?.recreateRole(DELETED_ROLE);
 
-  assert.equal(roleId, "rol-nou-1",
+  assert.equal(created?.roleId, "rol-nou-1",
     "rolul a fost creat; daca esecul mutarii intoarce null, resursa ramane orfana si remap-ul nu se persista niciodata");
+  assert.equal(created?.positioned, false, "pozitia esuata trebuie sa fie distincta de succes, nu ascunsa in ID (audit N-04)");
   assert.match(setup.published.join(" "), /nu a putut fi mutat la pozitia 9/);
 });
 
@@ -773,7 +793,8 @@ test("un rol pe care Discord nu il creeaza deloc ramane la owner (review PR #994
   });
   const port = adaptRecoveryGuild(guild, async () => ({}), async () => true, async () => undefined);
 
-  assert.equal(await port?.recreateRole(DELETED_ROLE), null, "esecul crearii ramane esec, nu se mascheaza");
+  assert.deepEqual(await port?.recreateRole(DELETED_ROLE), { roleId: null, positioned: false },
+    "esecul crearii ramane esec, nu se mascheaza");
 });
 
 const BASE_CHANNEL = {
@@ -1007,4 +1028,110 @@ test("conversia de tip a unui canal e detectata de diff (review PR #995)", () =>
 
   assert.deepEqual(operations.map(entry => entry.kind), ["restore-channel"]);
   assert.match(operations[0].label, /channelType/);
+});
+
+function positionHarness(options: { positioned?: boolean; repositionFails?: boolean } = {}) {
+  const model = snapshotModel();
+  const repositioned: Array<{ roleId: string; position: number }> = [];
+
+  const guild = moduleContext<RecoveryGuildPort>({
+    id: "g1",
+    readCurrentState: async () => ({
+      channelIds: [], roleIds: [], webhookIds: [], inviteCodes: [], protections: emptyProtections(), channels: [], roles: []
+    }),
+    recreateRole: async () => ({ roleId: "rol-nou", positioned: options.positioned ?? false }),
+    restoreRolePosition: async (roleId: string, position: number) => {
+      if (options.repositionFails) return false;
+      repositioned.push({ roleId, position });
+      return true;
+    },
+    publish: async () => undefined
+  });
+
+  return { runtime: createRaidRecoveryRuntime({ RaidSnapshotModel: model, now: () => NOW }), guild, model, repositioned };
+}
+
+const UNPOSITIONED_ROLE = { roleId: "role-vechi", name: "Staff", position: 7, color: 0, hoist: false, mentionable: false, managed: false, permissions: "0" };
+
+test("un rol recreat fara pozitie tine recovery-ul incomplet (audit N-04)", async () => {
+  const setup = positionHarness();
+  await setup.runtime.captureBeforeContainment(
+    moduleContext<RecoveryGuildPort>({ ...setup.guild, captureSnapshot: async () => snapshotWith({ roles: [UNPOSITIONED_ROLE] }) }),
+    INCIDENT
+  );
+
+  const outcome = await setup.runtime.restore(setup.guild, INCIDENT);
+
+  assert.equal(outcome.kind, "restored");
+  assert.equal(outcome.kind === "restored" && outcome.complete, false,
+    "recrearea reusita cu pozitie neaplicata nu are voie sa incheie recovery-ul");
+  assert.ok(
+    outcome.kind === "restored" && outcome.operations.some(entry => entry.kind === "restore-position" && entry.status === "pending"),
+    "pozitia ramasa se urmareste ca operatiune proprie, nu se pierde"
+  );
+});
+
+test("remap-ul rolului se persista chiar cand pozitia a esuat (audit N-04)", async () => {
+  const setup = positionHarness();
+  await setup.runtime.captureBeforeContainment(
+    moduleContext<RecoveryGuildPort>({ ...setup.guild, captureSnapshot: async () => snapshotWith({ roles: [UNPOSITIONED_ROLE] }) }),
+    INCIDENT
+  );
+
+  await setup.runtime.restore(setup.guild, INCIDENT);
+
+  assert.deepEqual(
+    setup.model.docs.get(INCIDENT)?.remaps,
+    [{ previousId: "role-vechi", nextId: "rol-nou" }],
+    "rolul exista pe server, deci overwrite-urile si rebindingul trebuie sa il poata folosi"
+  );
+});
+
+test("la retry, pozitia ramasa e reincercata si recovery-ul se poate incheia (audit N-04)", async () => {
+  const setup = positionHarness();
+  await setup.runtime.captureBeforeContainment(
+    moduleContext<RecoveryGuildPort>({ ...setup.guild, captureSnapshot: async () => snapshotWith({ roles: [UNPOSITIONED_ROLE] }) }),
+    INCIDENT
+  );
+  await setup.runtime.restore(setup.guild, INCIDENT);
+
+  const outcome = await setup.runtime.restore(setup.guild, INCIDENT);
+
+  assert.deepEqual(setup.repositioned, [{ roleId: "rol-nou", position: 7 }]);
+  assert.equal(outcome.kind === "restored" && outcome.complete, true, "dupa restaurarea pozitiei nu mai ramane nimic blocant");
+});
+
+test("o pozitie care nu poate fi aplicata nici la retry ajunge la owner (audit N-04)", async () => {
+  const setup = positionHarness({ repositionFails: true });
+  await setup.runtime.captureBeforeContainment(
+    moduleContext<RecoveryGuildPort>({ ...setup.guild, captureSnapshot: async () => snapshotWith({ roles: [UNPOSITIONED_ROLE] }) }),
+    INCIDENT
+  );
+  await setup.runtime.restore(setup.guild, INCIDENT);
+
+  const outcome = await setup.runtime.restore(setup.guild, INCIDENT);
+
+  assert.ok(
+    outcome.kind === "restored" && outcome.operations.some(entry =>
+      entry.kind === "restore-position" && entry.status === "owner-intervention-required"),
+    "dupa incercari repetate, pozitia devine explicit sarcina ownerului"
+  );
+  assert.equal(outcome.kind === "restored" && outcome.complete, false);
+});
+
+test("un rol recreat si pozitionat nu adauga operatiuni suplimentare (audit N-04)", async () => {
+  const setup = positionHarness({ positioned: true });
+  await setup.runtime.captureBeforeContainment(
+    moduleContext<RecoveryGuildPort>({ ...setup.guild, captureSnapshot: async () => snapshotWith({ roles: [UNPOSITIONED_ROLE] }) }),
+    INCIDENT
+  );
+
+  const outcome = await setup.runtime.restore(setup.guild, INCIDENT);
+
+  assert.equal(outcome.kind === "restored" && outcome.complete, true);
+  assert.equal(
+    outcome.kind === "restored" && outcome.operations.filter(entry => entry.kind === "restore-position").length,
+    0,
+    "cazul reusit nu trebuie sa lase in urma o operatiune care sa para nerezolvata"
+  );
 });
