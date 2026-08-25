@@ -60,7 +60,11 @@ jobs:
           # redevine rece (masurat: 356s in loc de ~60s). PR-urile CITESC in continuare cache-ul de pe
           # main prin `cache-from`, iar main il reimprospateaza la fiecare push care atinge Dockerfile,
           # lock-ul de dependinte sau `src/native/**` - adica exact intrarile care il invalideaza.
-          cache-to: ${{ github.event_name == 'pull_request' && '' || 'type=gha,mode=max,compression=zstd' }}
+          #
+          # Conditia se scrie cu negatia pe prima pozitie, nu `este_PR && '' || valoare`. In expresiile
+          # GitHub sirul gol este falsy, deci acea forma cade mereu pe ramura `||` si exporta cache-ul
+          # chiar si din PR-uri - fix situatia pe care o descrie paragraful de mai sus.
+          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=max,compression=zstd' || '' }}
 
       # Doua scanari in loc de trei. Trivy pornea de trei ori pe aceeasi imagine — SARIF, SBOM si
       # gate — iar fiecare pornire isi descarca din nou baza de vulnerabilitati: masurat, 14-15s de
