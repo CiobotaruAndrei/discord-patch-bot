@@ -157,3 +157,54 @@ test("in /security-status o subprotectie gata ramane pornita cand alta e degrada
   assert.equal(botAdd?.state, "pornit", "o lipsa de Manage Webhooks nu are voie sa faca bot-add sa para degradata");
   assert.deepEqual(botAdd?.gaps, []);
 });
+
+test("anti-raid pornit pe canalul de cereri nu mai apare incomplet in /security-status (F-43)", () => {
+  const status = buildSecurityStatus({
+    settings: moduleContext<GuildSettingsLike>({
+      antiRaidEnabled: true,
+      antiRaidAlertChannelId: null,
+      permissionRequestChannelId: "chan-cereri"
+    }),
+    readinessGaps: {},
+    activeApprovals: 0,
+    degradedResources: 0,
+    ownerInterventionOperations: 0,
+    raidStage: null
+  });
+
+  const antiRaid = status.protections.find(entry => entry.key === "anti-raid");
+  assert.equal(antiRaid?.state, "pornit",
+    "runtime-ul publica pe canalul de cereri cand nu exista unul dedicat, deci statusul nu are voie sa raporteze altceva");
+  assert.match(antiRaid?.channelNote ?? "", /canalul de cereri/,
+    "diferenta fata de configuratia dedicata ramane vizibila, nu ascunsa");
+});
+
+test("fara niciun canal, anti-raid ramane raportat incomplet (F-43)", () => {
+  const status = buildSecurityStatus({
+    settings: moduleContext<GuildSettingsLike>({ antiRaidEnabled: true, antiRaidAlertChannelId: null, permissionRequestChannelId: null }),
+    readinessGaps: {},
+    activeApprovals: 0,
+    degradedResources: 0,
+    ownerInterventionOperations: 0,
+    raidStage: null
+  });
+
+  assert.equal(status.protections.find(entry => entry.key === "anti-raid")?.state, "incomplet");
+});
+
+test("o protectie cu canal dedicat nu primeste nota de fallback (F-43)", () => {
+  const status = buildSecurityStatus({
+    settings: moduleContext<GuildSettingsLike>({
+      antiRaidEnabled: true,
+      antiRaidAlertChannelId: "chan-raid",
+      permissionRequestChannelId: "chan-cereri"
+    }),
+    readinessGaps: {},
+    activeApprovals: 0,
+    degradedResources: 0,
+    ownerInterventionOperations: 0,
+    raidStage: null
+  });
+
+  assert.equal(status.protections.find(entry => entry.key === "anti-raid")?.channelNote ?? null, null);
+});

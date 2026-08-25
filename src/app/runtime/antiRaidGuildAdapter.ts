@@ -1,5 +1,7 @@
 "use strict";
 
+import { resolveProtectionChannel } from "../../features/command-security/securityChannelResolution.js";
+
 import type { RaidGuildPort, SanctionOutcome } from "../../features/command-security/antiRaidIntervention.js";
 import type { SanctionStep } from "../../features/command-security/antiRaidIncidentTypes.js";
 import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/elevatedPermissions.js";
@@ -123,7 +125,7 @@ export function adaptRaidGuild(
 
   async function alertChannel(): Promise<{ send?: (payload: Record<string, unknown>) => Promise<unknown> } | null> {
     const settings = await readGuildSettings(guild.id).catch(() => null);
-    const channelId = settings?.antiRaidAlertChannelId ?? settings?.permissionRequestChannelId;
+    const channelId = resolveProtectionChannel("anti-raid", settings);
     if (typeof channelId !== "string" || !channelId) return null;
     return channel(channelId) ?? null;
   }

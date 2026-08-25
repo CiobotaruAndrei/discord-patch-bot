@@ -36,6 +36,7 @@ import { createPermissionRequestRepository } from "../command-security/permissio
 import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
 import { protectionStopActions } from "../command-security/protectionStopActions.js";
 import { captureBaselineOnStart } from "../command-security/antiRaidBaselineTrigger.js";
+import { resolveProtectionChannel } from "../command-security/securityChannelResolution.js";
 import type {
   AccountAlertClaimFn,
   OverwriteEditor,
@@ -138,11 +139,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
           needsAtomicStop: stopActions.needsAtomicStop, needsActiveIncident: stopActions.needsActiveIncident,
           needsBackfill: sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true },
         {
-          readConfiguredChannel: () => {
-            const channelId = settings?.[toggle.channel]
-              ?? (sub === "anti-raid" || sub === "anti-raid-dry-run" ? settings?.permissionRequestChannelId : null);
-            return typeof channelId === "string" && channelId ? channelId : null;
-          },
+          readConfiguredChannel: () => resolveProtectionChannel(sub, settings),
           readChannelPermissions: channelId => target.checkChannelPermissions(interaction, channelId),
           readiness: toggleGate,
           countActiveApprovals: stopActions.countActiveApprovals,

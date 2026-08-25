@@ -1,8 +1,9 @@
 "use strict";
 
 import { MODERATION_GUARD_TYPES } from "./moderationGuardDecision.js";
+import { describeChannelSource, resolveProtectionChannel } from "./securityChannelResolution.js";
 
-import type { GuildSettingsLike, ProtectionChannelField, ProtectionEnabledField } from "./securitySettingsContracts.js";
+import type { GuildSettingsLike, ProtectionEnabledField } from "./securitySettingsContracts.js";
 
 export type ProtectionState = "pornit" | "oprit" | "incomplet" | "degradat";
 
@@ -11,6 +12,7 @@ export interface ProtectionStatus {
   label: string;
   state: ProtectionState;
   gaps: string[];
+  channelNote?: string | null;
 }
 
 export interface SecurityStatusInput {
@@ -31,13 +33,13 @@ export interface SecurityStatusReport {
   raidStage: string | null;
 }
 
-const PROTECTIONS: ReadonlyArray<{ key: string; label: string; enabled: ProtectionEnabledField; channel: ProtectionChannelField }> = [
-  { key: "new-account-alerts", label: "Alerte cont nou", enabled: "newAccountAlertsEnabled", channel: "newAccountAlertChannelId" },
-  { key: "threat-protection", label: "Protectie amenintari", enabled: "threatProtectionEnabled", channel: "threatAlertChannelId" },
-  { key: "moderation-guard", label: "Moderation guard", enabled: "moderationGuardEnabled", channel: "permissionRequestChannelId" },
-  { key: "anti-raid", label: "Anti-raid", enabled: "antiRaidEnabled", channel: "antiRaidAlertChannelId" },
-  { key: "anti-raid-dry-run", label: "Anti-raid (testare)", enabled: "antiRaidDryRunEnabled", channel: "antiRaidAlertChannelId" },
-  { key: "ad-protection", label: "Protectie reclame", enabled: "adProtectionEnabled", channel: "adAlertChannelId" }
+const PROTECTIONS: ReadonlyArray<{ key: string; label: string; enabled: ProtectionEnabledField }> = [
+  { key: "new-account-alerts", label: "Alerte cont nou", enabled: "newAccountAlertsEnabled" },
+  { key: "threat-protection", label: "Protectie amenintari", enabled: "threatProtectionEnabled" },
+  { key: "moderation-guard", label: "Moderation guard", enabled: "moderationGuardEnabled" },
+  { key: "anti-raid", label: "Anti-raid", enabled: "antiRaidEnabled" },
+  { key: "anti-raid-dry-run", label: "Anti-raid (testare)", enabled: "antiRaidDryRunEnabled" },
+  { key: "ad-protection", label: "Protectie reclame", enabled: "adProtectionEnabled" }
 ];
 
 const SUBPROTECTION_LABELS: Readonly<Record<string, string>> = {
@@ -60,14 +62,14 @@ export function buildSecurityStatus(input: SecurityStatusInput): SecurityStatusR
 
   const protections = PROTECTIONS.map(entry => {
     const enabled = settings?.[entry.enabled] === true;
-    const channel = settings?.[entry.channel];
-    const channelSet = typeof channel === "string" && channel.length > 0;
+    const channelSet = resolveProtectionChannel(entry.key, settings) !== null;
+    const source = describeChannelSource(entry.key, settings);
     const gaps = [...(input.readinessGaps[entry.key] ?? [])];
-    return { key: entry.key, label: entry.label, state: stateFor(enabled, channelSet, gaps), gaps };
+    return { key: entry.key, label: entry.label, state: stateFor(enabled, channelSet, gaps), gaps, channelNote: source };
   });
 
   const guardEnabled = settings?.moderationGuardEnabled === true;
-  const guardChannel = typeof settings?.permissionRequestChannelId === "string" && settings.permissionRequestChannelId.length > 0;
+  const guardChannel = resolveProtectionChannel("moderation-guard", settings) !== null;
   const guardGaps = [...(input.readinessGaps["moderation-guard"] ?? [])];
 
   const subprotections = MODERATION_GUARD_TYPES.map(type => {
@@ -91,8 +93,11 @@ export function buildSecurityStatus(input: SecurityStatusInput): SecurityStatusR
 }
 
 export function renderSecurityStatus(report: SecurityStatusReport): string {
-  const line = (entry: ProtectionStatus): string =>
-    `- ${entry.label}: **${entry.state}**${entry.gaps.length > 0 ? ` (lipseste: ${entry.gaps.join(", ")})` : ""}`;
+  const line = (entry: ProtectionStatus): string => {
+    const gaps = entry.gaps.length > 0 ? ` (lipseste: ${entry.gaps.join(", ")})` : "";
+    const note = entry.channelNote ? ` - ${entry.channelNote}` : "";
+    return `- ${entry.label}: **${entry.state}**${gaps}${note}`;
+  };
 
   const lines = ["**Protectii**", ...report.protections.map(line), "", "**Subprotectii moderation-guard**", ...report.subprotections.map(line), ""];
 
