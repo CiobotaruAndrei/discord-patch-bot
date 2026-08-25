@@ -149,7 +149,11 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
       const created = await guild.recreateWebhook({ ...webhook, channelId });
       const moved = channelId !== webhook.channelId ? ` in canalul recreat ${channelId}` : "";
       return created
-        ? { status: "done", detail: `recreat ca ${created}${moved}; URL-ul e nou, deci integrarile vechi trebuie reconfigurate` }
+        ? {
+          status: "done",
+          detail: `recreat ca ${created}${moved}; URL-ul nou se ia din Server Settings > Integrations, `
+            + "fiindca e o credentiala si nu se salveaza in incident"
+        }
         : { status: "owner-intervention-required", detail: "webhook-ul nu a putut fi recreat" };
     }
 

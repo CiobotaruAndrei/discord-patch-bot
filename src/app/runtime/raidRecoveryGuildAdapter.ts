@@ -1,6 +1,6 @@
 "use strict";
 
-import { emptyProtections, RAID_SNAPSHOT_VERSION } from "../../features/command-security/raidSnapshotTypes.js";
+import { emptyProtections, RAID_SNAPSHOT_VERSION, webhookAvatarUrl } from "../../features/command-security/raidSnapshotTypes.js";
 
 import type { RecoveryGuildPort } from "../../features/command-security/raidRecoveryRuntime.js";
 import type {
@@ -240,10 +240,13 @@ export function adaptRecoveryGuild(
     async recreateWebhook(webhook) {
       const channel = await textChannel(webhook.channelId);
       if (!channel?.createWebhook) return null;
+      const avatar = webhookAvatarUrl(webhook.webhookId, webhook.avatar);
       const created = await channel
-        .createWebhook({ name: webhook.name || "webhook", avatar: webhook.avatar ?? undefined, reason: RECOVERY_REASON })
-        .catch(() => null);
-      return textOf(created?.url) ?? textOf(created?.id);
+        .createWebhook({ name: webhook.name || "webhook", avatar: avatar ?? undefined, reason: RECOVERY_REASON })
+        .catch(async () => avatar
+          ? channel.createWebhook?.({ name: webhook.name || "webhook", reason: RECOVERY_REASON }).catch(() => null) ?? null
+          : null);
+      return textOf(created?.id);
     },
 
     async restoreInvite(invite) {

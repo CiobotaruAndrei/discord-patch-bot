@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaidRecoveryRuntime } from "../../features/command-security/raidRecoveryRuntime.js";
-import { emptyProtections, emptySnapshot, planRecovery, recoveryComplete, remapChannelId, remapOverwrites } from "../../features/command-security/raidSnapshotTypes.js";
+import { describeRecovery, emptyProtections, emptySnapshot, planRecovery, recoveryComplete, remapChannelId, remapOverwrites, webhookAvatarUrl } from "../../features/command-security/raidSnapshotTypes.js";
 import { adaptRecoveryGuild } from "../../app/runtime/raidRecoveryGuildAdapter.js";
 import { moduleContext } from "../moduleContextStub.js";
 import type { RecoveryGuildPort } from "../../features/command-security/raidRecoveryRuntime.js";
@@ -499,13 +499,14 @@ function recoveryGuild(options: {
   };
 }
 
-test("un webhook distrus in raid este recreat efectiv, cu URL nou raportat (N-05)", async () => {
+test("un webhook distrus in raid este recreat efectiv (N-05)", async () => {
   const setup = recoveryGuild();
 
   const created = await setup.port?.recreateWebhook(WEBHOOK);
 
   assert.ok(created, "pana acum orice webhook lipsa ajungea inevitabil la owner-intervention-required");
-  assert.match(created ?? "", /webhooks/, "raportarea contine URL-ul nou, fiindca cel vechi nu mai poate fi folosit");
+  assert.doesNotMatch(created ?? "", /http/,
+    "URL-ul webhook-ului e o credentiala: se returneaza ID-ul, nu tokenul (review PR #993)");
   assert.deepEqual(setup.createdWebhooks, [{ channelId: "chan-1", name: "Anunturi" }]);
 });
 
@@ -545,4 +546,57 @@ test("webhook-ul urmeaza canalul recreat, nu ID-ul disparut din snapshot (N-05)"
 
   assert.equal(remapped, "chan-nou", "fara remapare, webhook-ul s-ar crea intr-un canal care nu mai exista");
   assert.equal(remapChannelId("chan-intact", [{ previousId: "altul", nextId: "nou" }]), "chan-intact");
+});
+
+test("avatarul stocat ca hash e transformat in URL CDN inainte de creare (review PR #993)", () => {
+  assert.equal(
+    webhookAvatarUrl("wh-1", "a1b2c3"),
+    "https://cdn.discordapp.com/avatars/wh-1/a1b2c3.png",
+    "Discord stocheaza hash-ul, dar createWebhook cere date rezolvabile ca imagine"
+  );
+  assert.equal(webhookAvatarUrl("wh-1", "a_animat"), "https://cdn.discordapp.com/avatars/wh-1/a_animat.gif");
+  assert.equal(webhookAvatarUrl("wh-1", null), null);
+  assert.equal(webhookAvatarUrl("wh-1", "https://deja/url.png"), "https://deja/url.png");
+});
+
+test("un avatar respins nu impinge webhook-ul la owner: se recreeaza fara el (review PR #993)", async () => {
+  const rejected: string[] = [];
+  let attempts = 0;
+  const guild = moduleContext<Parameters<typeof adaptRecoveryGuild>[0]>({
+    id: "g1",
+    channels: {
+      cache: {
+        get: () => ({
+          createWebhook: async (payload: Record<string, unknown>) => {
+            attempts += 1;
+            if (payload.avatar !== undefined) {
+              rejected.push(String(payload.avatar));
+              throw new Error("avatar invalid");
+            }
+            return { id: "wh-fara-avatar" };
+          }
+        }),
+        values: () => []
+      }
+    }
+  });
+
+  const port = adaptRecoveryGuild(guild, async () => ({}), async () => true, async () => undefined);
+  const created = await port?.recreateWebhook({ ...WEBHOOK, avatar: "hash-invalid" });
+
+  assert.equal(created, "wh-fara-avatar", "un avatar pe care Discord il refuza nu are voie sa piarda webhook-ul cu totul");
+  assert.equal(attempts, 2, "prima incercare pastreaza avatarul, a doua renunta doar la el");
+  assert.deepEqual(rejected, ["https://cdn.discordapp.com/avatars/wh-1/hash-invalid.png"]);
+});
+
+test("raportul ii spune ownerului ce webhook-uri s-au recreat, fara sa publice URL-uri (review PR #993)", () => {
+  const report = describeRecovery([
+    { kind: "recreate-webhook", resourceId: "wh-1", label: "Anunturi", status: "done", attempts: 1, detail: "recreat ca wh-nou" },
+    { kind: "restore-invite", resourceId: "abc", label: "abc", status: "done", attempts: 1, detail: "cod nou" }
+  ]);
+
+  assert.match(report, /Anunturi/, "ownerul trebuie sa stie ce integrari sa reconfigureze");
+  assert.match(report, /Server Settings > Integrations/);
+  assert.doesNotMatch(report, /http/, "URL-ul e o credentiala si nu se publica in canal");
+  assert.match(report, /invitatii au fost recreate cu coduri noi/);
 });
