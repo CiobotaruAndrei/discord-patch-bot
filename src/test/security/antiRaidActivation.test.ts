@@ -6,11 +6,13 @@ import { renderThresholdOutcome } from "../../features/command-presentation/anti
 import { toggleProtection } from "../../features/command-security/toggleProtectionUseCase.js";
 import { START_STOP_TOGGLE_FIELDS } from "../../features/command-security/securityCommandFields.js";
 import { antiRaidReadiness } from "../../features/command-security/protectionReadiness.js";
-import { renderToggleProtectionOutcome } from "../../features/command-presentation/securityCommandMessages.js";
 import { isDurationOption, THRESHOLD_OPTION_FIELDS } from "../../features/command-security/antiRaidThresholdOptions.js";
 import { readThresholdOptions, runAntiRaidThresholdsCommand } from "../../features/command-handlers/antiRaidThresholdsCommand.js";
 import type { SecurityOptions } from "../../features/command-security/securityInteractionContracts.js";
 import { moduleContext } from "../moduleContextStub.js";
+import { protectionStopActions } from "../../features/command-security/protectionStopActions.js";
+import { RAID_INTERVENTION_STAGES, decideAntiRaidStop, describeAntiRaidStopRefusal } from "../../features/command-security/antiRaidStopPolicy.js";
+import { renderToggleProtectionOutcome } from "../../features/command-presentation/securityCommandMessages.js";
 import type { ToggleProtectionDeps, ToggleProtectionInput } from "../../features/command-security/toggleProtectionUseCase.js";
 import type { SecurityInteraction } from "../../features/command-security/securityInteractionContracts.js";
 
@@ -21,6 +23,7 @@ function toggleDeps(overrides: Partial<ToggleProtectionDeps> = {}): ToggleProtec
     readChannelPermissions: async () => ({ viewChannel: true, sendMessages: true, embedLinks: true }),
     countActiveApprovals: async () => 0,
     stopAtomically: async () => null,
+    readStopRefusal: async () => null,
     persistEnabled: async () => undefined,
     runBackfill: async () => ({ delivered: 0, sentUnconfirmed: 0, undetermined: 0 }),
     ...overrides
@@ -251,4 +254,102 @@ test("aliasurile de durata sunt recunoscute ca durate, nu ca numere (F-27)", () 
   assert.equal(isDurationOption("safety-period"), true, "un alias de durata citit ca intreg ar arunca in Discord.js");
   assert.equal(isDurationOption("coordinated-window"), true);
   assert.equal(isDurationOption("identical-messages"), false);
+});
+
+test("/stop anti-raid refuza cand nu exista niciun incident (F-25)", async () => {
+  const persisted: boolean[] = [];
+  const outcome = await toggleProtection(
+    stopInput({ command: "stop", subcommand: "anti-raid", ownerOnly: true, isOwner: true, confirmed: true, needsActiveIncident: true }),
+    toggleDeps({
+      readStopRefusal: async () => describeAntiRaidStopRefusal(decideAntiRaidStop(null)),
+      persistEnabled: async enabled => { persisted.push(enabled); }
+    })
+  );
+
+  assert.equal(outcome.kind, "stop-refused");
+  assert.deepEqual(persisted, [], "protectia nu are voie sa fie dezactivata cand refuzul se aplica");
+  assert.match(renderToggleProtectionOutcome(outcome) ?? "", /nu exista niciun incident activ/);
+});
+
+test("/stop anti-raid refuza cand incidentul e doar suspectat (F-25)", async () => {
+  const outcome = await toggleProtection(
+    stopInput({ command: "stop", subcommand: "anti-raid", ownerOnly: true, isOwner: true, confirmed: true, needsActiveIncident: true }),
+    toggleDeps({
+      readStopRefusal: async () => describeAntiRaidStopRefusal(decideAntiRaidStop({ _id: "raid-1", stage: "suspected" }))
+    })
+  );
+
+  assert.equal(outcome.kind, "stop-refused");
+  assert.match(renderToggleProtectionOutcome(outcome) ?? "", /suspected/);
+});
+
+test("/stop anti-raid trece cand incidentul e intr-o etapa de interventie (F-25)", async () => {
+  for (const stage of RAID_INTERVENTION_STAGES) {
+    const persisted: boolean[] = [];
+    const outcome = await toggleProtection(
+      stopInput({ command: "stop", subcommand: "anti-raid", ownerOnly: true, isOwner: true, confirmed: true, needsActiveIncident: true }),
+      toggleDeps({
+        readStopRefusal: async () => describeAntiRaidStopRefusal(decideAntiRaidStop({ _id: "raid-1", stage })),
+        persistEnabled: async enabled => { persisted.push(enabled); }
+      })
+    );
+
+    assert.equal(outcome.kind, "toggled", `etapa ${stage} trebuie sa permita oprirea`);
+    assert.deepEqual(persisted, [false]);
+  }
+});
+
+test("un incident deja rezolvat nu mai justifica oprirea (F-25)", () => {
+  assert.equal(decideAntiRaidStop({ _id: "raid-1", stage: "resolved" }).kind, "stage-too-early");
+});
+
+test("confirmarea ramane obligatorie inaintea verificarii incidentului (F-25)", async () => {
+  let consulted = false;
+  const outcome = await toggleProtection(
+    stopInput({ command: "stop", subcommand: "anti-raid", ownerOnly: true, isOwner: true, confirmed: false, needsActiveIncident: true }),
+    toggleDeps({ readStopRefusal: async () => { consulted = true; return null; } })
+  );
+
+  assert.equal(outcome.kind, "confirmation-required");
+  assert.equal(consulted, false, "fara confirmare nu se citeste degeaba starea incidentului");
+});
+
+test("celelalte protectii nu cer un incident anti-raid ca sa se opreasca (F-25)", async () => {
+  const outcome = await toggleProtection(
+    stopInput({ command: "stop", subcommand: "new-account-alerts", ownerOnly: false, needsActiveIncident: false }),
+    toggleDeps({ readStopRefusal: async () => "nu ar trebui consultat" })
+  );
+
+  assert.equal(outcome.kind, "toggled");
+});
+
+test("cablarea reala citeste incidentul activ al serverului, nu o stare presupusa (F-25)", async () => {
+  const queried: string[] = [];
+  const actions = protectionStopActions("anti-raid", "g1", {
+    raidIncidents: moduleContext<Parameters<typeof protectionStopActions>[2]["raidIncidents"]>({
+      active: async (guildId: string) => {
+        queried.push(guildId);
+        return { _id: "raid-7", stage: "containment" };
+      }
+    }),
+    disableProtection: async () => undefined
+  });
+
+  assert.equal(actions.needsActiveIncident, true, "doar anti-raid cere incident activ");
+  assert.equal(await actions.readStopRefusal(), null, "un incident in containment permite oprirea");
+  assert.deepEqual(queried, ["g1"], "verificarea se face pe serverul comenzii");
+});
+
+test("fara acces la incidente, oprirea anti-raid se refuza in loc sa presupuna ca e liber (F-25)", async () => {
+  const actions = protectionStopActions("anti-raid", "g1", { disableProtection: async () => undefined });
+
+  assert.match(await actions.readStopRefusal() ?? "", /nu e disponibila/, "o baza de date inaccesibila nu e o dovada ca nu exista raid");
+});
+
+test("subcomenzile care nu sunt anti-raid nu consulta deloc incidentele (F-25)", async () => {
+  for (const sub of ["moderation-guard", "ad-protection", "anti-raid-dry-run", "new-account-alerts"]) {
+    const actions = protectionStopActions(sub, "g1", { disableProtection: async () => undefined });
+    assert.equal(actions.needsActiveIncident, false, `${sub} nu depinde de un incident anti-raid`);
+    assert.equal(await actions.readStopRefusal(), null);
+  }
 });

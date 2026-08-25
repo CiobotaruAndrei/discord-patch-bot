@@ -150,6 +150,7 @@ function toggleDeps(overrides: Partial<ToggleProtectionDeps> = {}): { deps: Togg
     readiness: { readinessGaps: () => [], degradedReport: () => null },
     countActiveApprovals: () => 4,
     stopAtomically: async () => { log.push("stop-atomically"); return null; },
+    readStopRefusal: async () => null,
     persistEnabled: async enabled => { log.push(`persist:${enabled}`); },
     runBackfill: async () => { log.push("backfill"); return { delivered: 2, sentUnconfirmed: 0, undetermined: 0 }; },
     ...overrides

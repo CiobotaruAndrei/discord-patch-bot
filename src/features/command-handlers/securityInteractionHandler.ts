@@ -135,6 +135,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
         {
           command, subcommand: sub, hasToggleFields: true, ...toggleGate,
           needsAtomicStop: stopActions.needsAtomicStop,
+          needsActiveIncident: stopActions.needsActiveIncident,
           needsBackfill: sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true },
         {
           readConfiguredChannel: () => {
@@ -146,6 +147,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
           readiness: toggleGate,
           countActiveApprovals: () => stopActions.countActiveApprovals(),
           stopAtomically: () => stopActions.stopAtomically(),
+          readStopRefusal: () => stopActions.readStopRefusal(),
           persistEnabled: async enabled => {
             await applyGuildConfigUpdate(target.GuildModel, guildId, { [toggle.enabled]: enabled });
           },

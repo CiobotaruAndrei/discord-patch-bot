@@ -1,6 +1,7 @@
 "use strict";
 
 import { MODERATION_GUARD_TYPES } from "./moderationGuardDecision.js";
+import { decideAntiRaidStop, describeAntiRaidStopRefusal } from "./antiRaidStopPolicy.js";
 
 import type { AdProtectionRepository } from "./adProtectionRepository.js";
 import type { PermissionRequestRepository } from "./permissionRequestRepository.js";
@@ -15,8 +16,10 @@ export interface ProtectionStopDeps {
 
 export interface ProtectionStopActions {
   needsAtomicStop: boolean;
+  needsActiveIncident: boolean;
   countActiveApprovals: () => Promise<number>;
   stopAtomically: () => Promise<string | null>;
+  readStopRefusal: () => Promise<string | null>;
 }
 
 export function protectionStopActions(
@@ -27,9 +30,21 @@ export function protectionStopActions(
   const usesGuard = subcommand === "moderation-guard" && Boolean(deps.guardRequests);
   const usesAds = subcommand === "ad-protection" && Boolean(deps.adRequests);
   const usesDryRun = subcommand === "anti-raid-dry-run" && Boolean(deps.raidIncidents);
+  const usesRaid = subcommand === "anti-raid";
 
   return {
     needsAtomicStop: usesGuard || usesAds || usesDryRun,
+    needsActiveIncident: usesRaid,
+
+    readStopRefusal: async () => {
+      if (!usesRaid) return null;
+      if (!deps.raidIncidents) {
+        return "Protectia anti-raid nu poate fi oprita: starea incidentelor nu e disponibila, "
+          + "deci nu se poate verifica daca exista un raid tratat. Reincearca dupa ce baza de date redevine accesibila.";
+      }
+      const incident = await deps.raidIncidents.active(guildId);
+      return describeAntiRaidStopRefusal(decideAntiRaidStop(incident));
+    },
 
     countActiveApprovals: async () => {
       if (usesAds && deps.adRequests) {
