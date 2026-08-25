@@ -1,6 +1,11 @@
 "use strict";
 
+import { PermissionFlagsBits } from "discord.js";
+
 import { resolveProtectionChannel } from "../../features/command-security/securityChannelResolution.js";
+import { MAX_VERIFIED_CHANNELS, assessMuteEffect, describeMuteEffect } from "../../features/command-security/muteEffectiveness.js";
+
+import type { WritableChannelProbe } from "../../features/command-security/muteEffectiveness.js";
 
 import type { RaidGuildPort, SanctionOutcome } from "../../features/command-security/antiRaidIntervention.js";
 import type { SanctionStep } from "../../features/command-security/antiRaidIncidentTypes.js";
@@ -43,7 +48,7 @@ export interface AdaptableRaidGuild {
   id: string;
   fetchAuditLogs?: (options?: Record<string, unknown>) => Promise<{ entries?: Iterable<[unknown, unknown]> | { values?: () => Iterable<unknown> } } | null>;
   roles?: { everyone?: { id?: unknown }; cache?: { values?: () => Iterable<unknown> } };
-  channels?: { cache?: { get?: (id: string) => unknown } };
+  channels?: { cache?: { get?: (id: string) => unknown; values?: () => Iterable<unknown> } };
   members?: { fetch?: (options: { user: string; force: boolean }) => Promise<unknown>; me?: { roles?: { highest?: { position?: unknown } } } | null };
   bans?: { create?: (userId: string, options?: Record<string, unknown>) => Promise<unknown> };
 }
@@ -140,9 +145,28 @@ export function adaptRaidGuild(
       add?: (roleId: string, reason?: string) => Promise<unknown>;
       remove?: (roleIds: readonly string[], reason?: string) => Promise<unknown>;
     };
+    permissionsIn?: (channel: unknown) => { has?: (flag: bigint) => boolean } | null;
   } | null> {
     const fetched = await guild.members?.fetch?.({ user: userId, force: true }).catch(() => null);
     return (fetched as Awaited<ReturnType<typeof member>>) ?? null;
+  }
+
+  function probeWritableChannels(
+    target: { permissionsIn?: (channel: unknown) => { has?: (flag: bigint) => boolean } | null }
+  ): WritableChannelProbe[] {
+    if (!target.permissionsIn) return [];
+    const probes: WritableChannelProbe[] = [];
+    for (const entry of guild.channels?.cache?.values?.() ?? []) {
+      if (probes.length >= MAX_VERIFIED_CHANNELS) break;
+      const candidate = entry as { id?: unknown; isTextBased?: () => boolean };
+      const channelId = typeof candidate.id === "string" ? candidate.id : null;
+      if (!channelId) continue;
+      if (typeof candidate.isTextBased === "function" && !candidate.isTextBased()) continue;
+      const permissions = target.permissionsIn(candidate);
+      const canSend = permissions?.has ? permissions.has(PermissionFlagsBits.SendMessages) : null;
+      probes.push({ channelId, canSendMessages: canSend });
+    }
+    return probes;
   }
 
   function mutedRole(): { id: string; position: number } | null {
@@ -219,6 +243,18 @@ export function adaptRaidGuild(
           const after = await member(userId);
           if (after?.roles?.cache?.has?.(role.id) !== true) {
             return { applied: false, retryable: true, error: "rolul Muted nu a ramas aplicat dupa verificare" };
+          }
+
+          const effect = assessMuteEffect(probeWritableChannels(after));
+          if (effect.kind === "still-writable") {
+            return { applied: false, retryable: false, error: describeMuteEffect(effect) };
+          }
+          if (effect.kind === "unverifiable") {
+            logger?.("WARN", "ANTI_RAID", "Mute aplicat fara verificarea permisiunilor efective", {
+              guildId: guild.id,
+              userId,
+              motiv: effect.reason
+            });
           }
           return { applied: true, retryable: false, error: null };
         }
