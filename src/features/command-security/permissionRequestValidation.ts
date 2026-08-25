@@ -5,7 +5,7 @@ import { WEBHOOK_CHANGE_KINDS } from "./webhookGuardTypes.js";
 import { MASS_MODERATION_ACTIONS } from "./massModerationTypes.js";
 import { STRUCTURE_APPROVAL_ACTIONS, STRUCTURE_APPROVAL_RESOURCE_KINDS } from "./serverStructureActions.js";
 import { parseDurationMs } from "./permissionRequestApproval.js";
-import { BATCH_TARGET_PREFIX, normalizePermissionName } from "./permissionRequestTypes.js";
+import { BATCH_TARGET_PREFIX, appliesToType, canonicalScope, normalizePermissionName } from "./permissionRequestTypes.js";
 import { ELEVATED_PERMISSIONS } from "./elevatedPermissions.js";
 
 import type { PermissionRequestType } from "./permissionRequestTypes.js";
@@ -154,20 +154,33 @@ export function validatePermissionRequest(input: PermissionRequestInput): Valida
     return { ok: false, problem: "ID-ul botului executor trebuie sa aiba 17-20 de cifre." };
   }
 
+  const foreign: string[] = [];
+  if (input.amount !== null && !appliesToType(input.type, "amount")) foreign.push("cantitate");
+  if (input.permissions.length > 0 && !appliesToType(input.type, "permissions")) foreign.push("permisiuni");
+  if (input.type !== "bot-add" && input.botId?.trim() && !appliesToType(input.type, "botId")) foreign.push("bot executor");
+  if (foreign.length > 0) {
+    return {
+      ok: false,
+      problem: `Pentru ${input.type} nu se aplica: ${foreign.join(", ")}. `
+        + "Campurile care nu apartin tipului nu se ignora tacut, fiindca o cerere aprobata cu ele ar parea mai ingusta decat e."
+    };
+  }
+
   const rawDuration = input.duration.trim();
   const ttlMs = rawDuration ? parseDurationMs(rawDuration) : null;
   if (rawDuration && ttlMs === null) {
     return { ok: false, problem: "Valabilitatea nu este valida. Foloseste un format ca 30m, 2h sau 1d." };
   }
 
+  const canonical = canonicalScope(input.type, { target, action, amount: input.amount, permissions: [...input.permissions], botId });
   return {
     ok: true,
     value: {
-      target,
-      action,
-      amount: input.amount,
-      permissions: [...input.permissions],
-      botId,
+      target: canonical.target,
+      action: canonical.action,
+      amount: canonical.amount ?? null,
+      permissions: canonical.permissions ?? [],
+      botId: canonical.botId ?? null,
       ttlMs: ttlMs ?? undefined
     }
   };

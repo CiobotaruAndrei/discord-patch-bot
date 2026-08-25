@@ -76,6 +76,28 @@ export function appliesToType(type: PermissionRequestType, field: keyof Permissi
   return OPTIONAL_FIELDS_BY_TYPE[type].includes(field);
 }
 
+export function canonicalScope(type: PermissionRequestType, scope: PermissionRequestScope): PermissionRequestScope {
+  const canonical: PermissionRequestScope = { target: scope.target.trim(), action: scope.action.trim().toLowerCase() };
+  if (appliesToType(type, "amount") && typeof scope.amount === "number") canonical.amount = scope.amount;
+  if (appliesToType(type, "permissions") && scope.permissions?.length) {
+    canonical.permissions = [...new Set(scope.permissions.map(normalizePermissionName))].sort();
+  }
+  if (appliesToType(type, "botId") && scope.botId) canonical.botId = scope.botId;
+  return canonical;
+}
+
+export function scopeFingerprint(type: PermissionRequestType, scope: PermissionRequestScope): string {
+  const canonical = canonicalScope(type, scope);
+  return [
+    type,
+    canonical.target,
+    canonical.action,
+    canonical.amount ?? "",
+    (canonical.permissions ?? []).join("+"),
+    canonical.botId ?? ""
+  ].join("|");
+}
+
 export function stripInapplicableFields(type: PermissionRequestType, scope: PermissionRequestScope): PermissionRequestScope {
   const kept: PermissionRequestScope = { target: scope.target, action: scope.action };
   if (appliesToType(type, "amount") && typeof scope.amount === "number") kept.amount = scope.amount;
