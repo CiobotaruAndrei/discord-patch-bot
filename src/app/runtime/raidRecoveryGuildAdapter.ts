@@ -15,7 +15,10 @@ import type {
 
 export interface AdaptableRecoveryGuild {
   id?: unknown;
-  roles?: { cache?: { values?: () => Iterable<unknown> }; create?: (options: Record<string, unknown>) => Promise<{ id?: unknown } | null> };
+  roles?: {
+    cache?: { values?: () => Iterable<unknown> };
+    create?: (options: Record<string, unknown>) => Promise<{ id?: unknown; setPosition?: (position: number) => Promise<unknown> } | null>;
+  };
   channels?: {
     cache?: { values?: () => Iterable<unknown>; get?: (id: string) => unknown };
     create?: (options: Record<string, unknown>) => Promise<{ id?: unknown } | null>;
@@ -233,10 +236,22 @@ export function adaptRecoveryGuild(
         color: role.color ?? undefined,
         hoist: role.hoist,
         mentionable: role.mentionable,
-        position: role.position,
         reason: RECOVERY_REASON
       }).catch(() => null);
-      return textOf(created?.id);
+
+      const roleId = textOf(created?.id);
+      if (!roleId) return null;
+
+      const positioned = created?.setPosition
+        ? await created.setPosition(role.position).then(() => true).catch(() => false)
+        : false;
+      if (!positioned) {
+        await publish(
+          `Recovery anti-raid: rolul \`${role.name}\` a fost recreat ca \`${roleId}\`, dar nu a putut fi mutat la pozitia `
+            + `${role.position} (probabil era peste rolul botului). Rolul exista si e urmarit; pozitia lui cere interventia ownerului.`
+        ).catch(() => undefined);
+      }
+      return roleId;
     },
 
     async recreateWebhook(webhook) {

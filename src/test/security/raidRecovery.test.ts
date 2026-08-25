@@ -603,6 +603,8 @@ test("raportul ii spune ownerului ce webhook-uri s-au recreat, fara sa publice U
   assert.match(report, /Server Settings > Integrations/);
   assert.doesNotMatch(report, /http/, "URL-ul e o credentiala si nu se publica in canal");
   assert.match(report, /invitatii au fost recreate cu coduri noi/);
+});
+
 function retryHarness(options: { failFirstChannel?: boolean } = {}) {
   const model = snapshotModel();
   const createdRoles: Array<{ name: string; position: number }> = [];
@@ -699,4 +701,77 @@ test("pozitia rolului e restaurata, nu lasata la capatul ierarhiei (N-04)", asyn
 
   assert.deepEqual(setup.createdRoles, [{ name: "Staff", position: 4 }],
     "un rol recreat la pozitia implicita nu mai are aceleasi drepturi relative fata de restul ierarhiei");
+});
+
+function roleGuild(options: { positionFails?: boolean; withoutSetPosition?: boolean } = {}) {
+  const created: Array<{ name: string; hadPosition: boolean }> = [];
+  const positioned: number[] = [];
+  const published: string[] = [];
+
+  const guild = moduleContext<Parameters<typeof adaptRecoveryGuild>[0]>({
+    id: "g1",
+    roles: {
+      cache: { values: () => [] },
+      create: async (payload: Record<string, unknown>) => {
+        created.push({ name: String(payload.name), hadPosition: payload.position !== undefined });
+        return {
+          id: `rol-nou-${created.length}`,
+          setPosition: options.withoutSetPosition
+            ? undefined
+            : async (position: number) => {
+              if (options.positionFails) throw new Error("Missing Permissions");
+              positioned.push(position);
+              return undefined;
+            }
+        };
+      }
+    }
+  });
+
+  return {
+    port: adaptRecoveryGuild(guild, async () => ({}), async () => true, async (body: string) => { published.push(String(body)); }),
+    created,
+    positioned,
+    published
+  };
+}
+
+const DELETED_ROLE = { roleId: "role-vechi", name: "Staff", position: 9, color: 0, hoist: false, mentionable: false, managed: false, permissions: "0" };
+
+test("un rol care nu poate fi mutat la pozitia lui ramane totusi urmarit (review PR #994)", async () => {
+  const setup = roleGuild({ positionFails: true });
+
+  const roleId = await setup.port?.recreateRole(DELETED_ROLE);
+
+  assert.equal(roleId, "rol-nou-1",
+    "rolul a fost creat; daca esecul mutarii intoarce null, resursa ramane orfana si remap-ul nu se persista niciodata");
+  assert.match(setup.published.join(" "), /nu a putut fi mutat la pozitia 9/);
+});
+
+test("crearea nu mai cere pozitia in acelasi apel (review PR #994)", async () => {
+  const setup = roleGuild();
+
+  await setup.port?.recreateRole(DELETED_ROLE);
+
+  assert.deepEqual(setup.created, [{ name: "Staff", hadPosition: false }],
+    "RoleManager.create cu position face create plus move; un move respins arunca desi rolul exista deja");
+  assert.deepEqual(setup.positioned, [9], "pozitionarea se incearca separat");
+});
+
+test("cand pozitionarea reuseste, nu se raporteaza nimic ownerului (review PR #994)", async () => {
+  const setup = roleGuild();
+
+  await setup.port?.recreateRole(DELETED_ROLE);
+
+  assert.deepEqual(setup.published, []);
+});
+
+test("un rol pe care Discord nu il creeaza deloc ramane la owner (review PR #994)", async () => {
+  const guild = moduleContext<Parameters<typeof adaptRecoveryGuild>[0]>({
+    id: "g1",
+    roles: { cache: { values: () => [] }, create: async () => { throw new Error("Missing Permissions"); } }
+  });
+  const port = adaptRecoveryGuild(guild, async () => ({}), async () => true, async () => undefined);
+
+  assert.equal(await port?.recreateRole(DELETED_ROLE), null, "esecul crearii ramane esec, nu se mascheaza");
 });
