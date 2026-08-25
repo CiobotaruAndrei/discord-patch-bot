@@ -1,7 +1,7 @@
 "use strict";
 
 import { createWebhookSnapshotRepository } from "./webhookSnapshotRepository.js";
-import { changeActions, describeChanges, diffWebhooks } from "./webhookGuardTypes.js";
+import { describeChanges, diffWebhooks } from "./webhookGuardTypes.js";
 import { type SanctionRole } from "./elevatedRoleSanction.js";
 import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
@@ -31,7 +31,7 @@ export interface WebhookGuardChannel {
 
 export interface WebhookGuardGate {
   readSituation(guildId: string): Promise<{ guardEnabled: boolean; raidConfirmed: boolean }>;
-  consumeApproval(guildId: string, actorId: string, channelId: string, action: string): Promise<{ _id: string } | null>;
+  consumeApproval(guildId: string, actorId: string, channelId: string, action: string, webhookId: string): Promise<{ _id: string } | null>;
 }
 
 export interface WebhookGuardDeps {
@@ -203,23 +203,22 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
       return { kind: "reverted", changes, corrected: changes.length - failedInRaid, failed: failedInRaid };
     }
 
-    const actions = changeActions(changes);
-    const approved = new Set<string>();
     const approvals: string[] = [];
-    for (const action of actions) {
+    const unapproved: WebhookChange[] = [];
+    for (const change of changes) {
       const approval = await deps.gate
-        .consumeApproval(channel.guildId, actorId, channel.channelId, action)
+        .consumeApproval(channel.guildId, actorId, channel.channelId, change.kind, change.webhookId)
         .catch(() => null);
-      if (!approval) continue;
-      approved.add(action);
-      approvals.push(approval._id);
+      if (approval) {
+        approvals.push(approval._id);
+        continue;
+      }
+      unapproved.push(change);
     }
-    if (approved.size === actions.length) {
+    if (unapproved.length === 0) {
       await capture(channel, current);
       return { kind: "allowed-approval", requestId: approvals.join(",") };
     }
-
-    const unapproved = changes.filter(change => !approved.has(change.kind));
     const failed = await revertChanges(channel, unapproved);
 
     await deps.recordAudit(channel.guildId, {

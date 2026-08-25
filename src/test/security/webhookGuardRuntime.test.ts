@@ -76,8 +76,12 @@ function harness(options: {
         guardEnabled: options.guardEnabled ?? true,
         raidConfirmed: options.raidConfirmed ?? false
       }),
-      consumeApproval: (guildId, actorId, channelId, action) =>
-        requests.consume(guildId, "webhook", actorId, { target: channelId, action }, new Date(NOW))
+      consumeApproval: async (guildId, actorId, channelId, action, webhookId) => {
+        const onWebhook = action === "create"
+          ? null
+          : await requests.consume(guildId, "webhook", actorId, { target: webhookId, action }, new Date(NOW)).catch(() => null);
+        return onWebhook ?? requests.consume(guildId, "webhook", actorId, { target: channelId, action }, new Date(NOW));
+      }
     },
     publish: async (_guildId, message) => { published.push(message); },
     recordAudit: async (_guildId, entry) => { audits.push({ action: entry.action, details: entry.details }); },
@@ -266,4 +270,94 @@ test("o corectie esuata este raportata explicit, fara sa opreasca restul", async
   assert.equal(outcome.kind, "reverted");
   assert.equal(outcome.kind === "reverted" ? outcome.failed : -1, 1);
   assert.match(setup.published[0] ?? "", /1 din 2 modificari NU au putut fi corectate/);
+});
+
+async function approvalsFor(entries: readonly { id: string; target: string; action: string }[]) {
+  const model = permissionRequestStore();
+  const repository = createPermissionRequestRepository(model);
+  for (const entry of entries) {
+    await repository.create({
+      requestId: entry.id, guildId: "g1", type: "webhook", requesterId: "mod-1",
+      target: entry.target, action: entry.action, reason: "integrare"
+    }, new Date(NOW - 60_000));
+    await repository.resolve("g1", entry.id, "approved", "owner-1", { target: entry.target, action: entry.action }, new Date(NOW - 60_000));
+  }
+  return model;
+}
+
+test("o singura aprobare de creare nu acopera doua webhook-uri create (F-47)", async () => {
+  const approvals = await approvalsFor([{ id: "req-1", target: "chan-1", action: "create" }]);
+  const setup = harness({
+    before: [hook("w1", "existent")],
+    after: [hook("w1", "existent"), hook("w2", "nou-a"), hook("w3", "nou-b")],
+    approvals
+  });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "reverted", "aprobarea consumata acopera o singura operatiune, nu tot lotul de acelasi tip");
+  assert.equal(setup.deleted.length, 1, "exact un webhook ramane acoperit de aprobare; celalalt se sterge");
+  assert.equal(approvals.records.filter(record => record.status === "used").length, 1);
+});
+
+test("doua aprobari de creare acopera exact doua webhook-uri create (F-47)", async () => {
+  const approvals = await approvalsFor([
+    { id: "req-1", target: "chan-1", action: "create" },
+    { id: "req-2", target: "chan-1", action: "create" }
+  ]);
+  const setup = harness({
+    before: [hook("w1", "existent")],
+    after: [hook("w1", "existent"), hook("w2", "nou-a"), hook("w3", "nou-b")],
+    approvals
+  });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "allowed-approval");
+  assert.deepEqual(setup.deleted, [], "cate o aprobare pentru fiecare operatiune inseamna lot acoperit complet");
+  assert.equal(approvals.records.filter(record => record.status === "used").length, 2);
+});
+
+test("o aprobare de stergere legata de un webhook anume nu acopera stergerea altuia (F-47)", async () => {
+  const approvals = await approvalsFor([{ id: "req-1", target: "w1", action: "delete" }]);
+  const setup = harness({
+    before: [hook("w1", "permis"), hook("w2", "protejat")],
+    after: [],
+    approvals
+  });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "reverted");
+  assert.deepEqual(setup.recreated, ["w2"], "aprobarea pe w1 nu are voie sa acopere stergerea lui w2");
+});
+
+test("aprobarea legata de un webhook acopera si modificarea aceluiasi webhook (F-47)", async () => {
+  const approvals = await approvalsFor([{ id: "req-1", target: "w1", action: "update" }]);
+  const setup = harness({
+    before: [hook("w1", "vechi")],
+    after: [hook("w1", "redenumit")],
+    approvals
+  });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "allowed-approval");
+  assert.deepEqual(setup.edited, []);
+});
+
+test("un lot mixt consuma aprobari separate per operatiune, restul se corecteaza (F-47)", async () => {
+  const approvals = await approvalsFor([{ id: "req-1", target: "w1", action: "update" }]);
+  const setup = harness({
+    before: [hook("w1", "vechi"), hook("w2", "protejat")],
+    after: [hook("w1", "redenumit"), hook("w3", "nou")],
+    approvals
+  });
+
+  const outcome = await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(outcome.kind, "reverted");
+  assert.deepEqual(setup.edited, [], "update-ul aprobat ramane");
+  assert.deepEqual(setup.recreated, ["w2"], "stergerea neaprobata se corecteaza");
+  assert.deepEqual(setup.deleted, ["w3"], "crearea neaprobata se corecteaza");
 });

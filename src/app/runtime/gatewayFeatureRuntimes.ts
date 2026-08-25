@@ -297,8 +297,13 @@ async function applyWarnBan(
       WebhookSnapshotModel: mongo.WebhookSnapshotModel,
       gate: {
         readSituation: guildId => moderationGuardGate.readSituation(guildId),
-        consumeApproval: (guildId, actorId, channelId, action) =>
-          createPermissionRequestRepository(permissionRequestModel).consume(guildId, "webhook", actorId, { target: channelId, action })
+        consumeApproval: async (guildId, actorId, channelId, action, webhookId) => {
+          const requests = createPermissionRequestRepository(permissionRequestModel);
+          const onWebhook = action === "create"
+            ? null
+            : await requests.consume(guildId, "webhook", actorId, { target: webhookId, action }).catch(() => null);
+          return onWebhook ?? requests.consume(guildId, "webhook", actorId, { target: channelId, action });
+        }
       },
       publish: publishToRequestChannel,
       recordAudit: async (guildId, entry) => {
