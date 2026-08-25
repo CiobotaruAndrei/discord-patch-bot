@@ -144,6 +144,14 @@ export function createRaidSnapshotRepository(model: RaidSnapshotModelLike) {
     return updatedDocument(result);
   }
 
+  async function appendOperation(incidentId: string, entry: RecoveryOperation): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: incidentId, operations: { $not: { $elemMatch: { kind: entry.kind, resourceId: entry.resourceId } } } },
+      { $push: { operations: entry } }
+    );
+    return updatedDocument(result);
+  }
+
   async function rememberRemap(incidentId: string, remap: ResourceRemap): Promise<boolean> {
     const result = await model.updateOne(
       { _id: incidentId },
@@ -153,7 +161,7 @@ export function createRaidSnapshotRepository(model: RaidSnapshotModelLike) {
   }
 
   return {
-    read, capture, savePlan, markOperation, rememberRemap,
+    read, capture, savePlan, markOperation, appendOperation, rememberRemap,
     readBaseline, writeBaseline, freezeBaseline, thawBaseline
   };
 }
