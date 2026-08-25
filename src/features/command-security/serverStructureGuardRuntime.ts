@@ -4,8 +4,11 @@ import { type SanctionRole } from "./elevatedRoleSanction.js";
 import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
 import { STRUCTURE_ACTIONS } from "./serverStructureActions.js";
+import { describeStructureRollback, executeStructureRollback } from "./serverStructureRollback.js";
 
 import type { StructureChangeKind } from "./serverStructureActions.js";
+import type { StructureRollbackOutcome, StructureRollbackPort } from "./serverStructureRollback.js";
+import type { ProtectedResourceSnapshot } from "./protectedResourceTypes.js";
 import type { StructureSurface } from "./antiRaidDetection.js";
 import type { LogLevel } from "../../shared/logging.js";
 
@@ -21,7 +24,7 @@ export interface StructureGuardActor {
   removeRoles(roleIds: readonly string[], reason: string): Promise<unknown>;
 }
 
-export interface StructureGuardGuild {
+export interface StructureGuardGuild extends StructureRollbackPort {
   id: string;
   ownerId: string | null;
   botHighestRolePosition: number | null;
@@ -50,13 +53,40 @@ export interface ServerStructureGuardDeps {
 export type StructureGuardOutcome =
   | { kind: "allowed-owner" }
   | { kind: "allowed-approval"; requestId: string }
-  | { kind: "signalled"; actorId: string | null }
-  | { kind: "sanctioned"; actorId: string };
+  | { kind: "signalled"; actorId: string | null; rollback: StructureRollbackOutcome | null }
+  | { kind: "sanctioned"; actorId: string; rollback: StructureRollbackOutcome };
 
 const REASON = "Protectie moderation-guard: modificare de structura fara aprobare de tip server-structure";
 
 export function createServerStructureGuardRuntime(deps: ServerStructureGuardDeps) {
-  async function sanction(guild: StructureGuardGuild, actorId: string, kind: StructureChangeKind, resourceId: string): Promise<void> {
+  async function rollback(
+    guild: StructureGuardGuild,
+    kind: StructureChangeKind,
+    resourceId: string,
+    snapshot: ProtectedResourceSnapshot | null
+  ): Promise<StructureRollbackOutcome> {
+    const outcome = await executeStructureRollback(guild, kind, resourceId, snapshot, REASON);
+    if (!outcome.verified) {
+      deps.logger?.("ERROR", "STRUCTURE_GUARD", "Revenirea structurii nu s-a confirmat", {
+        guildId: guild.id,
+        kind,
+        resourceId,
+        operation: outcome.operation,
+        attempted: outcome.attempted,
+        reverted: outcome.reverted,
+        reason: outcome.reason
+      });
+    }
+    return outcome;
+  }
+
+  async function sanction(
+    guild: StructureGuardGuild,
+    actorId: string,
+    kind: StructureChangeKind,
+    resourceId: string,
+    reverted: StructureRollbackOutcome
+  ): Promise<void> {
     const outcome = await executeElevatedRoleSanction({
       resolveActor: () => guild.resolveActor(actorId),
       botHighestRolePosition: guild.botHighestRolePosition,
@@ -76,15 +106,15 @@ export function createServerStructureGuardRuntime(deps: ServerStructureGuardDeps
 
     await deps.recordAudit(guild.id, {
       userId: actorId,
-      action: "server-structure-unapproved",
-      details: `tip=${kind}; resursa=${resourceId}`
+      action: reverted.verified ? "server-structure-unapproved-reverted" : "server-structure-unapproved",
+      details: `tip=${kind}; resursa=${resourceId}; revenire=${reverted.operation}:${reverted.verified ? "confirmata" : "neconfirmata"}`
     }).catch(() => undefined);
 
     const lines = [
       `<@${actorId}> a modificat structura serverului fara aprobare.`,
       `Modificare: ${STRUCTURE_LABELS[kind]} \`${resourceId}\``,
       "Motiv: fara aprobare activa de tip server-structure",
-      "Modificarile de structura NU se anuleaza automat in afara unui raid; verificarea si revenirea raman la owner.",
+      describeStructureRollback(reverted),
       describeSanctionOutcome(outcome)
     ];
     await deps.publish(guild.id, lines.join("\n")).catch(() => undefined);
@@ -93,7 +123,8 @@ export function createServerStructureGuardRuntime(deps: ServerStructureGuardDeps
   async function handleStructureChange(
     guild: StructureGuardGuild,
     kind: StructureChangeKind,
-    resourceId: string
+    resourceId: string,
+    snapshot: ProtectedResourceSnapshot | null = null
   ): Promise<StructureGuardOutcome> {
     const situation = await deps.gate.readSituation(guild.id).catch(() => ({ guardEnabled: false, raidConfirmed: false }));
     const actorId = await guild.findStructureActor(kind, resourceId).catch(() => null);
@@ -114,10 +145,13 @@ export function createServerStructureGuardRuntime(deps: ServerStructureGuardDeps
       approvalChecked: situation.guardEnabled && !situation.raidConfirmed && Boolean(actorId)
     }).catch(() => undefined);
 
-    if (!situation.guardEnabled || situation.raidConfirmed || !actorId) return { kind: "signalled", actorId };
+    if (!situation.guardEnabled || situation.raidConfirmed) return { kind: "signalled", actorId, rollback: null };
 
-    await sanction(guild, actorId, kind, resourceId);
-    return { kind: "sanctioned", actorId };
+    const reverted = await rollback(guild, kind, resourceId, snapshot);
+    if (!actorId) return { kind: "signalled", actorId, rollback: reverted };
+
+    await sanction(guild, actorId, kind, resourceId, reverted);
+    return { kind: "sanctioned", actorId, rollback: reverted };
   }
 
   return { handleStructureChange };
@@ -127,6 +161,7 @@ export interface ServerStructureGuardRuntime {
   handleStructureChange: (
     guild: StructureGuardGuild,
     kind: StructureChangeKind,
-    resourceId: string
+    resourceId: string,
+    snapshot?: ProtectedResourceSnapshot | null
   ) => Promise<StructureGuardOutcome>;
 }
