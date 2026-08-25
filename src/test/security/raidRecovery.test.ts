@@ -23,9 +23,15 @@ function snapshotModel(): RaidSnapshotModelLike & { docs: Map<string, Record<str
       const id = String(filter._id);
       const existing = docs.get(id);
       if (!existing) {
-        if (!options?.upsert || !update.$setOnInsert) return { matchedCount: 0, modifiedCount: 0 };
-        docs.set(id, { ...(update.$setOnInsert as Record<string, unknown>) });
+        const seed = (update.$setOnInsert ?? update.$set) as Record<string, unknown> | undefined;
+        if (!options?.upsert || !seed) return { matchedCount: 0, modifiedCount: 0 };
+        docs.set(id, { _id: id, ...seed });
         return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
+      }
+      for (const [field, expected] of Object.entries(filter)) {
+        if (field === "_id") continue;
+        const actual = existing[field] ?? null;
+        if (actual !== expected) return { matchedCount: 0, modifiedCount: 0 };
       }
       if (update.$set) Object.assign(existing, update.$set);
       return { matchedCount: 1, modifiedCount: 1 };
@@ -329,4 +335,121 @@ test("o resursa care NU a putut fi recreata nu produce rebind (review #945)", as
   await runtime.restore(setup.guild, INCIDENT);
 
   assert.deepEqual(rebinds, [], "o resursa neredata nu poate fi rebindata la nimic");
+});
+
+function baselineHarness() {
+  const model = snapshotModel();
+  let clock = NOW - 3 * 60 * 60 * 1000;
+  const runtime = createRaidRecoveryRuntime({ RaidSnapshotModel: model, now: () => clock });
+  const captured: RaidSnapshot[] = [];
+  let live = snapshotWith();
+
+  const guild = moduleContext<RecoveryGuildPort>({
+    id: "g1",
+    captureSnapshot: async () => {
+      captured.push(live);
+      return live;
+    }
+  });
+
+  return {
+    runtime,
+    guild,
+    model,
+    captured,
+    setLive: (snapshot: RaidSnapshot) => { live = snapshot; },
+    advance: (ms: number) => { clock += ms; }
+  };
+}
+
+const CHANNEL = {
+  channelId: "chan-distrus", name: "anunturi", channelType: 0, parentId: null,
+  position: 0, topic: null, nsfw: false, rateLimitPerUser: null, overwrites: []
+};
+const ROLE = { roleId: "role-1", name: "Staff", position: 3, color: 0, hoist: false, mentionable: false, managed: false, permissions: "0" };
+
+test("baseline-ul inghetat inainte de raid e cel folosit de recovery, nu starea de la confirmare (N-02)", async () => {
+  const setup = baselineHarness();
+  setup.setLive(snapshotWith({ channels: [CHANNEL] }));
+  await setup.runtime.refreshBaseline(setup.guild);
+
+  setup.advance(3 * 60 * 60 * 1000);
+  await setup.runtime.freezeBaseline("g1");
+  setup.setLive(snapshotWith({ channels: [] }));
+
+  const outcome = await setup.runtime.captureBeforeContainment(setup.guild, INCIDENT, new Date(NOW));
+
+  assert.equal(outcome.kind === "captured" && outcome.source, "frozen-baseline");
+  assert.equal(outcome.kind === "captured" && outcome.channels, 1, "canalul sters inainte de confirmare trebuie sa fie in snapshot");
+  assert.match(outcome.kind === "captured" ? outcome.note : "", /pot fi recreate/);
+});
+
+test("fara baseline inghetat, recovery cade pe starea curenta si o spune explicit (N-02)", async () => {
+  const setup = baselineHarness();
+
+  const outcome = await setup.runtime.captureBeforeContainment(setup.guild, INCIDENT, new Date(NOW));
+
+  assert.equal(outcome.kind === "captured" && outcome.source, "live-capture");
+  assert.match(outcome.kind === "captured" ? outcome.note : "", /NU pot fi recreate/);
+});
+
+test("un baseline necongelat nu e de incredere: a putut fi rescris in timpul raidului (N-02)", async () => {
+  const setup = baselineHarness();
+  setup.setLive(snapshotWith({ channels: [CHANNEL] }));
+  await setup.runtime.refreshBaseline(setup.guild);
+  setup.advance(3 * 60 * 60 * 1000);
+
+  const outcome = await setup.runtime.captureBeforeContainment(setup.guild, INCIDENT, new Date(NOW));
+
+  assert.equal(outcome.kind === "captured" && outcome.source, "live-capture", "fara inghetare, baseline-ul putea fi rescris de atacator");
+});
+
+test("cat timp baseline-ul e inghetat, reimprospatarea nu il rescrie (N-02)", async () => {
+  const setup = baselineHarness();
+  setup.setLive(snapshotWith({ roles: [ROLE] }));
+  await setup.runtime.refreshBaseline(setup.guild);
+  setup.advance(3 * 60 * 60 * 1000);
+  await setup.runtime.freezeBaseline("g1");
+
+  setup.setLive(snapshotWith({ roles: [] }));
+  setup.advance(7 * 60 * 60 * 1000);
+  const refreshed = await setup.runtime.refreshBaseline(setup.guild);
+  const outcome = await setup.runtime.captureBeforeContainment(setup.guild, INCIDENT, new Date(NOW));
+
+  assert.equal(refreshed, false, "un atacator care declanseaza o reimprospatare nu are voie sa stearga referinta");
+  assert.equal(outcome.kind === "captured" && outcome.roles, 1);
+});
+
+test("dupa dezghetare, baseline-ul redevine reimprospatabil (N-02)", async () => {
+  const setup = baselineHarness();
+  setup.setLive(snapshotWith({ roles: [ROLE] }));
+  await setup.runtime.refreshBaseline(setup.guild);
+  await setup.runtime.freezeBaseline("g1");
+  await setup.runtime.releaseBaseline("g1");
+
+  setup.advance(7 * 60 * 60 * 1000);
+  assert.equal(await setup.runtime.refreshBaseline(setup.guild), true, "dupa inchiderea incidentului serverul curent redevine referinta");
+});
+
+test("reimprospatarea nu recaptureaza inainte de intervalul stabilit (N-02)", async () => {
+  const setup = baselineHarness();
+  await setup.runtime.refreshBaseline(setup.guild);
+  const dupaPrima = setup.captured.length;
+
+  setup.advance(60_000);
+  await setup.runtime.refreshBaseline(setup.guild);
+
+  assert.equal(setup.captured.length, dupaPrima, "un baseline proaspat nu se recaptureaza la fiecare pornire");
+});
+
+test("un baseline foarte vechi nu e folosit ca referinta (N-02)", async () => {
+  const setup = baselineHarness();
+  setup.setLive(snapshotWith({ channels: [CHANNEL] }));
+  await setup.runtime.refreshBaseline(setup.guild);
+  await setup.runtime.freezeBaseline("g1");
+  setup.advance(30 * 24 * 60 * 60 * 1000);
+
+  const outcome = await setup.runtime.captureBeforeContainment(setup.guild, INCIDENT, new Date(NOW));
+
+  assert.equal(outcome.kind === "captured" && outcome.source, "live-capture", "un baseline de o luna descrie alt server");
 });

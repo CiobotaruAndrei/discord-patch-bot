@@ -84,6 +84,7 @@ export type SecurityDeps = {
   AdRequestModel?: AdRequestModelLike;
   AdAttemptModel?: AdAttemptModelLike;
   OperationJournalModel?: OperationJournalModelLike;
+  captureRaidBaseline?: (guildId: string) => Promise<boolean>;
 };
 
 export type OverwriteEditor = (target: object, permissions: Record<string, boolean | null>) => Promise<unknown>;

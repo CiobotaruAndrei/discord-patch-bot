@@ -39,7 +39,10 @@ export interface RaidGuildPort {
   alertOwner(body: string): Promise<unknown>;
   findBotAdder?(botId: string): Promise<string | null>;
   stripElevatedRoles?(userId: string, reason: string): Promise<{ removed: string[]; blocked: string[] }>;
-  captureStructureSnapshot?(incidentId: string): Promise<unknown>;
+  captureStructureSnapshot?(incidentId: string, incidentStartedAt: Date): Promise<unknown>;
+  freezeStructureBaseline?(): Promise<unknown>;
+  refreshStructureBaseline?(): Promise<unknown>;
+  releaseStructureBaseline?(): Promise<unknown>;
   restoreStructure?(incidentId: string): Promise<{ complete: boolean; blocked: number }>;
 }
 
@@ -225,7 +228,9 @@ export function createRaidIntervention(deps: InterventionDeps) {
 
     if (current.stage === "confirmed" || current.stage === "containment") {
       if (current.stage === "confirmed") {
-        if (guild.captureStructureSnapshot) await guild.captureStructureSnapshot(current._id).catch(() => undefined);
+        if (guild.captureStructureSnapshot) {
+          await guild.captureStructureSnapshot(current._id, current.startedAt).catch(() => undefined);
+        }
         await incidents.advance(current._id, "confirmed", "containment", new Date(moment));
       }
       const lockFirst = coordinatedRaid(current);
@@ -283,6 +288,7 @@ export function createRaidIntervention(deps: InterventionDeps) {
         return [...steps, { kind: "waiting", incidentId: current._id, remainingMs: 0 }];
       }
       await incidents.advance(current._id, "recovery", "resolved", new Date(moment));
+      if (guild.releaseStructureBaseline) await guild.releaseStructureBaseline().catch(() => undefined);
       await guild.publish(
         `Anti-raid ${current._id}: incident inchis. Lockdown-ul a fost ridicat, structura a fost restaurata, iar mute-urile, timeout-urile, banurile si eliminarile de roluri raman aplicate.`
       );

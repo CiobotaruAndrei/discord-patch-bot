@@ -2,9 +2,11 @@
 
 import { createdDocument, updatedDocument } from "../../shared/persistenceOutcome.js";
 import { emptyProtections, RAID_SNAPSHOT_VERSION } from "./raidSnapshotTypes.js";
+import { baselineId } from "./raidBaselineSnapshot.js";
 
 import type { WriteCounts } from "../../shared/persistenceOutcome.js";
 import type { RaidSnapshot, RecoveryOperation, RecoveryStatus, SnapshotProtections } from "./raidSnapshotTypes.js";
+import type { BaselineRecord } from "./raidBaselineSnapshot.js";
 
 export interface RaidSnapshotModelLike {
   findOne(filter: Record<string, unknown>): { lean(): Promise<Record<string, unknown> | null> };
@@ -96,7 +98,42 @@ export function createRaidSnapshotRepository(model: RaidSnapshotModelLike) {
     return savePlan(incidentId, operations);
   }
 
-  return { read, capture, savePlan, markOperation };
+  async function readBaseline(guildId: string): Promise<BaselineRecord | null> {
+    const document = await model.findOne({ _id: baselineId(guildId) }).lean();
+    if (!document) return null;
+    return {
+      guildId,
+      snapshot: asSnapshot(document.snapshot, new Date(0)),
+      frozenAt: document.frozenAt instanceof Date ? document.frozenAt : null
+    };
+  }
+
+  async function writeBaseline(guildId: string, snapshot: RaidSnapshot): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: baselineId(guildId), frozenAt: null },
+      { $set: { guildId, snapshot, capturedAt: snapshot.capturedAt, frozenAt: null } },
+      { upsert: true }
+    );
+    return createdDocument(result) || updatedDocument(result);
+  }
+
+  async function freezeBaseline(guildId: string, at: Date): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: baselineId(guildId), frozenAt: null },
+      { $set: { frozenAt: at } }
+    );
+    return updatedDocument(result);
+  }
+
+  async function thawBaseline(guildId: string): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: baselineId(guildId) },
+      { $set: { frozenAt: null } }
+    );
+    return updatedDocument(result);
+  }
+
+  return { read, capture, savePlan, markOperation, readBaseline, writeBaseline, freezeBaseline, thawBaseline };
 }
 
 export type RaidSnapshotRepository = ReturnType<typeof createRaidSnapshotRepository>;
