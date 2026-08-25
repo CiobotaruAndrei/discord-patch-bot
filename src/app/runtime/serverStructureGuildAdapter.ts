@@ -1,6 +1,7 @@
 "use strict";
 
 import { resolveSanctionActor } from "./sanctionActorAdapter.js";
+import { channelCreatePayload, roleEditPayload } from "../../features/command-security/resourceSnapshotPayload.js";
 
 import type { AdaptableRaidGuild } from "./antiRaidGuildAdapter.js";
 import type { SanctionRole } from "../../features/command-security/elevatedRoleSanction.js";
@@ -19,8 +20,23 @@ const AUDIT_EVENT_BY_KIND: Record<StructureChangeKind, number> = {
 
 export interface AdaptableStructureGuild extends AdaptableRaidGuild {
   ownerId?: unknown;
-  roles?: AdaptableRaidGuild["roles"] & { everyone?: { id?: unknown } };
+  roles?: AdaptableRaidGuild["roles"] & {
+    everyone?: { id?: unknown };
+    cache?: { get?: (id: string) => unknown };
+    create?: (payload: Record<string, unknown>) => Promise<{ id?: unknown } | null>;
+  };
+  channels?: AdaptableRaidGuild["channels"] & {
+    create?: (payload: Record<string, unknown>) => Promise<{ id?: unknown } | null>;
+  };
   members?: AdaptableRaidGuild["members"] & { me?: { roles?: { highest?: { position?: unknown } } } | null };
+}
+
+interface DeletableResource {
+  delete?: (reason?: string) => Promise<unknown>;
+}
+
+function cacheOf(guild: AdaptableStructureGuild, kind: StructureChangeKind): { get?: (id: string) => unknown } | undefined {
+  return kind === "roleCreate" || kind === "roleDelete" ? guild.roles?.cache : guild.channels?.cache;
 }
 
 function textOf(value: unknown): string | null {
@@ -76,6 +92,25 @@ export function adaptStructureGuardGuild(
     },
     async resolveActor(actorId) {
       return resolveSanctionActor(guild, actorId);
+    },
+    async removeCreatedResource(kind, resourceId, reason) {
+      const resource = cacheOf(guild, kind)?.get?.(resourceId) as DeletableResource | undefined;
+      if (!resource?.delete) return false;
+      await resource.delete(reason);
+      return true;
+    },
+    async recreateDeletedResource(kind, snapshot) {
+      if (kind === "roleDelete") {
+        if (!guild.roles?.create) return null;
+        const created = await guild.roles.create(roleEditPayload(snapshot));
+        return textOf(created?.id);
+      }
+      if (!guild.channels?.create) return null;
+      const created = await guild.channels.create(channelCreatePayload(snapshot));
+      return textOf(created?.id);
+    },
+    async resourceExists(kind, resourceId) {
+      return Boolean(cacheOf(guild, kind)?.get?.(resourceId));
     }
   };
 }
