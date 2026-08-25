@@ -133,6 +133,17 @@ export function emptySnapshot(capturedAt: Date): RaidSnapshot {
   };
 }
 
+export const CATEGORY_CHANNEL_TYPE = 4;
+
+export function isCategory(channel: SnapshotChannel): boolean {
+  return channel.channelType === CATEGORY_CHANNEL_TYPE;
+}
+
+function byCategoryFirst(left: SnapshotChannel, right: SnapshotChannel): number {
+  if (isCategory(left) === isCategory(right)) return (left.position ?? 0) - (right.position ?? 0);
+  return isCategory(left) ? -1 : 1;
+}
+
 export function planRecovery(snapshot: RaidSnapshot, current: CurrentServerState): RecoveryOperation[] {
   const operations: RecoveryOperation[] = [];
   const liveChannels = new Set(current.channelIds);
@@ -145,8 +156,8 @@ export function planRecovery(snapshot: RaidSnapshot, current: CurrentServerState
     operations.push({ kind: "recreate-role", resourceId: role.roleId, label: role.name, status: "pending", attempts: 0, detail: null });
   }
 
-  for (const channel of snapshot.channels) {
-    if (liveChannels.has(channel.channelId)) continue;
+  const missingChannels = snapshot.channels.filter(channel => !liveChannels.has(channel.channelId));
+  for (const channel of [...missingChannels].sort(byCategoryFirst)) {
     operations.push({ kind: "recreate-channel", resourceId: channel.channelId, label: channel.name, status: "pending", attempts: 0, detail: null });
   }
 

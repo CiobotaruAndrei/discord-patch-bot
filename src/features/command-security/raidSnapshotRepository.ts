@@ -7,6 +7,7 @@ import { baselineId } from "./raidBaselineSnapshot.js";
 import type { WriteCounts } from "../../shared/persistenceOutcome.js";
 import type { RaidSnapshot, RecoveryOperation, RecoveryStatus, SnapshotProtections } from "./raidSnapshotTypes.js";
 import type { BaselineRecord } from "./raidBaselineSnapshot.js";
+import type { ResourceRemap } from "./raidSnapshotTypes.js";
 
 export interface RaidSnapshotModelLike {
   findOne(filter: Record<string, unknown>): { lean(): Promise<Record<string, unknown> | null> };
@@ -23,6 +24,15 @@ export interface RaidSnapshotRecord {
   guildId: string;
   snapshot: RaidSnapshot;
   operations: RecoveryOperation[];
+  remaps: ResourceRemap[];
+}
+
+function asRemaps(value: unknown): ResourceRemap[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
+    .map(entry => ({ previousId: String(entry.previousId ?? ""), nextId: String(entry.nextId ?? "") }))
+    .filter(entry => entry.previousId.length > 0 && entry.nextId.length > 0);
 }
 
 function asOperations(value: unknown): RecoveryOperation[] {
@@ -63,7 +73,8 @@ export function createRaidSnapshotRepository(model: RaidSnapshotModelLike) {
       incidentId,
       guildId: String(document.guildId ?? ""),
       snapshot: asSnapshot(document.snapshot, new Date(0)),
-      operations: asOperations(document.operations)
+      operations: asOperations(document.operations),
+      remaps: asRemaps(document.remaps)
     };
   }
 
@@ -133,7 +144,18 @@ export function createRaidSnapshotRepository(model: RaidSnapshotModelLike) {
     return updatedDocument(result);
   }
 
-  return { read, capture, savePlan, markOperation, readBaseline, writeBaseline, freezeBaseline, thawBaseline };
+  async function rememberRemap(incidentId: string, remap: ResourceRemap): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: incidentId },
+      { $push: { remaps: remap } }
+    );
+    return updatedDocument(result);
+  }
+
+  return {
+    read, capture, savePlan, markOperation, rememberRemap,
+    readBaseline, writeBaseline, freezeBaseline, thawBaseline
+  };
 }
 
 export type RaidSnapshotRepository = ReturnType<typeof createRaidSnapshotRepository>;

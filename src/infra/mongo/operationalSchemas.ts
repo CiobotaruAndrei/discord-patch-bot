@@ -232,6 +232,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     guildId: { type: String, required: true },
     snapshot: { type: Object, required: true },
     operations: { type: [Object], default: [] },
+    remaps: { type: [Object], default: [] },
     capturedAt: { type: Date, required: true },
     frozenAt: { type: Date, default: null }
   }, { minimize: false, _id: false });
