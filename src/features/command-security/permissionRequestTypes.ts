@@ -25,6 +25,7 @@ export type PermissionRequestStatus = (typeof PERMISSION_REQUEST_STATUSES)[numbe
 export interface PermissionRequestScope {
   target: string;
   action: string;
+  resourceKind?: string | null;
   amount?: number | null;
   permissions?: string[];
   botId?: string | null;
@@ -49,6 +50,8 @@ export interface PermissionRequestRecord extends PermissionRequestScope {
   cancelReason?: string | null;
   claimBatchId?: string | null;
   expiresAt?: Date | null;
+  remainingAmount?: number | null;
+  resourceKind?: string | null;
 }
 
 const OPTIONAL_FIELDS_BY_TYPE: Record<PermissionRequestType, ReadonlyArray<keyof PermissionRequestScope>> = {
@@ -85,10 +88,34 @@ export function normalizePermissionName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+export const BATCH_TARGET_PREFIX = "lot:";
+
+export function batchTarget(resourceKind: string): string {
+  return `${BATCH_TARGET_PREFIX}${resourceKind}`;
+}
+
+export function isBatchApproval(record: PermissionRequestRecord): boolean {
+  const target = record.approvedTarget ?? record.target;
+  return target.startsWith(BATCH_TARGET_PREFIX);
+}
+
+export function batchCapacity(record: PermissionRequestRecord): number {
+  if (typeof record.remainingAmount === "number") return record.remainingAmount;
+  return record.approvedAmount ?? record.amount ?? 0;
+}
+
 export function scopeMatchesApproval(record: PermissionRequestRecord, attempt: PermissionRequestScope): boolean {
   const target = record.approvedTarget ?? record.target;
   const action = record.approvedAction ?? record.action;
-  if (attempt.target !== target || attempt.action !== action) return false;
+  if (action !== attempt.action) return false;
+
+  if (target.startsWith(BATCH_TARGET_PREFIX)) {
+    if (attempt.resourceKind === undefined || attempt.resourceKind === null) return false;
+    if (batchTarget(attempt.resourceKind) !== target) return false;
+    return batchCapacity(record) > 0;
+  }
+
+  if (attempt.target !== target) return false;
 
   const approvedBot = record.approvedBotId ?? record.botId ?? null;
   if (approvedBot !== (attempt.botId ?? null)) return false;

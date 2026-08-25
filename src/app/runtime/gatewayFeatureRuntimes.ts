@@ -25,6 +25,7 @@ import type { AdaptableRecoveryGuild } from "./raidRecoveryGuildAdapter.js";
 import type { AdaptableRaidGuild } from "./antiRaidGuildAdapter.js";
 import type { ProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
+import { batchTarget } from "../../features/command-security/permissionRequestTypes.js";
 import { createServerEventLogRuntime } from "../../features/command-security/serverEventLogRuntime.js";
 import { observeConfirmedBotAction } from "../../features/command-security/botObservationRepository.js";
 import { recordServerAuditEntry } from "../../features/admin-records/auditLogRepository.js";
@@ -361,9 +362,14 @@ async function applyWarnBan(
     ? createServerStructureGuardRuntime({
       gate: {
         readSituation: guildId => moderationGuardGate.readSituation(guildId),
-        consumeApproval: (guildId, actorId, resourceId, action) =>
-          createPermissionRequestRepository(permissionRequestModel)
+        consumeApproval: async (guildId, actorId, resourceId, action, resourceKind) => {
+          const requests = createPermissionRequestRepository(permissionRequestModel);
+          const exact = await requests
             .consume(guildId, "server-structure", actorId, { target: resourceId, action })
+            .catch(() => null);
+          return exact ?? requests
+            .consume(guildId, "server-structure", actorId, { target: batchTarget(resourceKind), action, resourceKind });
+        }
       },
       publish: publishToRequestChannel,
       recordAudit: async (guildId, entry) => {

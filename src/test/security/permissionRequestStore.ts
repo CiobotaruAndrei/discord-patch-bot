@@ -8,7 +8,13 @@ function matches(record: Doc, filter: Doc): boolean {
     if (expected && typeof expected === "object" && !(expected instanceof Date)) {
       const clause = expected as Doc;
       if ("$in" in clause && !(clause.$in as unknown[]).includes(actual)) return false;
-      if ("$gt" in clause && !(actual instanceof Date && actual.getTime() > (clause.$gt as Date).getTime())) return false;
+      if ("$gt" in clause) {
+        const bound = clause.$gt;
+        const passes = actual instanceof Date && bound instanceof Date
+          ? actual.getTime() > bound.getTime()
+          : typeof actual === "number" && typeof bound === "number" && actual > bound;
+        if (!passes) return false;
+      }
       if ("$lte" in clause && !(actual instanceof Date && actual.getTime() <= (clause.$lte as Date).getTime())) return false;
       continue;
     }
@@ -42,6 +48,11 @@ export function permissionRequestStore(records: Doc[] = []): PermissionRequestSt
         return { matchedCount: 0, modifiedCount: 0 };
       }
       if (update.$set) Object.assign(existing, update.$set);
+      for (const [field, delta] of Object.entries((update.$inc ?? {}) as Record<string, number>)) {
+        const current = existing[field];
+        existing[field] = (typeof current === "number" ? current : 0) + delta;
+      }
+      for (const field of Object.keys((update.$unset ?? {}) as Record<string, unknown>)) delete existing[field];
       return { matchedCount: 1, modifiedCount: 1 };
     },
     async updateMany(filter: Doc, update: Doc) {

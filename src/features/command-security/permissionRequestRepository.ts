@@ -1,7 +1,7 @@
 "use strict";
 
 import { createdDocument, updatedDocument } from "../../shared/persistenceOutcome.js";
-import { scopeMatchesApproval, stripInapplicableFields } from "./permissionRequestTypes.js";
+import { BATCH_TARGET_PREFIX, batchCapacity, isBatchApproval, scopeMatchesApproval, stripInapplicableFields } from "./permissionRequestTypes.js";
 
 import type { WriteCounts } from "../../shared/persistenceOutcome.js";
 import type {
@@ -132,6 +132,12 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
       if (restriction.amount !== undefined) set.approvedAmount = restriction.amount;
       if (restriction.permissions !== undefined) set.approvedPermissions = [...restriction.permissions];
       if (restriction.botId !== undefined) set.approvedBotId = restriction.botId;
+
+      const record = await read(guildId, requestId);
+      const target = (restriction.target ?? record?.target) ?? "";
+      if (target.startsWith(BATCH_TARGET_PREFIX)) {
+        set.remainingAmount = restriction.amount ?? record?.amount ?? 0;
+      }
     }
     const result = await model.updateOne(
       { _id: requestId, guildId, status: "pending", expiresAt: { $gt: now } },
@@ -157,6 +163,22 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
       .lean());
     for (const candidate of candidates) {
       if (!scopeMatchesApproval(candidate, attempt)) continue;
+
+      if (isBatchApproval(candidate)) {
+        const remaining = batchCapacity(candidate);
+        const exhausts = remaining <= 1;
+        const claimed = await model.updateOne(
+          { _id: candidate._id, guildId, status: "approved", expiresAt: { $gt: now }, remainingAmount: { $gt: 0 } },
+          exhausts
+            ? { $set: { status: "used", usedAt: now, remainingAmount: 0, claimBatchId: batchId ?? null } }
+            : { $inc: { remainingAmount: -1 } }
+        );
+        if (!updatedDocument(claimed)) continue;
+        return exhausts
+          ? { ...candidate, status: "used", usedAt: now, remainingAmount: 0 }
+          : { ...candidate, remainingAmount: remaining - 1 };
+      }
+
       const claimed = await model.updateOne(
         { _id: candidate._id, guildId, status: "approved", expiresAt: { $gt: now } },
         { $set: { status: "used", usedAt: now, claimBatchId: batchId ?? null } }

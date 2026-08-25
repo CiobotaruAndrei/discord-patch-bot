@@ -6,6 +6,7 @@ import { createPermissionRequestRepository } from "../../features/command-securi
 import { permissionRequestStore } from "./permissionRequestStore.js";
 import { moduleContext } from "../moduleContextStub.js";
 import { emptySnapshot } from "../../features/command-security/protectedResourceTypes.js";
+import { batchTarget } from "../../features/command-security/permissionRequestTypes.js";
 import type { ServerStructureGuardDeps, StructureGuardGuild } from "../../features/command-security/serverStructureGuardRuntime.js";
 import { adaptStructureGuardGuild } from "../../app/runtime/serverStructureGuildAdapter.js";
 import type { AdaptableStructureGuild } from "../../app/runtime/serverStructureGuildAdapter.js";
@@ -365,4 +366,102 @@ test("fara permisiunea de a sterge, revenirea raporteaza esec in loc sa arunce (
 
   assert.equal(await guild?.removeCreatedResource("channelCreate", "chan-nou", "fara aprobare"), false);
   assert.equal(await guild?.recreateDeletedResource("channelDelete", SNAPSHOT), null);
+});
+
+async function batchApproval(action: string, resourceKind: string, amount: number) {
+  const model = permissionRequestStore();
+  const repository = createPermissionRequestRepository(model);
+  const target = batchTarget(resourceKind);
+  await repository.create({
+    requestId: "req-lot", guildId: "g1", type: "server-structure", requesterId: "mod-1",
+    target, action, amount, reason: "reorganizare planificata"
+  }, new Date(NOW - 60_000));
+  await repository.resolve("g1", "req-lot", "approved", "owner-1", { target, action, amount }, new Date(NOW - 60_000));
+  return model;
+}
+
+function batchHarness(approvals: ReturnType<typeof permissionRequestStore>) {
+  const setup = harness({ approvals, live: [] });
+  const requests = createPermissionRequestRepository(approvals);
+  const consumeWithBatch = async (guildId: string, actorId: string, resourceId: string, action: string, resourceKind: string) => {
+    const exact = await requests
+      .consume(guildId, "server-structure", actorId, { target: resourceId, action }, new Date(NOW))
+      .catch(() => null);
+    return exact ?? requests
+      .consume(guildId, "server-structure", actorId, { target: batchTarget(resourceKind), action, resourceKind }, new Date(NOW));
+  };
+  return { setup, consumeWithBatch };
+}
+
+test("o aprobare de lot acopera mai multe resurse, nu se epuizeaza la primul eveniment (F-49)", async () => {
+  const approvals = await batchApproval("create", "channel", 3);
+  const requests = createPermissionRequestRepository(approvals);
+
+  for (const resourceId of ["chan-1", "chan-2", "chan-3"]) {
+    const claimed = await requests.consume("g1", "server-structure", "mod-1",
+      { target: batchTarget("channel"), action: "create", resourceKind: "channel" }, new Date(NOW));
+    assert.ok(claimed, `evenimentul pentru ${resourceId} trebuie acoperit de lot`);
+  }
+
+  assert.equal(approvals.records[0].status, "used", "dupa a treia operatiune lotul e consumat complet");
+});
+
+test("lotul se epuizeaza exact la cantitatea aprobata (F-49)", async () => {
+  const approvals = await batchApproval("create", "channel", 2);
+  const requests = createPermissionRequestRepository(approvals);
+
+  await requests.consume("g1", "server-structure", "mod-1", { target: batchTarget("channel"), action: "create", resourceKind: "channel" }, new Date(NOW));
+  await requests.consume("g1", "server-structure", "mod-1", { target: batchTarget("channel"), action: "create", resourceKind: "channel" }, new Date(NOW));
+  const third = await requests.consume("g1", "server-structure", "mod-1", { target: batchTarget("channel"), action: "create", resourceKind: "channel" }, new Date(NOW));
+
+  assert.equal(third, null, "a treia operatiune depaseste cantitatea aprobata");
+});
+
+test("un lot pe canale nu acopera operatiuni pe roluri (F-49)", async () => {
+  const approvals = await batchApproval("create", "channel", 5);
+  const requests = createPermissionRequestRepository(approvals);
+
+  const claimed = await requests.consume("g1", "server-structure", "mod-1",
+    { target: batchTarget("role"), action: "create", resourceKind: "role" }, new Date(NOW));
+
+  assert.equal(claimed, null, "tipul de resursa face parte din scope, altfel un lot de canale ar acoperi si crearea de roluri");
+});
+
+test("un lot de creare nu acopera stergeri (F-49)", async () => {
+  const approvals = await batchApproval("create", "channel", 5);
+  const requests = createPermissionRequestRepository(approvals);
+
+  const claimed = await requests.consume("g1", "server-structure", "mod-1",
+    { target: batchTarget("channel"), action: "delete", resourceKind: "channel" }, new Date(NOW));
+
+  assert.equal(claimed, null);
+});
+
+test("decrementul lotului e vizibil intre operatiuni, nu doar la final (F-49)", async () => {
+  const approvals = await batchApproval("delete", "role", 3);
+  const requests = createPermissionRequestRepository(approvals);
+
+  await requests.consume("g1", "server-structure", "mod-1", { target: batchTarget("role"), action: "delete", resourceKind: "role" }, new Date(NOW));
+  const afterOne = approvals.records[0].remainingAmount;
+  await requests.consume("g1", "server-structure", "mod-1", { target: batchTarget("role"), action: "delete", resourceKind: "role" }, new Date(NOW));
+
+  assert.equal(afterOne, 2, "fara decrement persistat, o repornire ar reda lotului cantitatea initiala");
+  assert.equal(approvals.records[0].remainingAmount, 1);
+  assert.equal(approvals.records[0].status, "approved", "lotul ramane activ cat timp mai are capacitate");
+});
+
+test("in runtime, o aprobare exacta e preferata lotului (F-49)", async () => {
+  const approvals = await batchApproval("delete", "channel", 2);
+  const repository = createPermissionRequestRepository(approvals);
+  await repository.create({
+    requestId: "req-exact", guildId: "g1", type: "server-structure", requesterId: "mod-1",
+    target: "chan-9", action: "delete", reason: "canal anume"
+  }, new Date(NOW - 60_000));
+  await repository.resolve("g1", "req-exact", "approved", "owner-1", { target: "chan-9", action: "delete" }, new Date(NOW - 60_000));
+
+  const { consumeWithBatch } = batchHarness(approvals);
+  const claimed = await consumeWithBatch("g1", "mod-1", "chan-9", "delete", "channel");
+
+  assert.equal(claimed?._id, "req-exact", "aprobarea punctuala se consuma prima, ca lotul sa ramana pentru restul resurselor");
+  assert.equal(approvals.records.find(record => record._id === "req-lot")?.remainingAmount, 2, "lotul ramane neatins");
 });
