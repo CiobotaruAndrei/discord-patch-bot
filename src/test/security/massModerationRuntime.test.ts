@@ -67,8 +67,14 @@ function harness(options: {
         guardEnabled: options.guardEnabled ?? true,
         raidConfirmed: options.raidConfirmed ?? false
       }),
-      consumeApproval: (guildId, actorId, action, amount) =>
-        requests.consume(guildId, "moderation-mass", actorId, { target: actorId, action, amount }, new Date(NOW))
+      consumeApprovals: (guildId, actorId, slices) =>
+        requests.consumeAll(
+          guildId,
+          "moderation-mass",
+          actorId,
+          slices.map(slice => ({ target: actorId, action: slice.action, amount: slice.amount })),
+          new Date(NOW)
+        )
     },
     publish: async (_guildId, message) => { published.push(message); },
     recordAudit: async (_guildId, entry) => { audits.push({ action: entry.action, details: entry.details }); },
@@ -315,4 +321,44 @@ test("aceeasi tinta lovita de doua ori nu consuma cantitate dubla (F-46)", () =>
     { action: "ban", targets: ["u1"] },
     { action: "kick", targets: ["u2"] }
   ]);
+});
+
+test("cand o felie ramane neacoperita, aprobarea celeilalte NU se consuma (review PR #988)", async () => {
+  const approvals = await seedApprovals([{ id: "req-ban", action: "ban", amount: 5 }]);
+  const setup = harness({ approvals });
+
+  await mixedWindow(setup);
+
+  assert.equal(approvals.records[0].status, "approved",
+    "altfel aprobarea de ban se pierde definitiv, desi ban-urile ei sunt ridicate de rollback in aceeasi trecere");
+  assert.equal(approvals.records[0].usedAt ?? null, null);
+});
+
+test("aprobarea neconsumata ramane folosibila la o incercare corecta ulterioara (review PR #988)", async () => {
+  const approvals = await seedApprovals([{ id: "req-ban", action: "ban", amount: 5 }]);
+  const primul = harness({ approvals });
+  await mixedWindow(primul);
+
+  const alDoilea = harness({ approvals });
+  await alDoilea.runtime.handleModerationAction(alDoilea.guild, "mod-1", { auditId: "b1", targetId: "v1", action: "ban" });
+  await alDoilea.runtime.handleModerationAction(alDoilea.guild, "mod-1", { auditId: "b2", targetId: "v2", action: "ban" });
+  const outcome = await alDoilea.runtime.handleModerationAction(alDoilea.guild, "mod-1", { auditId: "b3", targetId: "v3", action: "ban" });
+
+  assert.equal(outcome.kind, "allowed-approval", "o revendicare esuata nu are voie sa arda aprobarea");
+  assert.equal(approvals.records[0].status, "used");
+});
+
+test("cand toate feliile sunt acoperite, revendicarea nu lasa niciun claim in urma (review PR #988)", async () => {
+  const approvals = await seedApprovals([
+    { id: "req-ban", action: "ban", amount: 2 },
+    { id: "req-kick", action: "kick", amount: 1 }
+  ]);
+  const setup = harness({ approvals });
+
+  await mixedWindow(setup);
+
+  for (const record of approvals.records) {
+    assert.equal(record.status, "used");
+    assert.equal(record.claimBatchId ?? null, null, "un claim ramas ar bloca recuperarea aprobarii la o cadere de proces");
+  }
 });

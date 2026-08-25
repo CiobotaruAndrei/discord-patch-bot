@@ -45,8 +45,12 @@ export function permissionRequestStore(records: Doc[] = []): PermissionRequestSt
       return { matchedCount: 1, modifiedCount: 1 };
     },
     async updateMany(filter: Doc, update: Doc) {
-      for (const record of records.filter(entry => matches(entry, filter))) Object.assign(record, update.$set);
-      return undefined;
+      const affected = records.filter(entry => matches(entry, filter));
+      for (const record of affected) {
+        if (update.$set) Object.assign(record, update.$set);
+        for (const field of Object.keys((update.$unset ?? {}) as Record<string, unknown>)) delete record[field];
+      }
+      return { matchedCount: affected.length, modifiedCount: affected.length };
     }
   };
 }

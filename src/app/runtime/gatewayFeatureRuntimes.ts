@@ -341,9 +341,13 @@ async function applyWarnBan(
       MassModerationModel: mongo.MassModerationModel,
       gate: {
         readSituation: guildId => moderationGuardGate.readSituation(guildId),
-        consumeApproval: (guildId, actorId, action, amount) =>
-          createPermissionRequestRepository(permissionRequestModel)
-            .consume(guildId, "moderation-mass", actorId, { target: actorId, action, amount })
+        consumeApprovals: (guildId, actorId, slices) =>
+          createPermissionRequestRepository(permissionRequestModel).consumeAll(
+            guildId,
+            "moderation-mass",
+            actorId,
+            slices.map(slice => ({ target: actorId, action: slice.action, amount: slice.amount }))
+          )
       },
       publish: publishToRequestChannel,
       recordAudit: async (guildId, entry) => {

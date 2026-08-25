@@ -25,7 +25,11 @@ export interface MassModerationGuild {
 
 export interface MassModerationGate {
   readSituation(guildId: string): Promise<{ guardEnabled: boolean; raidConfirmed: boolean }>;
-  consumeApproval(guildId: string, actorId: string, action: string, amount: number): Promise<{ _id: string } | null>;
+  consumeApprovals(
+    guildId: string,
+    actorId: string,
+    slices: readonly { action: string; amount: number }[]
+  ): Promise<{ _id: string }[] | null>;
 }
 
 export interface MassModerationDeps {
@@ -128,30 +132,18 @@ export function createMassModerationRuntime(deps: MassModerationDeps) {
     if (!breachesThreshold(events)) return { kind: "below-threshold", distinct: distinctTargets(events).length };
 
     const slices = approvalSlices(events);
-    const approvals: string[] = [];
-    const uncovered: typeof slices = [];
-    for (const slice of slices) {
-      const approval = await deps.gate
-        .consumeApproval(guild.id, actorId, slice.action, slice.targets.length)
-        .catch(() => null);
-      if (approval) {
-        approvals.push(approval._id);
-        continue;
-      }
-      uncovered.push(slice);
-    }
-    if (uncovered.length === 0) {
+    const approved = await deps.gate
+      .consumeApprovals(guild.id, actorId, slices.map(slice => ({ action: slice.action, amount: slice.targets.length })))
+      .catch(() => null);
+    if (approved) {
       await windows.clear(guild.id, actorId).catch(() => undefined);
-      return { kind: "allowed-approval", requestId: approvals.join(",") };
+      return { kind: "allowed-approval", requestId: approved.map(entry => entry._id).join(",") };
     }
-    if (approvals.length > 0) {
-      deps.logger?.("WARN", "MASS_MODERATION", "Lot partial acoperit de aprobari; restul se sanctioneaza", {
-        guildId: guild.id,
-        actorId,
-        acoperite: approvals.length,
-        neacoperite: describeSlices(uncovered)
-      });
-    }
+    deps.logger?.("WARN", "MASS_MODERATION", "Lotul nu e acoperit complet de aprobari; nicio aprobare nu a fost consumata", {
+      guildId: guild.id,
+      actorId,
+      lot: describeSlices(slices)
+    });
 
     const claimed = await windows.claimSanction(guild.id, actorId, current).catch(() => false);
     if (!claimed) return { kind: "already-sanctioned" };
