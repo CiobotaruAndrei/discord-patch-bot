@@ -1,7 +1,7 @@
 "use strict";
 
 import { createMassModerationRepository } from "./massModerationRepository.js";
-import { breachesThreshold, describeWindow, distinctTargets, dominantAction, withinWindow } from "./massModerationTypes.js";
+import { approvalSlices, breachesThreshold, describeSlices, describeWindow, distinctTargets, withinWindow } from "./massModerationTypes.js";
 import { type SanctionRole } from "./elevatedRoleSanction.js";
 import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
@@ -127,12 +127,30 @@ export function createMassModerationRuntime(deps: MassModerationDeps) {
     const events = withinWindow(window.events, current);
     if (!breachesThreshold(events)) return { kind: "below-threshold", distinct: distinctTargets(events).length };
 
-    const approval = await deps.gate
-      .consumeApproval(guild.id, actorId, dominantAction(events), distinctTargets(events).length)
-      .catch(() => null);
-    if (approval) {
+    const slices = approvalSlices(events);
+    const approvals: string[] = [];
+    const uncovered: typeof slices = [];
+    for (const slice of slices) {
+      const approval = await deps.gate
+        .consumeApproval(guild.id, actorId, slice.action, slice.targets.length)
+        .catch(() => null);
+      if (approval) {
+        approvals.push(approval._id);
+        continue;
+      }
+      uncovered.push(slice);
+    }
+    if (uncovered.length === 0) {
       await windows.clear(guild.id, actorId).catch(() => undefined);
-      return { kind: "allowed-approval", requestId: approval._id };
+      return { kind: "allowed-approval", requestId: approvals.join(",") };
+    }
+    if (approvals.length > 0) {
+      deps.logger?.("WARN", "MASS_MODERATION", "Lot partial acoperit de aprobari; restul se sanctioneaza", {
+        guildId: guild.id,
+        actorId,
+        acoperite: approvals.length,
+        neacoperite: describeSlices(uncovered)
+      });
     }
 
     const claimed = await windows.claimSanction(guild.id, actorId, current).catch(() => false);

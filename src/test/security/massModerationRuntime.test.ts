@@ -5,6 +5,7 @@ import { createMassModerationRuntime } from "../../features/command-security/mas
 import { breachesThreshold, distinctTargets, withinWindow } from "../../features/command-security/massModerationTypes.js";
 import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
 import { permissionRequestStore } from "./permissionRequestStore.js";
+import { approvalSlices } from "../../features/command-security/massModerationTypes.js";
 import { moduleContext } from "../moduleContextStub.js";
 import type { MassModerationDeps, MassModerationGuild } from "../../features/command-security/massModerationRuntime.js";
 import type { MassModerationEvent } from "../../features/command-security/massModerationTypes.js";
@@ -245,4 +246,73 @@ test("un ban care nu poate fi ridicat este raportat explicit", async () => {
   }
 
   assert.match(setup.published[0] ?? "", /2 ban-uri ridicate, 1 NU au putut fi ridicate/);
+});
+
+async function seedApprovals(entries: readonly { id: string; action: string; amount: number }[]) {
+  const approvals = permissionRequestStore();
+  const repository = createPermissionRequestRepository(approvals);
+  for (const entry of entries) {
+    await repository.create({
+      requestId: entry.id, guildId: "g1", type: "moderation-mass", requesterId: "mod-1",
+      target: "mod-1", action: entry.action, amount: entry.amount, reason: "curatare planificata"
+    }, new Date(NOW - 60_000));
+    await repository.resolve("g1", entry.id, "approved", "owner-1",
+      { target: "mod-1", action: entry.action, amount: entry.amount }, new Date(NOW - 60_000));
+  }
+  return approvals;
+}
+
+async function mixedWindow(setup: ReturnType<typeof harness>) {
+  await setup.runtime.handleModerationAction(setup.guild, "mod-1", { auditId: "a1", targetId: "u1", action: "ban" });
+  await setup.runtime.handleModerationAction(setup.guild, "mod-1", { auditId: "a2", targetId: "u2", action: "ban" });
+  return setup.runtime.handleModerationAction(setup.guild, "mod-1", { auditId: "a3", targetId: "u3", action: "kick" });
+}
+
+test("o aprobare de ban nu acopera si kick-urile din acelasi lot (F-46)", async () => {
+  const approvals = await seedApprovals([{ id: "req-ban", action: "ban", amount: 5 }]);
+  const setup = harness({ approvals });
+
+  const outcome = await mixedWindow(setup);
+
+  assert.notEqual(outcome.kind, "allowed-approval", "actiunea dominanta lasa celalalt tip sa treaca nesupravegheat");
+  assert.deepEqual(setup.removedRoles, ["role-mod"], "partea neaprobata a lotului duce la sanctiune");
+});
+
+test("un lot mixt e acoperit doar cu aprobare pentru fiecare tip (F-46)", async () => {
+  const approvals = await seedApprovals([
+    { id: "req-ban", action: "ban", amount: 2 },
+    { id: "req-kick", action: "kick", amount: 1 }
+  ]);
+  const setup = harness({ approvals });
+
+  const outcome = await mixedWindow(setup);
+
+  assert.equal(outcome.kind, "allowed-approval");
+  assert.deepEqual(setup.removedRoles, []);
+  assert.equal(approvals.records.filter(record => record.status === "used").length, 2);
+});
+
+test("cantitatea se numara per tip, nu pe tot lotul (F-46)", async () => {
+  const approvals = await seedApprovals([
+    { id: "req-ban", action: "ban", amount: 1 },
+    { id: "req-kick", action: "kick", amount: 1 }
+  ]);
+  const setup = harness({ approvals });
+
+  const outcome = await mixedWindow(setup);
+
+  assert.notEqual(outcome.kind, "allowed-approval", "doua ban-uri nu incap intr-o aprobare de un ban, chiar daca totalul lotului ar parea acoperit");
+});
+
+test("aceeasi tinta lovita de doua ori nu consuma cantitate dubla (F-46)", () => {
+  const slices = approvalSlices([
+    { auditId: "a1", targetId: "u1", action: "ban", at: new Date(NOW) },
+    { auditId: "a2", targetId: "u1", action: "ban", at: new Date(NOW) },
+    { auditId: "a3", targetId: "u2", action: "kick", at: new Date(NOW) }
+  ]);
+
+  assert.deepEqual(slices, [
+    { action: "ban", targets: ["u1"] },
+    { action: "kick", targets: ["u2"] }
+  ]);
 });

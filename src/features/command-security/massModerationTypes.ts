@@ -35,9 +35,25 @@ export function breachesThreshold(events: readonly MassModerationEvent[]): boole
   return distinctTargets(events).length >= MASS_MODERATION_DISTINCT_LIMIT;
 }
 
-export function dominantAction(events: readonly MassModerationEvent[]): MassModerationAction {
-  const bans = events.filter(event => event.action === "ban").length;
-  return bans * 2 >= events.length ? "ban" : "kick";
+export interface ApprovalSlice {
+  action: MassModerationAction;
+  targets: string[];
+}
+
+export function approvalSlices(events: readonly MassModerationEvent[]): ApprovalSlice[] {
+  const byAction = new Map<MassModerationAction, Set<string>>();
+  for (const event of events) {
+    const targets = byAction.get(event.action) ?? new Set<string>();
+    targets.add(event.targetId);
+    byAction.set(event.action, targets);
+  }
+  return [...byAction.entries()]
+    .map(([action, targets]) => ({ action, targets: [...targets].sort() }))
+    .sort((left, right) => left.action.localeCompare(right.action));
+}
+
+export function describeSlices(slices: readonly ApprovalSlice[]): string {
+  return slices.map(slice => `${slice.action} x${slice.targets.length}`).join(", ");
 }
 
 export function describeWindow(events: readonly MassModerationEvent[]): string {
