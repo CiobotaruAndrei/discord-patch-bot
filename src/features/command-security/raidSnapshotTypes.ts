@@ -189,3 +189,14 @@ export function describeRecovery(operations: readonly RecoveryOperation[]): stri
   parts.push("Resursele recreate au ID-uri noi, deci permisiunile per-membru, mesajele si linkurile vechi nu pot fi recuperate.");
   return parts.join(" ");
 }
+
+export interface ResourceRemap {
+  previousId: string;
+  nextId: string;
+}
+
+export function remapChannelId(channelId: string | null, recreated: readonly ResourceRemap[]): string | null {
+  if (!channelId) return null;
+  const moved = recreated.find(entry => entry.previousId === channelId);
+  return moved ? moved.nextId : channelId;
+}

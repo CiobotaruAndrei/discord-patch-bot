@@ -1,7 +1,7 @@
 "use strict";
 
 import { createRaidSnapshotRepository } from "./raidSnapshotRepository.js";
-import { describeRecovery, planRecovery, recoveryComplete, remapOverwrites } from "./raidSnapshotTypes.js";
+import { describeRecovery, planRecovery, recoveryComplete, remapChannelId, remapOverwrites } from "./raidSnapshotTypes.js";
 
 import type { RaidSnapshotModelLike } from "./raidSnapshotRepository.js";
 import { chooseIncidentSnapshot, describeBaselineChoice, needsRefresh } from "./raidBaselineSnapshot.js";
@@ -144,18 +144,24 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
     if (operation.kind === "recreate-webhook") {
       const webhook = snapshot.webhooks.find(entry => entry.webhookId === operation.resourceId);
       if (!webhook) return { status: "skipped", detail: "webhook-ul nu mai este in snapshot" };
-      const created = await guild.recreateWebhook(webhook);
+      const channelId = remapChannelId(webhook.channelId, recreated);
+      if (!channelId) return { status: "skipped", detail: "webhook-ul nu mai are canal in snapshot" };
+      const created = await guild.recreateWebhook({ ...webhook, channelId });
+      const moved = channelId !== webhook.channelId ? ` in canalul recreat ${channelId}` : "";
       return created
-        ? { status: "done", detail: "recreat cu URL nou; integrarile vechi trebuie reconfigurate" }
+        ? { status: "done", detail: `recreat ca ${created}${moved}; URL-ul e nou, deci integrarile vechi trebuie reconfigurate` }
         : { status: "owner-intervention-required", detail: "webhook-ul nu a putut fi recreat" };
     }
 
     if (operation.kind === "restore-invite") {
       const invite = snapshot.invites.find(entry => entry.code === operation.resourceId);
       if (!invite) return { status: "skipped", detail: "invitatia nu mai este in snapshot" };
-      const created = await guild.restoreInvite(invite);
+      const inviteChannelId = remapChannelId(invite.channelId, recreated);
+      if (!inviteChannelId) return { status: "skipped", detail: "invitatia nu mai are canal in snapshot" };
+      const created = await guild.restoreInvite({ ...invite, channelId: inviteChannelId });
+      const inviteMoved = inviteChannelId !== invite.channelId ? ` in canalul recreat ${inviteChannelId}` : "";
       return created
-        ? { status: "done", detail: `invitatie noua ${created}; codul vechi nu poate fi reatribuit` }
+        ? { status: "done", detail: `invitatie noua ${created}${inviteMoved}; codul vechi nu poate fi reatribuit` }
         : { status: "owner-intervention-required", detail: "invitatia nu a putut fi recreata" };
     }
 

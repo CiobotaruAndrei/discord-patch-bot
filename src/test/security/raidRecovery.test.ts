@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaidRecoveryRuntime } from "../../features/command-security/raidRecoveryRuntime.js";
-import { emptyProtections, emptySnapshot, planRecovery, recoveryComplete, remapOverwrites } from "../../features/command-security/raidSnapshotTypes.js";
+import { emptyProtections, emptySnapshot, planRecovery, recoveryComplete, remapChannelId, remapOverwrites } from "../../features/command-security/raidSnapshotTypes.js";
+import { adaptRecoveryGuild } from "../../app/runtime/raidRecoveryGuildAdapter.js";
 import { moduleContext } from "../moduleContextStub.js";
 import type { RecoveryGuildPort } from "../../features/command-security/raidRecoveryRuntime.js";
 import type { CurrentServerState, RaidSnapshot, SnapshotProtections } from "../../features/command-security/raidSnapshotTypes.js";
@@ -452,4 +453,96 @@ test("un baseline foarte vechi nu e folosit ca referinta (N-02)", async () => {
   const outcome = await setup.runtime.captureBeforeContainment(setup.guild, INCIDENT, new Date(NOW));
 
   assert.equal(outcome.kind === "captured" && outcome.source, "live-capture", "un baseline de o luna descrie alt server");
+});
+
+const WEBHOOK = { webhookId: "wh-1", channelId: "chan-1", name: "Anunturi", avatar: null };
+const INVITE = { code: "abc123", channelId: "chan-1", inviterId: "u1", maxAge: 3600, maxUses: 5, temporary: false };
+
+function recoveryGuild(options: {
+  channels?: Record<string, { createWebhook?: boolean; createInvite?: boolean }>;
+  fetchable?: Record<string, { createWebhook?: boolean; createInvite?: boolean }>;
+} = {}) {
+  const createdWebhooks: Array<{ channelId: string; name: string }> = [];
+  const createdInvites: Array<{ channelId: string; maxAge: number; maxUses: number; temporary: boolean }> = [];
+
+  const build = (channelId: string, caps: { createWebhook?: boolean; createInvite?: boolean }) => ({
+    createWebhook: caps.createWebhook === false ? undefined : async (payload: Record<string, unknown>) => {
+      createdWebhooks.push({ channelId, name: String(payload.name) });
+      return { id: `wh-nou-${createdWebhooks.length}`, url: `https://discord.com/api/webhooks/wh-nou-${createdWebhooks.length}/token` };
+    },
+    createInvite: caps.createInvite === false ? undefined : async (payload: Record<string, unknown>) => {
+      createdInvites.push({
+        channelId,
+        maxAge: Number(payload.maxAge),
+        maxUses: Number(payload.maxUses),
+        temporary: payload.temporary === true
+      });
+      return { code: `cod-nou-${createdInvites.length}` };
+    }
+  });
+
+  const cache = new Map(Object.entries(options.channels ?? { "chan-1": {} }).map(([id, caps]) => [id, build(id, caps)]));
+  const fetchable = new Map(Object.entries(options.fetchable ?? {}).map(([id, caps]) => [id, build(id, caps)]));
+
+  const guild = moduleContext<Parameters<typeof adaptRecoveryGuild>[0]>({
+    id: "g1",
+    channels: {
+      cache: { get: (id: string) => cache.get(id), values: () => [...cache.values()] },
+      fetch: async (id: string) => fetchable.get(id) ?? null
+    }
+  });
+
+  return {
+    port: adaptRecoveryGuild(guild, async () => ({}), async () => true, async () => undefined),
+    createdWebhooks,
+    createdInvites
+  };
+}
+
+test("un webhook distrus in raid este recreat efectiv, cu URL nou raportat (N-05)", async () => {
+  const setup = recoveryGuild();
+
+  const created = await setup.port?.recreateWebhook(WEBHOOK);
+
+  assert.ok(created, "pana acum orice webhook lipsa ajungea inevitabil la owner-intervention-required");
+  assert.match(created ?? "", /webhooks/, "raportarea contine URL-ul nou, fiindca cel vechi nu mai poate fi folosit");
+  assert.deepEqual(setup.createdWebhooks, [{ channelId: "chan-1", name: "Anunturi" }]);
+});
+
+test("o invitatie distrusa in raid este recreata cu configuratia pastrata (N-05)", async () => {
+  const setup = recoveryGuild();
+
+  const created = await setup.port?.restoreInvite(INVITE);
+
+  assert.equal(created, "cod-nou-1");
+  assert.deepEqual(setup.createdInvites, [{ channelId: "chan-1", maxAge: 3600, maxUses: 5, temporary: false }]);
+});
+
+test("cand canalul lipseste cu totul, resursa ramane la owner (N-05)", async () => {
+  const setup = recoveryGuild({ channels: {} });
+
+  assert.equal(await setup.port?.recreateWebhook(WEBHOOK), null);
+  assert.equal(await setup.port?.restoreInvite(INVITE), null);
+});
+
+test("un canal necachat e adus prin fetch inainte sa fie declarat pierdut (N-05)", async () => {
+  const setup = recoveryGuild({ channels: {}, fetchable: { "chan-1": {} } });
+
+  assert.ok(await setup.port?.recreateWebhook(WEBHOOK), "recovery ruleaza dupa recreari, deci canalul poate lipsi din cache");
+});
+
+test("un canal fara permisiunea de webhook nu produce o recreare falsa (N-05)", async () => {
+  const setup = recoveryGuild({ channels: { "chan-1": { createWebhook: false } } });
+
+  assert.equal(await setup.port?.recreateWebhook(WEBHOOK), null);
+});
+
+test("webhook-ul urmeaza canalul recreat, nu ID-ul disparut din snapshot (N-05)", async () => {
+  const setup = baselineHarness();
+  await setup.runtime.refreshBaseline(setup.guild);
+
+  const remapped = remapChannelId("chan-vechi", [{ previousId: "chan-vechi", nextId: "chan-nou" }]);
+
+  assert.equal(remapped, "chan-nou", "fara remapare, webhook-ul s-ar crea intr-un canal care nu mai exista");
+  assert.equal(remapChannelId("chan-intact", [{ previousId: "altul", nextId: "nou" }]), "chan-intact");
 });
