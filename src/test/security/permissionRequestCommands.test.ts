@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import attachPermissionRequestHandler from "../../features/command-handlers/permissionRequestInteractionHandler.js";
-import { CLAIM_RECOVERY_MS, createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
+import { CLAIM_RECOVERY_MS, DELIVERY_FAILED_REASON, createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
+import { calls, loadModule } from "../gates/sourceStructureQueries.js";
 import { parseDurationMs, restrictionFromModal } from "../../features/command-security/permissionRequestApproval.js";
 import { moduleContext } from "../moduleContextStub.js";
 import { permissionRequestStore } from "./permissionRequestStore.js";
@@ -204,4 +205,43 @@ test("o revendicare ramasa neconfirmata dupa o cadere de proces revine singura l
   const recovered = await repository.read("g1", "req-c");
   assert.equal(recovered?.status, "approved", "o aprobare blocata in used de o cadere de proces nu ramane arsa pentru totdeauna");
   assert.equal(recovered?.claimBatchId ?? null, null);
+});
+
+test("o cerere nelivrata e anulata, nu respinsa in numele unui owner gol (F-09)", async () => {
+  const store = permissionRequestStore();
+  const repository = createPermissionRequestRepository(store);
+  await repository.create({
+    requestId: "req-nelivrat", guildId: "g1", type: "webhook", requesterId: "u1",
+    target: "111111111111111111", action: "create", reason: "integrare"
+  });
+
+  const cancelled = await repository.cancelUndelivered("g1", "req-nelivrat");
+  const record = await repository.read("g1", "req-nelivrat");
+
+  assert.equal(cancelled, true);
+  assert.equal(record?.status, "cancelled", "un esec tehnic de livrare nu e o decizie a ownerului");
+  assert.equal(record?.cancelReason, DELIVERY_FAILED_REASON);
+  assert.notEqual(record?.status, "rejected");
+});
+
+test("anularea nu atinge o cerere deja decisa (F-09)", async () => {
+  const store = permissionRequestStore();
+  const repository = createPermissionRequestRepository(store);
+  await repository.create({
+    requestId: "req-decis", guildId: "g1", type: "webhook", requesterId: "u1",
+    target: "111111111111111111", action: "create", reason: "integrare"
+  });
+  await repository.resolve("g1", "req-decis", "approved", "owner-1", {});
+
+  const cancelled = await repository.cancelUndelivered("g1", "req-decis");
+
+  assert.equal(cancelled, false, "anularea e atomica: prinde doar cererile inca in asteptare");
+  assert.equal((await repository.read("g1", "req-decis"))?.status, "approved");
+});
+
+test("handlerul foloseste anularea, nu respingerea, la esecul livrarii (F-09)", () => {
+  const handler = loadModule("features", "command-handlers", "permissionRequestInteractionHandler.ts");
+  const used = new Set(calls(handler).map(call => call.callee));
+
+  assert.ok(used.has("repository.cancelUndelivered"), "istoricul nu are voie sa arate o respingere cu owner gol");
 });

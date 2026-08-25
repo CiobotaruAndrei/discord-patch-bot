@@ -217,7 +217,7 @@ export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
         allowedMentions: guild.ownerId ? { parse: [], users: [guild.ownerId] } : { parse: [] }
       });
     } catch {
-      await repository.resolve(guild.id, requestId, "rejected", "", {}).catch(() => null);
+      await repository.cancelUndelivered(guild.id, requestId).catch(() => false);
       return interaction.reply({
         content: "Nu am putut livra cererea in canalul de aprobare; cererea a fost anulata. Reincearca.",
         ephemeral: true

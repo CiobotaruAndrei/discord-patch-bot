@@ -13,6 +13,7 @@ import type {
 
 export const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 export const APPROVED_TTL_MS = 60 * 60 * 1000;
+export const DELIVERY_FAILED_REASON = "delivery-failed";
 export const CLAIM_RECOVERY_MS = 60 * 1000;
 
 let claimCounter = 0;
@@ -202,6 +203,14 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
     );
   }
 
+  async function cancelUndelivered(guildId: string, requestId: string, now = new Date()): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: requestId, guildId, status: "pending" },
+      { $set: { status: "cancelled", cancelReason: DELIVERY_FAILED_REASON, respondedAt: now, expiresAt: null } }
+    );
+    return updatedDocument(result);
+  }
+
   async function cancelTypes(guildId: string, types: readonly PermissionRequestType[]): Promise<void> {
     await model.updateMany(
       { guildId, type: { $in: [...types] }, status: { $in: ["pending", "approved"] } },
@@ -219,7 +228,7 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
     return active.length;
   }
 
-  return { create, read, list, resolve, consume, consumeAll, cancelTypes, countActive, expireStale };
+  return { create, read, list, resolve, consume, consumeAll, cancelUndelivered, cancelTypes, countActive, expireStale };
 }
 
 export type PermissionRequestRepository = ReturnType<typeof createPermissionRequestRepository>;

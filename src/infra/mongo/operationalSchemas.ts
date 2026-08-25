@@ -157,6 +157,7 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     respondedAt: { type: Date, default: null },
     usedAt: { type: Date, default: null },
     claimBatchId: { type: String, default: null },
+    cancelReason: { type: String, default: null },
     expiresAt: { type: Date, default: null }
   }, { minimize: false, _id: false });
   permissionRequestSchema.index({ guildId: 1, status: 1, requestedAt: -1 });
