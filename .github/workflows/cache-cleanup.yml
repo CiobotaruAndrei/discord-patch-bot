@@ -9,6 +9,9 @@ on:
   pull_request:
     types:
       - closed
+  schedule:
+    - cron: "30 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   actions: write
@@ -18,7 +21,7 @@ jobs:
   cleanup:
     # Un PR dintr-un fork primeste token read-only, deci stergerea ar esua. Nu e o eroare de
     # configurare, doar o situatie in care jobul nu are ce face.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
@@ -43,3 +46,43 @@ jobs:
             done <<< "$page"
           done
           echo "Sterse $total intrari de cache pentru $BRANCH ($((freed / 1024 / 1024)) MB eliberati)."
+
+  # Curatarea la inchidere pierde o cursa reala: evenimentul `closed` porneste imediat, dar o
+  # rulare de `container-scan` inca in derulare exporta cache DUPA ce stergerea a terminat.
+  # Masurat pe PR #971: inchis la 17:35:08, iar 24 de intrari buildkit au aparut la 17:36:22.
+  # Trecerea saptamanala prinde exact aceste ramasite, indiferent de cine a castigat cursa.
+  sweep:
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sterge cache-urile ramase de la PR-uri deja inchise
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          freed=0
+          total=0
+          refs=$(gh api "repos/$REPO/actions/caches?per_page=100" --paginate --jq '.actions_caches[].ref' | grep -E '^refs/pull/[0-9]+/merge$' | sort -u || true)
+          for ref in $refs; do
+            number=$(echo "$ref" | tr -dc '0-9')
+            state=$(gh pr view "$number" --repo "$REPO" --json state --jq .state 2>/dev/null || echo "UNKNOWN")
+            # Un PR deschis isi foloseste cache-ul; se sterge doar dupa inchidere. Starea necunoscuta
+            # se lasa in pace: mai bine o intrare in plus decat sa stergem cache-ul unui PR viu.
+            if [ "$state" != "MERGED" ] && [ "$state" != "CLOSED" ]; then
+              continue
+            fi
+            while :; do
+              page=$(gh api "repos/$REPO/actions/caches?ref=$ref&per_page=100" --jq '.actions_caches[] | "\(.id) \(.size_in_bytes)"')
+              if [ -z "$page" ]; then
+                break
+              fi
+              while read -r id size; do
+                gh api -X DELETE "repos/$REPO/actions/caches/$id" >/dev/null
+                total=$((total + 1))
+                freed=$((freed + size))
+              done <<< "$page"
+            done
+          done
+          echo "Sterse $total intrari ramase de la PR-uri inchise ($((freed / 1024 / 1024)) MB eliberati)."
