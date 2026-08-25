@@ -1,6 +1,6 @@
 "use strict";
 
-import { isPermissionRequestType, normalizePermissionName } from "./permissionRequestTypes.js";
+import { canonicalAction, canonicalTarget, isPermissionRequestType, normalizePermissionName } from "./permissionRequestTypes.js";
 
 import type { ApprovalRestriction } from "./permissionRequestRepository.js";
 import type { PermissionRequestRecord, PermissionRequestScope, PermissionRequestType } from "./permissionRequestTypes.js";
@@ -44,10 +44,10 @@ export function restrictionFromModal(
   raw: { target?: string; action?: string; amount?: string; permissions?: string; botId?: string; duration?: string }
 ): ApprovalRestriction {
   const restriction: ApprovalRestriction = {};
-  const target = String(raw.target ?? "").trim();
-  const action = String(raw.action ?? "").trim();
-  if (target && target !== record.target) restriction.target = target;
-  if (action && action !== record.action) restriction.action = action;
+  const target = canonicalTarget(String(raw.target ?? ""));
+  const action = canonicalAction(String(raw.action ?? ""));
+  if (target && target !== canonicalTarget(record.target)) restriction.target = target;
+  if (action && action !== canonicalAction(record.action)) restriction.action = action;
 
   const amount = Number(String(raw.amount ?? "").trim());
   if (Number.isFinite(amount) && amount > 0) {
