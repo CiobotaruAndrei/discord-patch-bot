@@ -29,6 +29,9 @@ export function renderToggleProtectionOutcome(outcome: ToggleProtectionOutcome):
   if (outcome.kind === "confirmation-required") {
     return `Eroare: oprirea protectiei **${outcome.subcommand}** cere \`confirm:true\`. Serverul ramane neprotejat dupa oprire, iar un incident in curs nu se mai finalizeaza automat.`;
   }
+  if (outcome.kind === "stop-refused") {
+    return `Eroare: ${outcome.reason}`;
+  }
   if (outcome.kind === "atomic-stop-failed") {
     return `Eroare: protectia **${outcome.subcommand}** NU a fost oprita, deoarece anularea atomica a aprobarilor active a esuat. Starea anterioara a ramas activa.`;
   }

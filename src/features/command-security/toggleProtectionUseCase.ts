@@ -15,6 +15,7 @@ export type ToggleProtectionOutcome =
   | { kind: "not-ready"; missing: readonly string[] }
   | { kind: "owner-only"; subcommand: string }
   | { kind: "confirmation-required"; subcommand: string }
+  | { kind: "stop-refused"; subcommand: string; reason: string }
   | { kind: "atomic-stop-failed"; subcommand: string; error: unknown }
   | { kind: "stopped-with-cancellations"; subcommand: string; cancelled: number; note: string | null }
   | { kind: "started-with-backfill"; subcommand: string; result: ProtectionBackfillResult }
@@ -30,6 +31,7 @@ export type ToggleProtectionInput = {
   confirmed?: boolean;
   needsAtomicStop: boolean;
   needsBackfill: boolean;
+  needsActiveIncident?: boolean;
 };
 
 export type ToggleProtectionDeps = {
@@ -37,6 +39,7 @@ export type ToggleProtectionDeps = {
   readiness: { readinessGaps: () => readonly string[]; degradedReport: () => string | null };
   readChannelPermissions: (channelId: string) => Promise<{ viewChannel?: boolean; sendMessages?: boolean; embedLinks?: boolean } | null>;
   countActiveApprovals: () => number | Promise<number>;
+  readStopRefusal: () => Promise<string | null>;
   stopAtomically: () => Promise<string | null>;
   persistEnabled: (enabled: boolean) => Promise<void>;
   runBackfill: () => Promise<ProtectionBackfillResult>;
@@ -51,6 +54,11 @@ export async function toggleProtection(
   if (input.command === "stop" && input.ownerOnly === true) {
     if (input.isOwner !== true) return { kind: "owner-only", subcommand: input.subcommand };
     if (input.confirmed !== true) return { kind: "confirmation-required", subcommand: input.subcommand };
+  }
+
+  if (input.command === "stop" && input.needsActiveIncident === true) {
+    const reason = await deps.readStopRefusal();
+    if (reason) return { kind: "stop-refused", subcommand: input.subcommand, reason };
   }
 
   if (input.command === "start") {
