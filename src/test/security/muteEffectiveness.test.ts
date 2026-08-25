@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { PermissionFlagsBits } from "discord.js";
 
-import { MAX_VERIFIED_CHANNELS, assessMuteEffect, describeMuteEffect } from "../../features/command-security/muteEffectiveness.js";
+import { assessMuteEffect, describeMuteEffect, resolveWriteProbe } from "../../features/command-security/muteEffectiveness.js";
 import { adaptRaidGuild } from "../../app/runtime/antiRaidGuildAdapter.js";
 import { moduleContext } from "../moduleContextStub.js";
 import type { AdaptableRaidGuild } from "../../app/runtime/antiRaidGuildAdapter.js";
@@ -13,6 +13,8 @@ function guildWith(options: {
   channels?: readonly string[];
   unreadable?: boolean;
   withoutPermissionsIn?: boolean;
+  hiddenChannels?: readonly string[];
+  threads?: readonly string[];
   rolePosition?: number;
 }) {
   const channelIds = options.channels ?? ["c1", "c2"];
@@ -29,7 +31,16 @@ function guildWith(options: {
       : (channel: unknown) => {
         const id = (channel as { id?: string }).id ?? "";
         if (options.unreadable) return null;
-        return { has: (flag: bigint) => flag === PermissionFlagsBits.SendMessages && writable.has(id) };
+        const hidden = (options.hiddenChannels ?? []).includes(id);
+        return {
+          has: (flag: bigint) => {
+            if (flag === PermissionFlagsBits.ViewChannel) return !hidden;
+            if (flag === PermissionFlagsBits.SendMessages || flag === PermissionFlagsBits.SendMessagesInThreads) {
+              return writable.has(id);
+            }
+            return false;
+          }
+        };
       }
   };
 
@@ -39,7 +50,15 @@ function guildWith(options: {
       everyone: { id: "everyone" },
       cache: { values: () => [{ id: "role-muted", name: "Muted", position: options.rolePosition ?? 2 }] }
     },
-    channels: { cache: { values: () => channelIds.map(id => ({ id, isTextBased: () => true })) } },
+    channels: {
+      cache: {
+        values: () => channelIds.map(id => ({
+          id,
+          isTextBased: () => true,
+          isThread: () => (options.threads ?? []).includes(id)
+        }))
+      }
+    },
     members: { fetch: async () => target, me: { roles: { highest: { position: 10 } } } }
   });
 
@@ -84,16 +103,17 @@ test("un membru fara permissionsIn nu blocheaza sanctiunea (N-01)", async () => 
   assert.equal(outcome.applied, true);
 });
 
-test("verificarea e marginita, ca un server cu mii de canale sa nu blocheze interventia (N-01)", () => {
-  const probes = Array.from({ length: MAX_VERIFIED_CHANNELS + 20 }, (_unused, index) => ({
+test("toate canalele sunt inspectate, nu doar primele (review PR #992)", () => {
+  const probes = Array.from({ length: 200 }, (_unused, index) => ({
     channelId: `c${index}`,
-    canSendMessages: false
+    canSendMessages: index !== 150 ? false : true
   }));
 
-  const effect = assessMuteEffect(probes.slice(0, MAX_VERIFIED_CHANNELS));
+  const effect = assessMuteEffect(probes);
 
-  assert.equal(effect.kind, "silenced");
-  assert.equal(effect.kind === "silenced" ? effect.verified : 0, MAX_VERIFIED_CHANNELS);
+  assert.equal(effect.kind, "still-writable",
+    "cu o limita de inspectie, ordinea arbitrara a cache-ului decidea daca mute-ul pare eficient");
+  assert.deepEqual(effect.kind === "still-writable" ? effect.channelIds : [], ["c150"]);
 });
 
 test("un singur canal ramas scriibil e de ajuns ca mute-ul sa fie considerat ineficient (N-01)", () => {
@@ -115,4 +135,39 @@ test("canalele necitibile nu mascheaza unul scriibil (N-01)", () => {
   ]);
 
   assert.equal(effect.kind, "still-writable");
+});
+
+test("un canal invizibil nu produce escaladare inutila (review PR #992)", async () => {
+  const setup = guildWith({ writableChannels: ["c2"], hiddenChannels: ["c2"] });
+
+  const outcome = await adaptRaidGuild(setup.guild, async () => null).applySanction("raider-1", "mute", 0, "raid");
+
+  assert.equal(outcome.applied, true,
+    "bitul SendMessages poate ramane pe un canal fara ViewChannel; participantul tot nu poate posta acolo");
+});
+
+test("un thread scriibil prin SendMessagesInThreads e prins (review PR #992)", async () => {
+  const setup = guildWith({ channels: ["c1", "thread-1"], writableChannels: ["thread-1"], threads: ["thread-1"] });
+
+  const outcome = await adaptRaidGuild(setup.guild, async () => null).applySanction("raider-1", "mute", 0, "raid");
+
+  assert.equal(outcome.applied, false, "un thread ramane scriibil prin permisiunea lui proprie, nu prin SendMessages");
+  assert.match(outcome.error ?? "", /thread-1/);
+});
+
+test("scrierea cere si vizibilitate, si permisiunea potrivita tipului (review PR #992)", () => {
+  assert.equal(resolveWriteProbe({ channelId: "c1", isThread: false, canView: true, canPost: true }).canSendMessages, true);
+  assert.equal(resolveWriteProbe({ channelId: "c1", isThread: false, canView: false, canPost: true }).canSendMessages, false);
+  assert.equal(resolveWriteProbe({ channelId: "c1", isThread: false, canView: true, canPost: false }).canSendMessages, false);
+  assert.equal(resolveWriteProbe({ channelId: "c1", isThread: false, canView: null, canPost: true }).canSendMessages, null);
+});
+
+test("canalele necitibile opresc concluzia de tacere, nu o confirma (review PR #992)", () => {
+  const effect = assessMuteEffect([
+    { channelId: "c1", canSendMessages: false },
+    { channelId: "c2", canSendMessages: null }
+  ]);
+
+  assert.equal(effect.kind, "unverifiable",
+    "cu un canal necitit, `silenced` ar fi o afirmatie pe care datele nu o sustin");
 });

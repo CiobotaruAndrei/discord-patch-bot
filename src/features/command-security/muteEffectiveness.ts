@@ -1,10 +1,22 @@
 "use strict";
 
-export const MAX_VERIFIED_CHANNELS = 25;
+export interface ChannelWriteProbe {
+  channelId: string;
+  isThread: boolean;
+  canView: boolean | null;
+  canPost: boolean | null;
+}
 
 export interface WritableChannelProbe {
   channelId: string;
   canSendMessages: boolean | null;
+}
+
+export function resolveWriteProbe(probe: ChannelWriteProbe): WritableChannelProbe {
+  if (probe.canView === null || probe.canPost === null) {
+    return { channelId: probe.channelId, canSendMessages: null };
+  }
+  return { channelId: probe.channelId, canSendMessages: probe.canView && probe.canPost };
 }
 
 export type MuteEffect =
@@ -13,15 +25,23 @@ export type MuteEffect =
   | { kind: "unverifiable"; reason: string };
 
 export function assessMuteEffect(probes: readonly WritableChannelProbe[]): MuteEffect {
+  const writable = probes.filter(probe => probe.canSendMessages === true).map(probe => probe.channelId);
+  if (writable.length > 0) {
+    return { kind: "still-writable", channelIds: writable, verified: probes.length };
+  }
+
   const readable = probes.filter(probe => probe.canSendMessages !== null);
   if (readable.length === 0) {
     return { kind: "unverifiable", reason: "permisiunile efective nu au putut fi citite in niciun canal" };
   }
+  if (readable.length < probes.length) {
+    return {
+      kind: "unverifiable",
+      reason: `permisiunile nu au putut fi citite in ${probes.length - readable.length} canale, deci tacerea nu e confirmata`
+    };
+  }
 
-  const writable = readable.filter(probe => probe.canSendMessages === true).map(probe => probe.channelId);
-  return writable.length > 0
-    ? { kind: "still-writable", channelIds: writable, verified: readable.length }
-    : { kind: "silenced", verified: readable.length };
+  return { kind: "silenced", verified: readable.length };
 }
 
 export function describeMuteEffect(effect: MuteEffect): string {

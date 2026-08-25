@@ -3,7 +3,7 @@
 import { PermissionFlagsBits } from "discord.js";
 
 import { resolveProtectionChannel } from "../../features/command-security/securityChannelResolution.js";
-import { MAX_VERIFIED_CHANNELS, assessMuteEffect, describeMuteEffect } from "../../features/command-security/muteEffectiveness.js";
+import { assessMuteEffect, describeMuteEffect, resolveWriteProbe } from "../../features/command-security/muteEffectiveness.js";
 
 import type { WritableChannelProbe } from "../../features/command-security/muteEffectiveness.js";
 
@@ -157,14 +157,22 @@ export function adaptRaidGuild(
     if (!target.permissionsIn) return [];
     const probes: WritableChannelProbe[] = [];
     for (const entry of guild.channels?.cache?.values?.() ?? []) {
-      if (probes.length >= MAX_VERIFIED_CHANNELS) break;
-      const candidate = entry as { id?: unknown; isTextBased?: () => boolean };
+      const candidate = entry as { id?: unknown; isTextBased?: () => boolean; isThread?: () => boolean };
       const channelId = typeof candidate.id === "string" ? candidate.id : null;
       if (!channelId) continue;
       if (typeof candidate.isTextBased === "function" && !candidate.isTextBased()) continue;
+
+      const isThread = typeof candidate.isThread === "function" && candidate.isThread();
       const permissions = target.permissionsIn(candidate);
-      const canSend = permissions?.has ? permissions.has(PermissionFlagsBits.SendMessages) : null;
-      probes.push({ channelId, canSendMessages: canSend });
+      const reads = permissions?.has ? permissions.has.bind(permissions) : null;
+      probes.push(resolveWriteProbe({
+        channelId,
+        isThread,
+        canView: reads ? reads(PermissionFlagsBits.ViewChannel) : null,
+        canPost: reads
+          ? reads(isThread ? PermissionFlagsBits.SendMessagesInThreads : PermissionFlagsBits.SendMessages)
+          : null
+      }));
     }
     return probes;
   }
