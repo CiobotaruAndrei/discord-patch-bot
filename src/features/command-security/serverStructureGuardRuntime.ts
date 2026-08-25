@@ -5,6 +5,7 @@ import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevated
 
 import { STRUCTURE_ACTIONS } from "./serverStructureActions.js";
 import { describeStructureRollback, executeStructureRollback } from "./serverStructureRollback.js";
+import { correctsDuringRaid } from "./raidSurfaceEnforcement.js";
 
 import type { StructureChangeKind } from "./serverStructureActions.js";
 import type { StructureRollbackOutcome, StructureRollbackPort } from "./serverStructureRollback.js";
@@ -145,7 +146,14 @@ export function createServerStructureGuardRuntime(deps: ServerStructureGuardDeps
       approvalChecked: situation.guardEnabled && !situation.raidConfirmed && Boolean(actorId)
     }).catch(() => undefined);
 
-    if (!situation.guardEnabled || situation.raidConfirmed) return { kind: "signalled", actorId, rollback: null };
+    if (!situation.guardEnabled) return { kind: "signalled", actorId, rollback: null };
+
+    if (situation.raidConfirmed) {
+      const surface = kind === "channelDelete" || kind === "roleDelete" ? "delete" : "change";
+      if (!correctsDuringRaid("server-structure", surface)) return { kind: "signalled", actorId, rollback: null };
+      const revertedInRaid = await rollback(guild, kind, resourceId, snapshot);
+      return { kind: "signalled", actorId, rollback: revertedInRaid };
+    }
 
     const reverted = await rollback(guild, kind, resourceId, snapshot);
     if (!actorId) return { kind: "signalled", actorId, rollback: reverted };

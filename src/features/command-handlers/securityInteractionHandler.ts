@@ -35,6 +35,7 @@ import { SET_CHANNEL_FIELDS, START_STOP_TOGGLE_FIELDS } from "../command-securit
 import { createPermissionRequestRepository } from "../command-security/permissionRequestRepository.js";
 import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
 import { protectionStopActions } from "../command-security/protectionStopActions.js";
+import { captureBaselineOnStart } from "../command-security/antiRaidBaselineTrigger.js";
 import type {
   AccountAlertClaimFn,
   OverwriteEditor,
@@ -134,8 +135,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
       const outcome = await toggleProtection(
         {
           command, subcommand: sub, hasToggleFields: true, ...toggleGate,
-          needsAtomicStop: stopActions.needsAtomicStop,
-          needsActiveIncident: stopActions.needsActiveIncident,
+          needsAtomicStop: stopActions.needsAtomicStop, needsActiveIncident: stopActions.needsActiveIncident,
           needsBackfill: sub === "new-account-alerts" && settings?.newAccountAlertsEnabled !== true },
         {
           readConfiguredChannel: () => {
@@ -145,9 +145,9 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
           },
           readChannelPermissions: channelId => target.checkChannelPermissions(interaction, channelId),
           readiness: toggleGate,
-          countActiveApprovals: () => stopActions.countActiveApprovals(),
-          stopAtomically: () => stopActions.stopAtomically(),
-          readStopRefusal: () => stopActions.readStopRefusal(),
+          countActiveApprovals: stopActions.countActiveApprovals,
+          stopAtomically: stopActions.stopAtomically,
+          readStopRefusal: stopActions.readStopRefusal,
           persistEnabled: async enabled => {
             await applyGuildConfigUpdate(target.GuildModel, guildId, { [toggle.enabled]: enabled });
           },
@@ -157,6 +157,7 @@ function buildSecurityCommandHandler(deps: SecurityDeps): CommandHandler<Securit
       if (outcome.kind === "atomic-stop-failed") {
         target.logger?.("WARN", "SECURITY_COMMAND", "Anularea aprobarilor bot-add active a esuat", errorDetail(outcome.error));
       }
+      await captureBaselineOnStart(outcome, command, sub, guildId, { ...target, errorDetail });
       const message = renderToggleProtectionOutcome(outcome);
       return message === null ? undefined : respond(interaction, message);
     }

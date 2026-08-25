@@ -68,6 +68,7 @@ type MongoRuntimeContext = {
   AdAttemptModel: ReturnType<typeof attachModelsModule.buildFrom>["AdAttemptModel"];
   raidIntervention: RaidInterventionSeam;
   runRaidIntervention: (guildId: string) => Promise<boolean>;
+  captureRaidBaseline: (guildId: string) => Promise<boolean>;
   NotificationDeadLetterReplayModel: ReturnType<typeof attachModelsModule.buildFrom>["NotificationDeadLetterReplayModel"];
   OperationJournalModel: ReturnType<typeof attachModelsModule.buildFrom>["OperationJournalModel"];
   saveFetchSnapshot: (id: string, payload: unknown) => Promise<void>;
@@ -177,6 +178,7 @@ function buildMongoContextExports(context: MongoRuntimeContext): MongoRuntimeCon
     AdRequestModel: context.AdRequestModel,
     AdAttemptModel: context.AdAttemptModel,
     runRaidIntervention: context.runRaidIntervention,
+    captureRaidBaseline: context.captureRaidBaseline,
     raidIntervention: context.raidIntervention,
     NotificationDeadLetterReplayModel: context.NotificationDeadLetterReplayModel,
     OperationJournalModel: context.OperationJournalModel,
@@ -242,7 +244,8 @@ function createMongoContext(): MongoRuntimeContext {
     ...withSourceHealth,
     env: requireBootEnv(withSourceHealth.env),
     raidIntervention,
-    runRaidIntervention: raidIntervention.run
+    runRaidIntervention: raidIntervention.run,
+    captureRaidBaseline: raidIntervention.captureBaseline
   }), "mongoContext");
 }
 

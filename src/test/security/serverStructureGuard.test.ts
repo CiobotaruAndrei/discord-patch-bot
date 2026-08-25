@@ -306,13 +306,15 @@ test("cand autorul e necunoscut, structura se repara oricum (F-14)", async () =>
   assert.deepEqual(setup.removedRoles, [], "fara autor identificat nu se sanctioneaza nimeni");
 });
 
-test("in raid confirmat revenirea ramane la anti-raid, nu se dubleaza (F-14)", async () => {
+test("in raid confirmat structura se corecteaza imediat, dar fara sanctiune (F-30)", async () => {
   const setup = harness({ raidConfirmed: true, live: ["chan-nou"] });
 
   const outcome = await setup.runtime.handleStructureChange(setup.guild, "channelCreate", "chan-nou");
 
   assert.equal(outcome.kind, "signalled");
-  assert.deepEqual(setup.removedResources, [], "in incident corectia e planificata de recovery, nu de moderation-guard");
+  assert.deepEqual(setup.removedResources, ["chan-nou"], "corectia se face inaintea escaladarii, nu abia la recovery");
+  assert.deepEqual(setup.removedRoles, [], "sanctionarea autorului ramane la anti-raid, ca sa nu se dubleze");
+  assert.equal(outcome.kind === "signalled" && outcome.rollback?.verified, true);
 });
 
 test("cu moderation-guard oprit nu se repara nimic (F-14)", async () => {

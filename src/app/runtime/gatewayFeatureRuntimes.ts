@@ -174,7 +174,14 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
         if (!raidRecovery || !recovery) return port;
         return {
           ...port,
-          captureStructureSnapshot: incidentId => raidRecovery.captureBeforeContainment(recovery, incidentId),
+          captureStructureSnapshot: (incidentId, incidentStartedAt) =>
+            raidRecovery.captureBeforeContainment(recovery, incidentId, incidentStartedAt),
+          freezeStructureBaseline: () => raidRecovery.freezeBaseline(guildId),
+          releaseStructureBaseline: async () => {
+            await raidRecovery.releaseBaseline(guildId);
+            return raidRecovery.refreshBaseline(recovery);
+          },
+          refreshStructureBaseline: () => raidRecovery.refreshBaseline(recovery),
           restoreStructure: async incidentId => {
             const outcome = await raidRecovery.restore(recovery, incidentId);
             if (outcome.kind === "nothing-to-restore") return { complete: true, blocked: 0 };
