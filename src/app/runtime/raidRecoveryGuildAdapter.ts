@@ -1,6 +1,6 @@
 "use strict";
 
-import { emptyProtections, RAID_SNAPSHOT_VERSION } from "../../features/command-security/raidSnapshotTypes.js";
+import { emptyProtections, RAID_SNAPSHOT_VERSION, webhookAvatarUrl } from "../../features/command-security/raidSnapshotTypes.js";
 
 import type { RecoveryGuildPort } from "../../features/command-security/raidRecoveryRuntime.js";
 import type {
@@ -17,11 +17,19 @@ export interface AdaptableRecoveryGuild {
   id?: unknown;
   roles?: { cache?: { values?: () => Iterable<unknown> }; create?: (options: Record<string, unknown>) => Promise<{ id?: unknown } | null> };
   channels?: {
-    cache?: { values?: () => Iterable<unknown> };
+    cache?: { values?: () => Iterable<unknown>; get?: (id: string) => unknown };
     create?: (options: Record<string, unknown>) => Promise<{ id?: unknown } | null>;
+    fetch?: (id: string) => Promise<unknown>;
   };
   fetchWebhooks?: () => Promise<Iterable<unknown> | { values?: () => Iterable<unknown> } | null>;
   invites?: { fetch?: () => Promise<Iterable<unknown> | { values?: () => Iterable<unknown> } | null> };
+}
+
+const RECOVERY_REASON = "Recovery anti-raid: resursa distrusa in incident este recreata din snapshot";
+
+interface RecoverableChannel {
+  createWebhook?: (options: Record<string, unknown>) => Promise<{ id?: unknown; url?: unknown } | null>;
+  createInvite?: (options: Record<string, unknown>) => Promise<{ code?: unknown } | null>;
 }
 
 export type ProtectionSettings = { [Field in keyof SnapshotProtections]?: boolean };
@@ -124,6 +132,14 @@ export function adaptRecoveryGuild(
   writeProtection: ProtectionWriter,
   publish: (body: string) => Promise<unknown>
 ): RecoveryGuildPort | null {
+  async function textChannel(channelId: string | null): Promise<RecoverableChannel | null> {
+    if (!channelId) return null;
+    const cached = guild.channels?.cache?.get?.(channelId);
+    if (cached) return cached as RecoverableChannel;
+    const fetched = await guild.channels?.fetch?.(channelId).catch(() => null);
+    return (fetched as RecoverableChannel | null) ?? null;
+  }
+
   const id = textOf(guild.id);
   if (!id) return null;
 
@@ -221,12 +237,32 @@ export function adaptRecoveryGuild(
       return textOf(created?.id);
     },
 
-    async recreateWebhook() {
-      return null;
+    async recreateWebhook(webhook) {
+      const channel = await textChannel(webhook.channelId);
+      if (!channel?.createWebhook) return null;
+      const avatar = webhookAvatarUrl(webhook.webhookId, webhook.avatar);
+      const created = await channel
+        .createWebhook({ name: webhook.name || "webhook", avatar: avatar ?? undefined, reason: RECOVERY_REASON })
+        .catch(async () => avatar
+          ? channel.createWebhook?.({ name: webhook.name || "webhook", reason: RECOVERY_REASON }).catch(() => null) ?? null
+          : null);
+      return textOf(created?.id);
     },
 
-    async restoreInvite() {
-      return null;
+    async restoreInvite(invite) {
+      if (!invite.channelId) return null;
+      const channel = await textChannel(invite.channelId);
+      if (!channel?.createInvite) return null;
+      const created = await channel
+        .createInvite({
+          maxAge: invite.maxAge ?? 0,
+          maxUses: invite.maxUses ?? 0,
+          temporary: invite.temporary,
+          unique: true,
+          reason: RECOVERY_REASON
+        })
+        .catch(() => null);
+      return textOf(created?.code);
     },
 
     async restoreProtection(field, enabled) {

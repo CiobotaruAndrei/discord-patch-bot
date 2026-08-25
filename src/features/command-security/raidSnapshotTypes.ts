@@ -187,5 +187,37 @@ export function describeRecovery(operations: readonly RecoveryOperation[]): stri
     );
   }
   parts.push("Resursele recreate au ID-uri noi, deci permisiunile per-membru, mesajele si linkurile vechi nu pot fi recuperate.");
+
+  const webhooks = operations.filter(operation => operation.kind === "recreate-webhook" && operation.status === "done");
+  if (webhooks.length > 0) {
+    parts.push(
+      `${webhooks.length} webhook-uri au fost recreate: ${webhooks.map(operation => operation.label).join(", ")}. `
+        + "URL-urile lor sunt noi si se iau din Server Settings > Integrations - sunt credentiale, deci nu se publica aici."
+    );
+  }
+
+  const invites = operations.filter(operation => operation.kind === "restore-invite" && operation.status === "done");
+  if (invites.length > 0) {
+    parts.push(`${invites.length} invitatii au fost recreate cu coduri noi; cele vechi nu mai functioneaza.`);
+  }
+
   return parts.join(" ");
+}
+
+export interface ResourceRemap {
+  previousId: string;
+  nextId: string;
+}
+
+export function remapChannelId(channelId: string | null, recreated: readonly ResourceRemap[]): string | null {
+  if (!channelId) return null;
+  const moved = recreated.find(entry => entry.previousId === channelId);
+  return moved ? moved.nextId : channelId;
+}
+
+export function webhookAvatarUrl(webhookId: string, avatar: string | null): string | null {
+  if (!avatar) return null;
+  if (avatar.startsWith("http") || avatar.startsWith("data:")) return avatar;
+  const extension = avatar.startsWith("a_") ? "gif" : "png";
+  return `https://cdn.discordapp.com/avatars/${webhookId}/${avatar}.${extension}`;
 }
