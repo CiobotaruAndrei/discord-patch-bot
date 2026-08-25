@@ -244,6 +244,8 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
     guildId: { type: String, required: true },
     activeKey: { type: String, default: undefined },
     raidWebhookIds: { type: [String], default: [] },
+    raidCreatedChannelIds: { type: [String], default: [] },
+    raidCreatedRoleIds: { type: [String], default: [] },
     stage: { type: String, required: true, enum: [...RAID_STAGES], default: "suspected" },
     startedAt: { type: Date, required: true },
     confirmedAt: { type: Date, default: null },

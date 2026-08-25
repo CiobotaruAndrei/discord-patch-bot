@@ -775,3 +775,236 @@ test("un rol pe care Discord nu il creeaza deloc ramane la owner (review PR #994
 
   assert.equal(await port?.recreateRole(DELETED_ROLE), null, "esecul crearii ramane esec, nu se mascheaza");
 });
+
+const BASE_CHANNEL = {
+  channelId: "chan-1", name: "anunturi", channelType: 0, parentId: null,
+  position: 2, topic: "reguli", nsfw: false, rateLimitPerUser: 0,
+  overwrites: [{ id: "everyone", type: 0, allow: "0", deny: "1024" }]
+};
+const BASE_ROLE = { roleId: "role-1", name: "Staff", position: 5, color: 7, hoist: true, mentionable: false, managed: false, permissions: "8" };
+
+function stateWith(overrides: Partial<CurrentServerState> = {}): CurrentServerState {
+  return {
+    channelIds: [], roleIds: [], webhookIds: [], inviteCodes: [], protections: emptyProtections(),
+    channels: [], roles: [], ...overrides
+  };
+}
+
+test("un canal redenumit in raid e planificat pentru restaurare, nu ignorat (N-03)", () => {
+  const operations = planRecovery(
+    snapshotWith({ channels: [BASE_CHANNEL] }),
+    stateWith({ channelIds: ["chan-1"], channels: [{ ...BASE_CHANNEL, name: "hacked" }] })
+  );
+
+  assert.deepEqual(operations.map(entry => entry.kind), ["restore-channel"],
+    "planul compara doar ID-uri, deci un canal existent dar alterat trecea neatins");
+  assert.match(operations[0].label, /name/);
+});
+
+test("permisiunile alterate ale unui canal sunt detectate (N-03)", () => {
+  const operations = planRecovery(
+    snapshotWith({ channels: [BASE_CHANNEL] }),
+    stateWith({
+      channelIds: ["chan-1"],
+      channels: [{ ...BASE_CHANNEL, overwrites: [{ id: "everyone", type: 0, allow: "2048", deny: "0" }] }]
+    })
+  );
+
+  assert.equal(operations.length, 1);
+  assert.match(operations[0].label, /permissions/);
+});
+
+test("un rol cu permisiuni ridicate de atacator e planificat pentru restaurare (N-03)", () => {
+  const operations = planRecovery(
+    snapshotWith({ roles: [BASE_ROLE] }),
+    stateWith({ roleIds: ["role-1"], roles: [{ ...BASE_ROLE, permissions: "8589934591" }] })
+  );
+
+  assert.deepEqual(operations.map(entry => entry.kind), ["restore-role"]);
+  assert.match(operations[0].label, /permissions/);
+});
+
+test("o resursa neschimbata nu produce nicio operatiune (N-03)", () => {
+  const operations = planRecovery(
+    snapshotWith({ channels: [BASE_CHANNEL], roles: [BASE_ROLE] }),
+    stateWith({ channelIds: ["chan-1"], roleIds: ["role-1"], channels: [BASE_CHANNEL], roles: [BASE_ROLE] })
+  );
+
+  assert.deepEqual(operations, [], "restaurarea nu are voie sa rescrie ce nu s-a schimbat");
+});
+
+test("un canal creat de atacator in incident e eliminat (N-03)", () => {
+  const operations = planRecovery(
+    snapshotWith({ channels: [BASE_CHANNEL] }),
+    stateWith({ channelIds: ["chan-1", "chan-raid"], channels: [BASE_CHANNEL, { ...BASE_CHANNEL, channelId: "chan-raid", name: "raid-here" }] }),
+    { createdChannelIds: ["chan-raid"] }
+  );
+
+  assert.deepEqual(operations.map(entry => entry.kind), ["remove-extra-channel"]);
+  assert.equal(operations[0].resourceId, "chan-raid");
+});
+
+test("un canal creat legitim de owner NU e eliminat (N-03)", () => {
+  const operations = planRecovery(
+    snapshotWith({ channels: [BASE_CHANNEL] }),
+    stateWith({ channelIds: ["chan-1", "chan-legitim"], channels: [BASE_CHANNEL, { ...BASE_CHANNEL, channelId: "chan-legitim" }] }),
+    {}
+  );
+
+  assert.deepEqual(operations, [],
+    "remove-extra se aplica doar resurselor confirmate ca apartinand incidentului, altfel recovery ar sterge munca ownerului");
+});
+
+test("o resursa din incident care exista si in snapshot nu e eliminata (N-03)", () => {
+  const operations = planRecovery(
+    snapshotWith({ channels: [BASE_CHANNEL] }),
+    stateWith({ channelIds: ["chan-1"], channels: [BASE_CHANNEL] }),
+    { createdChannelIds: ["chan-1"] }
+  );
+
+  assert.deepEqual(operations, [], "un canal aflat in snapshot e legitim, chiar daca a fost atins in incident");
+});
+
+test("o resursa deja disparuta nu produce o eliminare inutila (N-03)", () => {
+  const operations = planRecovery(
+    snapshotWith({}),
+    stateWith({}),
+    { createdChannelIds: ["chan-sters-intre-timp"], createdRoleIds: ["role-sters"] }
+  );
+
+  assert.deepEqual(operations, []);
+});
+
+test("fara starea completa a serverului, planul ramane la comportamentul pe ID-uri (N-03)", () => {
+  const operations = planRecovery(
+    snapshotWith({ channels: [BASE_CHANNEL] }),
+    { channelIds: ["chan-1"], roleIds: [], webhookIds: [], inviteCodes: [], protections: emptyProtections() }
+  );
+
+  assert.deepEqual(operations, [], "un adaptor care nu raporteaza inca starea completa nu trebuie sa produca restaurari inventate");
+});
+
+test("restaurarea semantica ajunge la portul de editare, nu doar in plan (N-03)", async () => {
+  const edited: Array<{ id: string; name: unknown }> = [];
+  const deleted: string[] = [];
+  const guild = moduleContext<Parameters<typeof adaptRecoveryGuild>[0]>({
+    id: "g1",
+    channels: {
+      cache: {
+        get: (id: string) => ({
+          edit: async (payload: Record<string, unknown>) => { edited.push({ id, name: payload.name }); },
+          delete: async () => { deleted.push(id); }
+        }),
+        values: () => []
+      }
+    },
+    roles: { cache: { values: () => [{ id: "role-1", edit: async () => undefined, setPosition: async () => undefined }] } }
+  });
+  const port = adaptRecoveryGuild(guild, async () => ({}), async () => true, async () => undefined);
+
+  assert.equal(await port?.restoreChannel(BASE_CHANNEL), true);
+  assert.deepEqual(edited, [{ id: "chan-1", name: "anunturi" }]);
+  assert.equal(await port?.restoreRole(BASE_ROLE), true);
+  assert.equal(await port?.removeExtraResource("channel", "chan-raid"), true);
+  assert.deepEqual(deleted, ["chan-raid"]);
+});
+
+test("o resursa care nu mai poate fi editata raporteaza esec, nu succes tacut (N-03)", async () => {
+  const guild = moduleContext<Parameters<typeof adaptRecoveryGuild>[0]>({
+    id: "g1",
+    channels: { cache: { get: () => undefined, values: () => [] } },
+    roles: { cache: { values: () => [] } }
+  });
+  const port = adaptRecoveryGuild(guild, async () => ({}), async () => true, async () => undefined);
+
+  assert.equal(await port?.restoreChannel(BASE_CHANNEL), false);
+  assert.equal(await port?.restoreRole(BASE_ROLE), false);
+  assert.equal(await port?.removeExtraResource("role", "role-raid"), false);
+});
+
+function editableGuild(options: { positionFails?: boolean; withoutSetPosition?: boolean } = {}) {
+  const edits: Array<Record<string, unknown>> = [];
+  const positions: number[] = [];
+  const guild = moduleContext<Parameters<typeof adaptRecoveryGuild>[0]>({
+    id: "g1",
+    channels: {
+      cache: {
+        get: () => ({ edit: async (payload: Record<string, unknown>) => { edits.push(payload); } }),
+        values: () => []
+      }
+    },
+    roles: {
+      cache: {
+        values: () => [{
+          id: "role-1",
+          edit: async (payload: Record<string, unknown>) => { edits.push(payload); },
+          setPosition: options.withoutSetPosition
+            ? undefined
+            : async (position: number) => {
+              if (options.positionFails) throw new Error("Missing Permissions");
+              positions.push(position);
+            }
+        }]
+      }
+    }
+  });
+  return { port: adaptRecoveryGuild(guild, async () => ({}), async () => true, async () => undefined), edits, positions };
+}
+
+test("restaurarea rolului aplica si pozitia, nu doar proprietatile (review PR #995)", async () => {
+  const setup = editableGuild();
+
+  assert.equal(await setup.port?.restoreRole(BASE_ROLE), true);
+  assert.deepEqual(setup.positions, [5],
+    "diff-ul programeaza restore-role tocmai fiindca pozitia difera; fara aplicarea ei, ierarhia alterata ramane");
+});
+
+test("o pozitie de rol care nu poate fi aplicata NU e raportata ca succes (review PR #995)", async () => {
+  const setup = editableGuild({ positionFails: true });
+
+  assert.equal(await setup.port?.restoreRole(BASE_ROLE), false,
+    "altfel incidentul se inchide cu ierarhia inca modificata de atacator");
+});
+
+test("un rol fara API de pozitionare nu raporteaza restaurare completa (review PR #995)", async () => {
+  const setup = editableGuild({ withoutSetPosition: true });
+
+  assert.equal(await setup.port?.restoreRole(BASE_ROLE), false);
+});
+
+test("un topic pus de atacator peste unul gol e sters, nu ignorat (review PR #995)", async () => {
+  const setup = editableGuild();
+
+  await setup.port?.restoreChannel({ ...BASE_CHANNEL, topic: null });
+
+  assert.equal(setup.edits[0].topic, null,
+    "`undefined` inseamna camp omis in discord.js, deci topicul malitios ar fi ramas iar operatiunea ar fi fost marcata done");
+});
+
+test("campurile nullable ale canalului se transmit ca null, nu ca omisiuni (review PR #995)", async () => {
+  const setup = editableGuild();
+
+  await setup.port?.restoreChannel({ ...BASE_CHANNEL, parentId: null, nsfw: null, rateLimitPerUser: null });
+
+  assert.equal(setup.edits[0].parent, null);
+  assert.equal(setup.edits[0].nsfw, null);
+  assert.equal(setup.edits[0].rateLimitPerUser, null);
+});
+
+test("tipul canalului face parte din restaurare (review PR #995)", async () => {
+  const setup = editableGuild();
+
+  await setup.port?.restoreChannel(BASE_CHANNEL);
+
+  assert.equal(setup.edits[0].type, 0, "un canal convertit text -> announcement isi pastreaza ID-ul, deci doar tipul il tradeaza");
+});
+
+test("conversia de tip a unui canal e detectata de diff (review PR #995)", () => {
+  const operations = planRecovery(
+    snapshotWith({ channels: [BASE_CHANNEL] }),
+    stateWith({ channelIds: ["chan-1"], channels: [{ ...BASE_CHANNEL, channelType: 5 }] })
+  );
+
+  assert.deepEqual(operations.map(entry => entry.kind), ["restore-channel"]);
+  assert.match(operations[0].label, /channelType/);
+});

@@ -20,6 +20,7 @@ import { addWarning } from "../../features/moderation/moderationRepository.js";
 import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
 import { adaptRaidGuild, findRaidStructureActor } from "./antiRaidGuildAdapter.js";
 import { createRaidRecoveryRuntime } from "../../features/command-security/raidRecoveryRuntime.js";
+import { createRaidIncidentRepository } from "../../features/command-security/antiRaidIncidentRepository.js";
 import { adaptRecoveryGuild } from "./raidRecoveryGuildAdapter.js";
 import type { AdaptableRecoveryGuild } from "./raidRecoveryGuildAdapter.js";
 import type { AdaptableRaidGuild } from "./antiRaidGuildAdapter.js";
@@ -120,9 +121,19 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
     ? createProtectedResourceRepository(mongo.ProtectedResourceModel)
     : undefined;
 
+  const raidIncidentModel = mongo.RaidIncidentModel;
   const raidRecovery = mongo.RaidSnapshotModel
     ? createRaidRecoveryRuntime({
       RaidSnapshotModel: mongo.RaidSnapshotModel,
+      readIncidentScope: raidIncidentModel
+        ? async incidentId => {
+          const incident = await createRaidIncidentRepository(raidIncidentModel).read(incidentId).catch(() => null);
+          return {
+            createdChannelIds: incident?.raidCreatedChannelIds ?? [],
+            createdRoleIds: incident?.raidCreatedRoleIds ?? []
+          };
+        }
+        : undefined,
       onResourceRecreated: protectedResources
         ? async (guildId, previousResourceId, nextResourceId) => {
           const record = await protectedResources.read(guildId, previousResourceId).catch(() => null);

@@ -24,11 +24,18 @@ export interface AdaptableRecoveryGuild {
     create?: (options: Record<string, unknown>) => Promise<{ id?: unknown } | null>;
     fetch?: (id: string) => Promise<unknown>;
   };
+  roleById?: (roleId: string) => unknown;
   fetchWebhooks?: () => Promise<Iterable<unknown> | { values?: () => Iterable<unknown> } | null>;
   invites?: { fetch?: () => Promise<Iterable<unknown> | { values?: () => Iterable<unknown> } | null> };
 }
 
 const RECOVERY_REASON = "Recovery anti-raid: resursa distrusa in incident este recreata din snapshot";
+
+interface EditableResource {
+  edit?: (payload: Record<string, unknown>) => Promise<unknown>;
+  delete?: (reason?: string) => Promise<unknown>;
+  setPosition?: (position: number) => Promise<unknown>;
+}
 
 interface RecoverableChannel {
   createWebhook?: (options: Record<string, unknown>) => Promise<{ id?: unknown; url?: unknown } | null>;
@@ -143,6 +150,15 @@ export function adaptRecoveryGuild(
     return (fetched as RecoverableChannel | null) ?? null;
   }
 
+  function liveRole(roleId: string): EditableResource | undefined {
+    if (guild.roleById) return guild.roleById(roleId) as EditableResource | undefined;
+    for (const item of guild.roles?.cache?.values?.() ?? []) {
+      const role = item as { id?: unknown };
+      if (textOf(role.id) === roleId) return role as EditableResource;
+    }
+    return undefined;
+  }
+
   const id = textOf(guild.id);
   if (!id) return null;
 
@@ -198,12 +214,16 @@ export function adaptRecoveryGuild(
 
     async readCurrentState(): Promise<CurrentServerState> {
       const settings = await readGuildSettings(id).catch(() => null);
+      const channels = readChannels(guild);
+      const roles = readRoles(guild);
       return {
-        channelIds: readChannels(guild).map(channel => channel.channelId),
-        roleIds: readRoles(guild).map(role => role.roleId),
+        channelIds: channels.map(channel => channel.channelId),
+        roleIds: roles.map(role => role.roleId),
         webhookIds: (await readWebhooks()).map(webhook => webhook.webhookId),
         inviteCodes: (await readInvites()).map(invite => invite.code),
-        protections: readProtections(settings)
+        protections: readProtections(settings),
+        channels,
+        roles
       };
     },
 
@@ -252,6 +272,53 @@ export function adaptRecoveryGuild(
         ).catch(() => undefined);
       }
       return roleId;
+    },
+
+    async restoreChannel(channel) {
+      const live = guild.channels?.cache?.get?.(channel.channelId) as EditableResource | undefined;
+      if (!live?.edit) return false;
+      const payload: Record<string, unknown> = {
+        name: channel.name,
+        parent: channel.parentId,
+        topic: channel.topic,
+        nsfw: channel.nsfw,
+        rateLimitPerUser: channel.rateLimitPerUser,
+        permissionOverwrites: channel.overwrites.map(overwrite => ({
+          id: overwrite.id,
+          type: overwrite.type,
+          allow: BigInt(overwrite.allow),
+          deny: BigInt(overwrite.deny)
+        })),
+        reason: RECOVERY_REASON
+      };
+      if (channel.position !== null) payload.position = channel.position;
+      if (channel.channelType !== null) payload.type = channel.channelType;
+      return live.edit(payload).then(() => true).catch(() => false);
+    },
+
+    async restoreRole(role) {
+      const live = liveRole(role.roleId);
+      if (!live?.edit) return false;
+      const edited = await live.edit({
+        name: role.name,
+        permissions: BigInt(role.permissions),
+        color: role.color ?? undefined,
+        hoist: role.hoist,
+        mentionable: role.mentionable,
+        reason: RECOVERY_REASON
+      }).then(() => true).catch(() => false);
+      if (!edited) return false;
+
+      if (!live.setPosition) return false;
+      return live.setPosition(role.position).then(() => true).catch(() => false);
+    },
+
+    async removeExtraResource(kind, resourceId) {
+      const live = kind === "role"
+        ? liveRole(resourceId)
+        : (guild.channels?.cache?.get?.(resourceId) as EditableResource | undefined);
+      if (!live?.delete) return false;
+      return live.delete(RECOVERY_REASON).then(() => true).catch(() => false);
     },
 
     async recreateWebhook(webhook) {

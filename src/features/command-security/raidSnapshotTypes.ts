@@ -89,6 +89,10 @@ export type RecoveryOperationKind =
   | "recreate-role"
   | "recreate-webhook"
   | "restore-invite"
+  | "restore-channel"
+  | "restore-role"
+  | "remove-extra-channel"
+  | "remove-extra-role"
   | "restore-protection";
 
 export type RecoveryStatus = "pending" | "done" | "skipped" | "owner-intervention-required";
@@ -108,6 +112,30 @@ export interface CurrentServerState {
   webhookIds: readonly string[];
   inviteCodes: readonly string[];
   protections: SnapshotProtections;
+  channels?: readonly SnapshotChannel[];
+  roles?: readonly SnapshotRole[];
+}
+
+export const CHANNEL_DIFF_FIELDS = ["name", "channelType", "parentId", "position", "topic", "nsfw", "rateLimitPerUser"] as const;
+export const ROLE_DIFF_FIELDS = ["name", "permissions", "position", "color", "hoist", "mentionable"] as const;
+
+function sameOverwrites(left: readonly SnapshotOverwrite[], right: readonly SnapshotOverwrite[]): boolean {
+  if (left.length !== right.length) return false;
+  const byId = new Map(right.map(entry => [entry.id, entry]));
+  return left.every(entry => {
+    const other = byId.get(entry.id);
+    return other !== undefined && other.allow === entry.allow && other.deny === entry.deny && other.type === entry.type;
+  });
+}
+
+export function diffChannel(expected: SnapshotChannel, live: SnapshotChannel): string[] {
+  const changed: string[] = CHANNEL_DIFF_FIELDS.filter(field => expected[field] !== live[field]);
+  if (!sameOverwrites(expected.overwrites, live.overwrites)) changed.push("permissions");
+  return changed;
+}
+
+export function diffRole(expected: SnapshotRole, live: SnapshotRole): string[] {
+  return ROLE_DIFF_FIELDS.filter(field => expected[field] !== live[field]);
 }
 
 export function emptyProtections(): SnapshotProtections {
@@ -144,7 +172,20 @@ function byCategoryFirst(left: SnapshotChannel, right: SnapshotChannel): number 
   return isCategory(left) ? -1 : 1;
 }
 
-export function planRecovery(snapshot: RaidSnapshot, current: CurrentServerState): RecoveryOperation[] {
+export interface RecoveryScope {
+  createdChannelIds?: readonly string[];
+  createdRoleIds?: readonly string[];
+}
+
+function operation(kind: RecoveryOperationKind, resourceId: string, label: string): RecoveryOperation {
+  return { kind, resourceId, label, status: "pending", attempts: 0, detail: null };
+}
+
+export function planRecovery(
+  snapshot: RaidSnapshot,
+  current: CurrentServerState,
+  scope: RecoveryScope = {}
+): RecoveryOperation[] {
   const operations: RecoveryOperation[] = [];
   const liveChannels = new Set(current.channelIds);
   const liveRoles = new Set(current.roleIds);
@@ -164,6 +205,37 @@ export function planRecovery(snapshot: RaidSnapshot, current: CurrentServerState
   for (const webhook of snapshot.webhooks) {
     if (liveWebhooks.has(webhook.webhookId)) continue;
     operations.push({ kind: "recreate-webhook", resourceId: webhook.webhookId, label: webhook.name, status: "pending", attempts: 0, detail: null });
+  }
+
+  const liveChannelsById = new Map((current.channels ?? []).map(channel => [channel.channelId, channel]));
+  const liveRolesById = new Map((current.roles ?? []).map(role => [role.roleId, role]));
+
+  for (const role of snapshot.roles) {
+    const live = liveRolesById.get(role.roleId);
+    if (!live || role.managed) continue;
+    const changed = diffRole(role, live);
+    if (changed.length > 0) operations.push(operation("restore-role", role.roleId, `${role.name} (${changed.join(", ")})`));
+  }
+
+  for (const channel of snapshot.channels) {
+    const live = liveChannelsById.get(channel.channelId);
+    if (!live) continue;
+    const changed = diffChannel(channel, live);
+    if (changed.length > 0) operations.push(operation("restore-channel", channel.channelId, `${channel.name} (${changed.join(", ")})`));
+  }
+
+  const knownChannels = new Set(snapshot.channels.map(channel => channel.channelId));
+  for (const channelId of scope.createdChannelIds ?? []) {
+    if (knownChannels.has(channelId) || !liveChannels.has(channelId)) continue;
+    const live = liveChannelsById.get(channelId);
+    operations.push(operation("remove-extra-channel", channelId, live?.name ?? channelId));
+  }
+
+  const knownRoles = new Set(snapshot.roles.map(role => role.roleId));
+  for (const roleId of scope.createdRoleIds ?? []) {
+    if (knownRoles.has(roleId) || !liveRoles.has(roleId)) continue;
+    const live = liveRolesById.get(roleId);
+    operations.push(operation("remove-extra-role", roleId, live?.name ?? roleId));
   }
 
   for (const invite of snapshot.invites) {
