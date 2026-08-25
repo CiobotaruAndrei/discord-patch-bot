@@ -26,8 +26,12 @@ function harness(options: {
   let approvalChecks = 0;
   let clock = T0;
 
+  const baselineCalls: string[] = [];
   const guild: RaidGuildPort = {
     id: "g1",
+    freezeStructureBaseline: async () => { baselineCalls.push("freeze"); return true; },
+    releaseStructureBaseline: async () => { baselineCalls.push("release"); return true; },
+    refreshStructureBaseline: async () => { baselineCalls.push("refresh"); return true; },
     lockChannel: async channelId => { locked.push(channelId); return { locked: true, previousSendMessages: true }; },
     unlockChannel: async () => true,
     applySanction: async (userId, step) => { sanctions.push({ userId, step }); return { applied: true, retryable: false, error: null }; },
@@ -53,6 +57,7 @@ function harness(options: {
     runtime,
     incidents,
     model,
+    baselineCalls,
     locked,
     sanctions,
     published,
@@ -548,4 +553,30 @@ test("un mesaj obisnuit al altcuiva NU prelungeste incidentul doar fiindca ferea
     new Date(before ?? 0).getTime(),
     "verdict.triggered descrie toata fereastra retinuta, nu mesajul curent: legat de el, orice trecator amana recovery-ul"
   );
+});
+
+test("baseline-ul e inghetat la deschiderea incidentului, nu la confirmare (N-02)", async () => {
+  const setup = harness();
+
+  await setup.runtime.observeMessage("g1", message({ at: T0 }));
+  await setup.runtime.observeMessage("g1", message({ at: T0 + 1_000 }));
+  const outcome = await setup.runtime.observeMessage("g1", message({ at: T0 + 2_000 }));
+
+  assert.equal(outcome.kind, "opened");
+  assert.ok(setup.baselineCalls.includes("freeze"), "resursele distruse inaintea confirmarii se pierd daca baseline-ul nu e inghetat la primul semnal");
+});
+
+test("un al doilea semnal pe acelasi incident nu reingheta baseline-ul (N-02)", async () => {
+  const setup = harness();
+  await setup.runtime.observeMessage("g1", message({ at: T0 }));
+  await setup.runtime.observeMessage("g1", message({ at: T0 + 1_000 }));
+  await setup.runtime.observeMessage("g1", message({ at: T0 + 2_000 }));
+  const dupaPrimul = setup.baselineCalls.filter(entry => entry === "freeze").length;
+
+  await setup.runtime.observeMessage("g1", message({ at: T0 + 3_000 }));
+  await setup.runtime.observeMessage("g1", message({ at: T0 + 4_000 }));
+
+  assert.equal(dupaPrimul, 1, "inghetarea se face la deschiderea incidentului");
+  assert.equal(setup.baselineCalls.filter(entry => entry === "freeze").length, dupaPrimul,
+    "semnalele urmatoare din acelasi incident nu au voie sa reingheta, altfel referinta s-ar muta in timpul raidului");
 });

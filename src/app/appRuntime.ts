@@ -155,7 +155,10 @@ function composeGatewayFeatures(deps: AppRuntimeDeps, services: RuntimeServices)
     onThreatFailure: threatEngineMonitor.onFailure
   });
   const antiRaid = gateway.antiRaidRuntime;
-  if (antiRaid) deps.mongo.raidIntervention?.bind(guildId => antiRaid.tick(guildId));
+  if (antiRaid) {
+    deps.mongo.raidIntervention?.bind(guildId => antiRaid.tick(guildId));
+    deps.mongo.raidIntervention?.bindBaseline(guildId => antiRaid.captureBaseline(guildId));
+  }
   return gateway;
 }
 
