@@ -38,13 +38,47 @@ const KICK: Requirement = { flag: PermissionFlagsBits.KickMembers, label: "Kick 
 const BAN: Requirement = { flag: PermissionFlagsBits.BanMembers, label: "Ban Members" };
 
 const REQUIREMENTS: Readonly<Record<PermissionRequestType, SubprotectionRequirements>> = {
-  "bot-add": { blocking: [AUDIT, KICK], degrading: [], hierarchyBlocks: true },
+  "bot-add": { blocking: [AUDIT, KICK], degrading: [ROLES], hierarchyBlocks: true },
   "permission-grant": { blocking: [AUDIT], degrading: [ROLES], hierarchyBlocks: false },
   "moderation-mass": { blocking: [AUDIT], degrading: [BAN, ROLES], hierarchyBlocks: false },
   webhook: { blocking: [AUDIT], degrading: [WEBHOOKS, ROLES], hierarchyBlocks: false },
-  "server-structure": { blocking: [AUDIT], degrading: [ROLES], hierarchyBlocks: false },
+  "server-structure": { blocking: [AUDIT], degrading: [CHANNELS, ROLES], hierarchyBlocks: false },
   "protected-resource-change": { blocking: [AUDIT], degrading: [CHANNELS, ROLES], hierarchyBlocks: false }
 };
+
+export const READINESS_EFFECTS: Readonly<Record<PermissionRequestType, readonly string[]>> = {
+  "bot-add": ["kick", "sanctiune roluri"],
+  "permission-grant": ["sanctiune roluri", "retragere overwrite canal"],
+  "moderation-mass": ["ridicare ban", "sanctiune roluri"],
+  webhook: ["corectie webhook", "sanctiune roluri"],
+  "server-structure": ["rollback canal", "rollback rol", "sanctiune roluri"],
+  "protected-resource-change": ["restaurare canal", "restaurare rol", "sanctiune roluri"]
+};
+
+const EFFECT_REQUIREMENTS: Readonly<Record<string, Requirement>> = {
+  kick: KICK,
+  "ridicare ban": BAN,
+  "sanctiune roluri": ROLES,
+  "retragere overwrite canal": ROLES,
+  "corectie webhook": WEBHOOKS,
+  "rollback canal": CHANNELS,
+  "rollback rol": ROLES,
+  "restaurare canal": CHANNELS,
+  "restaurare rol": ROLES
+};
+
+export function requirementsCoverEffects(type: PermissionRequestType): string[] {
+  const declared = new Set([
+    ...REQUIREMENTS[type].blocking.map(entry => entry.label),
+    ...REQUIREMENTS[type].degrading.map(entry => entry.label)
+  ]);
+  return READINESS_EFFECTS[type]
+    .filter(effect => {
+      const requirement = EFFECT_REQUIREMENTS[effect];
+      return requirement !== undefined && !declared.has(requirement.label);
+    })
+    .map(effect => `${effect} cere ${EFFECT_REQUIREMENTS[effect].label}`);
+}
 
 const HIERARCHY_GAP = "rol pozitionat deasupra rolului @everyone (necesar pentru sanctionarea autorului)";
 

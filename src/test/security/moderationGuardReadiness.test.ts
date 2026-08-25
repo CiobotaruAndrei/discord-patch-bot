@@ -55,10 +55,14 @@ test("fara Manage Webhooks doar subprotectia de webhook e degradata, restul rama
   assert.match(describeGuardReadiness(report), /webhook: lipseste Manage Webhooks/);
 });
 
-test("fara Manage Channels, doar resursele protejate sunt degradate (F-18)", () => {
+test("fara Manage Channels, si structura serverului e degradata, nu doar resursele protejate (F-18)", () => {
   const report = moderationGuardReadiness(holder(EVERY_PERMISSION.filter(flag => flag !== PermissionFlagsBits.ManageChannels)));
 
-  assert.deepEqual(degradedSubprotections(report).map(entry => entry.type), ["protected-resource-change"]);
+  assert.deepEqual(
+    degradedSubprotections(report).map(entry => entry.type).sort(),
+    ["protected-resource-change", "server-structure"],
+    "server-structure sterge si recreeaza canale la rollback, deci fara Manage Channels corectia nu se poate aplica"
+  );
 });
 
 test("fara Ban Members, moderarea in masa nu poate ridica ban-urile aplicate (F-18)", () => {
@@ -111,7 +115,7 @@ test("pornirea anti-raid isi pastreaza propriul readiness, neatins de cel al gua
   assert.equal(gate.degradedReport(), null, "raportul de subprotectii e specific moderation-guard");
 });
 
-test("cu permisiunile de bot-add dar fara restul, pornirea reuseste dar raporteaza cele cinci subprotectii degradate (F-18)", () => {
+test("cu permisiunile de bot-add dar fara restul, pornirea reuseste dar raporteaza TOATE subprotectiile degradate (F-18)", () => {
   const interaction = moduleContext<SecurityInteraction>({
     guild: {
       ownerId: "owner-1",
@@ -130,7 +134,8 @@ test("cu permisiunile de bot-add dar fara restul, pornirea reuseste dar raportea
   for (const type of ["permission-grant", "moderation-mass", "webhook", "server-structure", "protected-resource-change"]) {
     assert.match(report, new RegExp(`- ${type}: lipseste`), `${type} trebuie raportata ca degradata`);
   }
-  assert.doesNotMatch(report, /- bot-add:/, "bot-add are tot ce ii trebuie, deci nu apare ca degradata");
+  assert.match(report, /- bot-add: lipseste .*Manage Roles/,
+    "de cand bot-add sanctioneaza solicitantul, fara Manage Roles botul e eliminat dar autorul isi pastreaza rolurile");
 });
 
 test("in /security-status o subprotectie gata ramane pornita cand alta e degradata (review PR #951)", () => {
