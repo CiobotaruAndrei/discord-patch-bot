@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import attachPermissionRequestHandler from "../../features/command-handlers/permissionRequestInteractionHandler.js";
+import attachPermissionRequestHandler, { restrictionModal } from "../../features/command-handlers/permissionRequestInteractionHandler.js";
 import { CLAIM_RECOVERY_MS, DELIVERY_FAILED_REASON, createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
+import { RESTRICTION_INPUT_IDS, compareRequestedApproved, parseDurationMs, restrictionFromModal } from "../../features/command-security/permissionRequestApproval.js";
+import { PERMISSION_REQUEST_TYPES } from "../../features/command-security/permissionRequestTypes.js";
 import { calls, loadModule } from "../gates/sourceStructureQueries.js";
-import { compareRequestedApproved, parseDurationMs, restrictionFromModal } from "../../features/command-security/permissionRequestApproval.js";
 import { moduleContext } from "../moduleContextStub.js";
 import { permissionRequestStore } from "./permissionRequestStore.js";
 import type { PermissionRequestRecord } from "../../features/command-security/permissionRequestTypes.js";
@@ -244,6 +245,7 @@ test("handlerul foloseste anularea, nu respingerea, la esecul livrarii (F-09)", 
   const used = new Set(calls(handler).map(call => call.callee));
 
   assert.ok(used.has("repository.cancelUndelivered"), "istoricul nu are voie sa arate o respingere cu owner gol");
+});
 
 test("ownerul poate restrange si botul executor, nu doar tinta si permisiunile (F-08)", () => {
   const record: PermissionRequestRecord = {
@@ -304,4 +306,62 @@ test("cand nimic nu s-a restrans, rezumatul o spune explicit (F-08)", () => {
   };
 
   assert.match(compareRequestedApproved(record), /neschimbat/);
+});
+
+test("modalul de aprobare nu depaseste niciodata cele cinci randuri permise de Discord (review PR #977)", () => {
+  for (const type of PERMISSION_REQUEST_TYPES) {
+    const record: PermissionRequestRecord = {
+      _id: `r-${type}`, guildId: "g1", type, requesterId: "u1", status: "pending",
+      requestedAt: new Date(), target: "111111111111111111", action: "add",
+      amount: 5, permissions: ["Ban Members"], botId: "222222222222222222", reason: "test"
+    };
+
+    const modal = restrictionModal(record, "modal-1") as { components?: unknown[] };
+
+    assert.ok(
+      (modal.components?.length ?? 0) <= 5,
+      `${type}: Discord respinge showModal peste cinci randuri, deci aprobarea ar fi devenit imposibila`
+    );
+    assert.ok((modal.components?.length ?? 0) >= 3, `${type}: tinta, actiunea si valabilitatea raman intotdeauna`);
+  }
+});
+
+test("modalul arata campul de bot doar unde tipul il foloseste (review PR #977)", () => {
+  const record: PermissionRequestRecord = {
+    _id: "r-bot", guildId: "g1", type: "bot-add", requesterId: "u1", status: "pending",
+    requestedAt: new Date(), target: "111111111111111111", action: "add",
+    botId: "111111111111111111", reason: "integrare"
+  };
+
+  const modal = restrictionModal(record, "modal-2") as { components?: Array<{ components?: Array<{ custom_id?: string }> }> };
+  const ids = (modal.components ?? []).flatMap(row => (row.components ?? []).map(field => field.custom_id));
+
+  assert.ok(ids.includes(RESTRICTION_INPUT_IDS.botId), "bot-add chiar foloseste botul executor");
+  assert.ok(!ids.includes(RESTRICTION_INPUT_IDS.permissions), "permisiunile nu se aplica la bot-add, deci nu ocupa un rand");
+});
+
+test("raspunsul dupa aprobare chiar include rezumatul cerut-vs-aprobat (review PR #977)", async () => {
+  const model = permissionRequestStore();
+  const repository = createPermissionRequestRepository(model);
+  await repository.create({
+    requestId: "req-rezumat", guildId: "g1", type: "moderation-mass", requesterId: "u1",
+    target: "111111111111111111", action: "ban", amount: 10, reason: "curatenie"
+  });
+
+  const handler = handlerFor(model);
+  const call = interaction({
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: "permission-request:approve:req-rezumat",
+    user: { id: "owner-1" }
+  });
+
+  await handler.handle(
+    moduleContext<Parameters<typeof handler.handle>[0]>(call),
+    moduleContext<Parameters<typeof handler.handle>[1]>({})
+  );
+
+  const content = String(call.replies[0]?.content ?? "");
+  assert.match(content, /Cerut -> aprobat/, "helperul era chemat, dar rezultatul nu ajungea in mesajul catre owner");
+  assert.match(content, /cantitate: 10/);
 });

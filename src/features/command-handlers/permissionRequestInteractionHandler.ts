@@ -2,7 +2,7 @@ import type { AlwaysReplies, BaseChatInputInteraction, StringOption } from "./di
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { createPermissionRequestRepository } from "../command-security/permissionRequestRepository.js";
 import type { PermissionRequestModelLike } from "../command-security/permissionRequestRepository.js";
-import { isPermissionRequestStatus, isPermissionRequestType } from "../command-security/permissionRequestTypes.js";
+import { appliesToType, isPermissionRequestStatus, isPermissionRequestType } from "../command-security/permissionRequestTypes.js";
 import type { PermissionRequestRecord, PermissionRequestStatus, PermissionRequestType } from "../command-security/permissionRequestTypes.js";
 import {
   RESTRICTION_INPUT_IDS,
@@ -62,13 +62,17 @@ function isOwner(interaction: Interaction): boolean {
   return Boolean(interaction.guild?.ownerId && interaction.guild.ownerId === interaction.user?.id);
 }
 
-function restrictionModal(record: PermissionRequestRecord, customId: string): unknown {
+export function restrictionModal(record: PermissionRequestRecord, customId: string): unknown {
+  const optional = [
+    { field: "amount" as const, id: RESTRICTION_INPUT_IDS.amount, label: "Cantitate maxima (gol = cea ceruta)", value: record.amount != null ? String(record.amount) : "" },
+    { field: "permissions" as const, id: RESTRICTION_INPUT_IDS.permissions, label: "Permisiuni (gol = cele cerute)", value: (record.permissions ?? []).join(", ") },
+    { field: "botId" as const, id: RESTRICTION_INPUT_IDS.botId, label: "Bot executor (gol = cel cerut)", value: record.botId ?? "" }
+  ].filter(entry => appliesToType(record.type, entry.field));
+
   const rows = [
     { id: RESTRICTION_INPUT_IDS.target, label: "Tinta aprobata", value: record.target ?? "", required: true },
     { id: RESTRICTION_INPUT_IDS.action, label: "Actiunea aprobata", value: record.action ?? "", required: true },
-    { id: RESTRICTION_INPUT_IDS.amount, label: "Cantitate maxima (gol = cea ceruta)", value: record.amount != null ? String(record.amount) : "", required: false },
-    { id: RESTRICTION_INPUT_IDS.permissions, label: "Permisiuni (gol = cele cerute)", value: (record.permissions ?? []).join(", "), required: false },
-    { id: RESTRICTION_INPUT_IDS.botId, label: "Bot executor (gol = cel cerut)", value: record.botId ?? "", required: false },
+    ...optional.map(entry => ({ id: entry.id, label: entry.label, value: entry.value, required: false })),
     { id: RESTRICTION_INPUT_IDS.duration, label: "Valabilitate (ex. 30m, 2h, 1d)", value: "1h", required: false }
   ];
   return {
@@ -145,7 +149,8 @@ export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
     const delivered = requester?.send
       ? await requester.send({ content: requesterNotice, allowedMentions: { parse: [] } }).then(() => true).catch(() => false)
       : false;
-    const content = `${decided}: ${displayPermissionRequest(record)}\n<@${record.requesterId}> ${requesterNotice}\n`
+    const comparison = decision === "approve" ? compareRequestedApproved(record) + String.fromCharCode(10) : "";
+    const content = `${decided}: ${displayPermissionRequest(record)}\n${comparison}<@${record.requesterId}> ${requesterNotice}\n`
       + (delivered ? "Notificare directa trimisa solicitantului." : "Notificarea directa nu a putut fi livrata; decizia ramane in acest canal.");
     const allowedMentions = { parse: [], users: [record.requesterId] };
     return interaction.update
