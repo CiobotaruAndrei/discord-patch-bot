@@ -14,6 +14,7 @@ export interface WebhookSnapshotRecord {
   channelId: string;
   entries: WebhookSnapshotEntry[];
   capturedAt: Date;
+  ownerInterventionAt: Date | null;
 }
 
 export const WEBHOOK_CHANGE_KINDS = ["create", "delete", "update"] as const;

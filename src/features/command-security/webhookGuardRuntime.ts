@@ -183,7 +183,23 @@ export function createWebhookGuardRuntime(deps: WebhookGuardDeps) {
 
     const actorId = await channel.findAuditActor().catch(() => null);
     if (!actorId) {
-      await capture(channel, current);
+      const firstReport = await snapshots
+        .markOwnerIntervention(channel.guildId, channel.channelId, new Date(now()))
+        .catch(() => false);
+      deps.logger?.("ERROR", "WEBHOOK_GUARD", "Webhook modificat fara autor identificabil; snapshotul anterior se pastreaza", {
+        guildId: channel.guildId,
+        channelId: channel.channelId,
+        modificari: changes.length,
+        raportatAcum: firstReport
+      });
+      if (firstReport) {
+        await deps.publish(channel.guildId, [
+          `Webhook-uri modificate in ${channel.channelName || channel.channelId} fara autor identificabil in Audit Log.`,
+          `Modificari: ${describeChanges(changes)}`,
+          "Snapshotul de referinta NU a fost actualizat: o modificare neautorizata nu are voie sa devina baseline doar fiindca Audit Log a intarziat.",
+          "Verifica manual webhook-urile canalului. Dupa ce confirmi starea corecta, ruleaza din nou protectia cu `/start moderation-guard`, ca sa se recaptureze baseline-ul."
+        ].join("\n")).catch(() => undefined);
+      }
       return { kind: "actor-unknown", changes };
     }
     if (channel.ownerId && actorId === channel.ownerId) {

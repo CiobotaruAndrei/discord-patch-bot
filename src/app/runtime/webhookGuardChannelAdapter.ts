@@ -7,6 +7,7 @@ import type { WebhookGuardChannel } from "../../features/command-security/webhoo
 import type { WebhookSnapshotEntry } from "../../features/command-security/webhookGuardTypes.js";
 
 const AUDIT_WINDOW_MS = 60_000;
+const AUDIT_RETRY_DELAYS_MS = [0, 1_000, 2_000] as const;
 const WEBHOOK_AUDIT_EVENTS = [50, 51, 52];
 
 export interface AdaptableWebhookChannel {
@@ -42,7 +43,8 @@ function iterate(source: Iterable<unknown> | { values?: () => Iterable<unknown> 
 
 export function adaptWebhookGuardChannel(
   channel: AdaptableWebhookChannel,
-  now: () => number = Date.now
+  now: () => number = Date.now,
+  wait: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms))
 ): WebhookGuardChannel | null {
   const guild = channel.guild;
   const guildId = textOf(guild?.id);
@@ -89,19 +91,25 @@ export function adaptWebhookGuardChannel(
     listWebhooks,
     async findAuditActor() {
       if (!guild?.fetchAuditLogs) return null;
-      const cutoff = now() - AUDIT_WINDOW_MS;
-      const candidates: Array<{ executorId: string | null; createdTimestamp: number }> = [];
-      for (const type of WEBHOOK_AUDIT_EVENTS) {
-        const payload = await guild.fetchAuditLogs({ type, limit: 6 }).catch(() => null);
-        for (const item of iterate(payload?.entries ?? null)) {
-          const entry = item as { executor?: { id?: unknown }; createdTimestamp?: unknown };
-          const createdTimestamp = numberOf(entry.createdTimestamp) ?? 0;
-          if (createdTimestamp < cutoff) continue;
-          candidates.push({ executorId: textOf(entry.executor?.id), createdTimestamp });
+      for (const delayMs of AUDIT_RETRY_DELAYS_MS) {
+        if (delayMs > 0) await wait(delayMs);
+        const cutoff = now() - AUDIT_WINDOW_MS;
+        const candidates: Array<{ executorId: string; createdTimestamp: number }> = [];
+        for (const type of WEBHOOK_AUDIT_EVENTS) {
+          const payload = await guild.fetchAuditLogs({ type, limit: 6 }).catch(() => null);
+          for (const item of iterate(payload?.entries ?? null)) {
+            const entry = item as { executor?: { id?: unknown }; createdTimestamp?: unknown };
+            const createdTimestamp = numberOf(entry.createdTimestamp) ?? 0;
+            if (createdTimestamp < cutoff) continue;
+            const executorId = textOf(entry.executor?.id);
+            if (!executorId) continue;
+            candidates.push({ executorId, createdTimestamp });
+          }
         }
+        candidates.sort((left, right) => right.createdTimestamp - left.createdTimestamp);
+        if (candidates.length > 0) return candidates[0].executorId;
       }
-      candidates.sort((left, right) => right.createdTimestamp - left.createdTimestamp);
-      return candidates[0]?.executorId ?? null;
+      return null;
     },
     async deleteWebhook(webhookId, reason) {
       const hook = webhookById.get(webhookId);

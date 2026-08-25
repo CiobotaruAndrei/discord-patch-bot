@@ -201,7 +201,8 @@ export function buildOperationalSchemas({ mongoose, ONE_DAY_MS, env }: Operation
       }, { _id: false })],
       default: []
     },
-    capturedAt: { type: Date, required: true }
+    capturedAt: { type: Date, required: true },
+    ownerInterventionAt: { type: Date, default: null }
   }, { minimize: false, _id: false });
   webhookSnapshotSchema.index({ guildId: 1, capturedAt: -1 });
 
