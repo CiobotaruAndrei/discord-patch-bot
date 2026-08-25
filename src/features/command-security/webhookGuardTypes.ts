@@ -71,6 +71,3 @@ export function describeChanges(changes: readonly WebhookChange[]): string {
     .join(", ");
 }
 
-export function changeActions(changes: readonly WebhookChange[]): string[] {
-  return [...new Set(changes.map(change => change.kind))].sort();
-}
