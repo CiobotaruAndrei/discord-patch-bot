@@ -898,7 +898,7 @@ test("restaurarea semantica ajunge la portul de editare, nu doar in plan (N-03)"
         values: () => []
       }
     },
-    roles: { cache: { values: () => [{ id: "role-1", edit: async () => undefined }] } }
+    roles: { cache: { values: () => [{ id: "role-1", edit: async () => undefined, setPosition: async () => undefined }] } }
   });
   const port = adaptRecoveryGuild(guild, async () => ({}), async () => true, async () => undefined);
 
@@ -920,4 +920,91 @@ test("o resursa care nu mai poate fi editata raporteaza esec, nu succes tacut (N
   assert.equal(await port?.restoreChannel(BASE_CHANNEL), false);
   assert.equal(await port?.restoreRole(BASE_ROLE), false);
   assert.equal(await port?.removeExtraResource("role", "role-raid"), false);
+});
+
+function editableGuild(options: { positionFails?: boolean; withoutSetPosition?: boolean } = {}) {
+  const edits: Array<Record<string, unknown>> = [];
+  const positions: number[] = [];
+  const guild = moduleContext<Parameters<typeof adaptRecoveryGuild>[0]>({
+    id: "g1",
+    channels: {
+      cache: {
+        get: () => ({ edit: async (payload: Record<string, unknown>) => { edits.push(payload); } }),
+        values: () => []
+      }
+    },
+    roles: {
+      cache: {
+        values: () => [{
+          id: "role-1",
+          edit: async (payload: Record<string, unknown>) => { edits.push(payload); },
+          setPosition: options.withoutSetPosition
+            ? undefined
+            : async (position: number) => {
+              if (options.positionFails) throw new Error("Missing Permissions");
+              positions.push(position);
+            }
+        }]
+      }
+    }
+  });
+  return { port: adaptRecoveryGuild(guild, async () => ({}), async () => true, async () => undefined), edits, positions };
+}
+
+test("restaurarea rolului aplica si pozitia, nu doar proprietatile (review PR #995)", async () => {
+  const setup = editableGuild();
+
+  assert.equal(await setup.port?.restoreRole(BASE_ROLE), true);
+  assert.deepEqual(setup.positions, [5],
+    "diff-ul programeaza restore-role tocmai fiindca pozitia difera; fara aplicarea ei, ierarhia alterata ramane");
+});
+
+test("o pozitie de rol care nu poate fi aplicata NU e raportata ca succes (review PR #995)", async () => {
+  const setup = editableGuild({ positionFails: true });
+
+  assert.equal(await setup.port?.restoreRole(BASE_ROLE), false,
+    "altfel incidentul se inchide cu ierarhia inca modificata de atacator");
+});
+
+test("un rol fara API de pozitionare nu raporteaza restaurare completa (review PR #995)", async () => {
+  const setup = editableGuild({ withoutSetPosition: true });
+
+  assert.equal(await setup.port?.restoreRole(BASE_ROLE), false);
+});
+
+test("un topic pus de atacator peste unul gol e sters, nu ignorat (review PR #995)", async () => {
+  const setup = editableGuild();
+
+  await setup.port?.restoreChannel({ ...BASE_CHANNEL, topic: null });
+
+  assert.equal(setup.edits[0].topic, null,
+    "`undefined` inseamna camp omis in discord.js, deci topicul malitios ar fi ramas iar operatiunea ar fi fost marcata done");
+});
+
+test("campurile nullable ale canalului se transmit ca null, nu ca omisiuni (review PR #995)", async () => {
+  const setup = editableGuild();
+
+  await setup.port?.restoreChannel({ ...BASE_CHANNEL, parentId: null, nsfw: null, rateLimitPerUser: null });
+
+  assert.equal(setup.edits[0].parent, null);
+  assert.equal(setup.edits[0].nsfw, null);
+  assert.equal(setup.edits[0].rateLimitPerUser, null);
+});
+
+test("tipul canalului face parte din restaurare (review PR #995)", async () => {
+  const setup = editableGuild();
+
+  await setup.port?.restoreChannel(BASE_CHANNEL);
+
+  assert.equal(setup.edits[0].type, 0, "un canal convertit text -> announcement isi pastreaza ID-ul, deci doar tipul il tradeaza");
+});
+
+test("conversia de tip a unui canal e detectata de diff (review PR #995)", () => {
+  const operations = planRecovery(
+    snapshotWith({ channels: [BASE_CHANNEL] }),
+    stateWith({ channelIds: ["chan-1"], channels: [{ ...BASE_CHANNEL, channelType: 5 }] })
+  );
+
+  assert.deepEqual(operations.map(entry => entry.kind), ["restore-channel"]);
+  assert.match(operations[0].label, /channelType/);
 });

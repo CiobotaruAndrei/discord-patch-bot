@@ -116,7 +116,7 @@ export interface CurrentServerState {
   roles?: readonly SnapshotRole[];
 }
 
-export const CHANNEL_DIFF_FIELDS = ["name", "parentId", "position", "topic", "nsfw", "rateLimitPerUser"] as const;
+export const CHANNEL_DIFF_FIELDS = ["name", "channelType", "parentId", "position", "topic", "nsfw", "rateLimitPerUser"] as const;
 export const ROLE_DIFF_FIELDS = ["name", "permissions", "position", "color", "hoist", "mentionable"] as const;
 
 function sameOverwrites(left: readonly SnapshotOverwrite[], right: readonly SnapshotOverwrite[]): boolean {

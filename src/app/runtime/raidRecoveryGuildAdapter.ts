@@ -34,6 +34,7 @@ const RECOVERY_REASON = "Recovery anti-raid: resursa distrusa in incident este r
 interface EditableResource {
   edit?: (payload: Record<string, unknown>) => Promise<unknown>;
   delete?: (reason?: string) => Promise<unknown>;
+  setPosition?: (position: number) => Promise<unknown>;
 }
 
 interface RecoverableChannel {
@@ -276,13 +277,12 @@ export function adaptRecoveryGuild(
     async restoreChannel(channel) {
       const live = guild.channels?.cache?.get?.(channel.channelId) as EditableResource | undefined;
       if (!live?.edit) return false;
-      return live.edit({
+      const payload: Record<string, unknown> = {
         name: channel.name,
-        parent: channel.parentId ?? null,
-        position: channel.position ?? undefined,
-        topic: channel.topic ?? undefined,
-        nsfw: channel.nsfw ?? undefined,
-        rateLimitPerUser: channel.rateLimitPerUser ?? undefined,
+        parent: channel.parentId,
+        topic: channel.topic,
+        nsfw: channel.nsfw,
+        rateLimitPerUser: channel.rateLimitPerUser,
         permissionOverwrites: channel.overwrites.map(overwrite => ({
           id: overwrite.id,
           type: overwrite.type,
@@ -290,13 +290,16 @@ export function adaptRecoveryGuild(
           deny: BigInt(overwrite.deny)
         })),
         reason: RECOVERY_REASON
-      }).then(() => true).catch(() => false);
+      };
+      if (channel.position !== null) payload.position = channel.position;
+      if (channel.channelType !== null) payload.type = channel.channelType;
+      return live.edit(payload).then(() => true).catch(() => false);
     },
 
     async restoreRole(role) {
       const live = liveRole(role.roleId);
       if (!live?.edit) return false;
-      return live.edit({
+      const edited = await live.edit({
         name: role.name,
         permissions: BigInt(role.permissions),
         color: role.color ?? undefined,
@@ -304,6 +307,10 @@ export function adaptRecoveryGuild(
         mentionable: role.mentionable,
         reason: RECOVERY_REASON
       }).then(() => true).catch(() => false);
+      if (!edited) return false;
+
+      if (!live.setPosition) return false;
+      return live.setPosition(role.position).then(() => true).catch(() => false);
     },
 
     async removeExtraResource(kind, resourceId) {
