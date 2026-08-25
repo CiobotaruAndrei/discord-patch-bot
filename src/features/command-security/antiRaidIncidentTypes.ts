@@ -43,6 +43,8 @@ export interface RaidIncidentRecord {
   pendingActions: string[];
   errors: string[];
   raidWebhookIds: string[];
+  raidCreatedChannelIds?: string[];
+  raidCreatedRoleIds?: string[];
   restoreProgress: number;
 }
 

@@ -221,6 +221,14 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
     ));
   }
 
+  async function recordRaidResource(incidentId: string, surface: "channel" | "role", resourceId: string): Promise<boolean> {
+    const field = surface === "role" ? "raidCreatedRoleIds" : "raidCreatedChannelIds";
+    return updatedDocument(await model.updateOne(
+      { _id: incidentId, [field]: { $ne: resourceId } },
+      { $push: { [field]: resourceId } }
+    ));
+  }
+
   async function recordError(incidentId: string, message: string, now = new Date()): Promise<boolean> {
     const result = await model.updateOne(
       { _id: incidentId },
@@ -256,6 +264,7 @@ export function createRaidIncidentRepository(model: RaidIncidentModelLike) {
     markChannelRestored,
     recordError,
     recordRaidWebhook,
+    recordRaidResource,
     setPendingActions,
     setRestoreProgress
   };

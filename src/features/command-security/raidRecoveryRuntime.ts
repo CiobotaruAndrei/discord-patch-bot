@@ -7,6 +7,8 @@ import type { RaidSnapshotModelLike } from "./raidSnapshotRepository.js";
 import { chooseIncidentSnapshot, describeBaselineChoice, needsRefresh } from "./raidBaselineSnapshot.js";
 import type {
   CurrentServerState,
+  RecoveryOperationKind,
+  RecoveryScope,
   ResourceRemap,
   RoleRemap,
   RaidSnapshot,
@@ -26,6 +28,9 @@ export interface RecoveryGuildPort {
   recreateChannel(channel: SnapshotChannel): Promise<string | null>;
   recreateRole(role: SnapshotRole): Promise<string | null>;
   recreateWebhook(webhook: SnapshotWebhook): Promise<string | null>;
+  restoreChannel(channel: SnapshotChannel): Promise<boolean>;
+  restoreRole(role: SnapshotRole): Promise<boolean>;
+  removeExtraResource(kind: "channel" | "role", resourceId: string): Promise<boolean>;
   restoreInvite(invite: SnapshotInvite): Promise<string | null>;
   restoreProtection(field: keyof SnapshotProtections, enabled: boolean): Promise<boolean>;
   publish(body: string): Promise<unknown>;
@@ -33,6 +38,7 @@ export interface RecoveryGuildPort {
 
 export interface RaidRecoveryDeps {
   RaidSnapshotModel: RaidSnapshotModelLike;
+  readIncidentScope?: (incidentId: string) => Promise<RecoveryScope>;
   onResourceRecreated?: (guildId: string, previousResourceId: string, nextResourceId: string) => Promise<unknown>;
   logger?: (level: LogLevel, scope: string, message: string, meta?: Record<string, unknown>) => void;
   now?: () => number;
@@ -146,6 +152,35 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
         : { status: "owner-intervention-required", detail: "canalul nu a putut fi recreat" };
     }
 
+    if (operation.kind === "restore-role") {
+      const role = snapshot.roles.find(entry => entry.roleId === operation.resourceId);
+      if (!role) return { status: "skipped", detail: "rolul nu mai este in snapshot" };
+      const restored = await guild.restoreRole(role);
+      return restored
+        ? { status: "done", detail: "proprietatile alterate au fost readuse la valorile din snapshot" }
+        : { status: "owner-intervention-required", detail: "rolul nu a putut fi readus la starea din snapshot" };
+    }
+
+    if (operation.kind === "restore-channel") {
+      const stored = snapshot.channels.find(entry => entry.channelId === operation.resourceId);
+      if (!stored) return { status: "skipped", detail: "canalul nu mai este in snapshot" };
+      const channel = { ...stored, overwrites: remapOverwrites(stored.overwrites, remaps) };
+      const restored = await guild.restoreChannel(channel);
+      return restored
+        ? { status: "done", detail: "proprietatile alterate au fost readuse la valorile din snapshot" }
+        : { status: "owner-intervention-required", detail: "canalul nu a putut fi readus la starea din snapshot" };
+    }
+
+    if (operation.kind === "remove-extra-channel" || operation.kind === "remove-extra-role") {
+      const removed = await guild.removeExtraResource(
+        operation.kind === "remove-extra-role" ? "role" : "channel",
+        operation.resourceId
+      );
+      return removed
+        ? { status: "done", detail: "resursa creata in incident a fost eliminata" }
+        : { status: "owner-intervention-required", detail: "resursa creata in incident nu a putut fi eliminata" };
+    }
+
     if (operation.kind === "recreate-webhook") {
       const webhook = snapshot.webhooks.find(entry => entry.webhookId === operation.resourceId);
       if (!webhook) return { status: "skipped", detail: "webhook-ul nu mai este in snapshot" };
@@ -196,11 +231,11 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
 
     const planned = record.operations.length > 0
       ? record.operations
-      : planRecovery(record.snapshot, current);
+      : planRecovery(record.snapshot, current, await deps.readIncidentScope?.(incidentId).catch(() => ({})) ?? {});
     if (record.operations.length === 0) await snapshots.savePlan(incidentId, planned).catch(() => false);
     if (planned.length === 0) return { kind: "nothing-to-restore" };
 
-    const live = {
+    const live: Partial<Record<RecoveryOperationKind, Set<string>>> = {
       "recreate-channel": new Set(current.channelIds),
       "recreate-role": new Set(current.roleIds),
       "recreate-webhook": new Set(current.webhookIds),
@@ -210,7 +245,8 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
     for (const operation of planned) {
       if (operation.status !== "pending") continue;
 
-      const alreadyThere = operation.kind !== "restore-protection" && live[operation.kind].has(operation.resourceId);
+      const liveSet = live[operation.kind];
+      const alreadyThere = liveSet !== undefined && liveSet.has(operation.resourceId);
       if (alreadyThere) {
         await snapshots.markOperation(incidentId, operation.kind, operation.resourceId, "skipped", "resursa exista deja").catch(() => false);
         continue;

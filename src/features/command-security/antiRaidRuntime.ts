@@ -214,6 +214,12 @@ export function createAntiRaidRuntime(deps: AntiRaidRuntimeDeps) {
     if (!incident) return { kind: "quiet" };
     if (!active) await freezeBaselineFor(guildId);
 
+    if ((change.action ?? "create") === "create") {
+      await incidents
+        .recordRaidResource(incident._id, change.surface === "role" ? "role" : "channel", resourceId)
+        .catch(() => false);
+    }
+
     await registerParticipants(guildId, incident._id, verdict.actorIds);
     await runIntervention(guildId, verdict.channelIds);
     return active
