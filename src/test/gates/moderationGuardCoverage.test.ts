@@ -79,12 +79,12 @@ test("un actor neidentificat nu poate consuma o aprobare", async () => {
   assert.deepEqual(calls, [], "fara actor nu se atinge nicio aprobare");
 });
 
-test("subprotectiile care sanctioneaza autorul sunt cele cinci declarate de specificatie", () => {
+test("toate cele sase subprotectii sanctioneaza autorul (audit F-45)", () => {
   const sanctioning = MODERATION_GUARD_ENFORCERS.filter(enforcer => enforcer.sanctionsAuthor).map(enforcer => enforcer.type);
 
   assert.deepEqual(
     [...sanctioning].sort(),
-    ["moderation-mass", "permission-grant", "protected-resource-change", "server-structure", "webhook"],
+    ["bot-add", "moderation-mass", "permission-grant", "protected-resource-change", "server-structure", "webhook"],
     "daca o subprotectie pierde sanctiunea autorului, autorul compromis isi pastreaza capacitatea de a repeta actiunea"
   );
 });

@@ -17,12 +17,18 @@ interface ScenarioOptions {
   model?: PermissionRequestStore;
   isRaidConfirmed?: () => Promise<boolean>;
   settings?: Partial<GuildSettings>;
+  actorRoles?: readonly { id: string; name: string; position: number; managed: boolean; elevated: boolean }[];
+  withoutSanctionContext?: boolean;
+  kickFails?: boolean;
+  keepsRolesAfterRemoval?: boolean;
 }
 
 function scenario(options: ScenarioOptions = {}) {
   const model = options.model ?? permissionRequestStore();
   const kicks: string[] = [];
   const sent: string[] = [];
+  const removedRoles: string[] = [];
+  let actorRoles = [...(options.actorRoles ?? [{ id: "role-mod", name: "Moderator", position: 5, managed: false, elevated: true }])];
   const settings = moduleContext<GuildSettings>({
     moderationGuardEnabled: true,
     permissionRequestChannelId: "chan-1",
@@ -46,6 +52,17 @@ function scenario(options: ScenarioOptions = {}) {
       find: () => ({ sort() { return this; }, skip() { return this; }, limit() { return this; }, lean: async () => [] })
     },
     adminAlert: async () => undefined,
+    sanctionContext: options.withoutSanctionContext ? undefined : async () => ({
+      botHighestRolePosition: 10,
+      everyoneRoleId: "everyone",
+      resolveActor: async () => ({
+        roles: actorRoles,
+        removeRoles: async (ids: readonly string[]) => {
+          removedRoles.push(...ids);
+          if (!options.keepsRolesAfterRemoval) actorRoles = actorRoles.filter(role => !ids.includes(role.id));
+        }
+      })
+    }),
     now: () => NOW,
     wait: async () => undefined
   });
@@ -55,9 +72,13 @@ function scenario(options: ScenarioOptions = {}) {
     guild,
     joinedTimestamp: NOW,
     user: { id: BOT_ID, bot: true, tag: "Bot#0001", createdTimestamp: NOW - 90 * 86_400_000 },
-    kick: async (reason: string) => { kicks.push(reason); return undefined; }
+    kick: async (reason: string) => {
+      if (options.kickFails) throw new Error("ierarhie insuficienta");
+      kicks.push(reason);
+      return undefined;
+    }
   });
-  return { runtime, member, kicks, sent, model };
+  return { runtime, member, kicks, sent, model, removedRoles };
 }
 
 async function approvedRequest(): Promise<PermissionRequestStore> {
@@ -141,4 +162,59 @@ test("migrarea 19 muta protectia veche in moderation-guard si sterge campurile l
   assert.deepEqual(updates[0].update, { $set: { moderationGuardEnabled: true } });
   assert.deepEqual(updates[0].filter, { botAddProtectionEnabled: true, moderationGuardEnabled: { $ne: true } });
   assert.deepEqual(updates[1].update, { $unset: { botAddAlertChannelId: "", botAddProtectionEnabled: "", botAddPermissions: "" } });
+});
+
+test("solicitantul unui bot neaprobat isi pierde rolurile ridicate, nu doar botul (F-45)", async () => {
+  const run = scenario();
+
+  await run.runtime.handleGuildMemberAdd(run.member);
+
+  assert.equal(run.kicks.length, 1);
+  assert.deepEqual(run.removedRoles, ["role-mod"], "fara sanctiune, autorul pastreaza permisiunile ca sa adauge imediat alt bot");
+  assert.match(run.sent.join(" "), /Roluri eliminate si verificate: Moderator/);
+});
+
+test("sanctiunea se aplica si cand botul nu a putut fi eliminat (F-45)", async () => {
+  const run = scenario({ kickFails: true });
+
+  await run.runtime.handleGuildMemberAdd(run.member);
+
+  assert.deepEqual(run.kicks, [], "botul a ramas: exact cazul in care autorul e cel mai periculos");
+  assert.deepEqual(run.removedRoles, ["role-mod"]);
+  assert.match(run.sent.join(" "), /INCIDENT CRITIC/);
+});
+
+test("un bot aprobat nu declanseaza nicio sanctiune asupra solicitantului (F-45)", async () => {
+  const model = await approvedRequest();
+  const run = scenario({ model });
+
+  await run.runtime.handleGuildMemberAdd(run.member);
+
+  assert.deepEqual(run.removedRoles, [], "aprobarea ownerului nu are voie sa coste solicitantul rolurile");
+});
+
+test("rolurile peste rolul botului sunt raportate ca blocate, nu ca retrase (F-45)", async () => {
+  const run = scenario({ actorRoles: [{ id: "role-sef", name: "Head Admin", position: 20, managed: false, elevated: true }] });
+
+  await run.runtime.handleGuildMemberAdd(run.member);
+
+  assert.deepEqual(run.removedRoles, [], "un rol peste rolul botului nu poate fi retras");
+  assert.match(run.sent.join(" "), /Head Admin/);
+});
+
+test("un rol care ramane dupa retragere ridica interventia ownerului (F-45)", async () => {
+  const run = scenario({ keepsRolesAfterRemoval: true });
+
+  await run.runtime.handleGuildMemberAdd(run.member);
+
+  assert.match(run.sent.join(" "), /interventie|inca/i, "o retragere care raspunde cu succes dar lasa rolul pe autor nu e o sanctiune reusita");
+});
+
+test("fara contextul de sanctionare, incidentul spune ca sanctiunea nu s-a putut aplica (F-45)", async () => {
+  const run = scenario({ withoutSanctionContext: true });
+
+  await run.runtime.handleGuildMemberAdd(run.member);
+
+  assert.equal(run.kicks.length, 1, "eliminarea botului nu depinde de sanctiune");
+  assert.deepEqual(run.removedRoles, []);
 });

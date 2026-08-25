@@ -107,6 +107,9 @@ export function createGatewayFeatureRuntimes(input: GatewayFeatureInput): Gatewa
       claimNewAccountAlert: newAccountDelivery?.claim,
       PermissionRequestModel: mongo.PermissionRequestModel,
       isRaidConfirmed: guildId => raidConfirmedCheck(guildId),
+      sanctionContext: async guildId => adaptDelegationSanctionContext(
+        (client.guilds?.cache as { get?: (id: string) => SanctionableGuild | undefined } | undefined)?.get?.(guildId)
+      ),
       logger,
       metrics: recorders.security
     })
