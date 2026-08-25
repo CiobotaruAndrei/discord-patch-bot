@@ -7,9 +7,19 @@ import { accountAgeLabel, isRecentAccount } from "./recentAccountPolicy.js";
 import { assessBotRisk } from "./botRiskPolicy.js";
 import { recordBotObservationEvent, startBotObservation } from "./botObservationRepository.js";
 import { deliverNewAccountAlert } from "./newAccountAlertDedup.js";
+import {
+  ACTOR_UNKNOWN_OUTCOME,
+  SANCTION_UNAVAILABLE_OUTCOME,
+  describeSanctionOutcome,
+  executeElevatedRoleSanction
+} from "./elevatedRoleSanction.js";
+import type { SanctionOutcome } from "./elevatedRoleSanction.js";
 import { UserFlags } from "discord.js";
 import type { SecurityRuntimeDeps, GuildMemberEvent, MessageEvent, SecurityChannel } from "./securityEventContext.js";
 import { alertChannel, attachments, botRequesterWithRetry, memberRoles, ownerMention } from "./securityEventContext.js";
+
+const BOT_ADD_SANCTION_REASON =
+  "Protectie moderation-guard: bot adaugat fara aprobare; rolurile ridicate ale solicitantului au fost retrase";
 
 export function createBotAddSecurityRuntime(deps: SecurityRuntimeDeps) {
   const now = deps.now ?? Date.now;
@@ -35,6 +45,32 @@ export function createBotAddSecurityRuntime(deps: SecurityRuntimeDeps) {
       initialRisk,
       joinedAt: new Date(member.joinedTimestamp ?? currentTime)
     });
+  }
+
+  async function sanctionRequester(guildId: string, requesterId: string | null): Promise<SanctionOutcome> {
+    if (!requesterId) return ACTOR_UNKNOWN_OUTCOME;
+    if (!deps.sanctionContext) return SANCTION_UNAVAILABLE_OUTCOME;
+
+    const context = await deps.sanctionContext(guildId).catch(() => null);
+    if (!context) return SANCTION_UNAVAILABLE_OUTCOME;
+
+    const outcome = await executeElevatedRoleSanction({
+      resolveActor: () => context.resolveActor(requesterId),
+      botHighestRolePosition: context.botHighestRolePosition,
+      everyoneRoleId: context.everyoneRoleId,
+      reason: BOT_ADD_SANCTION_REASON
+    });
+
+    if (outcome.ownerInterventionRequired) {
+      deps.logger?.("ERROR", "BOT_ADD", "Sanctiunea solicitantului nu s-a aplicat complet", {
+        guildId,
+        requesterId,
+        blocked: outcome.blocked.length,
+        failed: outcome.failed.length,
+        verified: outcome.verified
+      });
+    }
+    return outcome;
   }
 
   async function observeBotMessage(
@@ -98,28 +134,32 @@ export function createBotAddSecurityRuntime(deps: SecurityRuntimeDeps) {
           removed = false;
         }
       }
+      const sanction = await sanctionRequester(guildId, requesterId);
+      const sanctionLine = describeSanctionOutcome(sanction);
+      const sanctionDetail = `sanctiune=${sanction.attempted ? "aplicata" : "neincercata"}; retrase=${sanction.removed.length}; blocate=${sanction.blocked.length}; ramase=${sanction.failed.length}; verificata=${sanction.verified}`;
+
       if (!removed) {
         await beginBotObservation(member, botId, requesterId, "unapproved-removal-failed", risk.level, currentTime);
         await channel.send({
-          content: `${owner.prefix}:rotating_light: INCIDENT CRITIC: botul neaprobat ${tag} (${botId}) NU a putut fi eliminat (rolul botului de securitate e sub rolul botului adaugat sau lipseste Kick Members). Muta botul de securitate mai sus in ierarhie sau elimina manual botul. Solicitant audit: ${requesterId ? `<@${requesterId}>` : "nedetectat dupa reincercari"}.`,
+          content: `${owner.prefix}:rotating_light: INCIDENT CRITIC: botul neaprobat ${tag} (${botId}) NU a putut fi eliminat (rolul botului de securitate e sub rolul botului adaugat sau lipseste Kick Members). Muta botul de securitate mai sus in ierarhie sau elimina manual botul. Solicitant audit: ${requesterId ? `<@${requesterId}>` : "nedetectat dupa reincercari"}.\n${sanctionLine}`,
           allowedMentions: owner.allowedMentions
         });
         await recordServerAuditEntry(deps.GuildAuditLogModel, String(member.guild?.id), {
           userId: requesterId ?? "",
           action: "bot-add-removal-failed",
-          details: `botId=${botId}; requesterId=${requesterId ?? "unknown"}; result=removal-failed-hierarchy`
+          details: `botId=${botId}; requesterId=${requesterId ?? "unknown"}; result=removal-failed-hierarchy; ${sanctionDetail}`
         });
         return;
       }
       deps.metrics?.botAddBlocked();
       await channel.send({
-        content: `${owner.prefix}:shield: Bot neaprobat eliminat. Bot: ${tag} (${botId}). Solicitant audit: ${requesterId ? `<@${requesterId}>` : "nedetectat dupa reincercari"}.`,
+        content: `${owner.prefix}:shield: Bot neaprobat eliminat. Bot: ${tag} (${botId}). Solicitant audit: ${requesterId ? `<@${requesterId}>` : "nedetectat dupa reincercari"}.\n${sanctionLine}`,
         allowedMentions: owner.allowedMentions
       });
       await recordServerAuditEntry(deps.GuildAuditLogModel, String(member.guild?.id), {
         userId: requesterId ?? "",
         action: "bot-add-blocked",
-        details: `botId=${botId}; requesterId=${requesterId ?? "unknown"}; result=kicked`
+        details: `botId=${botId}; requesterId=${requesterId ?? "unknown"}; result=kicked; ${sanctionDetail}`
       });
     } else {
       await channel.send({

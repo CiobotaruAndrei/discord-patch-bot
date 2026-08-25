@@ -15,6 +15,7 @@ import {
 } from "./botObservationRepository.js";
 import { deliverNewAccountAlert, type NewAccountAlertClaim } from "./newAccountAlertDedup.js";
 import type { PermissionRequestModelLike } from "./permissionRequestRepository.js";
+import type { DelegationSanctionContext } from "./permissionDelegationContext.js";
 
 export type SecurityChannel = { id?: string; send?(payload: unknown): Promise<unknown> };
 export type SendableSecurityChannel = SecurityChannel & { send(payload: unknown): Promise<unknown> };
@@ -61,6 +62,7 @@ export type SecurityRuntimeDeps = {
   httpReq?: Parameters<typeof createThreatInspectionService>[0]["httpReq"];
   reputationScan?: Parameters<typeof createThreatInspectionService>[0]["reputationScan"];
   claimNewAccountAlert?: (guildId: string, userId: string) => Promise<NewAccountAlertClaim | null>;
+  sanctionContext?: (guildId: string) => Promise<DelegationSanctionContext | null>;
   logger?: (level: string, context: string, message: string, meta?: unknown) => void;
   metrics?: SecurityMetricRecorder;
   now?: () => number;
