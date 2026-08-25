@@ -7,6 +7,7 @@ import type { RaidSnapshotModelLike } from "./raidSnapshotRepository.js";
 import { chooseIncidentSnapshot, describeBaselineChoice, needsRefresh } from "./raidBaselineSnapshot.js";
 import type {
   CurrentServerState,
+  ResourceRemap,
   RoleRemap,
   RaidSnapshot,
   RecoveryOperation,
@@ -133,7 +134,11 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
     if (operation.kind === "recreate-channel") {
       const stored = snapshot.channels.find(entry => entry.channelId === operation.resourceId);
       if (!stored) return { status: "skipped", detail: "canalul nu mai este in snapshot" };
-      const channel = { ...stored, overwrites: remapOverwrites(stored.overwrites, remaps) };
+      const channel = {
+        ...stored,
+        parentId: remapChannelId(stored.parentId, recreated),
+        overwrites: remapOverwrites(stored.overwrites, remaps)
+      };
       const created = await guild.recreateChannel(channel);
       if (created) recreated.push({ previousId: channel.channelId, nextId: created });
       return created
@@ -185,8 +190,9 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
     const current = await guild.readCurrentState().catch(() => null);
     if (!current) return { kind: "no-snapshot" };
 
-    const remaps: RoleRemap[] = [];
-    const recreated: Array<{ previousId: string; nextId: string }> = [];
+    const persisted = record.remaps;
+    const remaps: RoleRemap[] = persisted.map(entry => ({ previousRoleId: entry.previousId, nextRoleId: entry.nextId }));
+    const recreated: ResourceRemap[] = [...persisted];
 
     const planned = record.operations.length > 0
       ? record.operations
@@ -216,10 +222,14 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
         continue;
       }
 
+      const before = recreated.length;
       const result = await applyOperation(guild, record.snapshot, operation, remaps, recreated).catch(() => ({
         status: "pending" as const,
         detail: "eroare la aplicare"
       }));
+      for (const remap of recreated.slice(before)) {
+        await snapshots.rememberRemap(incidentId, remap).catch(() => false);
+      }
       await snapshots.markOperation(incidentId, operation.kind, operation.resourceId, result.status, result.detail).catch(() => false);
     }
 

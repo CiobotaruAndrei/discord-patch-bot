@@ -35,6 +35,10 @@ function snapshotModel(): RaidSnapshotModelLike & { docs: Map<string, Record<str
         if (actual !== expected) return { matchedCount: 0, modifiedCount: 0 };
       }
       if (update.$set) Object.assign(existing, update.$set);
+      for (const [field, value] of Object.entries((update.$push ?? {}) as Record<string, unknown>)) {
+        const current = existing[field];
+        existing[field] = [...(Array.isArray(current) ? current : []), value];
+      }
       return { matchedCount: 1, modifiedCount: 1 };
     }
   };
@@ -599,4 +603,100 @@ test("raportul ii spune ownerului ce webhook-uri s-au recreat, fara sa publice U
   assert.match(report, /Server Settings > Integrations/);
   assert.doesNotMatch(report, /http/, "URL-ul e o credentiala si nu se publica in canal");
   assert.match(report, /invitatii au fost recreate cu coduri noi/);
+function retryHarness(options: { failFirstChannel?: boolean } = {}) {
+  const model = snapshotModel();
+  const createdRoles: Array<{ name: string; position: number }> = [];
+  const createdChannels: Array<{ name: string; parentId: string | null; overwriteIds: string[] }> = [];
+  let channelAttempts = 0;
+
+  const guild = moduleContext<RecoveryGuildPort>({
+    id: "g1",
+    readCurrentState: async () => ({
+      channelIds: [], roleIds: [], webhookIds: [], inviteCodes: [], protections: emptyProtections()
+    }),
+    recreateRole: async (role: { name: string; position: number }) => {
+      createdRoles.push({ name: role.name, position: role.position });
+      return `rol-nou-${createdRoles.length}`;
+    },
+    recreateChannel: async (channel: { name: string; parentId: string | null; overwrites: Array<{ id: string }> }) => {
+      channelAttempts += 1;
+      if (options.failFirstChannel && channelAttempts === 1) throw new Error("Discord indisponibil");
+      createdChannels.push({
+        name: channel.name,
+        parentId: channel.parentId,
+        overwriteIds: channel.overwrites.map(entry => entry.id)
+      });
+      return `chan-nou-${createdChannels.length}`;
+    },
+    restoreProtection: async () => true,
+    publish: async () => undefined,
+    captureSnapshot: async () => snapshotWith()
+  });
+
+  return { runtime: createRaidRecoveryRuntime({ RaidSnapshotModel: model, now: () => NOW }), guild, model, createdRoles, createdChannels };
+}
+
+const CATEGORY = {
+  channelId: "cat-1", name: "Categoria", channelType: 4, parentId: null,
+  position: 0, topic: null, nsfw: false, rateLimitPerUser: null, overwrites: []
+};
+const CHILD = {
+  channelId: "chan-copil", name: "general", channelType: 0, parentId: "cat-1",
+  position: 1, topic: null, nsfw: false, rateLimitPerUser: null, overwrites: [{ id: "role-vechi", type: 0, allow: "1", deny: "0" }]
+};
+const STAFF_ROLE = { roleId: "role-vechi", name: "Staff", position: 4, color: 0, hoist: false, mentionable: false, managed: false, permissions: "0" };
+
+test("categoriile se recreeaza inaintea canalelor care le refera (N-04)", () => {
+  const operations = planRecovery(
+    snapshotWith({ channels: [CHILD, CATEGORY] }),
+    { channelIds: [], roleIds: [], webhookIds: [], inviteCodes: [], protections: emptyProtections() }
+  );
+
+  const channelOps = operations.filter(entry => entry.kind === "recreate-channel").map(entry => entry.resourceId);
+  assert.deepEqual(channelOps, ["cat-1", "chan-copil"],
+    "fara ordine topologica, canalul copil ar fi creat cu un parinte care inca nu exista");
+});
+
+test("parintele canalului urmeaza categoria recreata, nu ID-ul disparut (N-04)", async () => {
+  const setup = retryHarness();
+  await setup.runtime.captureBeforeContainment(setup.guild, INCIDENT, new Date(NOW));
+  setup.model.docs.set(INCIDENT, {
+    ...setup.model.docs.get(INCIDENT),
+    snapshot: snapshotWith({ channels: [CATEGORY, CHILD] })
+  });
+
+  await setup.runtime.restore(setup.guild, INCIDENT);
+
+  const child = setup.createdChannels.find(entry => entry.name === "general");
+  assert.equal(child?.parentId, "chan-nou-1", "categoria recreata are ID nou, deci copilul trebuie sa il urmeze");
+});
+
+test("remap-urile supravietuiesc unui retry, nu se pierd intre apeluri (N-04)", async () => {
+  const setup = retryHarness({ failFirstChannel: true });
+  await setup.runtime.captureBeforeContainment(setup.guild, INCIDENT, new Date(NOW));
+  setup.model.docs.set(INCIDENT, {
+    ...setup.model.docs.get(INCIDENT),
+    snapshot: snapshotWith({ roles: [STAFF_ROLE], channels: [CHILD] })
+  });
+
+  await setup.runtime.restore(setup.guild, INCIDENT);
+  const stored = setup.model.docs.get(INCIDENT);
+  assert.ok(Array.isArray(stored?.remaps) && stored.remaps.length > 0, "maparea vechi-nou trebuie sa ajunga in snapshot");
+
+  await setup.runtime.restore(setup.guild, INCIDENT);
+
+  const retried = setup.createdChannels.find(entry => entry.name === "general");
+  assert.deepEqual(retried?.overwriteIds, ["rol-nou-1"],
+    "la retry, overwrite-ul trebuie sa refere rolul recreat; fara persistare ar fi folosit iar ID-ul vechi");
+});
+
+test("pozitia rolului e restaurata, nu lasata la capatul ierarhiei (N-04)", async () => {
+  const setup = retryHarness();
+  await setup.runtime.captureBeforeContainment(setup.guild, INCIDENT, new Date(NOW));
+  setup.model.docs.set(INCIDENT, { ...setup.model.docs.get(INCIDENT), snapshot: snapshotWith({ roles: [STAFF_ROLE] }) });
+
+  await setup.runtime.restore(setup.guild, INCIDENT);
+
+  assert.deepEqual(setup.createdRoles, [{ name: "Staff", position: 4 }],
+    "un rol recreat la pozitia implicita nu mai are aceleasi drepturi relative fata de restul ierarhiei");
 });

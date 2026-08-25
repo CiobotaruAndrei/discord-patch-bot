@@ -232,7 +232,9 @@ export function adaptRecoveryGuild(
         permissions: BigInt(role.permissions),
         color: role.color ?? undefined,
         hoist: role.hoist,
-        mentionable: role.mentionable
+        mentionable: role.mentionable,
+        position: role.position,
+        reason: RECOVERY_REASON
       }).catch(() => null);
       return textOf(created?.id);
     },
