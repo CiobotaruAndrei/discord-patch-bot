@@ -1,5 +1,6 @@
 "use strict";
 
+import { updatedDocument } from "../../shared/persistenceOutcome.js";
 import type { WriteCounts } from "../../shared/persistenceOutcome.js";
 import type { WebhookSnapshotEntry, WebhookSnapshotRecord } from "./webhookGuardTypes.js";
 
@@ -40,7 +41,8 @@ export function createWebhookSnapshotRepository(model: WebhookSnapshotModelLike)
       guildId,
       channelId,
       entries: asEntries(document.entries),
-      capturedAt: document.capturedAt instanceof Date ? document.capturedAt : new Date(0)
+      capturedAt: document.capturedAt instanceof Date ? document.capturedAt : new Date(0),
+      ownerInterventionAt: document.ownerInterventionAt instanceof Date ? document.ownerInterventionAt : null
     };
   }
 
@@ -52,16 +54,24 @@ export function createWebhookSnapshotRepository(model: WebhookSnapshotModelLike)
   ): Promise<void> {
     await model.updateOne(
       { _id: documentId(guildId, channelId) },
-      { $set: { guildId, channelId, entries: [...entries], capturedAt } },
+      { $set: { guildId, channelId, entries: [...entries], capturedAt }, $unset: { ownerInterventionAt: "" } },
       { upsert: true }
     );
+  }
+
+  async function markOwnerIntervention(guildId: string, channelId: string, at: Date): Promise<boolean> {
+    const result = await model.updateOne(
+      { _id: documentId(guildId, channelId), ownerInterventionAt: null },
+      { $set: { ownerInterventionAt: at } }
+    );
+    return updatedDocument(result);
   }
 
   async function clear(guildId: string): Promise<void> {
     await model.deleteMany({ guildId });
   }
 
-  return { read, write, clear };
+  return { read, write, clear, markOwnerIntervention };
 }
 
 export type WebhookSnapshotRepository = ReturnType<typeof createWebhookSnapshotRepository>;

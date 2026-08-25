@@ -6,6 +6,8 @@ import { diffWebhooks } from "../../features/command-security/webhookGuardTypes.
 import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
 import { permissionRequestStore } from "./permissionRequestStore.js";
 import { moduleContext } from "../moduleContextStub.js";
+import { adaptWebhookGuardChannel } from "../../app/runtime/webhookGuardChannelAdapter.js";
+import type { AdaptableWebhookChannel } from "../../app/runtime/webhookGuardChannelAdapter.js";
 import type { WebhookGuardChannel, WebhookGuardDeps } from "../../features/command-security/webhookGuardRuntime.js";
 import type { WebhookSnapshotEntry } from "../../features/command-security/webhookGuardTypes.js";
 import type { WebhookSnapshotModelLike } from "../../features/command-security/webhookSnapshotRepository.js";
@@ -16,22 +18,42 @@ function hook(webhookId: string, name: string, avatar: string | null = null): We
   return { webhookId, channelId: "chan-1", name, avatar, creatorId: "mod-1" };
 }
 
-function snapshotModel(seeded: readonly WebhookSnapshotEntry[] | null): WebhookSnapshotModelLike & { stored: WebhookSnapshotEntry[] | null } {
-  const state: { stored: WebhookSnapshotEntry[] | null } = { stored: seeded ? [...seeded] : null };
+function snapshotModel(seeded: readonly WebhookSnapshotEntry[] | null): WebhookSnapshotModelLike & {
+  stored: WebhookSnapshotEntry[] | null;
+  ownerInterventionAt: Date | null;
+} {
+  const state: { stored: WebhookSnapshotEntry[] | null; ownerInterventionAt: Date | null } = {
+    stored: seeded ? [...seeded] : null,
+    ownerInterventionAt: null
+  };
   return {
     get stored() { return state.stored; },
     set stored(value: WebhookSnapshotEntry[] | null) { state.stored = value; },
+    get ownerInterventionAt() { return state.ownerInterventionAt; },
+    set ownerInterventionAt(value: Date | null) { state.ownerInterventionAt = value; },
     findOne() {
       return {
-        lean: async () => (state.stored ? { _id: "g1:chan-1", entries: state.stored, capturedAt: new Date(NOW - 1000) } : null)
+        lean: async () => (state.stored
+          ? { _id: "g1:chan-1", entries: state.stored, capturedAt: new Date(NOW - 1000), ownerInterventionAt: state.ownerInterventionAt }
+          : null)
       };
     },
-    async updateOne(_filter: Record<string, unknown>, update: Record<string, unknown>) {
-      const set = update.$set as { entries?: WebhookSnapshotEntry[] };
-      state.stored = [...(set.entries ?? [])];
+    async updateOne(filter: Record<string, unknown>, update: Record<string, unknown>) {
+      if (state.stored === null && !("upsert" in filter)) {
+        const upsertable = (update.$set as { entries?: unknown })?.entries !== undefined;
+        if (!upsertable) return { matchedCount: 0, modifiedCount: 0 };
+      }
+      if ("ownerInterventionAt" in filter && state.ownerInterventionAt !== filter.ownerInterventionAt) {
+        return { matchedCount: 0, modifiedCount: 0 };
+      }
+      const set = (update.$set ?? {}) as { entries?: WebhookSnapshotEntry[]; ownerInterventionAt?: Date };
+      if (set.entries !== undefined) state.stored = [...set.entries];
+      if (set.ownerInterventionAt !== undefined) state.ownerInterventionAt = set.ownerInterventionAt;
+      const unset = (update.$unset ?? {}) as Record<string, unknown>;
+      if ("ownerInterventionAt" in unset) state.ownerInterventionAt = null;
       return { matchedCount: 1, modifiedCount: 1 };
     },
-    async deleteMany() { state.stored = null; return { deletedCount: 1 }; }
+    async deleteMany() { state.stored = null; state.ownerInterventionAt = null; return { deletedCount: 1 }; }
   };
 }
 
@@ -360,4 +382,80 @@ test("un lot mixt consuma aprobari separate per operatiune, restul se corecteaza
   assert.deepEqual(setup.edited, [], "update-ul aprobat ramane");
   assert.deepEqual(setup.recreated, ["w2"], "stergerea neaprobata se corecteaza");
   assert.deepEqual(setup.deleted, ["w3"], "crearea neaprobata se corecteaza");
+});
+
+test("cu autorul necunoscut, snapshotul anterior se pastreaza ca baseline (F-48)", async () => {
+  const setup = harness({ before: [hook("w1", "vechi")], after: [hook("w1", "vechi"), hook("w2", "malitios")], actorId: null });
+
+  await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.deepEqual(
+    setup.model.stored?.map(entry => entry.webhookId),
+    ["w1"],
+    "o modificare malitioasa nu are voie sa devina baseline legitim doar fiindca Audit Log a intarziat"
+  );
+});
+
+test("modificarea ramane detectabila la urmatorul eveniment, fiindca baseline-ul nu a avansat (F-48)", async () => {
+  const setup = harness({ before: [hook("w1", "vechi")], after: [hook("w1", "vechi"), hook("w2", "malitios")], actorId: null });
+
+  await setup.runtime.handleWebhookUpdate(setup.channel);
+  const second = harness({
+    before: setup.model.stored,
+    after: [hook("w1", "vechi"), hook("w2", "malitios")],
+    approvals: permissionRequestStore()
+  });
+  const outcome = await second.runtime.handleWebhookUpdate(second.channel);
+
+  assert.equal(outcome.kind, "reverted", "cand Audit Log ajunge din urma, webhook-ul neautorizat e tot acolo si se corecteaza");
+  assert.deepEqual(second.deleted, ["w2"]);
+});
+
+test("incidentul de autor necunoscut e raportat o singura data, nu la fiecare eveniment (F-48)", async () => {
+  const setup = harness({ before: [hook("w1", "vechi")], after: [hook("w1", "vechi"), hook("w2", "malitios")], actorId: null });
+
+  await setup.runtime.handleWebhookUpdate(setup.channel);
+  const firstReports = setup.published.length;
+  await setup.runtime.handleWebhookUpdate(setup.channel);
+
+  assert.equal(firstReports, 1, "ownerul trebuie anuntat ca baseline-ul e inghetat");
+  assert.match(setup.published[0], /NU a fost actualizat/);
+  assert.equal(setup.published.length, 1, "un webhookUpdate repetat nu are voie sa spameze canalul cu acelasi incident");
+});
+
+test("cautarea autorului reincearca inainte sa declare Audit Log gol (F-48)", async () => {
+  let calls = 0;
+  const channel = adaptWebhookGuardChannel(moduleContext<AdaptableWebhookChannel>({
+    id: "chan-1",
+    name: "anunturi",
+    guild: {
+      id: "g1",
+      ownerId: "owner-1",
+      roles: { everyone: { id: "everyone" } },
+      fetchAuditLogs: async () => {
+        calls += 1;
+        if (calls <= 3) return { entries: new Map() };
+        return { entries: new Map([["e", { executor: { id: "intarziat" }, createdTimestamp: NOW }]]) };
+      }
+    },
+    fetchWebhooks: async () => []
+  }), () => NOW, async () => undefined);
+
+  assert.equal(await channel?.findAuditActor(), "intarziat", "evenimentul de gateway poate sosi inaintea intrarii din Audit Log");
+});
+
+test("dupa toate reincercarile, autorul ramane necunoscut si nu se inventeaza unul (F-48)", async () => {
+  const channel = adaptWebhookGuardChannel(moduleContext<AdaptableWebhookChannel>({
+    id: "chan-1",
+    name: "anunturi",
+    guild: {
+      id: "g1",
+      ownerId: "owner-1",
+      roles: { everyone: { id: "everyone" } },
+      fetchAuditLogs: async () => ({ entries: new Map([["e", { executor: null, createdTimestamp: NOW }]]) })
+    },
+    fetchWebhooks: async () => []
+  }), () => NOW, async () => undefined);
+
+  assert.equal(await channel?.findAuditActor(), null, "o intrare fara executor nu e un autor");
 });
