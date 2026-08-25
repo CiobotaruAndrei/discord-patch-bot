@@ -6,6 +6,7 @@ import { mergeSecurityLog, renderSecurityLog } from "../command-security/securit
 import { createAdProtectionRepository } from "../command-security/adProtectionRepository.js";
 import { createRaidSnapshotRepository } from "../command-security/raidSnapshotRepository.js";
 import { antiRaidReadiness } from "../command-security/protectionReadiness.js";
+import { resolveProtectionChannel } from "../command-security/securityChannelResolution.js";
 import { moderationGuardReadiness, readinessGapsByProtection } from "../command-security/moderationGuardReadiness.js";
 import { START_STOP_TOGGLE_FIELDS } from "../command-security/securityCommandFields.js";
 
@@ -113,7 +114,7 @@ function missingGuildPermission(guild: SecurityOverviewGuild, flag: bigint, labe
   return guild.members?.me?.permissions?.has(flag) === true ? [] : [label];
 }
 
-async function liveReadinessGaps(
+export async function liveReadinessGaps(
   settings: GuildSettingsLike | null,
   guild?: SecurityOverviewGuild
 ): Promise<Record<string, readonly string[]>> {
@@ -122,8 +123,8 @@ async function liveReadinessGaps(
   for (const [key, fields] of Object.entries(START_STOP_TOGGLE_FIELDS)) {
     if (settings[fields.enabled] !== true) continue;
     const missing: string[] = [];
-    const channelId = settings[fields.channel];
-    if (typeof channelId === "string" && channelId) {
+    const channelId = resolveProtectionChannel(key, settings);
+    if (channelId) {
       const channel = await guild.channels?.fetch(channelId).catch(() => null);
       const permissions = channel && guild.members?.me && channel.permissionsFor
         ? channel.permissionsFor(guild.members.me)
