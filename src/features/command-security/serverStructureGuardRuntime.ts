@@ -3,7 +3,7 @@
 import { type SanctionRole } from "./elevatedRoleSanction.js";
 import { describeSanctionOutcome, executeElevatedRoleSanction } from "./elevatedRoleSanction.js";
 
-import { STRUCTURE_ACTIONS } from "./serverStructureActions.js";
+import { STRUCTURE_ACTIONS, STRUCTURE_RESOURCE_KINDS } from "./serverStructureActions.js";
 import { describeStructureRollback, executeStructureRollback } from "./serverStructureRollback.js";
 import { correctsDuringRaid } from "./raidSurfaceEnforcement.js";
 
@@ -36,7 +36,13 @@ export interface StructureGuardGuild extends StructureRollbackPort {
 
 export interface StructureGuardGate {
   readSituation(guildId: string): Promise<{ guardEnabled: boolean; raidConfirmed: boolean }>;
-  consumeApproval(guildId: string, actorId: string, resourceId: string, action: string): Promise<{ _id: string } | null>;
+  consumeApproval(
+    guildId: string,
+    actorId: string,
+    resourceId: string,
+    action: string,
+    resourceKind: string
+  ): Promise<{ _id: string } | null>;
 }
 
 export interface ServerStructureGuardDeps {
@@ -134,7 +140,7 @@ export function createServerStructureGuardRuntime(deps: ServerStructureGuardDeps
 
     if (situation.guardEnabled && !situation.raidConfirmed && actorId) {
       const approval = await deps.gate
-        .consumeApproval(guild.id, actorId, resourceId, STRUCTURE_ACTIONS[kind])
+        .consumeApproval(guild.id, actorId, resourceId, STRUCTURE_ACTIONS[kind], STRUCTURE_RESOURCE_KINDS[kind])
         .catch(() => null);
       if (approval) return { kind: "allowed-approval", requestId: approval._id };
     }

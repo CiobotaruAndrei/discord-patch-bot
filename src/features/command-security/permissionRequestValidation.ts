@@ -3,9 +3,9 @@
 import { RESOURCE_CHANGE_ACTIONS } from "./protectedResourceTypes.js";
 import { WEBHOOK_CHANGE_KINDS } from "./webhookGuardTypes.js";
 import { MASS_MODERATION_ACTIONS } from "./massModerationTypes.js";
-import { STRUCTURE_APPROVAL_ACTIONS } from "./serverStructureActions.js";
+import { STRUCTURE_APPROVAL_ACTIONS, STRUCTURE_APPROVAL_RESOURCE_KINDS } from "./serverStructureActions.js";
 import { parseDurationMs } from "./permissionRequestApproval.js";
-import { normalizePermissionName } from "./permissionRequestTypes.js";
+import { BATCH_TARGET_PREFIX, normalizePermissionName } from "./permissionRequestTypes.js";
 import { ELEVATED_PERMISSIONS } from "./elevatedPermissions.js";
 
 import type { PermissionRequestType } from "./permissionRequestTypes.js";
@@ -103,7 +103,21 @@ export function validatePermissionRequest(input: PermissionRequestInput): Valida
     return { ok: false, problem: "Tinta, actiunea si motivul sunt obligatorii." };
   }
 
-  if (schema.targetIsSnowflake && !SNOWFLAKE.test(target)) {
+  const batch = target.startsWith(BATCH_TARGET_PREFIX) ? target.slice(BATCH_TARGET_PREFIX.length) : null;
+  if (batch !== null) {
+    if (input.type !== "server-structure") {
+      return { ok: false, problem: `Aprobarile de lot exista doar pentru server-structure, nu pentru ${input.type}.` };
+    }
+    if (!STRUCTURE_APPROVAL_RESOURCE_KINDS.includes(batch)) {
+      return {
+        ok: false,
+        problem: `Un lot se cere pe un tip de resursa: ${STRUCTURE_APPROVAL_RESOURCE_KINDS.map(kind => `${BATCH_TARGET_PREFIX}${kind}`).join(" sau ")}.`
+      };
+    }
+    if (!(typeof input.amount === "number" && Number.isInteger(input.amount) && input.amount > 0)) {
+      return { ok: false, problem: "Un lot cere o cantitate intreaga si pozitiva: cate operatiuni acopera aprobarea." };
+    }
+  } else if (schema.targetIsSnowflake && !SNOWFLAKE.test(target)) {
     return { ok: false, problem: `Pentru ${input.type}, tinta trebuie sa fie ${schema.targetLabel} (17-20 cifre).` };
   }
 

@@ -12,3 +12,13 @@ export const STRUCTURE_ACTIONS: Readonly<Record<StructureChangeKind, string>> = 
 };
 
 export const STRUCTURE_APPROVAL_ACTIONS: readonly string[] = [...new Set(Object.values(STRUCTURE_ACTIONS))].sort();
+
+export const STRUCTURE_RESOURCE_KINDS: Readonly<Record<StructureChangeKind, string>> = {
+  channelCreate: "channel",
+  channelDelete: "channel",
+  roleCreate: "role",
+  roleDelete: "role"
+};
+
+export const STRUCTURE_APPROVAL_RESOURCE_KINDS: readonly string[] =
+  [...new Set(Object.values(STRUCTURE_RESOURCE_KINDS))].sort();
