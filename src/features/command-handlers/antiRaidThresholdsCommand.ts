@@ -1,6 +1,6 @@
 "use strict";
 
-import { isDurationOption, THRESHOLD_OPTION_NAMES } from "../command-security/antiRaidThresholdOptions.js";
+import { isDurationOption, THRESHOLD_ALIAS_NAMES, THRESHOLD_OPTION_NAMES } from "../command-security/antiRaidThresholdOptions.js";
 import { setAntiRaidThresholds } from "../command-security/setAntiRaidThresholdsUseCase.js";
 import { renderThresholdOutcome } from "../command-presentation/antiRaidThresholdMessages.js";
 
@@ -16,7 +16,7 @@ export interface AntiRaidThresholdsCommandDeps {
 
 export function readThresholdOptions(options: SecurityOptions): Record<string, unknown> {
   const provided: Record<string, unknown> = {};
-  for (const optionName of THRESHOLD_OPTION_NAMES) {
+  for (const optionName of [...THRESHOLD_OPTION_NAMES, ...THRESHOLD_ALIAS_NAMES]) {
     const value = isDurationOption(optionName)
       ? options.getString(optionName, false)
       : options.getInteger(optionName, false);

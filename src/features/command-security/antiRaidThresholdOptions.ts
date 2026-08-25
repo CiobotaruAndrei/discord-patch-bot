@@ -5,28 +5,41 @@ import { applyThresholdOverrides, DEFAULT_ANTI_RAID_THRESHOLDS } from "./antiRai
 import type { AntiRaidThresholds, ThresholdRejection } from "./antiRaidThresholds.js";
 
 export const THRESHOLD_OPTION_FIELDS: Readonly<Record<string, keyof AntiRaidThresholds>> = {
-  "identical-messages": "identicalMessages",
+  "duplicate-message-count": "identicalMessages",
   "identical-window": "identicalWindowMs",
   "mention-count": "mentionCount",
   "mention-window": "mentionWindowMs",
-  "invite-messages": "inviteMessages",
+  "server-ad-count": "inviteMessages",
   "invite-window": "inviteWindowMs",
   "link-messages": "linkMessages",
   "link-window": "linkWindowMs",
   "coordinated-actors": "coordinatedActors",
-  "coordinated-window": "coordinatedWindowMs",
+  "coordination-window": "coordinatedWindowMs",
   "structure-changes": "structureChanges",
   "structure-window": "structureWindowMs",
-  "safety-period": "safetyPeriodMs",
+  "quiet-period": "safetyPeriodMs",
   "mute-duration": "muteDurationMs",
   "timeout-duration": "timeoutDurationMs",
   "max-lockdown": "maxLockdownMs"
 };
 
+export const THRESHOLD_OPTION_ALIASES: Readonly<Record<string, string>> = {
+  "identical-messages": "duplicate-message-count",
+  "invite-messages": "server-ad-count",
+  "coordinated-window": "coordination-window",
+  "safety-period": "quiet-period"
+};
+
 export const THRESHOLD_OPTION_NAMES: readonly string[] = Object.keys(THRESHOLD_OPTION_FIELDS);
 
+export const THRESHOLD_ALIAS_NAMES: readonly string[] = Object.keys(THRESHOLD_OPTION_ALIASES);
+
+export function canonicalThresholdOption(optionName: string): string {
+  return THRESHOLD_OPTION_ALIASES[optionName] ?? optionName;
+}
+
 export function isDurationOption(optionName: string): boolean {
-  const field = THRESHOLD_OPTION_FIELDS[optionName];
+  const field = THRESHOLD_OPTION_FIELDS[canonicalThresholdOption(optionName)];
   return typeof field === "string" && field.endsWith("Ms");
 }
 
@@ -52,7 +65,8 @@ export function planThresholdUpdate(
   let provided = 0;
 
   for (const [optionName, field] of Object.entries(THRESHOLD_OPTION_FIELDS)) {
-    const value = options[optionName];
+    const alias = THRESHOLD_ALIAS_NAMES.find(name => THRESHOLD_OPTION_ALIASES[name] === optionName);
+    const value = options[optionName] ?? (alias ? options[alias] : undefined);
     if (value === undefined || value === null || value === "") continue;
     provided += 1;
     overrides[field] = value;

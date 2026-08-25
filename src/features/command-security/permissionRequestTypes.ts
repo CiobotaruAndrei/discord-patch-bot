@@ -28,6 +28,7 @@ export interface PermissionRequestScope {
   amount?: number | null;
   permissions?: string[];
   botId?: string | null;
+  approvedBotId?: string | null;
 }
 
 export interface PermissionRequestRecord extends PermissionRequestScope {
@@ -89,7 +90,7 @@ export function scopeMatchesApproval(record: PermissionRequestRecord, attempt: P
   const action = record.approvedAction ?? record.action;
   if (attempt.target !== target || attempt.action !== action) return false;
 
-  const approvedBot = record.botId ?? null;
+  const approvedBot = record.approvedBotId ?? record.botId ?? null;
   if (approvedBot !== (attempt.botId ?? null)) return false;
 
   const attemptedAmount = attempt.amount ?? 0;
