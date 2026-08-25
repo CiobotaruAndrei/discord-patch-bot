@@ -5,11 +5,14 @@ import { createServerStructureGuardRuntime } from "../../features/command-securi
 import { createPermissionRequestRepository } from "../../features/command-security/permissionRequestRepository.js";
 import { permissionRequestStore } from "./permissionRequestStore.js";
 import { moduleContext } from "../moduleContextStub.js";
+import { emptySnapshot } from "../../features/command-security/protectedResourceTypes.js";
 import type { ServerStructureGuardDeps, StructureGuardGuild } from "../../features/command-security/serverStructureGuardRuntime.js";
 import { adaptStructureGuardGuild } from "../../app/runtime/serverStructureGuildAdapter.js";
 import type { AdaptableStructureGuild } from "../../app/runtime/serverStructureGuildAdapter.js";
 
 const NOW = Date.parse("2026-08-02T13:00:00.000Z");
+
+const SNAPSHOT = { ...emptySnapshot(), name: "anunturi", channelType: 0 };
 
 function harness(options: {
   guardEnabled?: boolean;
@@ -17,6 +20,11 @@ function harness(options: {
   actorId?: string | null;
   ownerId?: string | null;
   approvals?: ReturnType<typeof permissionRequestStore>;
+  live?: readonly string[];
+  removeFails?: boolean;
+  removeLeavesResource?: boolean;
+  recreateFails?: boolean;
+  recreateUnconfirmed?: boolean;
 } = {}) {
   const signals: Array<{ guildId: string; resourceId: string }> = [];
   const removedRoles: string[] = [];
@@ -39,6 +47,10 @@ function harness(options: {
     signalAntiRaid: async (guildId, resourceId) => { signals.push({ guildId, resourceId }); }
   };
 
+  const live = new Set<string>(options.live ?? []);
+  const removedResources: string[] = [];
+  const recreated: Array<{ kind: string; name: string }> = [];
+
   const guild = moduleContext<StructureGuardGuild>({
     id: "g1",
     ownerId: options.ownerId === undefined ? "owner-1" : options.ownerId,
@@ -48,10 +60,27 @@ function harness(options: {
     resolveActor: async () => ({
       roles: [{ id: "role-mod", name: "Moderator", position: 5, managed: false, elevated: true }],
       removeRoles: async (ids: readonly string[]) => { removedRoles.push(...ids); }
-    })
+    }),
+    removeCreatedResource: async (_kind: string, resourceId: string) => {
+      if (options.removeFails) return false;
+      removedResources.push(resourceId);
+      if (!options.removeLeavesResource) live.delete(resourceId);
+      return true;
+    },
+    recreateDeletedResource: async (kind: string, snapshot: { name: string }) => {
+      if (options.recreateFails) return null;
+      recreated.push({ kind, name: snapshot.name });
+      const id = `recreat-${recreated.length}`;
+      if (!options.recreateUnconfirmed) live.add(id);
+      return id;
+    },
+    resourceExists: async (_kind: string, resourceId: string) => live.has(resourceId)
   });
 
-  return { runtime: createServerStructureGuardRuntime(deps), guild, signals, removedRoles, published, audits, approvals };
+  return {
+    runtime: createServerStructureGuardRuntime(deps), guild, signals, removedRoles, published, audits, approvals,
+    removedResources, recreated, live
+  };
 }
 
 async function structureApproval(action: string, target: string) {
@@ -110,14 +139,13 @@ test("o aprobare pentru alta actiune nu acopera modificarea", async () => {
 test("modificare neaprobata cu poarta activa: semnal anti-raid PLUS sanctiunea moderation-guard", async () => {
   const setup = harness();
 
-  const outcome = await setup.runtime.handleStructureChange(setup.guild, "roleDelete", "role-7");
+  const outcome = await setup.runtime.handleStructureChange(setup.guild, "roleDelete", "role-7", SNAPSHOT);
 
   assert.equal(outcome.kind, "sanctioned");
   assert.deepEqual(setup.signals, [{ guildId: "g1", resourceId: "role-7" }], "sub pragul de raid semnalul ramane, ca detectorul sa poata acumula");
   assert.deepEqual(setup.removedRoles, ["role-mod"]);
-  assert.equal(setup.audits[0]?.action, "server-structure-unapproved");
+  assert.match(setup.audits[0]?.action ?? "", /^server-structure-unapproved/);
   assert.match(setup.published[0] ?? "", /rol sters/);
-  assert.match(setup.published[0] ?? "", /NU se anuleaza automat/, "mesajul nu pretinde ca structura a fost restaurata");
 });
 
 test("cu moderation-guard oprit, comportamentul de dinainte ramane: doar semnal anti-raid", async () => {
@@ -145,7 +173,7 @@ test("cand autorul nu poate fi identificat, semnalul pleaca dar nu se sanctionea
 
   const outcome = await setup.runtime.handleStructureChange(setup.guild, "roleCreate", "role-9");
 
-  assert.deepEqual(outcome, { kind: "signalled", actorId: null });
+  assert.equal(outcome.kind, "signalled");
   assert.deepEqual(setup.signals, [{ guildId: "g1", resourceId: "role-9" }]);
   assert.deepEqual(setup.removedRoles, []);
 });
@@ -215,4 +243,124 @@ test("o intrare mai veche decat fereastra de corelare nu este atribuita", async 
   }), () => NOW, async () => undefined);
 
   assert.equal(await guild?.findStructureActor("channelCreate", "chan-1"), null);
+});
+
+test("un canal creat fara aprobare este sters, nu doar semnalat (F-14)", async () => {
+  const setup = harness({ live: ["chan-nou"] });
+
+  const outcome = await setup.runtime.handleStructureChange(setup.guild, "channelCreate", "chan-nou");
+
+  assert.equal(outcome.kind, "sanctioned");
+  assert.deepEqual(setup.removedResources, ["chan-nou"], "o resursa creata malitios nu are voie sa ramana activa dupa sanctionarea autorului");
+  assert.equal(outcome.kind === "sanctioned" && outcome.rollback.verified, true, "absenta resursei se confirma, nu se presupune");
+  assert.match(setup.published[0] ?? "", /a fost stearsa si absenta ei e confirmata/);
+});
+
+test("un canal sters fara aprobare este recreat din snapshot (F-14)", async () => {
+  const setup = harness();
+
+  const outcome = await setup.runtime.handleStructureChange(setup.guild, "channelDelete", "chan-vechi", SNAPSHOT);
+
+  assert.deepEqual(setup.recreated, [{ kind: "channelDelete", name: "anunturi" }]);
+  assert.equal(outcome.kind === "sanctioned" && outcome.rollback.recreatedId, "recreat-1");
+  assert.equal(outcome.kind === "sanctioned" && outcome.rollback.verified, true);
+  assert.match(setup.published[0] ?? "", /a fost recreata/);
+});
+
+test("stergerea resursei create raporteaza esec daca resursa ramane vizibila (F-14)", async () => {
+  const setup = harness({ live: ["chan-nou"], removeLeavesResource: true });
+
+  const outcome = await setup.runtime.handleStructureChange(setup.guild, "channelCreate", "chan-nou");
+
+  assert.equal(outcome.kind === "sanctioned" && outcome.rollback.verified, false, "un apel de stergere care raporteaza succes nu inseamna ca resursa a disparut");
+  assert.match(setup.published[0] ?? "", /Revenire incompleta/);
+  assert.match(setup.audits[0]?.details ?? "", /neconfirmata/);
+});
+
+test("fara snapshot, recrearea nu se incearca si mesajul spune de ce (F-14)", async () => {
+  const setup = harness();
+
+  const outcome = await setup.runtime.handleStructureChange(setup.guild, "roleDelete", "role-7", null);
+
+  assert.deepEqual(setup.recreated, []);
+  assert.equal(outcome.kind === "sanctioned" && outcome.rollback.attempted, false);
+  assert.match(setup.published[0] ?? "", /Revenire neincercata/);
+});
+
+test("recrearea esuata nu e raportata ca revenire reusita (F-14)", async () => {
+  const setup = harness({ recreateFails: true });
+
+  const outcome = await setup.runtime.handleStructureChange(setup.guild, "roleDelete", "role-7", SNAPSHOT);
+
+  assert.equal(outcome.kind === "sanctioned" && outcome.rollback.reverted, false);
+  assert.match(setup.published[0] ?? "", /Revenire incompleta/);
+});
+
+test("cand autorul e necunoscut, structura se repara oricum (F-14)", async () => {
+  const setup = harness({ actorId: null, live: ["chan-nou"] });
+
+  const outcome = await setup.runtime.handleStructureChange(setup.guild, "channelCreate", "chan-nou");
+
+  assert.equal(outcome.kind, "signalled");
+  assert.deepEqual(setup.removedResources, ["chan-nou"], "o modificare neautorizata ramane neautorizata si cand Audit Log nu da autorul");
+  assert.deepEqual(setup.removedRoles, [], "fara autor identificat nu se sanctioneaza nimeni");
+});
+
+test("in raid confirmat revenirea ramane la anti-raid, nu se dubleaza (F-14)", async () => {
+  const setup = harness({ raidConfirmed: true, live: ["chan-nou"] });
+
+  const outcome = await setup.runtime.handleStructureChange(setup.guild, "channelCreate", "chan-nou");
+
+  assert.equal(outcome.kind, "signalled");
+  assert.deepEqual(setup.removedResources, [], "in incident corectia e planificata de recovery, nu de moderation-guard");
+});
+
+test("cu moderation-guard oprit nu se repara nimic (F-14)", async () => {
+  const setup = harness({ guardEnabled: false, live: ["chan-nou"] });
+
+  await setup.runtime.handleStructureChange(setup.guild, "channelCreate", "chan-nou");
+
+  assert.deepEqual(setup.removedResources, [], "poarta oprita inseamna observare, nu interventie");
+});
+
+test("adapterul de productie chiar sterge resursa creata si o recreeaza pe cea stearsa (F-14)", async () => {
+  const deleted: string[] = [];
+  const createdChannels: Array<Record<string, unknown>> = [];
+  const createdRoles: Array<Record<string, unknown>> = [];
+  const channels = new Map<string, unknown>([["chan-nou", { delete: async (reason: string) => { deleted.push(`chan-nou:${reason}`); } }]]);
+
+  const guild = adaptStructureGuardGuild(moduleContext<AdaptableStructureGuild>({
+    id: "g1",
+    ownerId: "owner-1",
+    channels: {
+      cache: { get: (id: string) => channels.get(id) },
+      create: async (payload: Record<string, unknown>) => { createdChannels.push(payload); return { id: "chan-recreat" }; }
+    },
+    roles: {
+      everyone: { id: "everyone" },
+      cache: { get: () => undefined },
+      create: async (payload: Record<string, unknown>) => { createdRoles.push(payload); return { id: "role-recreat" }; }
+    }
+  }), () => NOW, async () => undefined);
+
+  assert.equal(await guild?.removeCreatedResource("channelCreate", "chan-nou", "fara aprobare"), true);
+  assert.deepEqual(deleted, ["chan-nou:fara aprobare"], "portul de revenire trebuie sa ajunga la stergerea reala, nu doar sa raporteze succes");
+  assert.equal(await guild?.resourceExists("channelCreate", "chan-nou"), true, "verificarea citeste starea reala, nu rezultatul apelului");
+
+  assert.equal(await guild?.recreateDeletedResource("channelDelete", SNAPSHOT), "chan-recreat");
+  assert.equal(createdChannels[0]?.name, "anunturi");
+  assert.equal(await guild?.recreateDeletedResource("roleDelete", { ...SNAPSHOT, name: "Staff", channelType: null }), "role-recreat");
+  assert.equal(createdRoles[0]?.name, "Staff", "un rol sters nu are voie sa fie recreat ca si canal");
+});
+
+test("fara permisiunea de a sterge, revenirea raporteaza esec in loc sa arunce (F-14)", async () => {
+  const guild = adaptStructureGuardGuild(moduleContext<AdaptableStructureGuild>({
+    id: "g1",
+    ownerId: "owner-1",
+    channels: { cache: { get: () => ({}) } },
+    roles: { everyone: { id: "everyone" }, cache: { get: () => undefined } }
+  }), () => NOW, async () => undefined);
+
+  assert.equal(await guild?.removeCreatedResource("channelCreate", "chan-nou", "fara aprobare"), false);
+  assert.equal(await guild?.recreateDeletedResource("channelDelete", SNAPSHOT), null);
 });

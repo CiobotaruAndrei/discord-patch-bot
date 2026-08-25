@@ -8,6 +8,7 @@ import { createGuildOnboarding } from "./guildOnboarding.js";
 import { roleRunsSchedulers, roleRunsInteractions } from "../../shared/botRole.js";
 import { adaptProtectedResourceGuild } from "../runtime/protectedResourceGuildAdapter.js";
 import type { AdaptableGuild } from "../runtime/protectedResourceGuildAdapter.js";
+import { captureSnapshot } from "../../features/command-security/protectedResourceTypes.js";
 import type { ResourceLike } from "../../features/command-security/protectedResourceTypes.js";
 import type { ProtectedResourceRuntime } from "../../features/command-security/protectedResourceRuntime.js";
 import type { AntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
@@ -266,16 +267,20 @@ function registerDiscordEvents({
         if (!guildId) return;
         run().catch(err => logger("ERROR", "ANTI_RAID", `Observarea ${event} a esuat`, errorDetail(err)));
       };
-      const structureEvent = (event: StructureChangeKind, rawGuild: unknown, rawResourceId: unknown): void => {
+      const structureEvent = (event: StructureChangeKind, rawResource: unknown): void => {
+        const resource = rawResource as { id?: unknown; guild?: unknown } | null | undefined;
+        const rawGuild = resource?.guild;
         const guild = rawGuild as { id?: string } | null | undefined;
-        const resourceId = typeof rawResourceId === "string" ? rawResourceId : null;
+        const resourceId = typeof resource?.id === "string" ? resource.id : null;
         if (!guild?.id || !resourceId) return;
         const guildId = guild.id;
         const adapted = serverStructureGuardRuntime
           ? adaptStructureGuardGuild(rawGuild as AdaptableStructureGuild)
           : null;
         if (serverStructureGuardRuntime && adapted) {
-          watchRaid(event, guildId, () => serverStructureGuardRuntime.handleStructureChange(adapted, event, resourceId));
+          const deleted = event === "channelDelete" || event === "roleDelete";
+          const snapshot = deleted ? captureSnapshot(rawResource as ResourceLike) : null;
+          watchRaid(event, guildId, () => serverStructureGuardRuntime.handleStructureChange(adapted, event, resourceId, snapshot));
           return;
         }
         const surface = event === "roleCreate" || event === "roleDelete" ? "role" : "channel";
@@ -306,10 +311,10 @@ function registerDiscordEvents({
         if (!guildId || !memberId || member.user?.bot !== true) return;
         watchRaid("guildMemberAdd", guildId, () => antiRaidRuntime.observeBotJoin(guildId, memberId));
       });
-      client.on("channelCreate", (channel: LifecycleDiscordDeletedChannel) => structureEvent("channelCreate", channel?.guild, channel?.id));
-      client.on("channelDelete", (channel: LifecycleDiscordDeletedChannel) => structureEvent("channelDelete", channel?.guild, channel?.id));
-      client.on("roleCreate", (role: LifecycleDiscordRole) => structureEvent("roleCreate", role?.guild, role?.id));
-      client.on("roleDelete", (role: LifecycleDiscordRole) => structureEvent("roleDelete", role?.guild, role?.id));
+      client.on("channelCreate", (channel: LifecycleDiscordDeletedChannel) => structureEvent("channelCreate", channel));
+      client.on("channelDelete", (channel: LifecycleDiscordDeletedChannel) => structureEvent("channelDelete", channel));
+      client.on("roleCreate", (role: LifecycleDiscordRole) => structureEvent("roleCreate", role));
+      client.on("roleDelete", (role: LifecycleDiscordRole) => structureEvent("roleDelete", role));
     }
     if (protectedResourceRuntime) {
       const processedResourceAuditEntries = new Set<string>();
