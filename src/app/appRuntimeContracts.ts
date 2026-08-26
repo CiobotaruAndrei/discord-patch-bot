@@ -37,6 +37,7 @@ import type { NewAccountAlertDeliveryModelLike } from "../features/command-secur
 import type { ChannelLockRecoveryModelLike } from "../features/command-security/channelLockRecoveryRepository.js";
 import type { WebhookSnapshotModelLike } from "../features/command-security/webhookSnapshotRepository.js";
 import type { MassModerationModelLike } from "../features/command-security/massModerationRepository.js";
+import type { AuditEntryClaimModelLike } from "../features/command-security/auditEntryClaim.js";
 import type { RaidSnapshotModelLike } from "../features/command-security/raidSnapshotRepository.js";
 
 export interface CommandRuntime {
@@ -100,6 +101,7 @@ export interface MongoContextLike {
   WebhookSnapshotModel?: WebhookSnapshotModelLike;
   MassModerationModel?: MassModerationModelLike;
   RaidSnapshotModel?: RaidSnapshotModelLike;
+  AuditEntryClaimModel?: AuditEntryClaimModelLike;
   GuildSecurityModel?: { updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown> };
   RaidIncidentModel?: RaidIncidentModelLike;
   AdRequestModel?: AdRequestModelLike;

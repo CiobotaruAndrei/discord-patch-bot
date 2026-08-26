@@ -16,6 +16,7 @@ import type { AdProtectionRuntime } from "../../features/command-security/adProt
 import type { WebhookGuardRuntime } from "../../features/command-security/webhookGuardRuntime.js";
 import type { AdaptableWebhookChannel } from "../runtime/webhookGuardChannelAdapter.js";
 import type { ServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
+import type { AuditEntryClaim } from "../../features/command-security/auditEntryClaim.js";
 import type { StructureChangeKind } from "../../features/command-security/serverStructureActions.js";
 import { adaptStructureGuardGuild } from "../runtime/serverStructureGuildAdapter.js";
 import type { AdaptableStructureGuild } from "../runtime/serverStructureGuildAdapter.js";
@@ -63,6 +64,7 @@ interface RegisterDiscordEventsDeps {
   adProtectionRuntime?: AdProtectionRuntime;
   webhookGuardRuntime?: WebhookGuardRuntime<AdaptableWebhookChannel>;
   serverStructureGuardRuntime?: ServerStructureGuardRuntime;
+  auditEntryClaim?: AuditEntryClaim;
 }
 
 interface MongoConnectionLike {
@@ -94,7 +96,7 @@ async function replyInteractionError(inter: LifecycleDiscordInteraction): Promis
 function registerDiscordEvents({
   client, logger, commands, metrics, env, adminAlert, requestContext,
   games, crypto, errorMessage, errorDetail, startHousekeeping, scheduleNextCron, startOutboxWorker, role, securityRuntime,
-  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime, webhookGuardRuntime, serverStructureGuardRuntime
+  permissionDelegationRuntime, moderationLifecycleRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime, webhookGuardRuntime, serverStructureGuardRuntime, auditEntryClaim
 }: RegisterDiscordEventsDeps): void {
   const effectiveRole = role ?? "all";
   const runsSchedulers = roleRunsSchedulers(effectiveRole);
@@ -318,12 +320,17 @@ function registerDiscordEvents({
     }
     if (protectedResourceRuntime) {
       const processedResourceAuditEntries = new Set<string>();
+      const claimAuditEntry = auditEntryClaim
+        ? (guildId: string, entryId: string) => auditEntryClaim.claim(guildId, entryId)
+        : null;
       const guardResource = (event: string, rawGuild: unknown, rawResourceId: unknown, current: unknown): void => {
         const guild = rawGuild as AdaptableGuild | null | undefined;
         const resourceId = typeof rawResourceId === "string" ? rawResourceId : null;
         if (!guild || typeof guild.id !== "string" || !resourceId) return;
         const guildId = guild.id;
-        const adapted = adaptProtectedResourceGuild(guild, Date.now, processedResourceAuditEntries);
+        const adapted = adaptProtectedResourceGuild(guild, Date.now, processedResourceAuditEntries, {
+          claimAuditEntry: claimAuditEntry ?? undefined
+        });
         const run = current === null
           ? protectedResourceRuntime.handleResourceDelete(adapted, resourceId)
           : protectedResourceRuntime.handleResourceUpdate(adapted, resourceId, current as ResourceLike);
