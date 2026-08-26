@@ -169,3 +169,21 @@ test("pachetele apt native sunt intr-o singura lista, folosita de toate workflow
     "o a doua lista de pachete scrisa inline ar diverge tacut de cheia de cache si ar reinstala de la zero"
   );
 });
+
+test("instalarea pastreaza arhivele .deb, altfel cache-ul salvat ar fi gol", () => {
+  const installers = workflowNames().filter(name => /apt-get[^\n]*install/.test(workflow(name)));
+  assert.ok(installers.length > 0, "cel putin un workflow instaleaza pachete native prin apt-get");
+
+  const discarding = installers.filter(name => {
+    const text = workflow(name);
+    if (!text.includes("apt-archives")) return false;
+    return !text.includes("APT::Keep-Downloaded-Packages=true");
+  });
+
+  assert.deepEqual(
+    discarding,
+    [],
+    "apt sterge implicit arhivele descarcate dupa instalare; fara optiune, pasul care copiaza in ~/apt-archives " +
+      "ar salva un cache gol si fiecare rulare ar descarca din nou toate pachetele, fara niciun semnal ca ceva e in neregula"
+  );
+});

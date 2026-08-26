@@ -95,13 +95,13 @@ jobs:
         timeout-minutes: 10
         run: |
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer unattended-upgrades.service 2>/dev/null || true
-          packages="$(paste -sd' ' .github/workflows/native-apt-packages.txt)"
+          packages="$(paste -sd' ' "$GITHUB_WORKSPACE/.github/workflows/native-apt-packages.txt")"
           if [ -d ~/apt-archives ]; then
             sudo mkdir -p /var/cache/apt/archives
             sudo cp -n ~/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           fi
           for attempt in 1 2 3; do
-            sudo apt-get -o DPkg::Lock::Timeout=120 update && sudo apt-get -o DPkg::Lock::Timeout=120 install -y --no-install-recommends $packages && break
+            sudo apt-get -o DPkg::Lock::Timeout=120 update && sudo apt-get -o DPkg::Lock::Timeout=120 -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends $packages && break
             echo "apt-get a esuat sau a fost intrerupt (incercarea $attempt din 3); se reia"
             sleep 10
             if [ "$attempt" = "3" ]; then
@@ -111,6 +111,7 @@ jobs:
           mkdir -p ~/apt-archives
           sudo cp /var/cache/apt/archives/*.deb ~/apt-archives/ 2>/dev/null || true
           sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
+          echo "arhive .deb pastrate pentru rularea urmatoare: $(find ~/apt-archives -name '*.deb' | wc -l)"
 
       - name: Salveaza cache-ul de pachete apt
         if: github.ref == 'refs/heads/main' && steps.apt-cache.outputs.cache-hit != 'true'
