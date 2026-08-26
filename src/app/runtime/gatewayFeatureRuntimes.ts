@@ -11,6 +11,8 @@ import { adaptMassModerationGuild } from "./massModerationGuildAdapter.js";
 import { createAttachmentBytesReader } from "../../infra/http/attachmentBytes.js";
 import { adaptDelegationSanctionContext, type SanctionableGuild } from "./sanctionActorAdapter.js";
 import { createServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
+import { createAuditEntryClaim } from "../../features/command-security/auditEntryClaim.js";
+import type { AuditEntryClaim } from "../../features/command-security/auditEntryClaim.js";
 import type { ServerStructureGuardRuntime } from "../../features/command-security/serverStructureGuardRuntime.js";
 import type { AdaptableWebhookChannel } from "./webhookGuardChannelAdapter.js";
 import { createAntiRaidRuntime } from "../../features/command-security/antiRaidRuntime.js";
@@ -53,6 +55,7 @@ export type GatewayFeatureRuntimes = {
   readonly adProtectionRuntime?: AdProtectionRuntime;
   readonly webhookGuardRuntime?: WebhookGuardRuntime<AdaptableWebhookChannel>;
   readonly serverStructureGuardRuntime?: ServerStructureGuardRuntime;
+  readonly auditEntryClaim?: AuditEntryClaim;
 };
 
 export type GatewayFeatureInput = {
@@ -434,7 +437,14 @@ async function applyWarnBan(
     })
     : undefined;
 
-  return { securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime, antiRaidRuntime, adProtectionRuntime, webhookGuardRuntime, serverStructureGuardRuntime };
+  const auditEntryClaim = mongo.AuditEntryClaimModel
+    ? createAuditEntryClaim(mongo.AuditEntryClaimModel)
+    : undefined;
+
+  return {
+    securityRuntime, permissionDelegationRuntime, serverEventLogRuntime, protectedResourceRuntime,
+    antiRaidRuntime, adProtectionRuntime, webhookGuardRuntime, serverStructureGuardRuntime, auditEntryClaim
+  };
 }
 
 export function createInactiveGatewayFeatureRuntimes(recorders: ThreatSurfaceMetricRecorder): GatewayFeatureRuntimes {

@@ -42,6 +42,7 @@ export type MongoRepositoriesBundle = Pick<
   | "WebhookSnapshotModel"
   | "MassModerationModel"
   | "RaidSnapshotModel"
+  | "AuditEntryClaimModel"
   | "RaidIncidentModel"
   | "AdRequestModel"
   | "AdAttemptModel"
@@ -126,6 +127,7 @@ export function selectMongoRepositories(context: MongoRepositoriesBundle): Mongo
     WebhookSnapshotModel: context.WebhookSnapshotModel,
     MassModerationModel: context.MassModerationModel,
     RaidSnapshotModel: context.RaidSnapshotModel,
+    AuditEntryClaimModel: context.AuditEntryClaimModel,
     RaidIncidentModel: context.RaidIncidentModel,
     AdRequestModel: context.AdRequestModel,
     AdAttemptModel: context.AdAttemptModel,

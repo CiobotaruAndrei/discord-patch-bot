@@ -24,8 +24,8 @@ export interface ChannelLockRecoveryModelLike {
     update: Record<string, unknown>,
     options?: Record<string, boolean>
   ): Promise<{ modifiedCount?: number; upsertedCount?: number }>;
-  find(filter: Record<string, unknown>): {
-    sort(order: Record<string, number>): { limit(count: number): { lean(): Promise<ChannelLockRecoveryRecord[]> } };
+  find(filter: Record<string, unknown>, projection?: unknown, options?: unknown): {
+    sort(order: Record<string, 1 | -1>): { limit(count: number): { lean(): Promise<ChannelLockRecoveryRecord[]> } };
   };
   deleteOne(filter: Record<string, unknown>): Promise<{ deletedCount?: number }>;
   countDocuments(filter: Record<string, unknown>): Promise<number>;

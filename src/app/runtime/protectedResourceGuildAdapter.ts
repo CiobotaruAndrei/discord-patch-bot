@@ -8,6 +8,7 @@ import { channelCreatePayload, channelEditPayload, roleEditPayload } from "../..
 
 const AUDIT_WINDOW_MS = 60_000;
 const AUDIT_AMBIGUITY_MS = 2_000;
+const AUDIT_RETRY_DELAYS_MS = [0, 1_000, 2_000] as const;
 const MAX_PROCESSED_AUDIT_ENTRIES = 500;
 
 interface AuditEntry {
@@ -64,30 +65,50 @@ function auditEntries(payload: { entries?: Iterable<[unknown, unknown]> | { valu
   return entries;
 }
 
+export interface AuditCorrelationDeps {
+  now?: () => number;
+  processedAuditEntries?: Set<string>;
+  claimAuditEntry?: (guildId: string, entryId: string) => Promise<boolean>;
+  wait?: (ms: number) => Promise<void>;
+}
+
 export function adaptProtectedResourceGuild(
   guild: AdaptableGuild,
   now: () => number = Date.now,
-  processedAuditEntries: Set<string> = new Set()
+  processedAuditEntries: Set<string> = new Set(),
+  correlation: AuditCorrelationDeps = {}
 ): ProtectedResourceGuild {
-  async function findAuditActor(resourceId: string, events: readonly number[]): Promise<string | null> {
-    if (!guild.fetchAuditLogs) return null;
-    const moment = now();
+  const wait = correlation.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
+
+  async function collectCandidates(resourceId: string, events: readonly number[], moment: number): Promise<AuditEntry[]> {
+    const fetchAuditLogs = guild.fetchAuditLogs;
+    if (!fetchAuditLogs) return [];
     const cutoff = moment - AUDIT_WINDOW_MS;
     const candidates: AuditEntry[] = [];
 
     for (const type of events.length > 0 ? events : [undefined]) {
-      const payload = await guild
-        .fetchAuditLogs(type === undefined ? { limit: 25 } : { type, limit: 25 })
-        .catch(() => null);
+      const payload = await fetchAuditLogs(type === undefined ? { limit: 25 } : { type, limit: 25 }).catch(() => null);
       for (const entry of auditEntries(payload)) {
         if (entry.targetId !== resourceId || entry.createdTimestamp < cutoff) continue;
         if (entry.id !== null && processedAuditEntries.has(entry.id)) continue;
         candidates.push(entry);
       }
     }
+    return candidates;
+  }
 
+  async function findAuditActor(resourceId: string, events: readonly number[]): Promise<string | null> {
+    if (!guild.fetchAuditLogs) return null;
+
+    let candidates: AuditEntry[] = [];
+    for (const delayMs of AUDIT_RETRY_DELAYS_MS) {
+      if (delayMs > 0) await wait(delayMs);
+      candidates = await collectCandidates(resourceId, events, now());
+      if (candidates.length > 0) break;
+    }
     if (candidates.length === 0) return null;
 
+    const moment = now();
     candidates.sort((left, right) =>
       Math.abs(moment - left.createdTimestamp) - Math.abs(moment - right.createdTimestamp));
 
@@ -98,6 +119,10 @@ export function adaptProtectedResourceGuild(
     if (rival) return null;
 
     if (closest.id !== null) {
+      if (correlation.claimAuditEntry) {
+        const fresh = await correlation.claimAuditEntry(guild.id, closest.id).catch(() => true);
+        if (!fresh) return null;
+      }
       if (processedAuditEntries.size >= MAX_PROCESSED_AUDIT_ENTRIES) processedAuditEntries.clear();
       processedAuditEntries.add(closest.id);
     }

@@ -93,7 +93,8 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
     antiRaidRuntime: gateway.antiRaidRuntime,
     adProtectionRuntime: gateway.adProtectionRuntime,
     webhookGuardRuntime: gateway.webhookGuardRuntime,
-    serverStructureGuardRuntime: gateway.serverStructureGuardRuntime
+    serverStructureGuardRuntime: gateway.serverStructureGuardRuntime,
+    auditEntryClaim: gateway.auditEntryClaim
   });
   registerMongoEvents({ mongoose, logger, errorMessage });
 

@@ -44,3 +44,25 @@ test("fiecare model ajunge intr-un compunator care il trimite mai departe la run
       + "nu ajunge in obiectul primit de runtime: colectia exista, indecsii se construiesc, si protectia care depinde de el nu ruleaza niciodata"
   );
 });
+
+const runtimeContract = loadModule("app", "appRuntimeContracts.ts");
+const bootstrap = loadModule("app", "bootstrap.ts");
+
+function modelsRequiredByRuntime(): string[] {
+  return topLevelMembersOf(runtimeContract, "MongoContextLike")
+    .map(member => member.name)
+    .filter(name => name.endsWith("Model"));
+}
+
+test("fiecare model cerut de runtime e chiar pasat de bootstrap in deps.mongo", () => {
+  const handedOver = new Set(identifierNames(bootstrap));
+  const missing = modelsRequiredByRuntime().filter(name => !handedOver.has(name));
+
+  assert.deepEqual(
+    missing,
+    [],
+    "un model declarat in MongoContextLike dar nepasat de bootstrap ramane `undefined` la runtime: compunatorul "
+      + "sare peste protectia care depinde de el, fara nicio eroare. Asa au ajuns inactive in productie toate "
+      + "protectiile de securitate, desi codul lor era complet si testat"
+  );
+});
