@@ -22,6 +22,7 @@ export interface SanctionOutcome {
 export interface PurgeOutcome {
   deleted: number;
   unreachable: number;
+  unscanned?: readonly { channelId: string; pagesScanned: number }[];
 }
 
 export interface RaidGuildPort {
@@ -261,7 +262,15 @@ export function createRaidIntervention(deps: InterventionDeps) {
           current.raidWebhookIds ?? [],
           new Date(current.startedAt).getTime()
         )
-        .catch(() => ({ deleted: 0, unreachable: 0 }));
+        .catch((): PurgeOutcome => ({ deleted: 0, unreachable: 0, unscanned: [] }));
+      const unscanned = purge.unscanned ?? [];
+      if (unscanned.length > 0) {
+        await guild.alertOwner(
+          `Anti-raid ${current._id}: curatarea s-a oprit la plafonul de siguranta in ${unscanned.length} canale `
+            + `(${unscanned.map(entry => `<#${entry.channelId}> dupa ${entry.pagesScanned} pagini`).join(", ")}), `
+            + "deci istoricul NU a fost parcurs pana la inceputul incidentului. Verifica manual mesajele mai vechi."
+        ).catch(() => undefined);
+      }
       if (purge.unreachable > 0) {
         await guild.alertOwner(
           `Anti-raid ${current._id}: ${purge.unreachable} mesaje ale raidului nu au putut fi sterse automat (Discord nu permite stergerea in masa peste 14 zile). Stergere manuala necesara.`

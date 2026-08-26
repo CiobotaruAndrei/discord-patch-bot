@@ -12,12 +12,22 @@ import type { SanctionStep } from "../../features/command-security/antiRaidIncid
 import { ELEVATED_PERMISSION_FLAGS } from "../../features/command-security/elevatedPermissions.js";
 
 const PURGE_BATCH = 100;
-const PURGE_MAX_PAGES = 5;
+const PURGE_MAX_PAGES = 50;
 const BULK_DELETE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
 function messageTimestamp(message: unknown): number {
   const entry = message as { createdTimestamp?: unknown } | null;
   return typeof entry?.createdTimestamp === "number" ? entry.createdTimestamp : Date.now();
+}
+
+function oldestMessageTimestamp(fetched: unknown): number {
+  const collection = fetched as { values?: () => Iterable<unknown> } | null;
+  let oldestAt = Number.POSITIVE_INFINITY;
+  for (const item of collection?.values?.() ?? []) {
+    const at = messageTimestamp(item);
+    if (at < oldestAt) oldestAt = at;
+  }
+  return oldestAt;
 }
 
 function oldestMessageId(fetched: unknown): string | undefined {
@@ -341,6 +351,7 @@ export function adaptRaidGuild(
       if (targets.size === 0 && webhooks.size === 0) return { deleted: 0, unreachable: 0 };
       let deleted = 0;
       let unreachable = 0;
+      const unscanned: Array<{ channelId: string; pagesScanned: number }> = [];
 
       const belongsToRaid = (message: unknown): boolean => {
         if (messageTimestamp(message) < since) return false;
@@ -356,11 +367,18 @@ export function adaptRaidGuild(
         if (!target?.messages?.fetch || !target.bulkDelete) continue;
         let before: string | undefined;
 
+        let reachedIncidentStart = false;
+        let pagesScanned = 0;
+
         for (let page = 0; page < PURGE_MAX_PAGES; page += 1) {
           try {
             const fetched = await target.messages.fetch(before ? { limit: PURGE_BATCH, before } : { limit: PURGE_BATCH });
             const size = fetched?.size ?? 0;
-            if (size === 0) break;
+            pagesScanned += 1;
+            if (size === 0) {
+              reachedIncidentStart = true;
+              break;
+            }
 
             const cutoff = Date.now() - BULK_DELETE_MAX_AGE_MS;
             const doomed = fetched?.filter?.(message => belongsToRaid(message) && messageTimestamp(message) >= cutoff);
@@ -372,8 +390,16 @@ export function adaptRaidGuild(
               deleted += removed?.size ?? 0;
             }
 
+            if (oldestMessageTimestamp(fetched) < since) {
+              reachedIncidentStart = true;
+              break;
+            }
+
             before = oldestMessageId(fetched);
-            if (!before || size < PURGE_BATCH) break;
+            if (!before || size < PURGE_BATCH) {
+              reachedIncidentStart = true;
+              break;
+            }
           } catch (error: unknown) {
             logger?.("WARN", "ANTI_RAID", "Curatarea mesajelor a esuat pentru un canal", {
               guildId: guild.id,
@@ -383,8 +409,18 @@ export function adaptRaidGuild(
             break;
           }
         }
+
+        if (!reachedIncidentStart) {
+          unscanned.push({ channelId, pagesScanned });
+          logger?.("WARN", "ANTI_RAID", "Curatarea s-a oprit la plafonul de siguranta inainte de inceputul incidentului", {
+            guildId: guild.id,
+            channelId,
+            pagesScanned,
+            plafon: PURGE_MAX_PAGES
+          });
+        }
       }
-      return { deleted, unreachable };
+      return { deleted, unreachable, unscanned };
     },
 
     async publish(body) {
