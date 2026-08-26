@@ -76,16 +76,49 @@ jobs:
         with:
           node-version: 24
 
+      # Pachetele insumeaza ~48 MB, iar mirror-ul Azure e inegal: masurat, aceeasi lista se instaleaza
+      # in 23s cand merge bine, dar `cmake` a luat 89s si `libclang-dev` a blocat 3,5 minute intr-o
+      # rulare care a expirat. Cache-ul pastreaza arhivele .deb, deci la hit `apt-get install` le
+      # gaseste local si nu mai descarca nimic. Cheia poarta lista de pachete: daca se schimba, cache-ul
+      # se invalideaza singur.
+      #
+      # Salvarea e conditionata pe main, ca la celelalte cache-uri din repo: cota Actions e 10 GB,
+      # iar o copie per branch ar evacua LRU exact intrarile de care depinde rularea urmatoare.
+      - name: Restore cache pachete apt (arhive .deb)
+        id: apt-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: apt-noble-${{ hashFiles('.github/workflows/native-apt-packages.txt') }}
+
       - name: Install native library dependencies (libarchive + libyara + libseccomp build deps)
-        timeout-minutes: 6
+        timeout-minutes: 10
         run: |
           sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer unattended-upgrades.service 2>/dev/null || true
+          packages="$(paste -sd' ' "$GITHUB_WORKSPACE/.github/workflows/native-apt-packages.txt")"
+          if [ -d ~/apt-archives ]; then
+            sudo mkdir -p /var/cache/apt/archives
+            sudo cp -n ~/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true
+          fi
           for attempt in 1 2 3; do
-            sudo apt-get -o DPkg::Lock::Timeout=120 update && sudo apt-get -o DPkg::Lock::Timeout=120 install -y --no-install-recommends cmake clang libclang-dev libseccomp-dev libmagic-dev libmspack-dev libssl-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev liblz4-dev libxml2-dev libacl1-dev && exit 0
+            sudo apt-get -o DPkg::Lock::Timeout=120 update && sudo apt-get -o DPkg::Lock::Timeout=120 -o APT::Keep-Downloaded-Packages=true install -y --no-install-recommends $packages && break
             echo "apt-get a esuat sau a fost intrerupt (incercarea $attempt din 3); se reia"
             sleep 10
+            if [ "$attempt" = "3" ]; then
+              exit 1
+            fi
           done
-          exit 1
+          mkdir -p ~/apt-archives
+          sudo cp /var/cache/apt/archives/*.deb ~/apt-archives/ 2>/dev/null || true
+          sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
+          echo "arhive .deb pastrate pentru rularea urmatoare: $(find ~/apt-archives -name '*.deb' | wc -l)"
+
+      - name: Salveaza cache-ul de pachete apt
+        if: github.ref == 'refs/heads/main' && steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: apt-noble-${{ hashFiles('.github/workflows/native-apt-packages.txt') }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # master 2026-06
