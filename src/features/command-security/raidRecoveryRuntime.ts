@@ -8,6 +8,7 @@ import { chooseIncidentSnapshot, describeBaselineChoice, needsRefresh } from "./
 import type {
   CurrentServerState,
   RecoveryOperationKind,
+  RoleRecreation,
   RecoveryScope,
   ResourceRemap,
   RoleRemap,
@@ -26,7 +27,8 @@ export interface RecoveryGuildPort {
   captureSnapshot(): Promise<RaidSnapshot>;
   readCurrentState(): Promise<CurrentServerState>;
   recreateChannel(channel: SnapshotChannel): Promise<string | null>;
-  recreateRole(role: SnapshotRole): Promise<string | null>;
+  recreateRole(role: SnapshotRole): Promise<RoleRecreation>;
+  restoreRolePosition(roleId: string, position: number): Promise<boolean>;
   recreateWebhook(webhook: SnapshotWebhook): Promise<string | null>;
   restoreChannel(channel: SnapshotChannel): Promise<boolean>;
   restoreRole(role: SnapshotRole): Promise<boolean>;
@@ -117,8 +119,20 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
     }
   }
 
+  async function pendingPosition(incidentId: string, roleId: string, role: SnapshotRole): Promise<boolean> {
+    return snapshots.appendOperation(incidentId, {
+      kind: "restore-position",
+      resourceId: roleId,
+      label: role.roleId,
+      status: "pending",
+      attempts: 0,
+      detail: `pozitia ${role.position} nu a putut fi aplicata la recreare`
+    }).catch(() => false);
+  }
+
   async function applyOperation(
     guild: RecoveryGuildPort,
+    incidentId: string,
     snapshot: RaidSnapshot,
     operation: RecoveryOperation,
     remaps: RoleRemap[],
@@ -128,13 +142,34 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
       const role = snapshot.roles.find(entry => entry.roleId === operation.resourceId);
       if (!role) return { status: "skipped", detail: "rolul nu mai este in snapshot" };
       const created = await guild.recreateRole(role);
-      if (created) {
-        remaps.push({ previousRoleId: role.roleId, nextRoleId: created });
-        recreated.push({ previousId: role.roleId, nextId: created });
+      if (!created.roleId) return { status: "owner-intervention-required", detail: "rolul nu a putut fi recreat" };
+
+      remaps.push({ previousRoleId: role.roleId, nextRoleId: created.roleId });
+      recreated.push({ previousId: role.roleId, nextId: created.roleId });
+
+      if (created.positioned) return { status: "done", detail: `recreat cu ID nou ${created.roleId}` };
+
+      const tracked = await pendingPosition(incidentId, created.roleId, role);
+      if (!tracked) {
+        return {
+          status: "owner-intervention-required",
+          detail: `recreat ca ${created.roleId}, dar pozitia ${role.position} nu a fost aplicata si nici nu a putut fi `
+            + "inregistrata pentru reincercare; muta rolul manual"
+        };
       }
-      return created
-        ? { status: "done", detail: `recreat cu ID nou ${created}` }
-        : { status: "owner-intervention-required", detail: "rolul nu a putut fi recreat" };
+      return {
+        status: "done",
+        detail: `recreat cu ID nou ${created.roleId}; pozitia ${role.position} a ramas de restaurat`
+      };
+    }
+
+    if (operation.kind === "restore-position") {
+      const role = snapshot.roles.find(entry => entry.roleId === operation.label);
+      if (!role) return { status: "skipped", detail: "rolul nu mai este in snapshot" };
+      const moved = await guild.restoreRolePosition(operation.resourceId, role.position);
+      return moved
+        ? { status: "done", detail: `pozitia ${role.position} a fost restaurata` }
+        : { status: "owner-intervention-required", detail: `rolul nu poate fi mutat la pozitia ${role.position}` };
     }
 
     if (operation.kind === "recreate-channel") {
@@ -259,7 +294,7 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
       }
 
       const before = recreated.length;
-      const result = await applyOperation(guild, record.snapshot, operation, remaps, recreated).catch(() => ({
+      const result = await applyOperation(guild, incidentId, record.snapshot, operation, remaps, recreated).catch(() => ({
         status: "pending" as const,
         detail: "eroare la aplicare"
       }));
