@@ -81,3 +81,10 @@ export function validateRestrictionIsSubset(
 
   return { ok: true, restriction };
 }
+
+export function requestedDurationLabel(record: PermissionRequestRecord): string {
+  const ttl = requestedTtl(record);
+  if (ttl % (24 * 60 * 60 * 1000) === 0) return `${ttl / (24 * 60 * 60 * 1000)}d`;
+  if (ttl % (60 * 60 * 1000) === 0) return `${ttl / (60 * 60 * 1000)}h`;
+  return `${Math.max(1, Math.round(ttl / 60_000))}m`;
+}

@@ -1,4 +1,4 @@
-import { validateRestrictionIsSubset } from "../command-security/approvalSubsetPolicy.js";
+import { requestedDurationLabel, validateRestrictionIsSubset } from "../command-security/approvalSubsetPolicy.js";
 
 import type { AlwaysReplies, BaseChatInputInteraction, StringOption } from "./discordInteractionPorts.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
@@ -76,7 +76,7 @@ export function restrictionModal(record: PermissionRequestRecord, customId: stri
     { id: RESTRICTION_INPUT_IDS.target, label: "Tinta aprobata", value: record.target ?? "", required: true },
     { id: RESTRICTION_INPUT_IDS.action, label: "Actiunea aprobata", value: record.action ?? "", required: true },
     ...optional.map(entry => ({ id: entry.id, label: entry.label, value: entry.value, required: false })),
-    { id: RESTRICTION_INPUT_IDS.duration, label: "Valabilitate (ex. 30m, 2h, 1d)", value: "1h", required: false }
+    { id: RESTRICTION_INPUT_IDS.duration, label: "Valabilitate (ex. 30m, 2h, 1d)", value: requestedDurationLabel(record), required: false }
   ];
   return {
     custom_id: customId,

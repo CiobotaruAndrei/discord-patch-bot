@@ -8,6 +8,7 @@ import { PERMISSION_REQUEST_TYPES } from "../../features/command-security/permis
 import { calls, loadModule } from "../gates/sourceStructureQueries.js";
 import { moduleContext } from "../moduleContextStub.js";
 import { permissionRequestStore } from "./permissionRequestStore.js";
+import { requestedDurationLabel, validateRestrictionIsSubset } from "../../features/command-security/approvalSubsetPolicy.js";
 import type { PermissionRequestRecord } from "../../features/command-security/permissionRequestTypes.js";
 
 function interaction(overrides: Record<string, unknown> = {}) {
@@ -128,7 +129,7 @@ test("/permission-requests list e vizibila doar ownerului", async () => {
   assert.match(String(call.replies[0]?.content), /Doar proprietarul/);
 });
 
-test("restrangerea din formular nu poate largi cererea initiala", () => {
+test("o largire din formular ajunge la validare, nu e taiata tacut (review PR #998)", () => {
   const record = {
     _id: "r", guildId: "g1", type: "permission-grant" as const, requesterId: "u1", reason: "",
     status: "pending" as const, requestedAt: new Date(), target: "rol-1", action: "grant",
@@ -137,8 +138,40 @@ test("restrangerea din formular nu poate largi cererea initiala", () => {
 
   const widened = restrictionFromModal(record, { target: "rol-1", action: "grant", amount: "10", permissions: "Administrator, BanMembers" });
 
-  assert.equal(widened.amount, 3, "ownerul poate scadea cantitatea, nu o poate mari peste cea ceruta");
-  assert.deepEqual(widened.permissions, ["BanMembers"], "o permisiune necereruta nu poate fi adaugata la aprobare");
+  assert.equal(widened.amount, 10, "clamparea tacuta ascundea largirea de verificarea de subset");
+  assert.deepEqual(widened.permissions, ["Administrator", "BanMembers"]);
+
+  const verdict = validateRestrictionIsSubset(record, widened);
+  assert.equal(verdict.ok, false, "largirea se refuza explicit, cu mesaj pentru owner");
+  assert.match(verdict.ok === false ? verdict.problem : "", /nu poate depasi cantitatea ceruta/);
+});
+
+test("filtrarea permisiunilor nu mai poate produce o aprobare goala (review PR #998)", () => {
+  const record = {
+    _id: "r", guildId: "g1", type: "permission-grant" as const, requesterId: "u1", reason: "",
+    status: "pending" as const, requestedAt: new Date(), target: "rol-1", action: "grant",
+    permissions: ["BanMembers"]
+  } satisfies PermissionRequestRecord;
+
+  const restriction = restrictionFromModal(record, { target: "rol-1", action: "grant", permissions: "Administrator" });
+
+  assert.deepEqual(restriction.permissions, ["Administrator"],
+    "inainte, filtrarea lasa un array gol si se persista o aprobare inutilizabila, anuntata ca reusita");
+  assert.equal(validateRestrictionIsSubset(record, restriction).ok, false);
+});
+
+test("modalul propune durata ceruta, nu una fixa mai mare (review PR #998)", () => {
+  const record = {
+    _id: "r", guildId: "g1", type: "webhook" as const, requesterId: "u1", reason: "",
+    status: "pending" as const, requestedAt: new Date(), target: "111111111111111111", action: "create",
+    requestedTtlMs: 30 * 60 * 1000
+  } satisfies PermissionRequestRecord;
+
+  assert.equal(requestedDurationLabel(record), "30m",
+    "cu `1h` fix, o aprobare nemodificata a unei cereri de 30m ar fi fost refuzata desi ownerul nu a editat nimic");
+
+  const restriction = restrictionFromModal(record, { target: "111111111111111111", action: "create", duration: requestedDurationLabel(record) });
+  assert.equal(validateRestrictionIsSubset(record, restriction).ok, true);
 });
 
 test("durata ceruta e parsata si plafonata", () => {
