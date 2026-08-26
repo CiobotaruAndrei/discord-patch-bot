@@ -50,18 +50,10 @@ export function restrictionFromModal(
   if (action && action !== canonicalAction(record.action)) restriction.action = action;
 
   const amount = Number(String(raw.amount ?? "").trim());
-  if (Number.isFinite(amount) && amount > 0) {
-    const requested = typeof record.amount === "number" ? record.amount : amount;
-    restriction.amount = Math.min(amount, requested);
-  }
+  if (Number.isFinite(amount) && amount > 0) restriction.amount = amount;
 
   const permissions = parsePermissionList(raw.permissions);
-  if (permissions.length > 0) {
-    const requested = new Set((record.permissions ?? []).map(normalizePermissionName));
-    restriction.permissions = requested.size > 0
-      ? permissions.filter(permission => requested.has(normalizePermissionName(permission)))
-      : permissions;
-  }
+  if (permissions.length > 0) restriction.permissions = permissions;
 
   const botId = String(raw.botId ?? "").trim();
   if (botId && botId !== record.botId) restriction.botId = botId;

@@ -88,6 +88,7 @@ export function createPermissionRequestRepository(model: PermissionRequestModelL
       status: "pending",
       requestedAt: now,
       expiresAt: new Date(now.getTime() + (input.ttlMs ?? PENDING_TTL_MS)),
+      requestedTtlMs: input.ttlMs ?? null,
       ...scope
     };
     const result = await model.updateOne({ _id: record._id }, { $setOnInsert: record }, { upsert: true });
