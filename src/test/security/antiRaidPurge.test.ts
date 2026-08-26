@@ -145,3 +145,78 @@ test("un webhook legitim, doar modificat in raid, nu isi pierde mesajele vechi (
   assert.deepEqual(deleted[0], ["mesaj-nou-de-webhook"]);
   assert.equal(outcome.deleted, 1, "fara limita de timp, curatarea ar fi sters si istoricul legitim al webhook-ului");
 });
+
+function fullPage(prefix: string, at: number): FakeMessage[] {
+  return Array.from({ length: 100 }, (_unused, index) => message(`${prefix}${index}`, "raider-1", { createdTimestamp: at }));
+}
+
+test("paginarea continua dincolo de vechiul plafon de 5 pagini (F-37)", async () => {
+  const deleted: string[][] = [];
+  const pages = Array.from({ length: 8 }, (_unused, index) => fullPage(`p${index}-`, NOW - 1000));
+  const setup = guildWith(pages, deleted);
+
+  const outcome = await adaptRaidGuild(setup.guild, async () => null).purgeMessages(["c1"], ["raider-1"], [], RAID_STARTED_AT);
+
+  assert.equal(setup.fetchCount(), 9,
+    "opt pagini pline plus una goala care confirma capatul; cu plafonul vechi de 5 pagini, 300 de mesaje ramaneau neinspectate");
+  assert.equal(outcome.deleted, 800);
+  assert.deepEqual(outcome.unscanned, [], "istoricul a fost parcurs pana la capat, deci nimic de raportat");
+});
+
+test("paginarea se opreste cand istoricul iese din fereastra incidentului (F-37)", async () => {
+  const deleted: string[][] = [];
+  const pages = [
+    fullPage("recent-", NOW - 1000),
+    fullPage("vechi-", RAID_STARTED_AT - 60_000),
+    fullPage("si-mai-vechi-", RAID_STARTED_AT - 120_000)
+  ];
+  const setup = guildWith(pages, deleted);
+
+  await adaptRaidGuild(setup.guild, async () => null).purgeMessages(["c1"], ["raider-1"], [], RAID_STARTED_AT);
+
+  assert.equal(setup.fetchCount(), 2, "dupa ce pagina depaseste inceputul incidentului nu mai are rost sa citim istoric mai vechi");
+});
+
+test("mesajele de dinaintea incidentului nu se sterg, chiar daca autorul e participant (F-37)", async () => {
+  const deleted: string[][] = [];
+  const pages = [[
+    message("in-raid", "raider-1", { createdTimestamp: NOW - 1000 }),
+    message("inainte", "raider-1", { createdTimestamp: RAID_STARTED_AT - 60_000 })
+  ]];
+  const setup = guildWith(pages, deleted);
+
+  const outcome = await adaptRaidGuild(setup.guild, async () => null).purgeMessages(["c1"], ["raider-1"], [], RAID_STARTED_AT);
+
+  assert.deepEqual(deleted[0], ["in-raid"]);
+  assert.equal(outcome.deleted, 1);
+});
+
+test("cand plafonul de siguranta intervine, canalul e raportat ca neparcurs complet (F-37)", async () => {
+  const deleted: string[][] = [];
+  const pages = Array.from({ length: 60 }, (_unused, index) => fullPage(`p${index}-`, NOW - 1000));
+  const setup = guildWith(pages, deleted);
+
+  const outcome = await adaptRaidGuild(setup.guild, async () => null).purgeMessages(["c1"], ["raider-1"], [], RAID_STARTED_AT);
+
+  assert.deepEqual(outcome.unscanned, [{ channelId: "c1", pagesScanned: 50 }],
+    "raportul trebuie sa spuna ca istoricul nu a fost parcurs complet, nu sa taca");
+});
+
+test("un canal parcurs pana la capat nu apare ca neparcurs (F-37)", async () => {
+  const deleted: string[][] = [];
+  const setup = guildWith([[message("a1", "raider-1")]], deleted);
+
+  const outcome = await adaptRaidGuild(setup.guild, async () => null).purgeMessages(["c1"], ["raider-1"], [], RAID_STARTED_AT);
+
+  assert.deepEqual(outcome.unscanned, []);
+});
+
+test("un istoric epuizat inainte de plafon nu e raportat ca neparcurs (F-37)", async () => {
+  const deleted: string[][] = [];
+  const pages = [fullPage("p0-", NOW - 1000), []];
+  const setup = guildWith(pages, deleted);
+
+  const outcome = await adaptRaidGuild(setup.guild, async () => null).purgeMessages(["c1"], ["raider-1"], [], RAID_STARTED_AT);
+
+  assert.deepEqual(outcome.unscanned, [], "pagina goala inseamna ca am ajuns la capatul canalului, nu ca ne-am oprit devreme");
+});
