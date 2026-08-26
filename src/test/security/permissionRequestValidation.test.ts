@@ -5,6 +5,7 @@ import { REQUEST_SCHEMAS, validatePermissionRequest } from "../../features/comma
 import { MODERATION_GUARD_TYPES } from "../../features/command-security/moderationGuardDecision.js";
 import { scopeFingerprint, scopeMatchesApproval } from "../../features/command-security/permissionRequestTypes.js";
 import { restrictionFromModal } from "../../features/command-security/permissionRequestApproval.js";
+import { DEFAULT_APPROVED_TTL_MS, validateRestrictionIsSubset } from "../../features/command-security/approvalSubsetPolicy.js";
 import type { PermissionRequestRecord } from "../../features/command-security/permissionRequestTypes.js";
 
 import type { PermissionRequestInput } from "../../features/command-security/permissionRequestValidation.js";
@@ -239,4 +240,93 @@ test("restrictia din modal e salvata canonic, nu cum a scris-o ownerul (review P
 
   assert.equal(restriction.action, "delete", "ambele capete canonicalizeaza, ca potrivirea sa nu depinda de scriere");
   assert.equal(restriction.target ?? null, null, "o tinta identica dupa canonicalizare nu e o restrangere");
+});
+
+function pendingRecord(overrides: Partial<PermissionRequestRecord> = {}): PermissionRequestRecord {
+  return {
+    _id: "req-1", guildId: "g1", type: "moderation-mass", requesterId: "u1",
+    target: "111111111111111111", action: "ban", amount: 5, reason: "curatare",
+    status: "pending", requestedAt: new Date(), ...overrides
+  };
+}
+
+test("ownerul nu poate schimba tinta la aprobare, doar sa o pastreze (F-08)", () => {
+  const verdict = validateRestrictionIsSubset(pendingRecord(), { target: "222222222222222222" });
+
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.ok === false ? verdict.problem : "", /Tinta nu poate fi schimbata/,
+    "o tinta diferita e alta operatiune, nu o restrangere a celei cerute");
+});
+
+test("ownerul nu poate schimba actiunea la aprobare (F-08)", () => {
+  const verdict = validateRestrictionIsSubset(pendingRecord(), { action: "kick" });
+
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.ok === false ? verdict.problem : "", /Actiunea nu poate fi schimbata/);
+});
+
+test("aprobarea nu poate depasi cantitatea ceruta (F-08)", () => {
+  const verdict = validateRestrictionIsSubset(pendingRecord({ amount: 3 }), { amount: 10 });
+
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.ok === false ? verdict.problem : "", /nu poate depasi cantitatea ceruta/);
+});
+
+test("o cantitate mai mica ramane o restrangere valida (F-08)", () => {
+  const verdict = validateRestrictionIsSubset(pendingRecord({ amount: 5 }), { amount: 2 });
+
+  assert.equal(verdict.ok, true);
+});
+
+test("botul executor poate fi fixat cand cererea nu il specifica, dar nu inlocuit (F-08)", () => {
+  const fixat = validateRestrictionIsSubset(
+    pendingRecord({ type: "webhook", action: "create", botId: null }),
+    { botId: "222222222222222222" }
+  );
+  const inlocuit = validateRestrictionIsSubset(
+    pendingRecord({ type: "webhook", action: "create", botId: "222222222222222222" }),
+    { botId: "333333333333333333" }
+  );
+
+  assert.equal(fixat.ok, true, "fixarea unui bot anume ingusteaza o cerere care accepta orice bot");
+  assert.equal(inlocuit.ok, false);
+  assert.match(inlocuit.ok === false ? inlocuit.problem : "", /nu poate fi schimbat/);
+});
+
+test("aprobarea nu poate adauga permisiuni necerute (F-08)", () => {
+  const verdict = validateRestrictionIsSubset(
+    pendingRecord({ type: "permission-grant", action: "grant", permissions: ["Manage Roles"] }),
+    { permissions: ["Manage Roles", "Administrator"] }
+  );
+
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.ok === false ? verdict.problem : "", /Administrator/);
+});
+
+test("valabilitatea aprobata nu poate depasi durata ceruta (F-08)", () => {
+  const verdict = validateRestrictionIsSubset(
+    pendingRecord({ requestedTtlMs: 30 * 60 * 1000 }),
+    { ttlMs: 2 * 60 * 60 * 1000 }
+  );
+
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.ok === false ? verdict.problem : "", /nu poate depasi durata ceruta/);
+});
+
+test("fara durata ceruta, plafonul ramane valabilitatea implicita (F-08)", () => {
+  const peste = validateRestrictionIsSubset(pendingRecord({ requestedTtlMs: null }), { ttlMs: DEFAULT_APPROVED_TTL_MS + 1 });
+  const sub = validateRestrictionIsSubset(pendingRecord({ requestedTtlMs: null }), { ttlMs: 15 * 60 * 1000 });
+
+  assert.equal(peste.ok, false);
+  assert.equal(sub.ok, true);
+});
+
+test("o restrictie care pastreaza scope-ul cerut trece (F-08)", () => {
+  const verdict = validateRestrictionIsSubset(pendingRecord(), {
+    target: "111111111111111111",
+    action: "ban",
+    amount: 5
+  });
+
+  assert.equal(verdict.ok, true, "aprobarea neschimbata nu trebuie respinsa de verificarea de subset");
 });

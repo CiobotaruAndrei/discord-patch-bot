@@ -51,6 +51,7 @@ export interface PermissionRequestRecord extends PermissionRequestScope {
   claimBatchId?: string | null;
   expiresAt?: Date | null;
   remainingAmount?: number | null;
+  requestedTtlMs?: number | null;
   resourceKind?: string | null;
 }
 
