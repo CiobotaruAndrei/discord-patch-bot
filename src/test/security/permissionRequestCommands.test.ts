@@ -365,3 +365,64 @@ test("raspunsul dupa aprobare chiar include rezumatul cerut-vs-aprobat (review P
   assert.match(content, /Cerut -> aprobat/, "helperul era chemat, dar rezultatul nu ajungea in mesajul catre owner");
   assert.match(content, /cantitate: 10/);
 });
+
+async function approveWithModal(model: ReturnType<typeof permissionRequestStore>, fields: Record<string, string>) {
+  const handler = handlerFor(model);
+  const replies: Array<{ content?: string }> = [];
+  const updates: Array<{ content?: string }> = [];
+
+  const call = moduleContext<Parameters<typeof handler.handle>[0]>({
+    isButton: () => true,
+    customId: "permission-request:approve:req-1",
+    guild: { id: "g1", ownerId: "owner-1", members: { fetch: async () => null } },
+    user: { id: "owner-1" },
+    showModal: async () => undefined,
+    awaitModalSubmit: async () => ({
+      customId: "modal",
+      user: { id: "owner-1" },
+      fields: { getTextInputValue: (id: string) => fields[id] ?? "" },
+      reply: async (payload: { content: string }) => { replies.push(payload); }
+    }),
+    update: async (payload: { content?: string }) => { updates.push(payload); },
+    reply: async (payload: { content?: string }) => { replies.push(payload); }
+  });
+
+  await handler.handle(call, moduleContext<Parameters<typeof handler.handle>[1]>({}));
+  return { replies, updates };
+}
+
+test("o restrictie care schimba tinta e refuzata inainte de a fi persistata (F-08)", async () => {
+  const model = permissionRequestStore();
+  const repository = createPermissionRequestRepository(model);
+  await repository.create({
+    requestId: "req-1", guildId: "g1", type: "webhook", requesterId: "u1",
+    target: "111111111111111111", action: "create", reason: "integrare"
+  });
+
+  const outcome = await approveWithModal(model, {
+    [RESTRICTION_INPUT_IDS.target]: "222222222222222222",
+    [RESTRICTION_INPUT_IDS.action]: "create"
+  });
+
+  assert.match(String(outcome.replies[0]?.content ?? ""), /Tinta nu poate fi schimbata/);
+  assert.equal(model.records[0].status, "pending",
+    "cererea ramane in asteptare: o restrictie invalida nu are voie sa devina aprobare");
+});
+
+test("o restrictie valida se aplica in continuare (F-08)", async () => {
+  const model = permissionRequestStore();
+  const repository = createPermissionRequestRepository(model);
+  await repository.create({
+    requestId: "req-1", guildId: "g1", type: "moderation-mass", requesterId: "u1",
+    target: "111111111111111111", action: "ban", amount: 5, reason: "curatare"
+  });
+
+  await approveWithModal(model, {
+    [RESTRICTION_INPUT_IDS.target]: "111111111111111111",
+    [RESTRICTION_INPUT_IDS.action]: "ban",
+    [RESTRICTION_INPUT_IDS.amount]: "2"
+  });
+
+  assert.equal(model.records[0].status, "approved");
+  assert.equal(model.records[0].approvedAmount, 2, "ingustarea reala ramane posibila");
+});

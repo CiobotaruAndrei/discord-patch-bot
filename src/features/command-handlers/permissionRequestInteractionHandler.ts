@@ -1,3 +1,5 @@
+import { validateRestrictionIsSubset } from "../command-security/approvalSubsetPolicy.js";
+
 import type { AlwaysReplies, BaseChatInputInteraction, StringOption } from "./discordInteractionPorts.js";
 import type { CommandHandler } from "../command-registry/commandHandler.js";
 import { createPermissionRequestRepository } from "../command-security/permissionRequestRepository.js";
@@ -33,6 +35,7 @@ type ModalSubmission = {
   customId?: string;
   user?: { id?: string } | null;
   fields?: { getTextInputValue?: (id: string) => string };
+  reply?: (payload: { content: string; ephemeral: boolean }) => Promise<unknown>;
 };
 
 type Interaction = BaseChatInputInteraction<Guild> & AlwaysReplies & {
@@ -133,6 +136,14 @@ export function buildCommandHandler(deps: Deps): CommandHandler<Interaction> {
         botId: read(RESTRICTION_INPUT_IDS.botId),
         duration: read(RESTRICTION_INPUT_IDS.duration)
       });
+
+      const verdict = validateRestrictionIsSubset(pending, restriction);
+      if (!verdict.ok) {
+        return submission.reply
+          ? submission.reply({ content: `Aprobarea nu a fost aplicata. ${verdict.problem}`, ephemeral: true })
+          : undefined;
+      }
+      restriction = verdict.restriction;
     }
 
     const record = await repository.resolve(guild.id, requestId, decision === "approve" ? "approved" : "rejected", ownerId, restriction);
