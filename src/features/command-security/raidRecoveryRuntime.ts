@@ -119,8 +119,8 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
     }
   }
 
-  async function pendingPosition(incidentId: string, roleId: string, role: SnapshotRole): Promise<void> {
-    await snapshots.appendOperation(incidentId, {
+  async function pendingPosition(incidentId: string, roleId: string, role: SnapshotRole): Promise<boolean> {
+    return snapshots.appendOperation(incidentId, {
       kind: "restore-position",
       resourceId: roleId,
       label: role.roleId,
@@ -149,7 +149,14 @@ export function createRaidRecoveryRuntime(deps: RaidRecoveryDeps) {
 
       if (created.positioned) return { status: "done", detail: `recreat cu ID nou ${created.roleId}` };
 
-      await pendingPosition(incidentId, created.roleId, role);
+      const tracked = await pendingPosition(incidentId, created.roleId, role);
+      if (!tracked) {
+        return {
+          status: "owner-intervention-required",
+          detail: `recreat ca ${created.roleId}, dar pozitia ${role.position} nu a fost aplicata si nici nu a putut fi `
+            + "inregistrata pentru reincercare; muta rolul manual"
+        };
+      }
       return {
         status: "done",
         detail: `recreat cu ID nou ${created.roleId}; pozitia ${role.position} a ramas de restaurat`

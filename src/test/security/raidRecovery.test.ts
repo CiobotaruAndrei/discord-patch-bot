@@ -1135,3 +1135,55 @@ test("un rol recreat si pozitionat nu adauga operatiuni suplimentare (audit N-04
     "cazul reusit nu trebuie sa lase in urma o operatiune care sa para nerezolvata"
   );
 });
+
+test("daca operatiunea de pozitie nu poate fi persistata, recrearea ajunge la owner (review PR #996)", async () => {
+  const model = snapshotModel();
+  const guild = moduleContext<RecoveryGuildPort>({
+    id: "g1",
+    readCurrentState: async () => ({
+      channelIds: [], roleIds: [], webhookIds: [], inviteCodes: [], protections: emptyProtections(), channels: [], roles: []
+    }),
+    recreateRole: async () => ({ roleId: "rol-nou", positioned: false }),
+    restoreRolePosition: async () => true,
+    publish: async () => undefined
+  });
+  const runtime = createRaidRecoveryRuntime({ RaidSnapshotModel: model, now: () => NOW });
+  await runtime.captureBeforeContainment(
+    moduleContext<RecoveryGuildPort>({ ...guild, captureSnapshot: async () => snapshotWith({ roles: [UNPOSITIONED_ROLE] }) }),
+    INCIDENT
+  );
+
+  const original = model.updateOne;
+  model.updateOne = async (filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>) => {
+    if ((update.$push as Record<string, unknown> | undefined)?.operations) throw new Error("Mongo indisponibil");
+    return original(filter, update, options);
+  };
+
+  const outcome = await runtime.restore(guild, INCIDENT);
+
+  assert.ok(
+    outcome.kind === "restored" && outcome.operations.some(entry =>
+      entry.kind === "recreate-role" && entry.status === "owner-intervention-required"),
+    "fara operatiunea de urmarire persistata, un `done` ar lasa incidentul sa se inchida cu rolul pe pozitia gresita"
+  );
+  assert.equal(outcome.kind === "restored" && outcome.complete, false);
+});
+
+test("o operatiune de pozitie deja prezenta nu e tratata ca esec de persistare (review PR #996)", async () => {
+  const setup = positionHarness();
+  await setup.runtime.captureBeforeContainment(
+    moduleContext<RecoveryGuildPort>({ ...setup.guild, captureSnapshot: async () => snapshotWith({ roles: [UNPOSITIONED_ROLE] }) }),
+    INCIDENT
+  );
+  await setup.runtime.restore(setup.guild, INCIDENT);
+
+  const stored = model2Operations(setup.model);
+  assert.equal(stored.filter(entry => entry.kind === "restore-position").length, 1,
+    "adaugarea e idempotenta, deci un al doilea apel nu trebuie sa para esec si nici sa dubleze operatiunea");
+});
+
+function model2Operations(model: ReturnType<typeof snapshotModel>): Array<{ kind: string; status: string }> {
+  const doc = model.docs.get(INCIDENT);
+  const operations = doc?.operations;
+  return Array.isArray(operations) ? operations as Array<{ kind: string; status: string }> : [];
+}
