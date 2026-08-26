@@ -1,0 +1,14 @@
+cmake
+clang
+libclang-dev
+libseccomp-dev
+libmagic-dev
+libmspack-dev
+libssl-dev
+zlib1g-dev
+libbz2-dev
+liblzma-dev
+libzstd-dev
+liblz4-dev
+libxml2-dev
+libacl1-dev

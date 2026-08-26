@@ -131,3 +131,41 @@ test("niciun workflow nu scrie cache neconditionat dintr-un context de PR", () =
       `scrie propria copie a cache-ului; asa s-a ajuns la 11,4 GB fata de cota de 10 GB (${offenders.join(", ")})`
   );
 });
+
+test("niciun actions/cache dintr-un workflow de PR nu scrie neconditionat", () => {
+  const offenders: string[] = [];
+
+  for (const name of workflowNames()) {
+    const source = workflow(name);
+    if (!source.includes("pull_request")) continue;
+
+    const lines = source.split("\n");
+    for (const [index, line] of lines.entries()) {
+      if (!line.includes("uses: actions/cache@")) continue;
+      const step = lines.slice(Math.max(0, index - 6), index + 8).join("\n");
+      if (!step.includes("if:") || !step.includes("refs/heads/main")) offenders.push(`${name}:${index + 1}`);
+    }
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    "`actions/cache` salveaza la finalul jobului, deci intr-un workflow de PR fiecare branch isi scrie propria copie. "
+      + "Foloseste `actions/cache/restore` plus un `actions/cache/save` conditionat pe main, ca la cache-ul de pachete apt "
+      + `(${offenders.join(", ")})`
+  );
+});
+
+test("pachetele apt native sunt intr-o singura lista, folosita de toate workflow-urile", () => {
+  const listPath = "native-apt-packages.txt";
+  const users = workflowNames().filter(name => workflow(name).includes("libclang-dev") || workflow(name).includes(listPath));
+
+  assert.ok(users.length > 0, "lista de pachete native trebuie sa fie folosita de cel putin un workflow");
+  const withoutList = users.filter(name => !workflow(name).includes(listPath));
+
+  assert.deepEqual(
+    withoutList,
+    [],
+    "o a doua lista de pachete scrisa inline ar diverge tacut de cheia de cache si ar reinstala de la zero"
+  );
+});

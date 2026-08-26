@@ -60,9 +60,18 @@ test("pachetele de sistem sunt cerute peste tot unde se compileaza", () => {
     "libmspack se leaga dinamic, deci lipsa lui la rulare ar pica abia la pornirea containerului, nu la build"
   );
 
+  const nativePackages = fs.readFileSync(path.join(repoRoot, ".github", "workflows", "native-apt-packages.txt"), "utf8");
+  assert.ok(
+    nativePackages.split("\n").map(entry => entry.trim()).includes("libmspack-dev"),
+    "lista comuna de pachete native trebuie sa contina pachetul de build"
+  );
+
   for (const workflow of ["ci.yml", "native-sanitizers.yml"]) {
     const text = fs.readFileSync(path.join(repoRoot, ".github", "workflows", workflow), "utf8");
-    assert.ok(text.includes("libmspack-dev"), `${workflow} compileaza addon-ul, deci are nevoie de acelasi pachet`);
+    assert.ok(
+      text.includes("native-apt-packages.txt"),
+      `${workflow} compileaza addon-ul, deci trebuie sa instaleze din aceeasi lista de pachete`
+    );
   }
 
   const windows = fs.readFileSync(path.join(repoRoot, ".github", "workflows", "windows-native.yml"), "utf8");
