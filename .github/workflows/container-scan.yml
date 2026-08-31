@@ -77,7 +77,7 @@ jobs:
       # sa reconstruim filtrul intr-o politica Rego. Prima varianta saraceste inventarul, a doua muta
       # un filtru de securitate intr-un fisier separat care poate devia tacut de la ce cere gate-ul.
       - name: Trivy scan (fixabile, raport pentru SARIF si gate)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           image-ref: discord-patch-bot:scan
           format: json
@@ -98,7 +98,7 @@ jobs:
 
       - name: Generate SBOM (CycloneDX)
         if: always()
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           scan-type: image
           image-ref: discord-patch-bot:scan
