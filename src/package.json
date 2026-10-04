@@ -103,7 +103,7 @@
     "node": ">=24"
   },
   "dependencies": {
-    "axios": "1.19.0",
+    "axios": "1.20.0",
     "cheerio": "1.2.0",
     "discord.js": "14.27.0",
     "mongoose": "9.9.3",
