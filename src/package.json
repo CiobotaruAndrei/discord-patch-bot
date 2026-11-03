@@ -109,7 +109,7 @@
     "mongoose": "9.9.3",
     "redis": "6.2.1",
     "rss-parser": "3.13.0",
-    "zod": "4.4.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@napi-rs/cli": "3.8.6",
