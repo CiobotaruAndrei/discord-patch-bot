@@ -380,7 +380,7 @@ export function adaptRaidGuild(
               break;
             }
 
-            const cutoff = Date.now() - BULK_DELETE_MAX_AGE_MS;
+            const cutoff = now() - BULK_DELETE_MAX_AGE_MS;
             const doomed = fetched?.filter?.(message => belongsToRaid(message) && messageTimestamp(message) >= cutoff);
             const tooOld = fetched?.filter?.(message => belongsToRaid(message) && messageTimestamp(message) < cutoff);
             unreachable += tooOld?.size ?? 0;
