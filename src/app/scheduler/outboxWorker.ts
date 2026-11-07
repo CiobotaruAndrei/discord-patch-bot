@@ -88,7 +88,7 @@ interface CreateOutboxWorkerDeps {
 
 interface OutboxWorker {
   start(): void;
-  stop(): void;
+  stop(): void | Promise<void>;
   drainTick(): Promise<void>;
 }
 
@@ -162,8 +162,20 @@ function createOutboxWorker({
     }
   }
 
+  let currentDrain: Promise<void> | null = null;
+
   async function drainTick(): Promise<void> {
     if (lifecycle.isShuttingDown || draining) return;
+    const run = drainOnce();
+    currentDrain = run;
+    try {
+      await run;
+    } finally {
+      if (currentDrain === run) currentDrain = null;
+    }
+  }
+
+  async function drainOnce(): Promise<void> {
     if (mongoose.connection.readyState !== 1 || !client.isReady() || !client.user?.id) {
       timer.schedule();
       return;
@@ -210,8 +222,9 @@ function createOutboxWorker({
     timer.schedule();
   }
 
-  function stop(): void {
+  async function stop(): Promise<void> {
     timer.stop();
+    await currentDrain?.catch(() => undefined);
   }
 
   return { start, stop, drainTick };

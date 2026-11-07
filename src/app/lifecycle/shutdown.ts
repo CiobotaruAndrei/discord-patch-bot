@@ -55,7 +55,7 @@ interface CreateShutdownControllerDeps {
   releaseDbLock(jobName: string, token: string): Promise<unknown>;
   stopBudgetMs?: number;
   cronController?: Pick<CronController, "stop">;
-  outboxWorker?: { stop(): void };
+  outboxWorker?: { stop(): void | Promise<void> };
   housekeeping?: HousekeepingLike;
   stopOperationJournalRecovery?: () => Promise<void>;
   stopModerationCleanup?: () => Promise<void>;

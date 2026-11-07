@@ -380,3 +380,51 @@ test("heartbeat tick care se reia in fereastra de release NU mai renew-uie lock-
     globalThis.clearTimeout = originalClearTimeout;
   }
 });
+
+test("cron stop() anuleaza si asteapta ciclul in curs, inclusiv eliberarea lock-ului", async () => {
+  let finishUpdates: () => void = () => undefined;
+  let released = 0;
+  let abortSeen = false;
+  const lifecycle = { isShuttingDown: false };
+  const controller = createCronController({
+    mongoose: { connection: { readyState: 1 } },
+    performance: { now: () => 0 },
+    crypto: { randomBytes: () => ({ toString: () => "abc123" }) },
+    logger() {},
+    env: { GLOBAL_HEALTH_WINDOW: 5, GLOBAL_HEALTH_MIN_RATIO: 50 } as RuntimeEnv,
+    parseEnvNumber: (name: string, def: number) => name === "CRON_JITTER_MS" ? 0 : def,
+    acquireDbLock: async () => "tok-stop",
+    renewDbLock: async () => true,
+    releaseDbLock: async () => { released++; },
+    commands: {
+      setGlobalCacheTtl() {},
+      checkForUpdates: () => new Promise<void>(resolve => { finishUpdates = resolve; }),
+      checkForDiscounts: async () => undefined,
+      checkForYouTube: async () => undefined
+    },
+    adminAlert: async () => undefined,
+    client: { isReady: () => true, channels: { fetch: async () => null } },
+    games: [],
+    config: { games: [], checkIntervalMinutes: 30 },
+    metrics: createMetricRecorders(createMetrics()).cron,
+    lifecycle,
+    errorMessage: (err: unknown) => String(err),
+    errorDetail: (err: unknown) => String(err),
+    requestContext: { run: async (_store, callback) => callback() }
+  });
+
+  const cycle = controller.runCronCycle();
+  await new Promise(resolve => setImmediate(resolve));
+  lifecycle.isShuttingDown = true;
+
+  let stopped = false;
+  const stopping = Promise.resolve(controller.stop()).then(() => { stopped = true; abortSeen = controller.shouldAbortCron(); });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(stopped, false, "stop() nu raporteaza oprirea cat timp ciclul ruleaza");
+
+  finishUpdates();
+  await stopping;
+  await cycle;
+  assert.equal(released, 1, "ciclul si-a eliberat lock-ul inainte ca stop() sa se rezolve");
+  assert.equal(abortSeen, true);
+});

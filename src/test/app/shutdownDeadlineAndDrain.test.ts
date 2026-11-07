@@ -160,3 +160,15 @@ test("un close de Mongo blocat nu tine procesul agatat", { timeout: 5_000 }, asy
   assert.ok(order.includes("http.close"));
   assert.ok(logs.some(line => line.level === "ERROR" && line.message.includes("mongo")));
 });
+
+test("un stop asincron de scheduler e asteptat inainte de Mongo, chiar fara operatii gateway in zbor", { timeout: 5_000 }, async () => {
+  const order: string[] = [];
+  await createShutdownController(baseDeps(order, [], {
+    ingress: createIngressActivityTracker(),
+    stopBudgetMs: 1_000,
+    outboxWorker: { stop: () => new Promise<void>(resolve => setTimeout(() => { order.push("outbox.drained"); resolve(); }, 20)) }
+  })).shutdown("SIGTERM");
+
+  assert.ok(order.indexOf("outbox.drained") >= 0);
+  assert.ok(order.indexOf("outbox.drained") < order.indexOf("mongo.close"), "un drain gol de gateway nu inseamna ca nimic nu mai scrie in Mongo");
+});

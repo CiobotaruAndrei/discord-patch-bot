@@ -45,6 +45,7 @@ function makeWorker(overrides: {
   paused?: boolean;
   pauseThrows?: boolean;
   renewDbLock?: (jobName: string, token: string, ttlMs: number) => Promise<boolean>;
+  drainGate?: Promise<void>;
 } = {}) {
   const harness: Harness = {
     drainCalls: 0,
@@ -73,6 +74,7 @@ function makeWorker(overrides: {
     drainOutbox: async (_client: unknown, shouldAbort?: () => boolean) => {
       harness.drainCalls++;
       harness.lastShouldAbort = shouldAbort;
+      if (overrides.drainGate) await overrides.drainGate;
       if (overrides.drainThrows) throw new Error("drain boom");
       return overrides.drainResult ?? { sent: 0, retried: 0, deadLettered: 0, queued: 0 };
     },
@@ -258,4 +260,22 @@ test("outboxWorker: TTL-ul lock-ului se dimensioneaza din drainLimit (scalare cu
   assert.equal(small.harness.lockTtls[0], 350_000, "50 * 7000 = 350000ms");
   assert.equal(big.harness.lockTtls[0], 3_500_000, "500 * 7000 = 3.5M, sub plafonul de 1h");
   assert.ok(big.harness.lockTtls[0] > small.harness.lockTtls[0], "TTL creste cu drainLimit");
+});
+
+test("outboxWorker: stop() asteapta drenarea in curs si eliberarea lock-ului, ca shutdown-ul sa nu inchida Mongo sub ea", async () => {
+  let finishDrain: () => void = () => undefined;
+  const { worker, harness } = makeWorker({ drainGate: new Promise<void>(resolve => { finishDrain = resolve; }) });
+  const tick = worker.drainTick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(harness.drainCalls, 1, "drenarea a pornit");
+
+  let stopped = false;
+  const stopping = Promise.resolve(worker.stop()).then(() => { stopped = true; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(stopped, false, "stop() nu se rezolva cat timp un drain e in zbor");
+
+  finishDrain();
+  await stopping;
+  await tick;
+  assert.equal(harness.releaseCalls.length, 1, "lock-ul e eliberat inainte ca stop() sa raporteze oprirea");
 });
