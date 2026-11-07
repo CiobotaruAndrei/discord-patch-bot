@@ -8,7 +8,7 @@ export interface CronHealthSnapshot {
 export interface CronController {
   scheduleNextCron(): void;
   runCronCycle(): Promise<void>;
-  stop(): void;
+  stop(): void | Promise<void>;
   shouldAbortCron(): boolean;
   getHealthSnapshot(): CronHealthSnapshot;
 }

@@ -70,7 +70,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
   const { logger, env, getGuildCacheSize, activeLocks, releaseDbLock, requestContext, adminAlert } = mongo;
   const { gateway, tasks, schedulers, moderationLifecycleRuntime } = composition;
 
-  const { client, metrics, lifecycle, rateLimiter } = services;
+  const { client, metrics, lifecycle, ingress, rateLimiter } = services;
 
   const httpServer = createHttpServer({
     mongoose, crypto, env, client, metrics, recorders: services.recorders.httpServer, logger, commands: deps.commands,
@@ -80,6 +80,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
 
   registerDiscordEvents({
     client, logger, commands: deps.commands, metrics: services.recorders, env, adminAlert, requestContext, games: services.games, crypto,
+    ingress, isShuttingDown: () => lifecycle.isShuttingDown,
     errorMessage, errorDetail,
     startHousekeeping: schedulers?.housekeeping.start,
     scheduleNextCron: schedulers?.cronController.scheduleNextCron,
@@ -106,7 +107,7 @@ function assembleAppRuntime(deps: AppRuntimeDeps, services: RuntimeServices, com
     : null;
 
   const shutdownController = createShutdownController({
-    lifecycle, logger, env, client, mongoose, httpServer, activeLocks,
+    lifecycle, logger, env, client, mongoose, httpServer, activeLocks, ingress,
     releaseDbLock, cronController: schedulers?.cronController, outboxWorker: schedulers?.outboxWorker, housekeeping: schedulers?.housekeeping, adminAlert,
     redis: deps.redis, guildInvalidationChannel, stopOperationJournalRecovery: deps.stopOperationJournalRecovery,
     stopModerationCleanup: tasks.moderationCleanup ? tasks.moderationCleanup.stop : undefined,

@@ -123,7 +123,19 @@ function createCronController({
     cronTimer.schedule();
   }
 
+  const cyclesInFlight = new Set<Promise<void>>();
+
   async function runCronCycle(): Promise<void> {
+    const cycle = runCronCycleOnce();
+    cyclesInFlight.add(cycle);
+    try {
+      await cycle;
+    } finally {
+      cyclesInFlight.delete(cycle);
+    }
+  }
+
+  async function runCronCycleOnce(): Promise<void> {
     if (lifecycle.isShuttingDown) return;
     if (mongoose.connection.readyState !== 1) {
       logger("WARN", "CRON", "Mongo nu e conectat, sar peste ciclul curent");
@@ -213,9 +225,10 @@ function createCronController({
     });
   }
 
-  function stop(): void {
+  async function stop(): Promise<void> {
     if (currentCronAbortController) currentCronAbortController.abort();
     cronTimer.stop();
+    await Promise.allSettled([...cyclesInFlight]);
     heartbeat.stop();
   }
 

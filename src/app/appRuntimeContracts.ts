@@ -1,5 +1,6 @@
 "use strict";
 
+import type { IngressActivityTracker } from "./lifecycle/ingressActivityTracker.js";
 import type { GuildSettingsEventBus } from "../infra/mongo/guildSettingsEventBus.js";
 import type { OperationJournalModelLike } from "../shared/operationJournalEngine.js";
 import type { HttpServerMetricRecorder, MetricRecorders } from "../shared/metricRecorderPorts.js";
@@ -183,6 +184,7 @@ export interface RuntimeServices {
   metrics: BotMetrics;
   recorders: MetricRecorders;
   lifecycle: LifecycleState;
+  ingress: IngressActivityTracker;
   rateLimiter: RateLimiter;
   config: BotConfig;
   games: GameConfig[];
