@@ -60,12 +60,18 @@ export function createDiscordRateLimiter(options: DiscordRateLimiterOptions): Di
     lastRefill = timestamp;
   }
 
+  function expired(deadline: number): boolean {
+    return now() > deadline;
+  }
+
   async function acquireOne(deadline: number): Promise<void> {
+    if (expired(deadline)) throw new RateLimitWaitExceededError("deadline", maxWaitMs);
     refill();
     if (tokens < 1 - TOKEN_EPSILON) {
       const waitMs = Math.ceil(((1 - tokens) / refillPerInterval) * intervalMs);
       if (now() + waitMs > deadline) throw new RateLimitWaitExceededError("deadline", maxWaitMs);
       await sleep(waitMs);
+      if (expired(deadline)) throw new RateLimitWaitExceededError("deadline", maxWaitMs);
       refill();
       if (tokens < 1 - TOKEN_EPSILON) throw new RateLimitWaitExceededError("deadline", maxWaitMs);
     }

@@ -111,3 +111,24 @@ test("eroarea de limiter e tranzitorie pentru outbox, nu permanenta", async () =
   const { isPermanentDiscordError } = await import("../features/notifications/outboundChannel.js");
   assert.equal(isPermanentDiscordError(new RateLimitWaitExceededError("deadline", 10)), false, "un job respins de limiter se reincearca, nu ajunge in dead-letter");
 });
+
+test("discord rate limiter: un timer care se trezeste tarziu nu face cereri expirate sa treaca, nici pe cele din coada (review PR #1019)", async () => {
+  const state = { clock: 0 };
+  let lateBy = 200;
+  const limiter = createDiscordRateLimiter({
+    capacity: 2,
+    refillPerInterval: 1,
+    intervalMs: 100,
+    maxWaitMs: 100,
+    now: () => state.clock,
+    sleep: async (ms: number) => { state.clock += ms + lateBy; lateBy = 0; }
+  });
+  await limiter.acquire();
+  await limiter.acquire();
+
+  const settled = await Promise.allSettled([limiter.acquire(), limiter.acquire()]);
+
+  assert.deepEqual(settled.map(entry => entry.status), ["rejected", "rejected"], "ambele au depasit bugetul de 100ms (ceasul e la 300ms)");
+  state.clock += 100;
+  await limiter.acquire();
+});
