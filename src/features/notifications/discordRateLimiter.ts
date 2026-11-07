@@ -7,8 +7,26 @@ export interface DiscordRateLimiterOptions {
   refillPerInterval: number;
   intervalMs: number;
   maxWaitMs: number;
+  maxQueue?: number;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+}
+
+export type RateLimitRejection = "deadline" | "queue-full";
+
+export class RateLimitWaitExceededError extends Error {
+  readonly code = "RATE_LIMIT_WAIT_EXCEEDED";
+  readonly reason: RateLimitRejection;
+  readonly budgetMs: number;
+
+  constructor(reason: RateLimitRejection, budgetMs: number) {
+    super(reason === "queue-full"
+      ? `coada limiter-ului Discord e plina; cererea nu poate fi servita in ${budgetMs}ms`
+      : `limiter-ul Discord nu are token disponibil in bugetul de ${budgetMs}ms`);
+    this.name = "RateLimitWaitExceededError";
+    this.reason = reason;
+    this.budgetMs = budgetMs;
+  }
 }
 
 function defaultSleep(ms: number): Promise<void> {
@@ -18,16 +36,20 @@ function defaultSleep(ms: number): Promise<void> {
   });
 }
 
+const TOKEN_EPSILON = 1e-9;
+
 export function createDiscordRateLimiter(options: DiscordRateLimiterOptions): DiscordRateLimiter {
   const capacity = Math.max(1, options.capacity);
   const refillPerInterval = Math.max(0.0001, options.refillPerInterval);
   const intervalMs = Math.max(1, options.intervalMs);
   const maxWaitMs = Math.max(0, options.maxWaitMs);
+  const maxQueue = Math.max(1, Math.floor(options.maxQueue ?? Math.ceil(capacity + (refillPerInterval * maxWaitMs) / intervalMs)));
   const now = options.now || (() => Date.now());
   const sleep = options.sleep || defaultSleep;
 
   let tokens = capacity;
   let lastRefill = now();
+  let pending = 0;
   let chain: Promise<void> = Promise.resolve();
 
   function refill(): void {
@@ -38,21 +60,29 @@ export function createDiscordRateLimiter(options: DiscordRateLimiterOptions): Di
     lastRefill = timestamp;
   }
 
-  async function acquireOne(): Promise<void> {
+  function expired(deadline: number): boolean {
+    return now() > deadline;
+  }
+
+  async function acquireOne(deadline: number): Promise<void> {
+    if (expired(deadline)) throw new RateLimitWaitExceededError("deadline", maxWaitMs);
     refill();
-    if (tokens >= 1) {
-      tokens -= 1;
-      return;
+    if (tokens < 1 - TOKEN_EPSILON) {
+      const waitMs = Math.ceil(((1 - tokens) / refillPerInterval) * intervalMs);
+      if (now() + waitMs > deadline) throw new RateLimitWaitExceededError("deadline", maxWaitMs);
+      await sleep(waitMs);
+      if (expired(deadline)) throw new RateLimitWaitExceededError("deadline", maxWaitMs);
+      refill();
+      if (tokens < 1 - TOKEN_EPSILON) throw new RateLimitWaitExceededError("deadline", maxWaitMs);
     }
-    const deficit = 1 - tokens;
-    const waitMs = Math.min(maxWaitMs, Math.ceil((deficit / refillPerInterval) * intervalMs));
-    if (waitMs > 0) await sleep(waitMs);
-    refill();
     tokens = Math.max(0, tokens - 1);
   }
 
   function acquire(): Promise<void> {
-    const result = chain.then(acquireOne);
+    if (pending >= maxQueue) return Promise.reject(new RateLimitWaitExceededError("queue-full", maxWaitMs));
+    const deadline = now() + maxWaitMs;
+    pending += 1;
+    const result = chain.then(() => acquireOne(deadline)).finally(() => { pending -= 1; });
     chain = result.catch(() => undefined);
     return result;
   }
