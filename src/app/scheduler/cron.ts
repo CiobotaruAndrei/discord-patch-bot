@@ -123,15 +123,15 @@ function createCronController({
     cronTimer.schedule();
   }
 
-  let currentCycle: Promise<void> | null = null;
+  const cyclesInFlight = new Set<Promise<void>>();
 
   async function runCronCycle(): Promise<void> {
     const cycle = runCronCycleOnce();
-    currentCycle = cycle;
+    cyclesInFlight.add(cycle);
     try {
       await cycle;
     } finally {
-      if (currentCycle === cycle) currentCycle = null;
+      cyclesInFlight.delete(cycle);
     }
   }
 
@@ -228,7 +228,7 @@ function createCronController({
   async function stop(): Promise<void> {
     if (currentCronAbortController) currentCronAbortController.abort();
     cronTimer.stop();
-    await currentCycle?.catch(() => undefined);
+    await Promise.allSettled([...cyclesInFlight]);
     heartbeat.stop();
   }
 

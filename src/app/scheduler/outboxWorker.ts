@@ -162,16 +162,16 @@ function createOutboxWorker({
     }
   }
 
-  let currentDrain: Promise<void> | null = null;
+  const drainsInFlight = new Set<Promise<void>>();
 
   async function drainTick(): Promise<void> {
     if (lifecycle.isShuttingDown || draining) return;
     const run = drainOnce();
-    currentDrain = run;
+    drainsInFlight.add(run);
     try {
       await run;
     } finally {
-      if (currentDrain === run) currentDrain = null;
+      drainsInFlight.delete(run);
     }
   }
 
@@ -224,7 +224,7 @@ function createOutboxWorker({
 
   async function stop(): Promise<void> {
     timer.stop();
-    await currentDrain?.catch(() => undefined);
+    await Promise.allSettled([...drainsInFlight]);
   }
 
   return { start, stop, drainTick };
