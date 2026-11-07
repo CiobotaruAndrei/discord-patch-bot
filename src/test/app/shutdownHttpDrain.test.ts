@@ -166,7 +166,7 @@ test("shutdown: o eroare la redis.close() e logata WARN dar nu blocheaza restul 
     });
     await controller.shutdown("SIGTERM");
     assert.ok(order.includes("mongo.close"), "shutdown-ul continua pana la mongo.close chiar daca redis.close arunca");
-    assert.ok(warnings.some(m => /Redis/.test(m)), "eroarea la redis.close e logata ca WARN");
+    assert.ok(warnings.some(m => /redis/i.test(m)), "eroarea la redis.close e logata ca WARN");
   } finally {
     timers.restore();
   }

@@ -117,3 +117,38 @@ test("interactionCreate: un reply care esueaza nu propaga eroarea (best-effort)"
   await assert.doesNotReject(fire(interaction));
   assert.equal(calls.reply, 1, "am incercat reply, dar esecul lui nu trebuie sa arunce mai departe");
 });
+
+test("interactionCreate in timpul shutdown-ului: raspuns ephemeral explicit, comanda nu porneste (B01)", async () => {
+  let started = 0;
+  let shuttingDown = false;
+  let listener: InteractionListener | null = null;
+  const client: Parameters<typeof registerDiscordEvents>[0]["client"] = {
+    user: { id: "bot-1", tag: "bot#0001" },
+    once: () => undefined,
+    on: (event, registered) => { if (event === "interactionCreate") listener = registered as InteractionListener; }
+  };
+  registerDiscordEvents({
+    client,
+    logger: () => undefined,
+    metrics: createMetricRecorders(createMetrics()),
+    commands: { registerSlashCommands: async () => undefined, handleInteraction: async () => { started++; }, canSendEmbeds: () => true },
+    env: { DISCORD_TOKEN: "t", DISCORD_CLIENT_ID: "c" } as Parameters<typeof registerDiscordEvents>[0]["env"],
+    adminAlert: async () => undefined,
+    requestContext: { run: <T>(_store: { requestId: string }, cb: () => T) => cb() },
+    games: [],
+    crypto: { randomBytes: () => Buffer.from("abcdef") },
+    errorMessage: (err: unknown) => String(err),
+    errorDetail: (err: unknown) => String(err),
+    isShuttingDown: () => shuttingDown
+  });
+  const fire = async (interaction: unknown) => { if (listener) await listener(interaction); };
+
+  shuttingDown = true;
+  const { interaction, calls } = makeInteraction({ repliable: true });
+  await fire(interaction);
+
+  assert.equal(started, 0, "o comanda pornita acum ar fi taiata de inchiderea dependintelor");
+  assert.equal(calls.reply, 1, "userul nu ramane fara raspuns pana la expirarea interactiunii");
+  assert.equal(payloadFlags(calls.lastPayload), 64);
+  assert.match(String((calls.lastPayload as { content?: string }).content), /reporneste/);
+});
