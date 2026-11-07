@@ -302,7 +302,7 @@ actiuni automate in rezultat. Acoperirea aceea ramane calea ieftina si ruleaza p
 xref streams, object streams, lanturi de filtre, criptare, arbori de nume si actualizari incrementale —
 adica exact locurile in care se ascunde continutul care conteaza.
 
-**Cum se leaga**: crate-ul `qpdf` 0.3.5 (bindings MIT/Apache peste API-ul C `qpdf-c.h`), cu feature-ul
+**Cum se leaga**: crate-ul `qpdf` 0.3.6 (bindings MIT/Apache peste API-ul C `qpdf-c.h`), cu feature-ul
 `vendored`. Spre deosebire de libarchive, aici **nu apare niciun pachet de sistem nou**:
 
 | Aspect | libyara (etapa 2) | libarchive (etapa 3) | qpdf (etapa 4) |
@@ -637,7 +637,7 @@ C/C++ vendorata:| Crate | Versiune | Tip | Sursa C/C++ | Rol |
 | `yara` | 0.32.0 | c-static | YARA 4.5.5 | motor de reguli malware |
 | `yara-sys` | 0.32.0 | c-static | YARA 4.5.5 | legaturi FFI pentru libyara |
 | `libarchive2-sys` | 0.2.0 | c-static | libarchive 3.8.1 | decodare arhive RAR/7z si filtre |
-| `qpdf` | 0.3.5 | cpp-static | qpdf + zlib + libjpeg | structura PDF complexa |
+| `qpdf` | 0.3.6 | cpp-static | qpdf + zlib + libjpeg | structura PDF complexa |
 | `qpdf-sys` | 0.3.5 | cpp-static | qpdf + zlib + libjpeg | legaturi FFI pentru qpdf |
 | `zxing-cpp` | 0.5.3 | cpp-static | ZXing-C++ 2.x (bundled) | decodare coduri QR, DataMatrix, Aztec, PDF417 si 1D |
 | `capstone` | 0.14.0 | c-static | Capstone 5.x (bundled) | dezasamblarea sectiunii de cod a executabilelor |
