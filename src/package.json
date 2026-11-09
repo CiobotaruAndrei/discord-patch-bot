@@ -103,13 +103,13 @@
     "node": ">=24"
   },
   "dependencies": {
-    "axios": "1.20.0",
+    "axios": "1.21.0",
     "cheerio": "1.2.0",
-    "discord.js": "14.27.0",
-    "mongoose": "9.9.4",
+    "discord.js": "14.28.1",
+    "mongoose": "9.12.0",
     "redis": "6.2.1",
     "rss-parser": "3.13.0",
-    "zod": "4.6.6"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@napi-rs/cli": "3.9.0",
