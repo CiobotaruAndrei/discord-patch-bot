@@ -112,8 +112,8 @@
     "zod": "4.6.6"
   },
   "devDependencies": {
-    "@napi-rs/cli": "3.9.0",
-    "@types/node": "26.4.1",
+    "@napi-rs/cli": "3.10.12",
+    "@types/node": "26.6.6",
     "@typescript/native": "npm:typescript@7.0.2",
     "typescript": "6.0.3"
   },
